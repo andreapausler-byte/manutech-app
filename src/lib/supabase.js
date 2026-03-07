@@ -332,6 +332,14 @@ export const db = {
     return []
   },
 
+  async getAllMaintenancePlans() {
+    if (supabase) {
+      const { data } = await supabase.from('maintenance_plans').select('*').order('name')
+      return data || []
+    }
+    return []
+  },
+
   async createMaintenancePlan(plan) {
     if (supabase) {
       const { data, error } = await supabase.from('maintenance_plans').insert(plan).select().single()
@@ -422,6 +430,15 @@ export const db = {
       return data
     }
     return null
+  },
+
+  async getAllMaintenanceLogs() {
+    if (supabase) {
+      const { data } = await supabase.from('maintenance_logs').select('*')
+        .order('performed_at', { ascending: false })
+      return data || []
+    }
+    return []
   },
 
   async createMaintenanceLog(log) {

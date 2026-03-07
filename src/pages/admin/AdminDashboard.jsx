@@ -40,21 +40,28 @@ export default function AdminDashboard({ onNavigate }) {
 
   useEffect(() => {
     async function loadAll() {
-      const [r, u, a, m] = await Promise.all([
-        db.getReports(), db.getUsers(), db.getAllActivities(20), db.getMachines()
+      const [r, u, a, m, plans, logs] = await Promise.all([
+        db.getReports(), db.getUsers(), db.getAllActivities(20), db.getMachines(),
+        db.getAllMaintenancePlans(), db.getAllMaintenanceLogs()
       ])
       setReports(r); setUsers(u); setActivities(a); setMachines(m)
 
-      // Load maintenance plans for all machines
-      const tasks = []
-      for (const machine of m) {
-        const plans = await db.getMaintenancePlans(machine.id)
-        for (const plan of plans) {
-          const lastLog = await db.getLastLogForPlan(plan.id)
-          const light = getTrafficLight(plan, lastLog)
-          tasks.push({ plan, machine, lastLog, light })
+      // Build machine lookup and find last log per plan from pre-fetched data
+      const machineMap = Object.fromEntries(m.map(machine => [machine.id, machine]))
+      const lastLogByPlan = {}
+      for (const log of logs) {
+        if (log.plan_id && (!lastLogByPlan[log.plan_id] || new Date(log.performed_at) > new Date(lastLogByPlan[log.plan_id].performed_at))) {
+          lastLogByPlan[log.plan_id] = log
         }
       }
+
+      const tasks = plans.map(plan => {
+        const machine = machineMap[plan.machine_id]
+        const lastLog = lastLogByPlan[plan.id] || null
+        const light = getTrafficLight(plan, lastLog)
+        return { plan, machine, lastLog, light }
+      }).filter(t => t.machine)
+
       tasks.sort((a, b) => a.light.daysLeft - b.light.daysLeft)
       setMaintenanceTasks(tasks)
       setLoading(false)
