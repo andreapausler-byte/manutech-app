@@ -19,6 +19,7 @@ import {
   Bell, X, FileText, ArrowRight, MessageCircle,
   UserCheck, Zap, CheckCheck, AlertTriangle, Wrench, Clock, CalendarCheck
 } from 'lucide-react'
+import { shouldShowNotification } from '../../lib/notifPreferences'
 
 const NOTIF_ICONS = {
   new_report:            { icon: FileText,      color: '#3b82f6' },
@@ -60,7 +61,7 @@ function playNotifSound() {
   } catch {}
 }
 
-export default function NotificationCenter({ userId, onOpenReport, onNewNotifications }) {
+export default function NotificationCenter({ userId, userRole, onOpenReport, onNewNotifications }) {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [bellShake, setBellShake] = useState(false)
@@ -85,6 +86,9 @@ export default function NotificationCenter({ userId, onOpenReport, onNewNotifica
   const handleNewNotification = useCallback((notif) => {
     // Ignora le proprie notifiche
     if (notif.from_user === userId) return
+
+    // Controlla se l'utente vuole questo tipo di notifica
+    if (!shouldShowNotification(notif.type, userId, userRole)) return
 
     // Aggiungi alla lista
     setNotifications(prev => {
@@ -111,7 +115,7 @@ export default function NotificationCenter({ userId, onOpenReport, onNewNotifica
         forceShow: true, // Mostra anche se app visibile
       })
     }
-  }, [userId, haptic])
+  }, [userId, userRole, haptic])
 
   // ── Carica al mount + polling di backup (15s) ──
   useEffect(() => {

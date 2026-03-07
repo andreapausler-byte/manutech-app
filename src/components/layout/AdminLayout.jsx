@@ -10,6 +10,7 @@ import AdminMachines from '../../pages/admin/AdminMachines'
 import AdminMaintenance from '../../pages/admin/AdminMaintenance'
 import AdminUsers from '../../pages/admin/AdminUsers'
 import AdminTechnicians from '../../pages/admin/AdminTechnicians'
+import AdminNotifSettings from '../../pages/admin/AdminNotifSettings'
 
 const NAV = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', desc: 'Panoramica generale' },
@@ -18,6 +19,7 @@ const NAV = [
   { id: 'maintenance', icon: Shield, label: 'Manutenzione', desc: 'Piani e interventi programmati' },
   { id: 'technicians', icon: Wrench, label: 'Tecnici', desc: 'Carico e performance' },
   { id: 'users', icon: Users, label: 'Utenti', desc: 'Account e ruoli' },
+  { id: 'notifications', icon: Bell, label: 'Notifiche', desc: 'Preferenze notifiche per ruolo' },
 ]
 
 export default function AdminLayout() {
@@ -38,6 +40,7 @@ export default function AdminLayout() {
       case 'maintenance': return <AdminMaintenance />
       case 'technicians': return <AdminTechnicians />
       case 'users': return <AdminUsers />
+      case 'notifications': return <AdminNotifSettings />
       default: return <AdminDashboard onNavigate={setTab} />
     }
   }
@@ -170,7 +173,7 @@ export default function AdminLayout() {
       </main>
 
       {/* Settings Panel */}
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user.id} userRole={user.role} />
     </div>
   )
 }

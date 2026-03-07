@@ -1,17 +1,21 @@
 /**
- * SettingsPanel — Sprint Design 0
+ * SettingsPanel — Sprint 3.7
  * 
- * Pannello slide-in da destra per personalizzazione tema.
- * - 3 opzioni tema: Chiaro / Scuro / Sistema
- * - 6 accent color preset con anteprima live
- * - Anteprima mini dell'app con tema attuale
+ * Pannello slide-in da destra per personalizzazione:
+ * - Tema: Chiaro / Scuro / Sistema + 6 accent colors
+ * - Notifiche: toggle per tipo (segnalazioni, chat, manutenzione)
+ * - Anteprima live
  * - Glove-friendly: touch target grandi
  */
 
 import { useState, useEffect } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
-import { X, Sun, Moon, Monitor } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Bell, BellOff } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
+import {
+  NOTIF_TYPES, NOTIF_GROUPS,
+  getEffectivePrefs, saveUserPrefs, resetUserPrefs,
+} from '../../lib/notifPreferences'
 
 const MODE_OPTIONS = [
   { key: 'light', icon: Sun, label: 'Chiaro', emoji: '☀️' },
@@ -19,10 +23,18 @@ const MODE_OPTIONS = [
   { key: 'auto', icon: Monitor, label: 'Sistema', emoji: '💻' },
 ]
 
-export default function SettingsPanel({ open, onClose }) {
+export default function SettingsPanel({ open, onClose, userId, userRole }) {
   const { mode, accent, setMode, setAccent, presets, resolved } = useTheme()
   const haptic = useHaptic()
   const [visible, setVisible] = useState(false)
+  const [notifPrefs, setNotifPrefs] = useState({})
+
+  // Carica preferenze notifiche
+  useEffect(() => {
+    if (userId && userRole) {
+      setNotifPrefs(getEffectivePrefs(userId, userRole))
+    }
+  }, [userId, userRole, open])
 
   // Animazione apertura/chiusura
   useEffect(() => {
@@ -46,6 +58,19 @@ export default function SettingsPanel({ open, onClose }) {
   const handleSetAccent = (a) => {
     haptic.light()
     setAccent(a)
+  }
+
+  const handleToggleNotif = (key) => {
+    haptic.light()
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] }
+    setNotifPrefs(updated)
+    if (userId) saveUserPrefs(userId, updated)
+  }
+
+  const handleResetNotifs = () => {
+    haptic.medium()
+    if (userId) resetUserPrefs(userId)
+    setNotifPrefs(getEffectivePrefs(userId, userRole))
   }
 
   if (!open) return null
@@ -215,6 +240,74 @@ export default function SettingsPanel({ open, onClose }) {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ── Notifiche ── */}
+          <div className="mb-7">
+            <div className="flex items-center justify-between mb-3">
+              <div className="label-section">Notifiche</div>
+              <button
+                onClick={handleResetNotifs}
+                className="text-[11px] font-medium px-2 py-1 rounded-lg press-scale"
+                style={{ color: 'var(--color-text-faint)', background: 'var(--color-surface-2)' }}
+              >
+                Reset
+              </button>
+            </div>
+
+            {NOTIF_GROUPS.map(group => {
+              const items = NOTIF_TYPES.filter(t => t.group === group.key)
+              return (
+                <div key={group.key} className="mb-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider mb-1.5"
+                    style={{ color: 'var(--color-text-faint)' }}>
+                    {group.label}
+                  </div>
+                  <div className="space-y-1">
+                    {items.map(item => {
+                      const enabled = notifPrefs[item.key] !== false
+                      return (
+                        <button
+                          key={item.key}
+                          onClick={() => handleToggleNotif(item.key)}
+                          className="w-full flex items-center gap-2.5 py-2 px-2.5 rounded-xl press-scale"
+                          style={{
+                            background: enabled ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <span className="text-base">{item.icon}</span>
+                          <span
+                            className="flex-1 text-left text-xs font-medium"
+                            style={{
+                              color: enabled ? 'var(--color-text)' : 'var(--color-text-faint)',
+                            }}
+                          >
+                            {item.label}
+                          </span>
+                          {/* Toggle */}
+                          <div
+                            className="w-9 h-5 rounded-full relative shrink-0"
+                            style={{
+                              background: enabled ? 'var(--color-primary)' : 'var(--color-surface-3)',
+                              transition: 'background 0.2s ease',
+                            }}
+                          >
+                            <div
+                              className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm"
+                              style={{
+                                left: enabled ? '18px' : '2px',
+                                transition: 'left 0.2s ease',
+                              }}
+                            />
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* ── Info ── */}

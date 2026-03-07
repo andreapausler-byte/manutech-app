@@ -246,7 +246,7 @@ export default function MobileLayout() {
             >
               <Settings size={18} color="rgba(255,255,255,0.9)" />
             </button>
-            <NotificationCenter userId={user.id} onOpenReport={openReportById} onNewNotifications={showNotification} />
+            <NotificationCenter userId={user.id} userRole={user.role} onOpenReport={openReportById} onNewNotifications={showNotification} />
             <button onClick={logout} className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center active:bg-white/20" style={{ color: 'rgba(255,255,255,0.7)' }}>
               <LogOut size={20} />
             </button>
@@ -282,7 +282,7 @@ export default function MobileLayout() {
       <FABMenu onNewReport={openNewReport} onQuickReport={() => openQuickReport()} />
 
       {/* Settings Panel */}
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user.id} userRole={user.role} />
 
       {/* Bottom Nav — glass + badge non letti + theme-aware active pill */}
       <nav className="fixed bottom-0 left-0 right-0 glass-heavy border-t z-40 safe-area-bottom" style={{ borderColor: 'var(--glass-border)' }}>

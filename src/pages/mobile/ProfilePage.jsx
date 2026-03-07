@@ -52,7 +52,7 @@ export default function ProfilePage() {
         <LogOut size={22} /> Esci
       </Button>
 
-      <p className="text-center text-sm" style={{ color: 'var(--color-text-faint)' }}>ManuTech v5.2c — Sprint 3.6c Realtime Notifications</p>
+      <p className="text-center text-sm" style={{ color: 'var(--color-text-faint)' }}>ManuTech v5.3 — Sprint 3.7 Notification Preferences</p>
     </div>
   )
 }
