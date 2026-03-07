@@ -10,11 +10,11 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-bg)' }}>
+      <div className="min-h-screen flex items-center justify-center" role="status" aria-label="Caricamento applicazione" style={{ background: 'var(--color-bg)' }}>
         <div className="text-center">
           <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4"
             style={{ background: 'var(--color-primary-glow)' }}>
-            <span className="text-2xl">🔧</span>
+            <span className="text-2xl" aria-hidden="true">🔧</span>
           </div>
           <Spinner />
           <p className="text-sm mt-2" style={{ color: 'var(--color-text-muted)' }}>Caricamento ManuTech...</p>

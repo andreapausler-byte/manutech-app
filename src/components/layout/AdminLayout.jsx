@@ -51,6 +51,7 @@ export default function AdminLayout() {
     <div className="min-h-screen flex" style={{ background: 'var(--color-bg)' }}>
       {/* Sidebar — glass-heavy */}
       <aside
+        aria-label="Navigazione principale"
         className={`${collapsed ? 'w-[72px]' : 'w-[260px]'} glass-heavy flex flex-col transition-all duration-300 shrink-0 relative`}
         style={{ borderRight: '1px solid var(--color-border)' }}
       >
@@ -73,6 +74,7 @@ export default function AdminLayout() {
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? 'Espandi sidebar' : 'Comprimi sidebar'}
           className="absolute -right-3 top-[72px] w-6 h-6 rounded-full flex items-center justify-center transition-colors z-10"
           style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-hover)', color: 'var(--color-text-muted)' }}
         >
@@ -87,6 +89,8 @@ export default function AdminLayout() {
               <button
                 key={id}
                 onClick={() => setTab(id)}
+                aria-current={active ? 'page' : undefined}
+                aria-label={collapsed ? label : undefined}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group"
                 style={{
                   background: active ? 'var(--color-primary-glow)' : 'transparent',
@@ -125,6 +129,7 @@ export default function AdminLayout() {
           )}
           <button
             onClick={logout}
+            aria-label="Disconnetti"
             className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-2 px-3'} py-2.5 rounded-lg text-sm transition-colors hover:text-red-400 hover:bg-red-500/10`}
             style={{ color: 'var(--color-text-muted)' }}
           >
@@ -146,18 +151,18 @@ export default function AdminLayout() {
             {/* Theme toggle */}
             <button
               onClick={toggleMode}
+              aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
               className="w-9 h-9 rounded-xl flex items-center justify-center press-scale transition-colors"
               style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-secondary)' }}
-              title={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
             >
               {isDark ? <Sun size={17} /> : <Moon size={17} />}
             </button>
             {/* Settings */}
             <button
               onClick={() => setSettingsOpen(true)}
+              aria-label="Personalizza tema"
               className="w-9 h-9 rounded-xl flex items-center justify-center press-scale transition-colors"
               style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-secondary)' }}
-              title="Personalizza tema"
             >
               <Settings size={17} />
             </button>
