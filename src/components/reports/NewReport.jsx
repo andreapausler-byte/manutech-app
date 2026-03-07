@@ -53,12 +53,12 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
       db.addActivity(created.id, {
         type: 'created', user_id: user.id, user_name: user.name,
         detail: form.machine ? `Macchinario: ${form.machine}` : null,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
       db.addNotification({
         type: 'new_report', title: `Nuova segnalazione: ${form.title.trim()}`,
         body: `${user.name} ha creato una segnalazione ${form.severity}`,
         report_id: created.id, from_user: user.id, target_user: null,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
       // Mostra animazione di successo invece di navigare subito
       clearDraft()
       setShowSuccess(true)

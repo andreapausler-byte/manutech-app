@@ -112,7 +112,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         title: `✅ Manutenzione registrata`,
         body: `${user?.name} ha completato "${confirmPlan.name}" su ${machine.name}`,
         report_id: null, from_user: user?.id, target_user: null,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
 
       setConfirmPlan(null)
       setConfirmNote('')
@@ -136,7 +136,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
       db.addActivity(resolveReport.id, {
         type: 'status_change', from_status: resolveReport.status, to_status: 'risolta',
         user_id: user?.id, user_name: user?.name,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
 
       // 3. Registra manutenzione straordinaria
       await db.createMaintenanceLog({
@@ -163,7 +163,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         body: `${user?.name} ha risolto e registrato l'intervento su ${machine.name}`,
         report_id: resolveReport.id, from_user: user?.id,
         target_user: resolveReport.created_by !== user?.id ? resolveReport.created_by : null,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
 
       setResolveReport(null)
       setResolveNote('')

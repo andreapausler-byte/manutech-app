@@ -41,7 +41,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
     db.addActivity(reportId, {
       type: 'assigned', detail: `${assignee?.name} (${assignee?.role})`,
       user_id: user?.id, user_name: user?.name,
-    }).catch(() => {})
+    }).catch(e => console.warn('Side effect failed:', e.message))
 
     if (userId && userId !== user?.id) {
       db.addNotification({
@@ -49,7 +49,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
         title: `📋 Segnalazione assegnata a te`,
         body: `${user?.name} ti ha assegnato: "${selected?.title}"`,
         report_id: reportId, from_user: user?.id, target_user: userId,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
     }
 
     onUpdate({ assigned_to: userId, assigned_to_name: assignee?.name, status: 'assegnata' })
@@ -61,14 +61,14 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
     db.addActivity(reportId, {
       type: 'status_change', from_status: selected?.status, to_status: newStatus,
       user_id: user?.id, user_name: user?.name,
-    }).catch(() => {})
+    }).catch(e => console.warn('Side effect failed:', e.message))
     if (selected?.created_by && selected.created_by !== user?.id) {
       db.addNotification({
         type: 'status_change',
         title: `Stato aggiornato: ${selected?.title}`,
         body: `${user?.name} ha cambiato lo stato a "${STATUS[newStatus]?.label || newStatus}"`,
         report_id: reportId, from_user: user?.id, target_user: selected.created_by,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
     }
     onUpdate({ status: newStatus })
   }
@@ -98,7 +98,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
       db.addActivity(selected.id, {
         type: 'edited', detail: `Segnalazione modificata da ${user?.name}`,
         user_id: user?.id, user_name: user?.name,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
       onUpdate(updated)
       setEditing(false)
       toast.success('Segnalazione aggiornata')

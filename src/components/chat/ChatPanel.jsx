@@ -287,7 +287,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
       db.addActivity(reportId, {
         type: 'comment', detail: commentData.text.slice(0, 100),
         user_id: user?.id, user_name: user?.name,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
 
       if (report) {
         const targets = [...new Set([report.created_by, report.assigned_to].filter(id => id && id !== user?.id))]
@@ -297,7 +297,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
             title: `Nuovo messaggio: ${report.title}`,
             body: `${user?.name}: "${commentData.text.slice(0, 80)}"`,
             report_id: reportId, from_user: user?.id, target_user: targetId,
-          }).catch(() => {})
+          }).catch(e => console.warn('Side effect failed:', e.message))
         })
       }
     } catch {
