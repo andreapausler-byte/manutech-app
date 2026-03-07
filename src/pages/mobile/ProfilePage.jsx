@@ -52,7 +52,7 @@ export default function ProfilePage() {
         <LogOut size={22} /> Esci
       </Button>
 
-      <p className="text-center text-sm" style={{ color: 'var(--color-text-faint)' }}>ManuTech v5.0d — Sprint Design 0 Admin Theme Controls</p>
+      <p className="text-center text-sm" style={{ color: 'var(--color-text-faint)' }}>ManuTech v5.2b — Sprint 3.6 PWA + Safari Guide</p>
     </div>
   )
 }

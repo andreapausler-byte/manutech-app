@@ -15,32 +15,54 @@ import { timeAgo } from '../../lib/constants'
 import { useHaptic } from '../../hooks/useHaptic'
 import {
   Bell, X, FileText, ArrowRight, MessageCircle,
-  UserCheck, Zap, CheckCheck, AlertTriangle
+  UserCheck, Zap, CheckCheck, AlertTriangle, Wrench, Clock, CalendarCheck
 } from 'lucide-react'
 
 const NOTIF_ICONS = {
-  new_report:    { icon: FileText,      color: '#3b82f6' },
-  quick_report:  { icon: Zap,           color: '#f59e0b' },
-  status_change: { icon: ArrowRight,    color: '#a855f7' },
-  comment:       { icon: MessageCircle, color: '#6366f1' },
-  assigned:      { icon: UserCheck,     color: '#8b5cf6' },
+  new_report:            { icon: FileText,      color: '#3b82f6' },
+  quick_report:          { icon: Zap,           color: '#f59e0b' },
+  status_change:         { icon: ArrowRight,    color: '#a855f7' },
+  comment:               { icon: MessageCircle, color: '#6366f1' },
+  assigned:              { icon: UserCheck,      color: '#8b5cf6' },
+  maintenance_taken:     { icon: Wrench,        color: '#3b82f6' },
+  maintenance_completed: { icon: CalendarCheck, color: '#22c55e' },
+  maintenance_overdue:   { icon: AlertTriangle, color: '#ef4444' },
+  maintenance_reminder:  { icon: Clock,         color: '#f59e0b' },
 }
 
-export default function NotificationCenter({ userId, onOpenReport }) {
+export default function NotificationCenter({ userId, onOpenReport, onNewNotifications }) {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(false)
   const haptic = useHaptic()
   const panelRef = useRef(null)
+  const prevCountRef = useRef(0)
+  const initialLoadRef = useRef(true)
 
   const unreadCount = notifications.filter(n => !n.read).length
 
   const loadNotifications = useCallback(async () => {
     try {
       const data = await db.getNotifications(userId)
+      const newUnread = data.filter(n => !n.read).length
+
+      // Dopo il primo caricamento, notifica se ci sono nuovi non letti
+      if (!initialLoadRef.current && newUnread > prevCountRef.current && onNewNotifications) {
+        // Trova la notifica più recente non letta
+        const newest = data.find(n => !n.read)
+        if (newest) {
+          onNewNotifications(newest.title, newest.body, {
+            type: newest.type,
+            report_id: newest.report_id,
+          })
+        }
+      }
+
+      prevCountRef.current = newUnread
+      initialLoadRef.current = false
       setNotifications(data)
     } catch {}
-  }, [userId])
+  }, [userId, onNewNotifications])
 
   // Load on mount and periodically
   useEffect(() => {
@@ -111,7 +133,7 @@ export default function NotificationCenter({ userId, onOpenReport }) {
           <div className="flex items-center justify-between px-4 py-3 border-b border-token">
             <div className="flex items-center gap-2">
               <Bell size={16} className="text-blue-400" />
-              <span className="text-base font-bold text-white">Notifiche</span>
+              <span className="text-base font-bold text-themed">Notifiche</span>
               {unreadCount > 0 && (
                 <span className="text-xs font-bold text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded-full">
                   {unreadCount} nuove
@@ -120,9 +142,10 @@ export default function NotificationCenter({ userId, onOpenReport }) {
             </div>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
-                <button
+                  <button
                   onClick={handleMarkAllRead}
-                  className="text-xs text-muted hover:text-white font-medium flex items-center gap-1 px-2 py-1 rounded-lg active:bg-white/10"
+                  className="text-xs text-muted font-medium flex items-center gap-1 px-2 py-1 rounded-lg active:bg-white/10"
+                  style={{ color: 'var(--color-text-muted)' }}
                 >
                   <CheckCheck size={14} /> Letti
                 </button>
@@ -159,10 +182,10 @@ export default function NotificationCenter({ userId, onOpenReport }) {
                       <Icon size={16} style={{ color: config.color }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm leading-snug ${!notif.read ? 'font-bold text-white' : 'font-medium text-gray-300'}`}>
+                      <p className={`text-sm leading-snug ${!notif.read ? 'font-bold text-themed' : 'font-medium text-secondary'}`}>
                         {notif.title}
                       </p>
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notif.body}</p>
+                      <p className="text-xs text-muted mt-0.5 line-clamp-2">{notif.body}</p>
                       <p className="text-xs text-faint mt-1">{timeAgo(notif.created_at)}</p>
                     </div>
                     {!notif.read && (

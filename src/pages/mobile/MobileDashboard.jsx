@@ -103,6 +103,15 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
     haptic.medium()
     try {
       await db.takeMaintenancePlan(task.plan.id, user?.id, user?.name)
+
+      // Notifica agli admin: tecnico ha preso in carico
+      db.addNotification({
+        type: 'maintenance_taken',
+        title: `🔧 Manutenzione presa in carico`,
+        body: `${user?.name} ha preso in carico "${task.plan.name}" su ${task.machine.name}`,
+        report_id: null, from_user: user?.id, target_user: null,
+      }).catch(() => {})
+
       toast.success('Preso in carico!')
       await loadData()
     } catch (e) { toast.error('Errore: ' + e.message) }
@@ -163,6 +172,14 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
 
       // 2. Segna come completata
       await db.completeMaintenancePlan(completeTask.plan.id)
+
+      // Notifica agli admin: manutenzione completata
+      db.addNotification({
+        type: 'maintenance_completed',
+        title: `✅ Manutenzione completata`,
+        body: `${user?.name} ha completato "${completeTask.plan.name}" su ${completeTask.machine.name}${cDuration ? ` (${cDuration} min)` : ''}`,
+        report_id: null, from_user: user?.id, target_user: null,
+      }).catch(() => {})
 
       // 3. Dopo un ciclo, resetta automaticamente (lo fa il semaforo)
       // Per ora resettiamo subito lo stato per il prossimo ciclo

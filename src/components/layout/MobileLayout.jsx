@@ -6,6 +6,9 @@ import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, Sun, Moon, Settin
 import { useHaptic } from '../../hooks/useHaptic'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import { useChatRealtime } from '../../hooks/useChatRealtime'
+import { useAutoNotifications } from '../../hooks/useAutoNotifications'
+import { usePWA } from '../../hooks/usePWA'
+import { InstallBanner, SafariInstallGuide, NotifPermissionBanner } from '../ui/PWABanners'
 import OfflineBanner from '../ui/OfflineBanner'
 import NotificationCenter from '../ui/NotificationCenter'
 import SettingsPanel from '../ui/SettingsPanel'
@@ -107,6 +110,15 @@ export default function MobileLayout() {
 
   // ── Chat Realtime ──
   const { unreadByReport, totalUnread, markAsRead, refreshUnread } = useChatRealtime(user?.id)
+
+  // ── Auto Notifications (scadenze manutenzione) ──
+  useAutoNotifications(user?.id, user?.role)
+
+  // ── PWA + Web Notifications ──
+  const handleNotifClick = (data) => {
+    if (data.report_id) openReportById(data.report_id)
+  }
+  const { notifPermission, canInstall, requestPermission, promptInstall, showNotification } = usePWA(handleNotifClick)
 
   const switchTab = (id) => {
     haptic.light()
@@ -234,7 +246,7 @@ export default function MobileLayout() {
             >
               <Settings size={18} color="rgba(255,255,255,0.9)" />
             </button>
-            <NotificationCenter userId={user.id} onOpenReport={openReportById} />
+            <NotificationCenter userId={user.id} onOpenReport={openReportById} onNewNotifications={showNotification} />
             <button onClick={logout} className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center active:bg-white/20" style={{ color: 'rgba(255,255,255,0.7)' }}>
               <LogOut size={20} />
             </button>
@@ -243,6 +255,11 @@ export default function MobileLayout() {
       </header>
 
       <OfflineBanner isOnline={isOnline} wasOffline={wasOffline} />
+
+      {/* PWA Banners */}
+      <InstallBanner canInstall={canInstall} onInstall={promptInstall} />
+      <SafariInstallGuide />
+      <NotifPermissionBanner permission={notifPermission} onRequest={requestPermission} />
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-[18vw] scroll-smooth relative z-[1]">

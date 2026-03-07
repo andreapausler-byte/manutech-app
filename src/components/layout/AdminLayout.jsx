@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings } from 'lucide-react'
+import { useAutoNotifications } from '../../hooks/useAutoNotifications'
 import SettingsPanel from '../ui/SettingsPanel'
 import AdminDashboard from '../../pages/admin/AdminDashboard'
 import AdminReports from '../../pages/admin/AdminReports'
@@ -25,6 +26,9 @@ export default function AdminLayout() {
   const [tab, setTab] = useState('dashboard')
   const [collapsed, setCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // ── Auto Notifications (scadenze manutenzione) ──
+  useAutoNotifications(user?.id, user?.role)
 
   const renderPage = () => {
     switch (tab) {

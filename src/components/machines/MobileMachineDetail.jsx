@@ -105,6 +105,15 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
       })
       haptic.success()
       toast.success('Manutenzione registrata!')
+
+      // Notifica: manutenzione programmata completata
+      db.addNotification({
+        type: 'maintenance_completed',
+        title: `✅ Manutenzione registrata`,
+        body: `${user?.name} ha completato "${confirmPlan.name}" su ${machine.name}`,
+        report_id: null, from_user: user?.id, target_user: null,
+      }).catch(() => {})
+
       setConfirmPlan(null)
       setConfirmNote('')
       setConfirmDuration('')
@@ -146,6 +155,16 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
       haptic.success()
       toast.success('Segnalazione risolta e intervento registrato!')
+
+      // Notifica: segnalazione risolta
+      db.addNotification({
+        type: 'status_change',
+        title: `✅ Segnalazione risolta: ${resolveReport.title}`,
+        body: `${user?.name} ha risolto e registrato l'intervento su ${machine.name}`,
+        report_id: resolveReport.id, from_user: user?.id,
+        target_user: resolveReport.created_by !== user?.id ? resolveReport.created_by : null,
+      }).catch(() => {})
+
       setResolveReport(null)
       setResolveNote('')
       setResolveDuration('')

@@ -86,6 +86,17 @@ export default function AdminReports() {
       type: 'assigned', detail: `${assignee?.name} (${assignee?.role})`,
       user_id: user?.id, user_name: user?.name,
     }).catch(() => {})
+
+    // Notifica al tecnico assegnato
+    if (userId && userId !== user?.id) {
+      db.addNotification({
+        type: 'assigned',
+        title: `📋 Segnalazione assegnata a te`,
+        body: `${user?.name} ti ha assegnato: "${selected?.title}"`,
+        report_id: reportId, from_user: user?.id, target_user: userId,
+      }).catch(() => {})
+    }
+
     load()
     setSelected(s => s ? { ...s, assigned_to: userId, assigned_to_name: assignee?.name, status: 'assegnata' } : null)
     toast.success(`Assegnato a ${assignee?.name}`)
