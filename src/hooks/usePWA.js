@@ -117,18 +117,16 @@ export function usePWA(onNotificationClick) {
     if (typeof Notification === 'undefined') return
     if (Notification.permission !== 'granted') return
 
-    // Non mostrare se l'app è in primo piano e visibile
-    if (document.visibilityState === 'visible' && !data.forceShow) return
-
     // Usa il SW se disponibile (funziona anche in background)
     if (swRegistration) {
       swRegistration.showNotification(title, {
         body,
         icon: '/icons/icon-192x192.png',
         badge: '/icons/icon-96x96.png',
-        vibrate: [100, 50, 100],
+        vibrate: [200, 100, 200],
         tag: data.type || 'manutech',
         renotify: true,
+        requireInteraction: false,
         data: {
           url: '/',
           report_id: data.report_id || null,

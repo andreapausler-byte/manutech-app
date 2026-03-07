@@ -426,3 +426,22 @@ h1, h2, h3, h4 {
 .theme-transition {
   transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
 }
+
+/* Bell shake animation for new notifications */
+@keyframes bellShake {
+  0%   { transform: rotate(0deg); }
+  10%  { transform: rotate(14deg); }
+  20%  { transform: rotate(-14deg); }
+  30%  { transform: rotate(10deg); }
+  40%  { transform: rotate(-10deg); }
+  50%  { transform: rotate(6deg); }
+  60%  { transform: rotate(-4deg); }
+  70%  { transform: rotate(2deg); }
+  80%  { transform: rotate(-1deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.animate-bell-shake {
+  animation: bellShake 0.8s ease-in-out;
+  transform-origin: top center;
+}
