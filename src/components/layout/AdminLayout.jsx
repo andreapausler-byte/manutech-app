@@ -66,7 +66,7 @@ export default function AdminLayout() {
           {!collapsed && (
             <div>
               <span className="text-lg font-extrabold text-themed tracking-tight">ManuTech</span>
-              <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--color-text-faint)' }}>Admin Console</p>
+              <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--color-text-faint)' }}>Admin Console · v{__APP_VERSION__}</p>
             </div>
           )}
         </div>

@@ -228,7 +228,7 @@ export default function MobileLayout() {
             </div>
             <div>
               <h1 className="text-lg font-extrabold leading-tight tracking-tight" style={{ color: 'var(--header-text)' }}>ManuTech</h1>
-              <p className="text-sm leading-tight" style={{ color: 'rgba(255,255,255,0.6)' }}>{user.name}</p>
+              <p className="text-sm leading-tight" style={{ color: 'rgba(255,255,255,0.6)' }}>{user.name} · v{__APP_VERSION__}</p>
             </div>
           </div>
           <div className="flex items-center gap-[1vw]">

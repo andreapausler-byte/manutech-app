@@ -55,6 +55,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: 'var(--color-text)' }}>ManuTech</h1>
           <p className="text-lg mt-1" style={{ color: 'var(--color-text-muted)' }}>Gestione Manutenzione</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--color-text-faint)' }}>v{__APP_VERSION__}</p>
         </div>
 
         {/* Card — glassmorphism */}
