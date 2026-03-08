@@ -29,10 +29,10 @@ export default function SettingsPanel({ open, onClose, userId, userRole }) {
   const [visible, setVisible] = useState(false)
   const [notifPrefs, setNotifPrefs] = useState({})
 
-  // Carica preferenze notifiche
+  // Carica preferenze notifiche (async da DB)
   useEffect(() => {
     if (userId && userRole) {
-      setNotifPrefs(getEffectivePrefs(userId, userRole))
+      getEffectivePrefs(userId, userRole).then(setNotifPrefs).catch(() => {})
     }
   }, [userId, userRole, open])
 
@@ -67,10 +67,11 @@ export default function SettingsPanel({ open, onClose, userId, userRole }) {
     if (userId) saveUserPrefs(userId, updated)
   }
 
-  const handleResetNotifs = () => {
+  const handleResetNotifs = async () => {
     haptic.medium()
-    if (userId) resetUserPrefs(userId)
-    setNotifPrefs(getEffectivePrefs(userId, userRole))
+    if (userId) await resetUserPrefs(userId)
+    const prefs = await getEffectivePrefs(userId, userRole)
+    setNotifPrefs(prefs)
   }
 
   if (!open) return null

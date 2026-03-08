@@ -24,15 +24,21 @@ export default function AdminNotifSettings() {
   const toast = useToast()
   const haptic = useHaptic()
 
-  // Carica preferenze per il ruolo selezionato
+  // Carica preferenze per il ruolo selezionato (async da DB)
   useEffect(() => {
-    const orgDefaults = getOrgDefaults()
-    if (orgDefaults && orgDefaults[selectedRole]) {
-      setPrefs(orgDefaults[selectedRole])
-    } else {
-      setPrefs(getRoleDefaults(selectedRole))
+    let cancelled = false
+    async function load() {
+      const orgDefaults = await getOrgDefaults()
+      if (cancelled) return
+      if (orgDefaults && orgDefaults[selectedRole]) {
+        setPrefs(orgDefaults[selectedRole])
+      } else {
+        setPrefs(getRoleDefaults(selectedRole))
+      }
+      setHasChanges(false)
     }
-    setHasChanges(false)
+    load()
+    return () => { cancelled = true }
   }, [selectedRole])
 
   const handleToggle = (key) => {
@@ -41,22 +47,18 @@ export default function AdminNotifSettings() {
     setHasChanges(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     haptic.success()
-    const orgDefaults = getOrgDefaults() || {}
-    orgDefaults[selectedRole] = prefs
-    saveOrgDefaults(orgDefaults)
+    await saveOrgDefaults('default', selectedRole, prefs)
     setHasChanges(false)
     toast.success(`Notifiche ${ALL_ROLES.find(r => r.key === selectedRole)?.label} salvate`)
   }
 
-  const handleReset = () => {
+  const handleReset = async () => {
     haptic.medium()
     setPrefs(getRoleDefaults(selectedRole))
-    // Rimuovi override aziendali per questo ruolo
-    const orgDefaults = getOrgDefaults() || {}
-    delete orgDefaults[selectedRole]
-    saveOrgDefaults(orgDefaults)
+    // Salva i default di sistema per questo ruolo
+    await saveOrgDefaults('default', selectedRole, getRoleDefaults(selectedRole))
     setHasChanges(false)
     toast.success('Ripristinati default di sistema')
   }
