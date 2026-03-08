@@ -88,12 +88,12 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
       db.addActivity(created.id, {
         type: 'quick_created', user_id: user.id, user_name: user.name,
         detail: `Template: ${template.label}${machine ? ` · ${machine}` : ''}`,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
       db.addNotification({
         type: 'new_report', title: `Report rapido: ${template.title}`,
         body: `${user.name} — ${template.label}${machine ? ` su ${machine}` : ''}`,
         report_id: created.id, from_user: user.id, target_user: null,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
 
       setShowSuccess(true)
     } catch (err) {

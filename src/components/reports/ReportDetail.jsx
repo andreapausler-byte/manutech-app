@@ -43,7 +43,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         type: 'status_change',
         from_status: oldStatus, to_status: s,
         user_id: user.id, user_name: user.name,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
 
       db.addNotification({
         type: 'status_change',
@@ -52,7 +52,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         report_id: report.id,
         from_user: user.id,
         target_user: report.created_by !== user.id ? report.created_by : null,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
     } catch {
       toast.error('Errore aggiornamento stato')
     }

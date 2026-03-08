@@ -63,7 +63,8 @@ export const db = {
   // ─── USERS ───
   async getUsers() {
     if (supabase) {
-      const { data } = await supabase.from('users').select('*').order('created_at', { ascending: false })
+      const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false })
+      if (error) throw error
       return data || []
     }
     return getStore(KEYS.users)
@@ -179,7 +180,8 @@ export const db = {
       if (filters.status) query = query.eq('status', filters.status)
       if (filters.severity) query = query.eq('severity', filters.severity)
       if (filters.assigned_to) query = query.eq('assigned_to', filters.assigned_to)
-      const { data } = await query
+      const { data, error } = await query
+      if (error) throw error
       return data || []
     }
     let reports = getStore(KEYS.reports)
@@ -190,7 +192,8 @@ export const db = {
 
   async getReport(id) {
     if (supabase) {
-      const { data } = await supabase.from('reports').select('*, assigned_to_user:users!reports_assigned_to_fkey(name), created_by_user:users!reports_created_by_fkey(name)').eq('id', id).single()
+      const { data, error } = await supabase.from('reports').select('*, assigned_to_user:users!reports_assigned_to_fkey(name), created_by_user:users!reports_created_by_fkey(name)').eq('id', id).single()
+      if (error) throw error
       return data
     }
     return getStore(KEYS.reports).find(r => r.id === id)
@@ -236,7 +239,8 @@ export const db = {
   // ─── COMMENTS ───
   async getComments(reportId) {
     if (supabase) {
-      const { data } = await supabase.from('comments').select('*, user:users(name, role)').eq('report_id', reportId).order('created_at', { ascending: true })
+      const { data, error } = await supabase.from('comments').select('*, user:users(name, role)').eq('report_id', reportId).order('created_at', { ascending: true })
+      if (error) throw error
       return data || []
     }
     const report = getStore(KEYS.reports).find(r => r.id === reportId)
@@ -261,7 +265,8 @@ export const db = {
   // ─── MACHINES ───
   async getMachines() {
     if (supabase) {
-      const { data } = await supabase.from('machines').select('*').order('sort_order', { ascending: true }).order('name')
+      const { data, error } = await supabase.from('machines').select('*').order('sort_order', { ascending: true }).order('name')
+      if (error) throw error
       return data || []
     }
     const machines = getStore(KEYS.machines)
@@ -308,10 +313,13 @@ export const db = {
   // Aggiorna l'ordine di tutti i macchinari (drag & drop catena)
   async reorderMachines(orderedIds) {
     if (supabase) {
-      const updates = orderedIds.map((id, i) =>
-        supabase.from('machines').update({ sort_order: i + 1 }).eq('id', id)
+      const results = await Promise.all(
+        orderedIds.map((id, i) =>
+          supabase.from('machines').update({ sort_order: i + 1 }).eq('id', id)
+        )
       )
-      await Promise.all(updates)
+      const failed = results.find(r => r.error)
+      if (failed) throw failed.error
       return
     }
     const machines = getStore(KEYS.machines)
@@ -325,8 +333,18 @@ export const db = {
   // ─── MAINTENANCE PLANS ───
   async getMaintenancePlans(machineId) {
     if (supabase) {
-      const { data } = await supabase.from('maintenance_plans').select('*')
+      const { data, error } = await supabase.from('maintenance_plans').select('*')
         .eq('machine_id', machineId).order('name')
+      if (error) throw error
+      return data || []
+    }
+    return []
+  },
+
+  async getAllMaintenancePlans() {
+    if (supabase) {
+      const { data, error } = await supabase.from('maintenance_plans').select('*').order('name')
+      if (error) throw error
       return data || []
     }
     return []
@@ -408,8 +426,9 @@ export const db = {
   // ─── MAINTENANCE LOGS ───
   async getMaintenanceLogs(machineId) {
     if (supabase) {
-      const { data } = await supabase.from('maintenance_logs').select('*')
+      const { data, error } = await supabase.from('maintenance_logs').select('*')
         .eq('machine_id', machineId).order('performed_at', { ascending: false })
+      if (error) throw error
       return data || []
     }
     return []
@@ -417,11 +436,22 @@ export const db = {
 
   async getLastLogForPlan(planId) {
     if (supabase) {
-      const { data } = await supabase.from('maintenance_logs').select('*')
+      const { data, error } = await supabase.from('maintenance_logs').select('*')
         .eq('plan_id', planId).order('performed_at', { ascending: false }).limit(1).maybeSingle()
+      if (error) throw error
       return data
     }
     return null
+  },
+
+  async getAllMaintenanceLogs() {
+    if (supabase) {
+      const { data, error } = await supabase.from('maintenance_logs').select('*')
+        .order('performed_at', { ascending: false })
+      if (error) throw error
+      return data || []
+    }
+    return []
   },
 
   async createMaintenanceLog(log) {
@@ -485,7 +515,8 @@ export const db = {
 
   async getActivities(reportId) {
     if (supabase) {
-      const { data } = await supabase.from('activities').select('*').eq('report_id', reportId).order('created_at', { ascending: true })
+      const { data, error } = await supabase.from('activities').select('*').eq('report_id', reportId).order('created_at', { ascending: true })
+      if (error) throw error
       return data || []
     }
     return getStore(KEYS.activities).filter(a => a.report_id === reportId)
@@ -493,7 +524,8 @@ export const db = {
 
   async getAllActivities(limit = 50) {
     if (supabase) {
-      const { data } = await supabase.from('activities').select('*').order('created_at', { ascending: false }).limit(limit)
+      const { data, error } = await supabase.from('activities').select('*').order('created_at', { ascending: false }).limit(limit)
+      if (error) throw error
       return data || []
     }
     return getStore(KEYS.activities).slice(0, limit)
@@ -522,9 +554,10 @@ export const db = {
 
   async getNotifications(userId, limit = 30) {
     if (supabase) {
-      const { data } = await supabase.from('notifications').select('*')
+      const { data, error } = await supabase.from('notifications').select('*')
         .or(`target_user.eq.${userId},target_user.is.null`)
         .order('created_at', { ascending: false }).limit(limit)
+      if (error) throw error
       return data || []
     }
     // In demo, mostra tutte le notifiche (non filtriamo per utente)
@@ -533,7 +566,8 @@ export const db = {
 
   async markNotificationRead(id) {
     if (supabase) {
-      await supabase.from('notifications').update({ read: true }).eq('id', id)
+      const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id)
+      if (error) throw error
       return
     }
     const notifs = getStore(KEYS.notifications)
@@ -543,9 +577,10 @@ export const db = {
 
   async markAllNotificationsRead(userId) {
     if (supabase) {
-      await supabase.from('notifications').update({ read: true })
+      const { error } = await supabase.from('notifications').update({ read: true })
         .or(`target_user.eq.${userId},target_user.is.null`)
         .eq('read', false)
+      if (error) throw error
       return
     }
     const notifs = getStore(KEYS.notifications)

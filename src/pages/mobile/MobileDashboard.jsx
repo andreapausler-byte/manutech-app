@@ -110,7 +110,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
         title: `🔧 Manutenzione presa in carico`,
         body: `${user?.name} ha preso in carico "${task.plan.name}" su ${task.machine.name}`,
         report_id: null, from_user: user?.id, target_user: null,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
 
       toast.success('Preso in carico!')
       await loadData()
@@ -179,7 +179,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
         title: `✅ Manutenzione completata`,
         body: `${user?.name} ha completato "${completeTask.plan.name}" su ${completeTask.machine.name}${cDuration ? ` (${cDuration} min)` : ''}`,
         report_id: null, from_user: user?.id, target_user: null,
-      }).catch(() => {})
+      }).catch(e => console.warn('Side effect failed:', e.message))
 
       // 3. Dopo un ciclo, resetta automaticamente (lo fa il semaforo)
       // Per ora resettiamo subito lo stato per il prossimo ciclo

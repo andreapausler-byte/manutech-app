@@ -60,9 +60,11 @@ export default function LoginPage() {
         {/* Card — glassmorphism */}
         <div className="glass-heavy rounded-2xl p-6" style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-xl)' }}>
           {/* Tab switcher */}
-          <div className="flex gap-1 mb-5 rounded-xl p-1" style={{ background: 'var(--color-surface-0)' }}>
+          <div className="flex gap-1 mb-5 rounded-xl p-1" role="tablist" style={{ background: 'var(--color-surface-0)' }}>
             {['Accedi', 'Registrati'].map((label, i) => (
               <button key={i} onClick={() => setIsLogin(i === 0)}
+                role="tab"
+                aria-selected={(i === 0 ? isLogin : !isLogin)}
                 className={`flex-1 py-3.5 text-lg font-bold rounded-xl transition-all press-scale`}
                 style={{
                   ...(i === 0 ? isLogin : !isLogin)
@@ -86,6 +88,7 @@ export default function LoginPage() {
                 <div className="flex gap-2.5">
                   {Object.entries(ROLES).map(([key, { label, icon }]) => (
                     <button type="button" key={key} onClick={() => set('role', key)}
+                      aria-pressed={form.role === key}
                       className="flex-1 py-4 rounded-xl border text-center transition-all press-scale"
                       style={{
                         borderColor: form.role === key ? 'var(--color-border-active)' : 'var(--color-border)',
@@ -102,7 +105,7 @@ export default function LoginPage() {
             )}
 
             {error && (
-              <div className="rounded-xl p-4 text-lg" style={{ background: 'var(--color-danger-glow)', border: '1px solid rgba(239, 68, 68, 0.15)', color: '#f87171' }}>
+              <div role="alert" className="rounded-xl p-4 text-lg" style={{ background: 'var(--color-danger-glow)', border: '1px solid rgba(239, 68, 68, 0.15)', color: '#f87171' }}>
                 {error}
               </div>
             )}

@@ -202,6 +202,8 @@ export default function NotificationCenter({ userId, userRole, onOpenReport, onN
       {/* Bell button — with shake animation */}
       <button
         onClick={toggleOpen}
+        aria-label={unreadCount > 0 ? `Notifiche (${unreadCount} non lette)` : 'Notifiche'}
+        aria-expanded={open}
         className="relative w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center press-scale"
         style={{ background: 'rgba(255,255,255,0.12)' }}
       >
@@ -223,6 +225,8 @@ export default function NotificationCenter({ userId, userRole, onOpenReport, onN
       {/* Notification panel */}
       {open && (
         <div
+          role="dialog"
+          aria-label="Centro notifiche"
           className="absolute right-0 top-[13vw] w-[90vw] max-w-sm rounded-2xl z-50 overflow-hidden animate-scale-in"
           style={{
             background: 'var(--color-surface-1)',

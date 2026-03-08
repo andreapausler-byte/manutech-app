@@ -39,7 +39,7 @@ function FABMenu({ onNewReport, onQuickReport }) {
   return (
     <>
       {open && (
-        <div className="fixed inset-0 bg-black/50 z-[48] backdrop-blur-sm" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 bg-black/50 z-[48] backdrop-blur-sm" aria-hidden="true" onClick={() => setOpen(false)} />
       )}
 
       <div className={`fixed bottom-[36vw] right-[4vw] z-[49] flex flex-col items-end gap-[3vw] transition-all duration-200 ${
@@ -71,6 +71,8 @@ function FABMenu({ onNewReport, onQuickReport }) {
 
       <button
         onClick={toggle}
+        aria-label={open ? 'Chiudi menu segnalazioni' : 'Nuova segnalazione'}
+        aria-expanded={open}
         className={`fixed bottom-[20vw] right-[4vw] z-50 w-[15vw] h-[15vw] max-w-16 max-h-16 rounded-2xl flex items-center justify-center press-scale transition-all duration-200 ${
           open ? 'rotate-45' : ''
         }`}
@@ -233,6 +235,7 @@ export default function MobileLayout() {
             {/* Theme toggle */}
             <button
               onClick={() => { haptic.light(); toggleMode() }}
+              aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
               className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center press-scale"
               style={{ background: 'rgba(255,255,255,0.12)' }}
             >
@@ -241,13 +244,14 @@ export default function MobileLayout() {
             {/* Settings */}
             <button
               onClick={() => { haptic.light(); setSettingsOpen(true) }}
+              aria-label="Impostazioni"
               className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center press-scale"
               style={{ background: 'rgba(255,255,255,0.12)' }}
             >
               <Settings size={18} color="rgba(255,255,255,0.9)" />
             </button>
             <NotificationCenter userId={user.id} userRole={user.role} onOpenReport={openReportById} onNewNotifications={showNotification} />
-            <button onClick={logout} className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center active:bg-white/20" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            <button onClick={logout} aria-label="Disconnetti" className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center active:bg-white/20" style={{ color: 'rgba(255,255,255,0.7)' }}>
               <LogOut size={20} />
             </button>
           </div>
@@ -285,13 +289,15 @@ export default function MobileLayout() {
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user.id} userRole={user.role} />
 
       {/* Bottom Nav — glass + badge non letti + theme-aware active pill */}
-      <nav className="fixed bottom-0 left-0 right-0 glass-heavy border-t z-40 safe-area-bottom" style={{ borderColor: 'var(--glass-border)' }}>
+      <nav aria-label="Navigazione principale" className="fixed bottom-0 left-0 right-0 glass-heavy border-t z-40 safe-area-bottom" style={{ borderColor: 'var(--glass-border)' }}>
         <div className="flex items-center justify-around h-[16vw] max-h-[68px] max-w-md mx-auto">
           {TABS.map(({ id, icon: Icon, label }) => {
             const active = tab === id
             const showBadge = id === 'reports' && totalUnread > 0
             return (
               <button key={id} onClick={() => switchTab(id)}
+                aria-current={active ? 'page' : undefined}
+                aria-label={showBadge ? `${label} (${totalUnread} non letti)` : label}
                 className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full press-scale relative">
                 <div
                   className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-xl transition-all duration-200"

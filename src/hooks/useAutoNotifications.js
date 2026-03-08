@@ -71,7 +71,7 @@ export function useAutoNotifications(userId, userRole) {
               from_user: null,
               target_user: targetUser,
               org_id: plan.org_id || 'default',
-            }).catch(() => {})
+            }).catch(e => console.warn('Side effect failed:', e.message))
             markSent(plan.id, 'overdue')
           }
 
@@ -85,7 +85,7 @@ export function useAutoNotifications(userId, userRole) {
               from_user: null,
               target_user: targetUser,
               org_id: plan.org_id || 'default',
-            }).catch(() => {})
+            }).catch(e => console.warn('Side effect failed:', e.message))
             markSent(plan.id, 'reminder')
           }
         }
