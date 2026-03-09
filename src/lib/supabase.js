@@ -637,6 +637,16 @@ export const db = {
     return entry
   },
 
+  async getPushSubscriptions(userId) {
+    if (supabase) {
+      const { data, error } = await supabase.from('push_subscriptions')
+        .select('id, endpoint, created_at').eq('user_id', userId)
+      if (error) throw error
+      return data || []
+    }
+    return getStore('manutech_push_subs').filter(s => s.user_id === userId)
+  },
+
   async deletePushSubscription(userId, endpoint) {
     if (supabase) {
       const { error } = await supabase.from('push_subscriptions')

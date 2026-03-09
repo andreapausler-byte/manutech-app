@@ -10,8 +10,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
-import { X, Sun, Moon, Monitor, Bell, BellOff, Activity } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Bell, BellOff, Activity, Send } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
+import toast from 'react-hot-toast'
+import { db } from '../../lib/supabase'
 import {
   NOTIF_TYPES, NOTIF_GROUPS,
   getEffectivePrefs, saveUserPrefs, resetUserPrefs,
@@ -24,9 +26,10 @@ const MODE_OPTIONS = [
 ]
 
 // ── Diagnostica Push Notifications ──
-function PushDiagnostics({ open }) {
+function PushDiagnostics({ open, userId }) {
   const [expanded, setExpanded] = useState(false)
   const [status, setStatus] = useState(null)
+  const [testing, setTesting] = useState(false)
 
   const checkStatus = useCallback(async () => {
     const result = {
@@ -36,6 +39,7 @@ function PushDiagnostics({ open }) {
       vapidKey: !!import.meta.env.VITE_VAPID_PUBLIC_KEY,
       pushSubscription: false,
       pushEndpoint: null,
+      dbSubscription: false,
     }
 
     if ('serviceWorker' in navigator) {
@@ -53,8 +57,18 @@ function PushDiagnostics({ open }) {
       }
     }
 
+    // Verifica se la subscription è salvata nel DB
+    if (userId) {
+      try {
+        const subs = await db.getPushSubscriptions?.(userId)
+        result.dbSubscription = subs && subs.length > 0
+      } catch {
+        // getPushSubscriptions potrebbe non esistere
+      }
+    }
+
     return result
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     if (open && expanded) {
@@ -62,12 +76,35 @@ function PushDiagnostics({ open }) {
     }
   }, [open, expanded, checkStatus])
 
+  // Invia notifica di test per verificare il pipeline push completo
+  const sendTestPush = async () => {
+    if (!userId) return
+    setTesting(true)
+    try {
+      await db.addNotification({
+        type: 'status_change',
+        title: 'Test Push Notification',
+        body: 'Se vedi questa notifica con l\'app chiusa, le push funzionano!',
+        target_user: userId,
+      })
+      toast.success('Notifica di test inviata! Chiudi l\'app e attendi qualche secondo.', { duration: 5000 })
+    } catch (err) {
+      toast.error('Errore invio test: ' + (err.message || 'sconosciuto'))
+    } finally {
+      setTesting(false)
+    }
+  }
+
   const StatusDot = ({ ok }) => (
     <span
       className="inline-block w-2 h-2 rounded-full shrink-0"
       style={{ background: ok ? 'var(--color-success, #22c55e)' : 'var(--color-danger)' }}
     />
   )
+
+  // Riassunto stato push
+  const allOk = status?.swRegistered && status?.notifPermission === 'granted' &&
+    status?.vapidKey && status?.pushSubscription
 
   return (
     <div className="mt-5">
@@ -85,6 +122,17 @@ function PushDiagnostics({ open }) {
           className="mt-2 rounded-xl p-3 space-y-1.5"
           style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
         >
+          {/* Stato riassuntivo */}
+          <div
+            className="text-[11px] font-bold mb-2 px-2 py-1.5 rounded-lg"
+            style={{
+              background: allOk ? 'var(--color-success, #22c55e)15' : 'var(--color-danger)15',
+              color: allOk ? 'var(--color-success, #22c55e)' : 'var(--color-danger)',
+            }}
+          >
+            {allOk ? '✓ Push attive — notifiche anche ad app chiusa' : '✗ Push non configurate — notifiche solo in-app'}
+          </div>
+
           <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
             <StatusDot ok={status.swRegistered} />
             <span>Service Worker: {status.swRegistered ? status.swState : 'non registrato'}</span>
@@ -106,13 +154,46 @@ function PushDiagnostics({ open }) {
               {status.pushEndpoint}
             </div>
           )}
-          <button
-            onClick={() => checkStatus().then(setStatus)}
-            className="text-[10px] font-medium mt-1 press-scale"
-            style={{ color: 'var(--color-primary)' }}
-          >
-            Aggiorna
-          </button>
+
+          {/* Azioni */}
+          <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+            <button
+              onClick={() => checkStatus().then(setStatus)}
+              className="text-[10px] font-medium press-scale"
+              style={{ color: 'var(--color-primary)' }}
+            >
+              Aggiorna
+            </button>
+            {allOk && (
+              <button
+                onClick={sendTestPush}
+                disabled={testing}
+                className="flex items-center gap-1 text-[10px] font-medium press-scale ml-auto px-2 py-1 rounded-md"
+                style={{
+                  color: 'white',
+                  background: 'var(--color-primary)',
+                  opacity: testing ? 0.6 : 1,
+                }}
+              >
+                <Send size={10} />
+                {testing ? 'Invio...' : 'Test push'}
+              </button>
+            )}
+          </div>
+
+          {/* Suggerimento se manca qualcosa */}
+          {!allOk && (
+            <div className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--color-text-faint)' }}>
+              {!status.notifPermission || status.notifPermission !== 'granted'
+                ? 'Consenti le notifiche dal banner in alto o dalle impostazioni del browser.'
+                : !status.pushSubscription
+                  ? 'Push subscription mancante. Ricarica la pagina per ritentare.'
+                  : !status.vapidKey
+                    ? 'Chiave VAPID mancante. Contatta l\'amministratore.'
+                    : null
+              }
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -423,7 +504,7 @@ export default function SettingsPanel({ open, onClose, userId, userRole }) {
           </div>
 
           {/* ── Diagnostica Push ── */}
-          <PushDiagnostics open={open} />
+          <PushDiagnostics open={open} userId={userId} />
         </div>
       </div>
     </div>
