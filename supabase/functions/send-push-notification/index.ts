@@ -173,38 +173,39 @@ async function encryptPayload(
   // HKDF per derivare le chiavi di encryption
   const encoder = new TextEncoder()
 
-  // PRK = HKDF-Extract(auth_secret, ecdh_secret)
+  // IKM = HKDF(salt=auth_secret, IKM=ecdh_secret, info="WebPush: info\0" || ua_public || as_public)
+  // RFC 8291 Section 3.4: salt=auth_secret, IKM=ecdh_secret
   const authInfo = encoder.encode('WebPush: info\0')
-  const combinedInfo = new Uint8Array(authInfo.length + base64UrlToUint8Array(subscriptionPublicKey).length + serverPublicKeyRaw.length)
+  const clientPubBytes = base64UrlToUint8Array(subscriptionPublicKey)
+  const combinedInfo = new Uint8Array(authInfo.length + clientPubBytes.length + serverPublicKeyRaw.length)
   combinedInfo.set(authInfo)
-  combinedInfo.set(base64UrlToUint8Array(subscriptionPublicKey), authInfo.length)
-  combinedInfo.set(serverPublicKeyRaw, authInfo.length + base64UrlToUint8Array(subscriptionPublicKey).length)
+  combinedInfo.set(clientPubBytes, authInfo.length)
+  combinedInfo.set(serverPublicKeyRaw, authInfo.length + clientPubBytes.length)
 
-  // IKM = HKDF(auth, sharedSecret, "WebPush: info\0" || client_pub || server_pub)
-  const authKey = await crypto.subtle.importKey('raw', authSecret, { name: 'HKDF' }, false, ['deriveBits'])
-  const prk = new Uint8Array(
+  const sharedKey = await crypto.subtle.importKey('raw', sharedSecret, { name: 'HKDF' }, false, ['deriveBits'])
+  const ikm = new Uint8Array(
     await crypto.subtle.deriveBits(
-      { name: 'HKDF', hash: 'SHA-256', salt: sharedSecret, info: combinedInfo },
-      authKey,
+      { name: 'HKDF', hash: 'SHA-256', salt: authSecret, info: combinedInfo },
+      sharedKey,
       256
     )
   )
 
-  // CEK = HKDF(salt, prk, "Content-Encoding: aes128gcm\0", 16)
-  const prkKey = await crypto.subtle.importKey('raw', prk, { name: 'HKDF' }, false, ['deriveBits'])
+  // CEK = HKDF(salt=salt, IKM=ikm, "Content-Encoding: aes128gcm\0", 16)
+  const ikmKey = await crypto.subtle.importKey('raw', ikm, { name: 'HKDF' }, false, ['deriveBits'])
   const contentEncKey = new Uint8Array(
     await crypto.subtle.deriveBits(
       { name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode('Content-Encoding: aes128gcm\0') },
-      prkKey,
+      ikmKey,
       128
     )
   )
 
-  // Nonce = HKDF(salt, prk, "Content-Encoding: nonce\0", 12)
+  // Nonce = HKDF(salt=salt, IKM=ikm, "Content-Encoding: nonce\0", 12)
   const nonce = new Uint8Array(
     await crypto.subtle.deriveBits(
       { name: 'HKDF', hash: 'SHA-256', salt, info: encoder.encode('Content-Encoding: nonce\0') },
-      prkKey,
+      ikmKey,
       96
     )
   )
@@ -309,7 +310,10 @@ Deno.serve(async (req: Request) => {
     const body = await req.json()
     const notification = body.record || body
 
+    console.log('[Push] Webhook received:', JSON.stringify({ type: notification?.type, title: notification?.title, target_user: notification?.target_user, org_id: notification?.org_id }))
+
     if (!notification?.type || !notification?.title) {
+      console.error('[Push] Invalid payload:', JSON.stringify(body))
       return new Response(JSON.stringify({ error: 'Invalid notification payload' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -346,6 +350,8 @@ Deno.serve(async (req: Request) => {
       const { data } = await query
       subscriptions = data || []
     }
+
+    console.log(`[Push] Found ${subscriptions.length} subscription(s) for notification type="${notification.type}"`)
 
     if (subscriptions.length === 0) {
       return new Response(JSON.stringify({ sent: 0, message: 'No subscriptions found' }), {
@@ -422,6 +428,7 @@ Deno.serve(async (req: Request) => {
     const results = await Promise.allSettled(
       eligibleSubs.map(async (sub) => {
         const result = await sendWebPush(sub, pushPayload, vapidPublicKey, vapidPrivateKey, vapidSubject)
+        console.log(`[Push] Result for ${sub.endpoint.slice(0, 60)}...: status=${result.status}, success=${result.success}`)
 
         // Rimuovi subscription scaduta
         if (result.expired) {
