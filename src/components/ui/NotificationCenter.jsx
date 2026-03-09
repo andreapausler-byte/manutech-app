@@ -19,7 +19,7 @@ import {
   Bell, X, FileText, ArrowRight, MessageCircle,
   UserCheck, Zap, CheckCheck, AlertTriangle, Wrench, Clock, CalendarCheck
 } from 'lucide-react'
-import { shouldShowNotification } from '../../lib/notifPreferences'
+import { shouldShowNotificationSync, preloadPrefs } from '../../lib/notifPreferences'
 
 const NOTIF_ICONS = {
   new_report:            { icon: FileText,      color: '#3b82f6' },
@@ -73,6 +73,13 @@ export default function NotificationCenter({ userId, userRole, onOpenReport, onN
 
   const unreadCount = notifications.filter(n => !n.read).length
 
+  // ── Pre-carica preferenze notifiche in cache ──
+  useEffect(() => {
+    if (userId && userRole) {
+      preloadPrefs(userId, userRole).catch(() => {})
+    }
+  }, [userId, userRole])
+
   // ── Carica notifiche ──
   const loadNotifications = useCallback(async () => {
     try {
@@ -87,8 +94,8 @@ export default function NotificationCenter({ userId, userRole, onOpenReport, onN
     // Ignora le proprie notifiche
     if (notif.from_user === userId) return
 
-    // Controlla se l'utente vuole questo tipo di notifica
-    if (!shouldShowNotification(notif.type, userId, userRole)) return
+    // Controlla se l'utente vuole questo tipo di notifica (sync, usa cache)
+    if (!shouldShowNotificationSync(notif.type, userId, userRole)) return
 
     // Aggiungi alla lista
     setNotifications(prev => {

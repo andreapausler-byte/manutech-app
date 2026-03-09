@@ -1,12 +1,15 @@
 /**
- * notifPreferences.js — Sprint 3.7 Notification Preferences
- * 
+ * notifPreferences.js — Sprint 3.7 → v5.4 Web Push
+ *
  * Gestisce le preferenze notifiche per utente:
  *  - Default diversi per ruolo (admin vs tecnico/operatore)
- *  - Persistenza localStorage per preferenze personali
- *  - Persistenza localStorage per default aziendali (admin-set)
+ *  - Persistenza DB (Supabase) con fallback localStorage (demo mode)
  *  - Filtraggio notifiche prima di mostrarle
+ *  - API async per lettura/scrittura preferenze
  */
+
+import { db } from './supabase'
+import { supabase } from './supabase'
 
 // ── Tipi di notifica disponibili ──
 export const NOTIF_TYPES = [
@@ -29,7 +32,7 @@ export const NOTIF_GROUPS = [
 ]
 
 // ── Default per ruolo ──
-const ROLE_DEFAULTS = {
+export const ROLE_DEFAULTS = {
   admin: {
     new_report: true,
     quick_report: true,
@@ -65,49 +68,92 @@ const ROLE_DEFAULTS = {
   },
 }
 
-const PREFS_KEY = 'manutech_notif_prefs'
-const ORG_DEFAULTS_KEY = 'manutech_notif_org_defaults'
-
-// ── Carica default aziendali (impostati dall'admin) ──
-export function getOrgDefaults() {
-  try {
-    const raw = localStorage.getItem(ORG_DEFAULTS_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  return null
+// ── Cache in memoria per evitare troppe query ──
+const _cache = {
+  userPrefs: {},      // { [userId]: { prefs, ts } }
+  orgDefaults: null,  // { defaults, ts }
+  TTL: 60000,         // 1 minuto
 }
 
-// ── Salva default aziendali (solo admin) ──
-export function saveOrgDefaults(defaults) {
-  try {
-    localStorage.setItem(ORG_DEFAULTS_KEY, JSON.stringify(defaults))
-  } catch {}
+function isCacheValid(entry) {
+  return entry && (Date.now() - entry.ts) < _cache.TTL
 }
 
-// ── Carica preferenze personali dell'utente ──
-export function getUserPrefs(userId) {
+// ── Carica preferenze personali dell'utente (async, DB-backed) ──
+export async function getUserPrefs(userId) {
+  if (!userId) return null
+
+  // Check cache
+  if (isCacheValid(_cache.userPrefs[userId])) {
+    return _cache.userPrefs[userId].prefs
+  }
+
   try {
-    const raw = localStorage.getItem(`${PREFS_KEY}_${userId}`)
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  return null
+    const prefs = await db.getUserNotifPrefs(userId)
+    _cache.userPrefs[userId] = { prefs, ts: Date.now() }
+    return prefs
+  } catch {
+    return null
+  }
 }
 
-// ── Salva preferenze personali ──
-export function saveUserPrefs(userId, prefs) {
+// ── Salva preferenze personali (async) ──
+export async function saveUserPrefs(userId, prefs, orgId = 'default') {
+  if (!userId) return
+  _cache.userPrefs[userId] = { prefs, ts: Date.now() }
   try {
-    localStorage.setItem(`${PREFS_KEY}_${userId}`, JSON.stringify(prefs))
-  } catch {}
+    await db.saveUserNotifPrefs(userId, prefs, orgId)
+  } catch (err) {
+    console.warn('Errore salvataggio preferenze notifiche:', err)
+  }
 }
 
-// ── Risolvi preferenze effettive (personali > org > default ruolo) ──
-export function getEffectivePrefs(userId, role) {
+// ── Carica default aziendali (async) ──
+export async function getOrgDefaults(orgId = 'default') {
+  if (isCacheValid(_cache.orgDefaults)) {
+    return _cache.orgDefaults.defaults
+  }
+
+  try {
+    const defaults = await db.getOrgNotifDefaults(orgId)
+    _cache.orgDefaults = { defaults, ts: Date.now() }
+    return defaults
+  } catch {
+    return null
+  }
+}
+
+// ── Salva default aziendali per ruolo (async, solo admin) ──
+export async function saveOrgDefaults(orgId = 'default', role, prefs) {
+  // Invalida cache
+  _cache.orgDefaults = null
+  try {
+    await db.saveOrgNotifDefaults(orgId, role, prefs)
+  } catch (err) {
+    console.warn('Errore salvataggio default org:', err)
+  }
+}
+
+// ── Salva tutti i default org (compatibilità con vecchia API) ──
+export async function saveAllOrgDefaults(defaults) {
+  _cache.orgDefaults = null
+  for (const role of Object.keys(defaults)) {
+    try {
+      await db.saveOrgNotifDefaults('default', role, defaults[role])
+    } catch (err) {
+      console.warn(`Errore salvataggio default per ${role}:`, err)
+    }
+  }
+}
+
+// ── Risolvi preferenze effettive (async) ──
+export async function getEffectivePrefs(userId, role) {
   // 1. Preferenze personali (priorità massima)
-  const personal = getUserPrefs(userId)
+  const personal = await getUserPrefs(userId)
   if (personal) return personal
 
   // 2. Default aziendali (impostati dall'admin)
-  const org = getOrgDefaults()
+  const org = await getOrgDefaults()
   if (org && org[role]) return org[role]
 
   // 3. Default di sistema per ruolo
@@ -115,16 +161,43 @@ export function getEffectivePrefs(userId, role) {
 }
 
 // ── Reset preferenze personali (torna ai default) ──
-export function resetUserPrefs(userId) {
+export async function resetUserPrefs(userId) {
+  delete _cache.userPrefs[userId]
   try {
-    localStorage.removeItem(`${PREFS_KEY}_${userId}`)
+    await db.deleteUserNotifPrefs(userId)
   } catch {}
 }
 
-// ── Controlla se una notifica va mostrata ──
-export function shouldShowNotification(notifType, userId, role) {
-  const prefs = getEffectivePrefs(userId, role)
-  return prefs[notifType] !== false // Default true se non specificato
+// ── Controlla se una notifica va mostrata (async) ──
+export async function shouldShowNotification(notifType, userId, role) {
+  const prefs = await getEffectivePrefs(userId, role)
+  return prefs[notifType] !== false
+}
+
+// ── Versione sincrona per uso in callback critici (usa cache) ──
+// Utile quando serve risposta immediata e cache è già stata popolata
+export function shouldShowNotificationSync(notifType, userId, role) {
+  // Controlla cache utente
+  const cached = _cache.userPrefs[userId]
+  if (cached?.prefs) return cached.prefs[notifType] !== false
+
+  // Controlla cache org
+  if (_cache.orgDefaults?.defaults) {
+    const orgPrefs = _cache.orgDefaults.defaults[role]
+    if (orgPrefs) return orgPrefs[notifType] !== false
+  }
+
+  // Fallback a default ruolo
+  const defaults = ROLE_DEFAULTS[role] || ROLE_DEFAULTS.operatore
+  return defaults[notifType] !== false
+}
+
+// ── Pre-load cache (chiamare al login) ──
+export async function preloadPrefs(userId, role, orgId = 'default') {
+  await Promise.all([
+    getUserPrefs(userId),
+    getOrgDefaults(orgId),
+  ])
 }
 
 // ── Ottieni default per ruolo (per UI admin) ──

@@ -1,15 +1,30 @@
 /**
- * usePWA — Sprint 3.6 PWA + Web Notifications
- * 
+ * usePWA — Sprint 3.6 PWA + Web Notifications + Sprint 5.4 Web Push
+ *
  * Gestisce:
  *  1. Registrazione Service Worker
  *  2. Permesso notifiche (Notification API)
  *  3. Prompt installazione PWA (beforeinstallprompt)
  *  4. Mostra Web Notification native per nuove notifiche in-app
  *  5. Ascolta messaggi dal SW (click su notifica)
+ *  6. Web Push subscription (PushManager) per notifiche in background
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import toast from 'react-hot-toast'
+import { db } from '../lib/supabase'
+
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
+
+// Converte base64url a Uint8Array per applicationServerKey
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  const arr = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
+  return arr
+}
 
 // ── Registra Service Worker ──
 async function registerSW() {
@@ -40,7 +55,7 @@ async function registerSW() {
 }
 
 // ── Hook principale ──
-export function usePWA(onNotificationClick) {
+export function usePWA(onNotificationClick, userInfo) {
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   )
@@ -92,6 +107,47 @@ export function usePWA(onNotificationClick) {
     navigator.serviceWorker.addEventListener('message', handler)
     return () => navigator.serviceWorker.removeEventListener('message', handler)
   }, [])
+
+  // ── 4. Auto-subscribe a Web Push quando le condizioni sono soddisfatte ──
+  const hasAutoSubscribed = useRef(false)
+
+  // Reset guard quando il permesso cambia (es. utente concede permesso dal banner)
+  useEffect(() => {
+    hasAutoSubscribed.current = false
+  }, [notifPermission])
+
+  useEffect(() => {
+    if (hasAutoSubscribed.current) return
+    if (!swRegistration) return
+    if (!userInfo?.userId) return
+    if (!VAPID_PUBLIC_KEY) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+
+    hasAutoSubscribed.current = true
+
+    // subscribeToPush inline per evitare dipendenze circolari
+    ;(async () => {
+      try {
+        let subscription = await swRegistration.pushManager.getSubscription()
+        if (!subscription) {
+          subscription = await swRegistration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          })
+          console.log('[PWA] Push subscription creata (auto)')
+        }
+        const subJson = subscription.toJSON()
+        await db.savePushSubscription(userInfo.userId, {
+          endpoint: subJson.endpoint,
+          keys: { p256dh: subJson.keys.p256dh, auth: subJson.keys.auth },
+        }, userInfo.orgId || 'default')
+        console.log('[PWA] Push subscription salvata nel DB (auto)')
+      } catch (err) {
+        console.warn('[PWA] Errore auto push subscription:', err)
+        toast.error('Notifiche push non attivate. Riprova più tardi.', { duration: 4000 })
+      }
+    })()
+  }, [swRegistration, notifPermission, userInfo?.userId, userInfo?.orgId])
 
   // ── Richiedi permesso notifiche ──
   const requestPermission = useCallback(async () => {
@@ -145,6 +201,63 @@ export function usePWA(onNotificationClick) {
     }
   }, [swRegistration])
 
+  // ── Sottoscrivi a Web Push (per notifiche in background) ──
+  const subscribeToPush = useCallback(async (userId, orgId = 'default') => {
+    if (!swRegistration || !VAPID_PUBLIC_KEY) {
+      console.log('[PWA] Push subscription skipped: no SW or VAPID key')
+      return null
+    }
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+      console.log('[PWA] Push subscription skipped: no notification permission')
+      return null
+    }
+
+    try {
+      // Controlla se esiste già una subscription
+      let subscription = await swRegistration.pushManager.getSubscription()
+
+      if (!subscription) {
+        subscription = await swRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        })
+        console.log('[PWA] Push subscription creata')
+      }
+
+      // Salva nel DB
+      const subJson = subscription.toJSON()
+      await db.savePushSubscription(userId, {
+        endpoint: subJson.endpoint,
+        keys: {
+          p256dh: subJson.keys.p256dh,
+          auth: subJson.keys.auth,
+        },
+      }, orgId)
+      console.log('[PWA] Push subscription salvata nel DB')
+
+      return subscription
+    } catch (err) {
+      console.warn('[PWA] Errore push subscription:', err)
+      return null
+    }
+  }, [swRegistration])
+
+  // ── Rimuovi push subscription ──
+  const unsubscribeFromPush = useCallback(async (userId) => {
+    if (!swRegistration) return
+
+    try {
+      const subscription = await swRegistration.pushManager.getSubscription()
+      if (subscription) {
+        await db.deletePushSubscription(userId, subscription.endpoint)
+        await subscription.unsubscribe()
+        console.log('[PWA] Push subscription rimossa')
+      }
+    } catch (err) {
+      console.warn('[PWA] Errore rimozione push subscription:', err)
+    }
+  }, [swRegistration])
+
   // ── Trigger installazione ──
   const promptInstall = useCallback(async () => {
     if (!installPrompt) return false
@@ -169,5 +282,7 @@ export function usePWA(onNotificationClick) {
     requestPermission,
     showNotification,
     promptInstall,
+    subscribeToPush,
+    unsubscribeFromPush,
   }
 }

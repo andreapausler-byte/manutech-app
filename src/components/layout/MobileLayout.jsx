@@ -120,7 +120,7 @@ export default function MobileLayout() {
   const handleNotifClick = (data) => {
     if (data.report_id) openReportById(data.report_id)
   }
-  const { notifPermission, canInstall, requestPermission, promptInstall, showNotification } = usePWA(handleNotifClick)
+  const { notifPermission, canInstall, requestPermission, promptInstall, showNotification } = usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id || 'default' })
 
   const switchTab = (id) => {
     haptic.light()

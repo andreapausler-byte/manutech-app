@@ -8,9 +8,9 @@
  * - Glove-friendly: touch target grandi
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
-import { X, Sun, Moon, Monitor, Bell, BellOff } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Bell, BellOff, Activity } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import {
   NOTIF_TYPES, NOTIF_GROUPS,
@@ -23,16 +23,112 @@ const MODE_OPTIONS = [
   { key: 'auto', icon: Monitor, label: 'Sistema', emoji: '💻' },
 ]
 
+// ── Diagnostica Push Notifications ──
+function PushDiagnostics({ open }) {
+  const [expanded, setExpanded] = useState(false)
+  const [status, setStatus] = useState(null)
+
+  const checkStatus = useCallback(async () => {
+    const result = {
+      swRegistered: false,
+      swState: null,
+      notifPermission: typeof Notification !== 'undefined' ? Notification.permission : 'non supportato',
+      vapidKey: !!import.meta.env.VITE_VAPID_PUBLIC_KEY,
+      pushSubscription: false,
+      pushEndpoint: null,
+    }
+
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration('/')
+      if (reg) {
+        result.swRegistered = true
+        result.swState = reg.active ? 'attivo' : reg.installing ? 'installazione' : reg.waiting ? 'in attesa' : 'sconosciuto'
+        try {
+          const sub = await reg.pushManager.getSubscription()
+          if (sub) {
+            result.pushSubscription = true
+            result.pushEndpoint = sub.endpoint.slice(0, 60) + '...'
+          }
+        } catch { /* push API non disponibile */ }
+      }
+    }
+
+    return result
+  }, [])
+
+  useEffect(() => {
+    if (open && expanded) {
+      checkStatus().then(setStatus)
+    }
+  }, [open, expanded, checkStatus])
+
+  const StatusDot = ({ ok }) => (
+    <span
+      className="inline-block w-2 h-2 rounded-full shrink-0"
+      style={{ background: ok ? 'var(--color-success, #22c55e)' : 'var(--color-danger)' }}
+    />
+  )
+
+  return (
+    <div className="mt-5">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="flex items-center gap-2 text-[11px] font-medium px-2 py-1.5 rounded-lg press-scale"
+        style={{ color: 'var(--color-text-faint)', background: 'var(--color-surface-2)' }}
+      >
+        <Activity size={12} />
+        {expanded ? 'Chiudi diagnostica' : 'Diagnostica push'}
+      </button>
+
+      {expanded && status && (
+        <div
+          className="mt-2 rounded-xl p-3 space-y-1.5"
+          style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
+        >
+          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+            <StatusDot ok={status.swRegistered} />
+            <span>Service Worker: {status.swRegistered ? status.swState : 'non registrato'}</span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+            <StatusDot ok={status.notifPermission === 'granted'} />
+            <span>Permesso notifiche: {status.notifPermission}</span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+            <StatusDot ok={status.vapidKey} />
+            <span>Chiave VAPID: {status.vapidKey ? 'presente' : 'mancante'}</span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+            <StatusDot ok={status.pushSubscription} />
+            <span>Push subscription: {status.pushSubscription ? 'attiva' : 'assente'}</span>
+          </div>
+          {status.pushEndpoint && (
+            <div className="text-[10px] mt-1 break-all" style={{ color: 'var(--color-text-faint)' }}>
+              {status.pushEndpoint}
+            </div>
+          )}
+          <button
+            onClick={() => checkStatus().then(setStatus)}
+            className="text-[10px] font-medium mt-1 press-scale"
+            style={{ color: 'var(--color-primary)' }}
+          >
+            Aggiorna
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsPanel({ open, onClose, userId, userRole }) {
   const { mode, accent, setMode, setAccent, presets, resolved } = useTheme()
   const haptic = useHaptic()
   const [visible, setVisible] = useState(false)
   const [notifPrefs, setNotifPrefs] = useState({})
 
-  // Carica preferenze notifiche
+  // Carica preferenze notifiche (async da DB)
   useEffect(() => {
     if (userId && userRole) {
-      setNotifPrefs(getEffectivePrefs(userId, userRole))
+      getEffectivePrefs(userId, userRole).then(setNotifPrefs).catch(() => {})
     }
   }, [userId, userRole, open])
 
@@ -67,10 +163,11 @@ export default function SettingsPanel({ open, onClose, userId, userRole }) {
     if (userId) saveUserPrefs(userId, updated)
   }
 
-  const handleResetNotifs = () => {
+  const handleResetNotifs = async () => {
     haptic.medium()
-    if (userId) resetUserPrefs(userId)
-    setNotifPrefs(getEffectivePrefs(userId, userRole))
+    if (userId) await resetUserPrefs(userId)
+    const prefs = await getEffectivePrefs(userId, userRole)
+    setNotifPrefs(prefs)
   }
 
   if (!open) return null
@@ -324,6 +421,9 @@ export default function SettingsPanel({ open, onClose, userId, userRole }) {
               scuro di notte, chiaro di giorno.
             </p>
           </div>
+
+          {/* ── Diagnostica Push ── */}
+          <PushDiagnostics open={open} />
         </div>
       </div>
     </div>

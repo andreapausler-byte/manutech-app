@@ -18,6 +18,20 @@ export const supabase = supabaseUrl && supabaseAnonKey
 
 export const isSupabaseConfigured = () => !!supabase
 
+// ── Cache org_id per evitare query ripetute ──
+let _cachedOrgId = null
+async function getMyOrgId() {
+  if (_cachedOrgId) return _cachedOrgId
+  if (!supabase) return 'default'
+  const { data } = await supabase.rpc('get_my_org_id')
+  _cachedOrgId = data || 'default'
+  return _cachedOrgId
+}
+// Reset cache on auth state change (login/logout)
+if (supabase) {
+  supabase.auth.onAuthStateChange(() => { _cachedOrgId = null })
+}
+
 // ── Modalità Demo (localStorage) ─────────────────────────
 // Usata come fallback quando Supabase non è configurato
 // Permette di testare l'app senza backend
@@ -249,7 +263,10 @@ export const db = {
 
   async addComment(reportId, comment) {
     if (supabase) {
-      const { data, error } = await supabase.from('comments').insert({ ...comment, report_id: reportId }).select('*, user:users(name, role)').single()
+      // Auto-inject org_id if not provided (required by RLS policy)
+      let insertData = { ...comment, report_id: reportId }
+      if (!insertData.org_id) insertData.org_id = await getMyOrgId()
+      const { data, error } = await supabase.from('comments').insert(insertData).select('*, user:users(name, role)').single()
       if (error) throw error
       return data
     }
@@ -497,7 +514,10 @@ export const db = {
   // Traccia ogni evento: creazione, cambio stato, commento, media
   async addActivity(reportId, activity) {
     if (supabase) {
-      const { data, error } = await supabase.from('activities').insert({ ...activity, report_id: reportId }).select().single()
+      // Auto-inject org_id if not provided (required by RLS policy)
+      let insertData = { ...activity, report_id: reportId }
+      if (!insertData.org_id) insertData.org_id = await getMyOrgId()
+      const { data, error } = await supabase.from('activities').insert(insertData).select().single()
       if (error) throw error
       return data
     }
@@ -534,6 +554,10 @@ export const db = {
   // ─── NOTIFICATIONS ───
   async addNotification(notification) {
     if (supabase) {
+      // Auto-inject org_id if not provided (required by RLS policy)
+      if (!notification.org_id) {
+        notification = { ...notification, org_id: await getMyOrgId() }
+      }
       const { data, error } = await supabase.from('notifications').insert(notification).select().single()
       if (error) throw error
       return data
@@ -586,5 +610,121 @@ export const db = {
     const notifs = getStore(KEYS.notifications)
     notifs.forEach(n => n.read = true)
     setStore(KEYS.notifications, notifs)
+  },
+
+  // ─── PUSH SUBSCRIPTIONS ───
+  async savePushSubscription(userId, subscription, orgId = 'default') {
+    if (supabase) {
+      const { endpoint, keys } = subscription
+      const { data, error } = await supabase.from('push_subscriptions')
+        .upsert({
+          user_id: userId,
+          endpoint,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          org_id: orgId,
+        }, { onConflict: 'user_id,endpoint' })
+        .select().single()
+      if (error) throw error
+      return data
+    }
+    // Demo: salva in localStorage
+    const subs = getStore('manutech_push_subs')
+    const idx = subs.findIndex(s => s.user_id === userId && s.endpoint === subscription.endpoint)
+    const entry = { user_id: userId, endpoint: subscription.endpoint, keys: subscription.keys, org_id: orgId }
+    if (idx >= 0) subs[idx] = entry; else subs.push(entry)
+    setStore('manutech_push_subs', subs)
+    return entry
+  },
+
+  async deletePushSubscription(userId, endpoint) {
+    if (supabase) {
+      const { error } = await supabase.from('push_subscriptions')
+        .delete().eq('user_id', userId).eq('endpoint', endpoint)
+      if (error) throw error
+      return
+    }
+    const subs = getStore('manutech_push_subs').filter(s => !(s.user_id === userId && s.endpoint === endpoint))
+    setStore('manutech_push_subs', subs)
+  },
+
+  // ─── NOTIFICATION PREFERENCES (DB) ───
+  async getUserNotifPrefs(userId) {
+    if (supabase) {
+      const { data, error } = await supabase.from('notification_preferences')
+        .select('prefs').eq('user_id', userId).eq('is_org_default', false).maybeSingle()
+      if (error) throw error
+      return data?.prefs || null
+    }
+    // Demo fallback: localStorage
+    try {
+      const raw = localStorage.getItem(`manutech_notif_prefs_${userId}`)
+      return raw ? JSON.parse(raw) : null
+    } catch { return null }
+  },
+
+  async saveUserNotifPrefs(userId, prefs, orgId = 'default') {
+    if (supabase) {
+      const { data, error } = await supabase.from('notification_preferences')
+        .upsert({
+          user_id: userId,
+          prefs,
+          is_org_default: false,
+          org_id: orgId,
+        }, { onConflict: 'user_id' })
+        .select().single()
+      if (error) throw error
+      return data
+    }
+    localStorage.setItem(`manutech_notif_prefs_${userId}`, JSON.stringify(prefs))
+  },
+
+  async deleteUserNotifPrefs(userId) {
+    if (supabase) {
+      const { error } = await supabase.from('notification_preferences')
+        .delete().eq('user_id', userId).eq('is_org_default', false)
+      if (error) throw error
+      return
+    }
+    localStorage.removeItem(`manutech_notif_prefs_${userId}`)
+  },
+
+  async getOrgNotifDefaults(orgId = 'default') {
+    if (supabase) {
+      const { data, error } = await supabase.from('notification_preferences')
+        .select('role, prefs').eq('org_id', orgId).eq('is_org_default', true)
+      if (error) throw error
+      if (!data || data.length === 0) return null
+      // Converti array in oggetto { role: prefs }
+      const result = {}
+      data.forEach(row => { result[row.role] = row.prefs })
+      return result
+    }
+    try {
+      const raw = localStorage.getItem('manutech_notif_org_defaults')
+      return raw ? JSON.parse(raw) : null
+    } catch { return null }
+  },
+
+  async saveOrgNotifDefaults(orgId = 'default', role, prefs) {
+    if (supabase) {
+      // Upsert per ruolo — usa user_id = NULL per org defaults
+      // Dato che UNIQUE è su user_id (e NULL non matcha), usiamo delete+insert
+      await supabase.from('notification_preferences')
+        .delete().eq('org_id', orgId).eq('is_org_default', true).eq('role', role)
+      const { data, error } = await supabase.from('notification_preferences')
+        .insert({
+          user_id: null,
+          role,
+          prefs,
+          is_org_default: true,
+          org_id: orgId,
+        }).select().single()
+      if (error) throw error
+      return data
+    }
+    const orgDefaults = JSON.parse(localStorage.getItem('manutech_notif_org_defaults') || '{}')
+    orgDefaults[role] = prefs
+    localStorage.setItem('manutech_notif_org_defaults', JSON.stringify(orgDefaults))
   },
 }
