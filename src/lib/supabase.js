@@ -18,6 +18,20 @@ export const supabase = supabaseUrl && supabaseAnonKey
 
 export const isSupabaseConfigured = () => !!supabase
 
+// ── Cache org_id per evitare query ripetute ──
+let _cachedOrgId = null
+async function getMyOrgId() {
+  if (_cachedOrgId) return _cachedOrgId
+  if (!supabase) return 'default'
+  const { data } = await supabase.rpc('get_my_org_id')
+  _cachedOrgId = data || 'default'
+  return _cachedOrgId
+}
+// Reset cache on auth state change (login/logout)
+if (supabase) {
+  supabase.auth.onAuthStateChange(() => { _cachedOrgId = null })
+}
+
 // ── Modalità Demo (localStorage) ─────────────────────────
 // Usata come fallback quando Supabase non è configurato
 // Permette di testare l'app senza backend
@@ -249,7 +263,10 @@ export const db = {
 
   async addComment(reportId, comment) {
     if (supabase) {
-      const { data, error } = await supabase.from('comments').insert({ ...comment, report_id: reportId }).select('*, user:users(name, role)').single()
+      // Auto-inject org_id if not provided (required by RLS policy)
+      let insertData = { ...comment, report_id: reportId }
+      if (!insertData.org_id) insertData.org_id = await getMyOrgId()
+      const { data, error } = await supabase.from('comments').insert(insertData).select('*, user:users(name, role)').single()
       if (error) throw error
       return data
     }
@@ -497,7 +514,10 @@ export const db = {
   // Traccia ogni evento: creazione, cambio stato, commento, media
   async addActivity(reportId, activity) {
     if (supabase) {
-      const { data, error } = await supabase.from('activities').insert({ ...activity, report_id: reportId }).select().single()
+      // Auto-inject org_id if not provided (required by RLS policy)
+      let insertData = { ...activity, report_id: reportId }
+      if (!insertData.org_id) insertData.org_id = await getMyOrgId()
+      const { data, error } = await supabase.from('activities').insert(insertData).select().single()
       if (error) throw error
       return data
     }
@@ -534,6 +554,10 @@ export const db = {
   // ─── NOTIFICATIONS ───
   async addNotification(notification) {
     if (supabase) {
+      // Auto-inject org_id if not provided (required by RLS policy)
+      if (!notification.org_id) {
+        notification = { ...notification, org_id: await getMyOrgId() }
+      }
       const { data, error } = await supabase.from('notifications').insert(notification).select().single()
       if (error) throw error
       return data
