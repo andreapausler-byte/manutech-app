@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import toast from 'react-hot-toast'
 import { db } from '../lib/supabase'
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
@@ -54,7 +55,7 @@ async function registerSW() {
 }
 
 // ── Hook principale ──
-export function usePWA(onNotificationClick) {
+export function usePWA(onNotificationClick, userInfo) {
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   )
@@ -106,6 +107,47 @@ export function usePWA(onNotificationClick) {
     navigator.serviceWorker.addEventListener('message', handler)
     return () => navigator.serviceWorker.removeEventListener('message', handler)
   }, [])
+
+  // ── 4. Auto-subscribe a Web Push quando le condizioni sono soddisfatte ──
+  const hasAutoSubscribed = useRef(false)
+
+  // Reset guard quando il permesso cambia (es. utente concede permesso dal banner)
+  useEffect(() => {
+    hasAutoSubscribed.current = false
+  }, [notifPermission])
+
+  useEffect(() => {
+    if (hasAutoSubscribed.current) return
+    if (!swRegistration) return
+    if (!userInfo?.userId) return
+    if (!VAPID_PUBLIC_KEY) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+
+    hasAutoSubscribed.current = true
+
+    // subscribeToPush inline per evitare dipendenze circolari
+    ;(async () => {
+      try {
+        let subscription = await swRegistration.pushManager.getSubscription()
+        if (!subscription) {
+          subscription = await swRegistration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          })
+          console.log('[PWA] Push subscription creata (auto)')
+        }
+        const subJson = subscription.toJSON()
+        await db.savePushSubscription(userInfo.userId, {
+          endpoint: subJson.endpoint,
+          keys: { p256dh: subJson.keys.p256dh, auth: subJson.keys.auth },
+        }, userInfo.orgId || 'default')
+        console.log('[PWA] Push subscription salvata nel DB (auto)')
+      } catch (err) {
+        console.warn('[PWA] Errore auto push subscription:', err)
+        toast.error('Notifiche push non attivate. Riprova più tardi.', { duration: 4000 })
+      }
+    })()
+  }, [swRegistration, notifPermission, userInfo?.userId, userInfo?.orgId])
 
   // ── Richiedi permesso notifiche ──
   const requestPermission = useCallback(async () => {

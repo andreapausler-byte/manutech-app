@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings } from 'lucide-react'
 import { useAutoNotifications } from '../../hooks/useAutoNotifications'
+import { usePWA } from '../../hooks/usePWA'
 import SettingsPanel from '../ui/SettingsPanel'
 import AdminDashboard from '../../pages/admin/AdminDashboard'
 import AdminReports from '../../pages/admin/AdminReports'
@@ -31,6 +32,12 @@ export default function AdminLayout() {
 
   // ── Auto Notifications (scadenze manutenzione) ──
   useAutoNotifications(user?.id, user?.role)
+
+  // ── PWA + Web Push per admin ──
+  const handleNotifClick = (data) => {
+    if (data.report_id) setTab('reports')
+  }
+  usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id || 'default' })
 
   const renderPage = () => {
     switch (tab) {
