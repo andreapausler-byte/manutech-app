@@ -9,11 +9,11 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Bell, Save, RotateCcw } from 'lucide-react'
+import { Bell, Save, RotateCcw, Mail } from 'lucide-react'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import {
-  NOTIF_TYPES, NOTIF_GROUPS, ALL_ROLES,
+  NOTIF_TYPES, NOTIF_GROUPS, ALL_ROLES, EMAIL_NOTIF_TYPES,
   getOrgDefaults, saveOrgDefaults, getRoleDefaults,
 } from '../../lib/notifPreferences'
 
@@ -161,72 +161,135 @@ export default function AdminNotifSettings() {
               <span className="text-sm font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
                 {group.label}
               </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleToggleAll(group.key, true)}
-                  className="text-xs font-medium px-2.5 py-1 rounded-lg press-scale"
-                  style={{
-                    background: allEnabled ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
-                    color: allEnabled ? 'var(--color-primary)' : 'var(--color-text-faint)',
-                  }}
-                >
-                  Tutte On
-                </button>
-                <button
-                  onClick={() => handleToggleAll(group.key, false)}
-                  className="text-xs font-medium px-2.5 py-1 rounded-lg press-scale"
-                  style={{
-                    background: noneEnabled ? 'var(--color-danger-glow)' : 'var(--color-surface-2)',
-                    color: noneEnabled ? 'var(--color-danger)' : 'var(--color-text-faint)',
-                  }}
-                >
-                  Tutte Off
-                </button>
+              <div className="flex items-center gap-4">
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-faint)' }}>
+                  Push
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-faint)' }}>
+                  Email
+                </span>
               </div>
             </div>
 
-            {/* Items */}
+            {/* Items — doppio toggle push + email */}
             {items.map((item, idx) => {
-              const enabled = prefs[item.key] !== false
+              const pushEnabled = prefs[item.key] !== false
+              const emailKey = `email_${item.key}`
+              const emailEnabled = !!prefs[emailKey]
               return (
-                <button
+                <div
                   key={item.key}
-                  onClick={() => handleToggle(item.key)}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 text-left transition-colors press-scale"
+                  className="flex items-center gap-4 px-5 py-3.5"
                   style={{
                     borderTop: idx > 0 ? '1px solid var(--color-border-subtle)' : 'none',
-                    background: enabled ? 'transparent' : 'var(--color-surface-0)',
                   }}
                 >
                   <span className="text-xl">{item.icon}</span>
                   <span
                     className="flex-1 text-sm font-medium"
-                    style={{ color: enabled ? 'var(--color-text)' : 'var(--color-text-faint)' }}
+                    style={{ color: pushEnabled || emailEnabled ? 'var(--color-text)' : 'var(--color-text-faint)' }}
                   >
                     {item.label}
                   </span>
-                  {/* Toggle switch */}
-                  <div
-                    className="w-11 h-6 rounded-full relative shrink-0"
-                    style={{
-                      background: enabled ? 'var(--color-primary)' : 'var(--color-surface-3)',
-                      transition: 'background 0.2s ease',
-                    }}
+                  {/* Push toggle */}
+                  <button
+                    onClick={() => handleToggle(item.key)}
+                    className="press-scale"
+                    title="Push notification"
                   >
                     <div
-                      className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm"
+                      className="w-11 h-6 rounded-full relative shrink-0"
                       style={{
-                        left: enabled ? '22px' : '2px',
-                        transition: 'left 0.2s ease',
+                        background: pushEnabled ? 'var(--color-primary)' : 'var(--color-surface-3)',
+                        transition: 'background 0.2s ease',
                       }}
-                    />
-                  </div>
-                </button>
+                    >
+                      <div
+                        className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm"
+                        style={{
+                          left: pushEnabled ? '22px' : '2px',
+                          transition: 'left 0.2s ease',
+                        }}
+                      />
+                    </div>
+                  </button>
+                  {/* Email toggle */}
+                  <button
+                    onClick={() => handleToggle(emailKey)}
+                    className="press-scale"
+                    title="Email notification"
+                  >
+                    <div
+                      className="w-11 h-6 rounded-full relative shrink-0"
+                      style={{
+                        background: emailEnabled ? '#6366f1' : 'var(--color-surface-3)',
+                        transition: 'background 0.2s ease',
+                      }}
+                    >
+                      <div
+                        className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm"
+                        style={{
+                          left: emailEnabled ? '22px' : '2px',
+                          transition: 'left 0.2s ease',
+                        }}
+                      />
+                    </div>
+                  </button>
+                </div>
               )
             })}
           </div>
         )
       })}
+
+      {/* Digest settimanale */}
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border)' }}
+      >
+        <div
+          className="flex items-center justify-between px-5 py-3.5"
+          style={{ borderBottom: '1px solid var(--color-border)' }}
+        >
+          <div className="flex items-center gap-2">
+            <Mail size={16} style={{ color: '#6366f1' }} />
+            <span className="text-sm font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+              Riepilogo settimanale
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 px-5 py-3.5">
+          <span className="text-xl">📊</span>
+          <div className="flex-1">
+            <span className="text-sm font-medium block" style={{ color: 'var(--color-text)' }}>
+              Email riepilogo settimanale
+            </span>
+            <span className="text-xs" style={{ color: 'var(--color-text-faint)' }}>
+              KPI, segnalazioni e manutenzione — ogni lunedì
+            </span>
+          </div>
+          <button
+            onClick={() => handleToggle('email_weekly_digest')}
+            className="press-scale"
+          >
+            <div
+              className="w-11 h-6 rounded-full relative shrink-0"
+              style={{
+                background: prefs.email_weekly_digest ? '#6366f1' : 'var(--color-surface-3)',
+                transition: 'background 0.2s ease',
+              }}
+            >
+              <div
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm"
+                style={{
+                  left: prefs.email_weekly_digest ? '22px' : '2px',
+                  transition: 'left 0.2s ease',
+                }}
+              />
+            </div>
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

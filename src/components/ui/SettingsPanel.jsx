@@ -10,12 +10,12 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
-import { X, Sun, Moon, Monitor, Bell, BellOff, Activity, Send } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Bell, BellOff, Activity, Send, Mail } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import toast from 'react-hot-toast'
 import { db } from '../../lib/supabase'
 import {
-  NOTIF_TYPES, NOTIF_GROUPS,
+  NOTIF_TYPES, NOTIF_GROUPS, EMAIL_NOTIF_TYPES,
   getEffectivePrefs, saveUserPrefs, resetUserPrefs,
 } from '../../lib/notifPreferences'
 
@@ -464,6 +464,121 @@ export default function SettingsPanel({ open, onClose, userId, userRole }) {
                             {item.label}
                           </span>
                           {/* Toggle */}
+                          <div
+                            className="w-9 h-5 rounded-full relative shrink-0"
+                            style={{
+                              background: enabled ? 'var(--color-primary)' : 'var(--color-surface-3)',
+                              transition: 'background 0.2s ease',
+                            }}
+                          >
+                            <div
+                              className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm"
+                              style={{
+                                left: enabled ? '18px' : '2px',
+                                transition: 'left 0.2s ease',
+                              }}
+                            />
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ── Notifiche Email ── */}
+          <div className="mb-7">
+            <div className="flex items-center gap-2 mb-3">
+              <Mail size={14} style={{ color: 'var(--color-primary)' }} />
+              <div className="label-section">Notifiche Email</div>
+            </div>
+
+            <div
+              className="rounded-lg p-2.5 mb-3"
+              style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
+            >
+              <p className="text-[11px] leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+                Le email arrivano anche con l'app chiusa, senza bisogno di permessi browser.
+              </p>
+            </div>
+
+            {/* Digest settimanale */}
+            <div className="mb-3">
+              <button
+                onClick={() => handleToggleNotif('email_weekly_digest')}
+                className="w-full flex items-center gap-2.5 py-2.5 px-2.5 rounded-xl press-scale"
+                style={{
+                  background: notifPrefs.email_weekly_digest !== false && notifPrefs.email_weekly_digest !== undefined
+                    ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <span className="text-base">📊</span>
+                <div className="flex-1 text-left">
+                  <span
+                    className="text-xs font-medium block"
+                    style={{ color: 'var(--color-text)' }}
+                  >
+                    Riepilogo settimanale
+                  </span>
+                  <span className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>
+                    KPI e stato segnalazioni ogni lunedì
+                  </span>
+                </div>
+                <div
+                  className="w-9 h-5 rounded-full relative shrink-0"
+                  style={{
+                    background: notifPrefs.email_weekly_digest !== false && notifPrefs.email_weekly_digest !== undefined
+                      ? 'var(--color-primary)' : 'var(--color-surface-3)',
+                    transition: 'background 0.2s ease',
+                  }}
+                >
+                  <div
+                    className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm"
+                    style={{
+                      left: notifPrefs.email_weekly_digest !== false && notifPrefs.email_weekly_digest !== undefined ? '18px' : '2px',
+                      transition: 'left 0.2s ease',
+                    }}
+                  />
+                </div>
+              </button>
+            </div>
+
+            {/* Toggle per tipo */}
+            {NOTIF_GROUPS.map(group => {
+              const items = EMAIL_NOTIF_TYPES.filter(t => t.group === group.key)
+              return (
+                <div key={`email_${group.key}`} className="mb-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider mb-1.5"
+                    style={{ color: 'var(--color-text-faint)' }}>
+                    {group.label}
+                  </div>
+                  <div className="space-y-1">
+                    {items.map(item => {
+                      const enabled = notifPrefs[item.key] !== false && notifPrefs[item.key] !== undefined
+                        ? notifPrefs[item.key] : false
+                      return (
+                        <button
+                          key={item.key}
+                          onClick={() => handleToggleNotif(item.key)}
+                          className="w-full flex items-center gap-2.5 py-2 px-2.5 rounded-xl press-scale"
+                          style={{
+                            background: enabled ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <span className="text-base">{item.icon}</span>
+                          <span
+                            className="flex-1 text-left text-xs font-medium"
+                            style={{
+                              color: enabled ? 'var(--color-text)' : 'var(--color-text-faint)',
+                            }}
+                          >
+                            {item.label}
+                          </span>
                           <div
                             className="w-9 h-5 rounded-full relative shrink-0"
                             style={{

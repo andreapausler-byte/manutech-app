@@ -160,8 +160,59 @@ ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
   VITE_VAPID_PUBLIC_KEY = ${vapidPublicKey}
 `)
 
+  const projectRef = supabaseUrl.match(/https:\/\/(.+)\.supabase\.co/)?.[1] || '<PROJECT_REF>'
+  const emailFunctionUrl = `${supabaseUrl}/functions/v1/send-email-notification`
+  const digestFunctionUrl = `${supabaseUrl}/functions/v1/send-weekly-digest`
+
+  console.log('═'.repeat(55))
+  console.log('  SETUP EMAIL NOTIFICATIONS (opzionale)')
+  console.log('═'.repeat(55))
+
+  console.log(`
+── STEP 5: Account Resend ─────────────────────────────
+1. Registrati su https://resend.com (free: 100 email/giorno)
+2. Crea una API Key
+3. (Opzionale) Verifica il tuo dominio per sender personalizzato
+
+── STEP 6: Secrets Email Edge Function ────────────────
+Vai su Supabase Dashboard → Edge Functions → Secrets
+Aggiungi:
+
+  RESEND_API_KEY = <la tua chiave API Resend>
+  EMAIL_FROM     = ManuTech <notifiche@tuodominio.it>
+  APP_URL        = https://app.manutech.it
+
+  Nota: senza dominio verificato usa "ManuTech <onboarding@resend.dev>"
+
+── STEP 7: Deploy Edge Functions Email ────────────────
+Esegui da terminale:
+
+  npx supabase functions deploy send-email-notification --project-ref ${projectRef}
+  npx supabase functions deploy send-weekly-digest --project-ref ${projectRef}
+
+── STEP 8: Configura trigger email (SQL) ──────────────
+Esegui nel SQL Editor di Supabase:
+
+-- Migration 010 (aggiorna il trigger per chiamare anche email):
+-- Copia il contenuto di supabase/migrations/010_email_notification.sql
+
+-- Poi aggiungi URL email alla config:
+INSERT INTO public.push_config (key, value) VALUES
+  ('email_function_url', '${emailFunctionUrl}'),
+  ('digest_function_url', '${digestFunctionUrl}')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+
+── STEP 9: Digest settimanale (opzionale) ─────────────
+Per il riepilogo settimanale automatico (ogni lunedì):
+-- Esegui la migration 011:
+-- Copia il contenuto di supabase/migrations/011_weekly_digest_cron.sql
+
+  Nota: pg_cron richiede Supabase Pro. Su piano Free, puoi
+  invocare manualmente o usare un cron esterno (GitHub Actions, ecc.)
+`)
+
   console.log('─'.repeat(55))
-  console.log('✅ Setup completato! Segui gli step sopra per attivare le push.')
+  console.log('✅ Setup completato! Segui gli step sopra per attivare push + email.')
   console.log('')
 }
 
