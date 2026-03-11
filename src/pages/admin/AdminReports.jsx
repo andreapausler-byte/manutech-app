@@ -47,12 +47,22 @@ export default function AdminReports() {
 
   const createReport = async () => {
     if (!form.title.trim() || !form.description.trim()) return
-    await db.createReport({
+    const created = await db.createReport({
       ...form, media,
       created_by: user?.id,
       created_by_name: user?.name || 'Admin',
       status: 'aperta',
     })
+    if (created?.id) {
+      db.addNotification({
+        type: 'new_report',
+        title: `Nuova segnalazione: ${form.title.trim()}`,
+        body: `${user?.name || 'Admin'} ha creato una segnalazione ${form.severity}`,
+        report_id: created.id,
+        from_user: user?.id,
+        target_user: null,
+      }).catch(e => console.warn('Side effect failed:', e.message))
+    }
     setShowNew(false)
     setForm({ title: '', machine: '', severity: 'media', description: '' })
     setMedia([])
