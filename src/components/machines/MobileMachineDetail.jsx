@@ -21,7 +21,7 @@ import {
   ArrowLeft, Cog, Factory, Hash, Calendar, Building,
   FileText, Video, Shield, Wrench, ClipboardList,
   AlertTriangle, ChevronDown, ChevronUp, ExternalLink,
-  CheckCircle, X, Send, Clock, Zap
+  CheckCircle, X, Send, Clock, Zap, Activity
 } from 'lucide-react'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
@@ -64,7 +64,19 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   const [resolveParts, setResolveParts] = useState('')
   const [resolving, setResolving] = useState(false)
 
+  // Health score
+  const [assessment, setAssessment] = useState(null)
+
   useEffect(() => { loadData() }, [machine.id])
+
+  useEffect(() => {
+    db.fetchMachineAssessments(machine.org_id || user?.org_id || 'default', machine.id)
+      .then(result => {
+        const a = result?.assessments?.find(a => a.machine_id === machine.id)
+        setAssessment(a || null)
+      })
+      .catch(() => {})
+  }, [machine.id])
 
   const loadData = async () => {
     setLoading(true)
@@ -230,6 +242,35 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         {machine.description && (
           <p className="text-base text-secondary leading-relaxed card-elevated rounded-2xl p-[4vw]">{machine.description}</p>
         )}
+
+        {/* ═══ HEALTH SCORE ═══ */}
+        {assessment && (() => {
+          const colors = { ottimo: '#22c55e', buono: '#3b82f6', attenzione: '#f59e0b', critico: '#ef4444' }
+          const color = colors[assessment.status] || '#6b7280'
+          return (
+            <div className="card-elevated rounded-2xl p-[4vw]">
+              <div className="flex items-center gap-[4vw]">
+                <div className="relative w-[16vw] h-[16vw] max-w-16 max-h-16 shrink-0">
+                  <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="3" />
+                    <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: color }} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold text-themed">{assessment.health_score}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Activity size={16} style={{ color }} />
+                    <span className="text-sm font-bold text-themed">Stato Salute</span>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-lg capitalize" style={{ background: color + '18', color }}>{assessment.status}</span>
+                  </div>
+                  {assessment.factors?.slice(0, 2).map((f, i) => (
+                    <p key={i} className="text-sm text-faint truncate">{f}</p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* ═══ ALERT BANNER — Manutenzioni scadute ═══ */}
         {urgentPlans.length > 0 && (

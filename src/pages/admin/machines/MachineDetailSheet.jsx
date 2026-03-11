@@ -1,9 +1,11 @@
+import { useState, useEffect } from 'react'
 import { STATUS, SEVERITY, timeAgo } from '../../../lib/constants'
+import { db } from '../../../lib/supabase'
 import { Badge } from '../../../components/ui'
 import {
   Edit, Trash2, FileText, Video, Cog, X, QrCode, Download, Camera,
   Calendar, Hash, Factory, Building, ClipboardList, ChevronRight,
-  Wrench, Shield, Plus, Play, Upload
+  Wrench, Shield, Plus, Play, Upload, Activity
 } from 'lucide-react'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
@@ -25,6 +27,29 @@ export default function MachineDetailSheet({
   onHandleCSVFile,
 }) {
   const getReportsForMachine = (name) => reports.filter(r => r.machine === name)
+
+  // Health score assessment
+  const [assessment, setAssessment] = useState(null)
+  const [assessmentLoading, setAssessmentLoading] = useState(true)
+
+  useEffect(() => {
+    if (!sel?.id) return
+    setAssessmentLoading(true)
+    db.fetchMachineAssessments(sel.org_id || 'default', sel.id)
+      .then(result => {
+        const a = result?.assessments?.find(a => a.machine_id === sel.id)
+        setAssessment(a || null)
+      })
+      .catch(() => setAssessment(null))
+      .finally(() => setAssessmentLoading(false))
+  }, [sel?.id])
+
+  const healthColors = {
+    ottimo: { bg: '#22c55e', ring: '#22c55e40' },
+    buono: { bg: '#3b82f6', ring: '#3b82f640' },
+    attenzione: { bg: '#f59e0b', ring: '#f59e0b40' },
+    critico: { bg: '#ef4444', ring: '#ef444440' },
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -78,6 +103,32 @@ export default function MachineDetailSheet({
             </div>
 
             {sel.description && <div><p className="text-[10px] text-faint uppercase tracking-wider mb-1">Descrizione</p><p className="text-xs text-secondary leading-relaxed">{sel.description}</p></div>}
+
+            {/* Health Score */}
+            <div className="bg-surface-2 rounded-xl p-3">
+              <p className="text-[10px] text-faint uppercase tracking-wider mb-2 flex items-center gap-1"><Activity size={10} /> Stato Salute</p>
+              {assessmentLoading ? (
+                <div className="flex items-center justify-center py-3"><div className="w-5 h-5 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" /></div>
+              ) : assessment ? (
+                <div className="flex items-center gap-3">
+                  <div className="relative w-14 h-14 shrink-0">
+                    <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                      <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="3" />
+                      <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: healthColors[assessment.status]?.bg || '#6b7280' }} />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-themed">{assessment.health_score}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-lg capitalize" style={{ background: (healthColors[assessment.status]?.bg || '#6b7280') + '18', color: healthColors[assessment.status]?.bg || '#6b7280' }}>{assessment.status}</span>
+                    {assessment.factors?.slice(0, 2).map((f, i) => (
+                      <p key={i} className="text-[10px] text-faint mt-0.5 truncate">{f}</p>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-faint text-center py-2">Non disponibile</p>
+              )}
+            </div>
 
             <div className="bg-white rounded-xl p-3 flex flex-col items-center">
               {qrDataUrl ? <img src={qrDataUrl} alt="QR" className="w-28 h-28" /> : <div className="w-28 h-28 flex items-center justify-center"><div className="w-5 h-5 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" /></div>}

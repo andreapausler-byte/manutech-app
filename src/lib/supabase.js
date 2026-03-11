@@ -689,6 +689,51 @@ export const db = {
     localStorage.setItem(`manutech_notif_prefs_${userId}`, JSON.stringify(prefs))
   },
 
+  // ─── STATUS ASSESSMENT (Edge Function) ───
+  async fetchMachineAssessments(orgId, machineId = null) {
+    if (supabase) {
+      const params = new URLSearchParams({ org_id: orgId })
+      if (machineId) params.append('machine_id', machineId)
+      const url = `${supabaseUrl}/functions/v1/status-assessment?${params.toString()}`
+      const session = (await supabase.auth.getSession()).data.session
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || supabaseAnonKey}`,
+          'apikey': supabaseAnonKey,
+        },
+      })
+      if (!res.ok) throw new Error(`Assessment failed: ${res.status}`)
+      return await res.json()
+    }
+    // Demo fallback: calcolo locale semplificato
+    const machines = getStore(KEYS.machines)
+    const reports = getStore(KEYS.reports)
+    const target = machineId ? machines.filter(m => m.id === machineId) : machines
+    const assessments = target.map(m => {
+      const machineReports = reports.filter(r => r.machine === m.name)
+      const open = machineReports.filter(r => r.status !== 'risolta')
+      const critical = open.filter(r => r.severity === 'critica').length
+      let score = 100 - (critical * 25) - (open.filter(r => r.severity === 'alta').length * 15) - (open.filter(r => r.severity === 'media').length * 8) - (open.filter(r => r.severity === 'bassa').length * 3)
+      score = Math.max(0, Math.min(100, score))
+      const status = score >= 85 ? 'ottimo' : score >= 65 ? 'buono' : score >= 40 ? 'attenzione' : 'critico'
+      return {
+        machine_id: m.id, machine_name: m.name, health_score: score, status,
+        open_reports: open.length, critical_reports: critical, overdue_maintenance: 0,
+        avg_resolution_hours: null, factors: open.length === 0 ? ['Nessun problema rilevato'] : [`${open.length} segnalazione/i aperta/e`],
+      }
+    })
+    assessments.sort((a, b) => a.health_score - b.health_score)
+    const summary = {
+      total_machines: assessments.length,
+      critical: assessments.filter(a => a.status === 'critico').length,
+      attention: assessments.filter(a => a.status === 'attenzione').length,
+      good: assessments.filter(a => a.status === 'buono').length,
+      excellent: assessments.filter(a => a.status === 'ottimo').length,
+      avg_health_score: assessments.length > 0 ? Math.round(assessments.reduce((s, a) => s + a.health_score, 0) / assessments.length) : 100,
+    }
+    return { assessments, summary, generated_at: new Date().toISOString() }
+  },
+
   async deleteUserNotifPrefs(userId) {
     if (supabase) {
       const { error } = await supabase.from('notification_preferences')
