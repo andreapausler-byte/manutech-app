@@ -109,7 +109,7 @@ const EMAIL_ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
     email_maintenance_overdue: true,
   },
   tecnico: {
-    email_new_report: false,
+    email_new_report: true,
     email_quick_report: false,
     email_assigned: true,
     email_status_change: true,
