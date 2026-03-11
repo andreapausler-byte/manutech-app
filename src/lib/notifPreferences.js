@@ -31,7 +31,7 @@ export const NOTIF_GROUPS = [
   { key: 'manutenzione', label: 'Manutenzione' },
 ]
 
-// ── Default per ruolo ──
+// ── Default per ruolo (push/in-app) ──
 export const ROLE_DEFAULTS = {
   admin: {
     new_report: true,
@@ -43,6 +43,17 @@ export const ROLE_DEFAULTS = {
     maintenance_completed: true,
     maintenance_reminder: true,
     maintenance_overdue: true,
+    // Email
+    email_new_report: true,
+    email_quick_report: false,
+    email_assigned: true,
+    email_status_change: true,
+    email_comment: false,
+    email_maintenance_taken: true,
+    email_maintenance_completed: true,
+    email_maintenance_reminder: true,
+    email_maintenance_overdue: true,
+    email_weekly_digest: true,
   },
   tecnico: {
     new_report: false,
@@ -54,6 +65,17 @@ export const ROLE_DEFAULTS = {
     maintenance_completed: false,
     maintenance_reminder: true,
     maintenance_overdue: true,
+    // Email
+    email_new_report: false,
+    email_quick_report: false,
+    email_assigned: true,
+    email_status_change: true,
+    email_comment: false,
+    email_maintenance_taken: false,
+    email_maintenance_completed: false,
+    email_maintenance_reminder: true,
+    email_maintenance_overdue: true,
+    email_weekly_digest: false,
   },
   operatore: {
     new_report: false,
@@ -65,8 +87,25 @@ export const ROLE_DEFAULTS = {
     maintenance_completed: false,
     maintenance_reminder: true,
     maintenance_overdue: true,
+    // Email
+    email_new_report: false,
+    email_quick_report: false,
+    email_assigned: true,
+    email_status_change: true,
+    email_comment: false,
+    email_maintenance_taken: false,
+    email_maintenance_completed: false,
+    email_maintenance_reminder: false,
+    email_maintenance_overdue: false,
+    email_weekly_digest: false,
   },
 }
+
+// ── Tipi notifica email (mirror di NOTIF_TYPES con prefisso email_) ──
+export const EMAIL_NOTIF_TYPES = NOTIF_TYPES.map(t => ({
+  ...t,
+  key: `email_${t.key}`,
+}))
 
 // ── Cache in memoria per evitare troppe query ──
 const _cache = {
