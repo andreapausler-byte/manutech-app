@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import LoginPage from './components/layout/LoginPage'
@@ -5,8 +6,14 @@ import MobileLayout from './components/layout/MobileLayout'
 import AdminLayout from './components/layout/AdminLayout'
 import { Spinner } from './components/ui'
 
+function getInitialReportId() {
+  const match = window.location.pathname.match(/^\/reports\/(.+)$/)
+  return match ? match[1] : null
+}
+
 function AppContent() {
   const { user, loading } = useAuth()
+  const initialReportId = useMemo(getInitialReportId, [])
 
   if (loading) {
     return (
@@ -26,8 +33,8 @@ function AppContent() {
   if (!user) return <LoginPage />
 
   // Admin → desktop layout, others → mobile layout
-  if (user.role === 'admin') return <AdminLayout />
-  return <MobileLayout />
+  if (user.role === 'admin') return <AdminLayout initialReportId={initialReportId} />
+  return <MobileLayout initialReportId={initialReportId} />
 }
 
 export default function App() {

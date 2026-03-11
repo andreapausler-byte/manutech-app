@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
@@ -99,7 +99,7 @@ const TABS = [
   { id: 'profile', icon: User, label: 'Profilo' },
 ]
 
-export default function MobileLayout() {
+export default function MobileLayout({ initialReportId }) {
   const { user, logout } = useAuth()
   const { toggleMode, isDark } = useTheme()
   const [tab, setTab] = useState('home')
@@ -121,6 +121,14 @@ export default function MobileLayout() {
     if (data.report_id) openReportById(data.report_id)
   }
   const { notifPermission, canInstall, requestPermission, promptInstall, showNotification } = usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id || 'default' })
+
+  // ── Deep link da email ──
+  useEffect(() => {
+    if (initialReportId) {
+      openReportById(initialReportId)
+      window.history.replaceState({}, '', '/')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchTab = (id) => {
     haptic.light()

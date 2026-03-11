@@ -8,7 +8,7 @@ import { useToast } from '../../hooks/useToast'
 import ReportDetailModal from './reports/ReportDetailModal'
 import { Plus, Search, Eye, X } from 'lucide-react'
 
-export default function AdminReports() {
+export default function AdminReports({ initialReportId }) {
   const { user } = useAuth()
   const toast = useToast()
   const [reports, setReports] = useState([])
@@ -30,6 +30,15 @@ export default function AdminReports() {
   }
 
   useEffect(() => { load() }, [])
+
+  // ── Deep link da email: apri report specifico ──
+  useEffect(() => {
+    if (initialReportId && !loading && !selected) {
+      db.getReport(initialReportId).then(report => {
+        if (report) setSelected(report)
+      }).catch(() => {})
+    }
+  }, [initialReportId, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
