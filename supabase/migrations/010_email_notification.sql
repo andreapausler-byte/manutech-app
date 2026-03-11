@@ -48,7 +48,7 @@ BEGIN
   IF fn_url IS NOT NULL THEN
     PERFORM net.http_post(
       url     := fn_url,
-      body    := payload::text,
+      body    := payload,
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
         'Authorization', 'Bearer ' || fn_key
@@ -60,7 +60,7 @@ BEGIN
   IF email_url IS NOT NULL THEN
     PERFORM net.http_post(
       url     := email_url,
-      body    := payload::text,
+      body    := payload,
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
         'Authorization', 'Bearer ' || fn_key

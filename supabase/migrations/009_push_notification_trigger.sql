@@ -66,7 +66,7 @@ BEGIN
   -- Invia HTTP POST asincrono (non-blocking, non rallenta INSERT)
   PERFORM net.http_post(
     url     := fn_url,
-    body    := payload::text,
+    body    := payload,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || fn_key
