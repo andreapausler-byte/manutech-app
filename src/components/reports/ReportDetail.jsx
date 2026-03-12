@@ -45,14 +45,20 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         user_id: user.id, user_name: user.name,
       }).catch(e => console.warn('Side effect failed:', e.message))
 
-      db.addNotification({
-        type: 'status_change',
-        title: `Stato aggiornato: ${report.title}`,
-        body: `${user.name} ha cambiato lo stato a "${statusLabel}"`,
-        report_id: report.id,
-        from_user: user.id,
-        target_user: report.created_by !== user.id ? report.created_by : null,
-      }).catch(e => console.warn('Side effect failed:', e.message))
+      // Notifica tutti gli stakeholder tranne chi fa il cambio
+      const recipients = new Set()
+      if (report.created_by) recipients.add(report.created_by)
+      if (report.assigned_to) recipients.add(report.assigned_to)
+      recipients.delete(user.id)
+
+      for (const targetId of recipients) {
+        db.addNotification({
+          type: 'status_change',
+          title: `Stato aggiornato: ${report.title}`,
+          body: `${user.name} ha cambiato lo stato a "${statusLabel}"`,
+          report_id: report.id, from_user: user.id, target_user: targetId,
+        }).catch(e => console.warn('Side effect failed:', e.message))
+      }
     } catch {
       toast.error('Errore aggiornamento stato')
     }

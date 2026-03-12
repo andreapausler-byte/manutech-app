@@ -62,12 +62,18 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
       type: 'status_change', from_status: selected?.status, to_status: newStatus,
       user_id: user?.id, user_name: user?.name,
     }).catch(e => console.warn('Side effect failed:', e.message))
-    if (selected?.created_by && selected.created_by !== user?.id) {
+    // Notifica tutti gli stakeholder tranne chi fa il cambio
+    const recipients = new Set()
+    if (selected?.created_by) recipients.add(selected.created_by)
+    if (selected?.assigned_to) recipients.add(selected.assigned_to)
+    recipients.delete(user?.id)
+
+    for (const targetId of recipients) {
       db.addNotification({
         type: 'status_change',
         title: `Stato aggiornato: ${selected?.title}`,
         body: `${user?.name} ha cambiato lo stato a "${STATUS[newStatus]?.label || newStatus}"`,
-        report_id: reportId, from_user: user?.id, target_user: selected.created_by,
+        report_id: reportId, from_user: user?.id, target_user: targetId,
       }).catch(e => console.warn('Side effect failed:', e.message))
     }
     onUpdate({ status: newStatus })
