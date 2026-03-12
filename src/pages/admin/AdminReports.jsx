@@ -36,7 +36,7 @@ export default function AdminReports({ initialReportId }) {
     if (initialReportId && !loading && !selected) {
       db.getReport(initialReportId).then(report => {
         if (report) setSelected(report)
-      }).catch(() => {})
+      }).catch(() => console.warn('[ManuTech] Impossibile caricare report:', initialReportId))
     }
   }, [initialReportId, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
