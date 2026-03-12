@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings } from 'lucide-react'
@@ -23,12 +23,19 @@ const NAV = [
   { id: 'notifications', icon: Bell, label: 'Notifiche', desc: 'Preferenze notifiche per ruolo' },
 ]
 
-export default function AdminLayout() {
+export default function AdminLayout({ initialReportId }) {
   const { user, logout } = useAuth()
   const { toggleMode, isDark } = useTheme()
-  const [tab, setTab] = useState('dashboard')
+  const [tab, setTab] = useState(initialReportId ? 'reports' : 'dashboard')
   const [collapsed, setCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // ── Deep link da email ──
+  useEffect(() => {
+    if (initialReportId) {
+      window.history.replaceState({}, '', '/')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto Notifications (scadenze manutenzione) ──
   useAutoNotifications(user?.id, user?.role)
@@ -42,7 +49,7 @@ export default function AdminLayout() {
   const renderPage = () => {
     switch (tab) {
       case 'dashboard': return <AdminDashboard onNavigate={setTab} />
-      case 'reports': return <AdminReports />
+      case 'reports': return <AdminReports initialReportId={initialReportId} />
       case 'machines': return <AdminMachines />
       case 'maintenance': return <AdminMaintenance />
       case 'technicians': return <AdminTechnicians />

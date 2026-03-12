@@ -32,13 +32,17 @@ export default function MaintenanceSummary({ maintenanceTasks, nonAssegnate, rep
         </div>
 
         {(() => {
-          const overdue = maintenanceTasks.filter(t => t.light.color === '#ef4444')
-          const warning = maintenanceTasks.filter(t => t.light.color === '#f59e0b')
-          const ok = maintenanceTasks.filter(t => t.light.color === '#22c55e')
-
           if (maintenanceTasks.length === 0) {
             return <p className="text-sm text-faint text-center py-4">Nessun piano configurato</p>
           }
+
+          const overdue = [], warning = [], ok = []
+          for (const t of maintenanceTasks) {
+            if (t.light.color === '#ef4444') overdue.push(t)
+            else if (t.light.color === '#f59e0b') warning.push(t)
+            else ok.push(t)
+          }
+          const urgent = [...overdue, ...warning]
 
           return (
             <>
@@ -57,9 +61,9 @@ export default function MaintenanceSummary({ maintenanceTasks, nonAssegnate, rep
                 </div>
               </div>
 
-              {[...overdue, ...warning].length > 0 ? (
+              {urgent.length > 0 ? (
                 <div className="space-y-2">
-                  {[...overdue, ...warning].slice(0, 5).map((task, i) => (
+                  {urgent.slice(0, 5).map((task, i) => (
                     <div key={`${task.plan.id}-${i}`} className="flex items-center gap-3 p-2.5 bg-surface-2 rounded-xl">
                       <div className="w-3 h-3 rounded-full shrink-0" style={{ background: task.light.color, boxShadow: `0 0 8px ${task.light.color}40` }} />
                       <div className="flex-1 min-w-0">
@@ -74,8 +78,8 @@ export default function MaintenanceSummary({ maintenanceTasks, nonAssegnate, rep
                       </span>
                     </div>
                   ))}
-                  {[...overdue, ...warning].length > 5 && (
-                    <p className="text-xs text-faint text-center py-1">+ {[...overdue, ...warning].length - 5} altre</p>
+                  {urgent.length > 5 && (
+                    <p className="text-xs text-faint text-center py-1">+ {urgent.length - 5} altre</p>
                   )}
                 </div>
               ) : (

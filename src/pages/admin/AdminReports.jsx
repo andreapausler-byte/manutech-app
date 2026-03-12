@@ -6,9 +6,9 @@ import { Badge, Button, Modal, Input, Textarea, Select, EmptyState, Spinner } fr
 import MediaCapture from '../../components/media/MediaCapture'
 import { useToast } from '../../hooks/useToast'
 import ReportDetailModal from './reports/ReportDetailModal'
-import { Plus, Search, Eye, X } from 'lucide-react'
+import { Plus, Search, Eye, X, ChevronUp, ChevronDown } from 'lucide-react'
 
-export default function AdminReports() {
+export default function AdminReports({ initialReportId }) {
   const { user } = useAuth()
   const toast = useToast()
   const [reports, setReports] = useState([])
@@ -22,6 +22,8 @@ export default function AdminReports() {
   const [form, setForm] = useState({ title: '', machine: '', severity: 'media', description: '' })
   const [media, setMedia] = useState([])
   const [machines, setMachines] = useState([])
+  const [sortBy, setSortBy] = useState('created_at')
+  const [sortDir, setSortDir] = useState('desc')
 
   const load = async () => {
     setLoading(true)
@@ -30,6 +32,15 @@ export default function AdminReports() {
   }
 
   useEffect(() => { load() }, [])
+
+  // ── Deep link da email: apri report specifico ──
+  useEffect(() => {
+    if (initialReportId && !loading && !selected) {
+      db.getReport(initialReportId).then(report => {
+        if (report) setSelected(report)
+      }).catch(() => console.warn('[ManuTech] Impossibile caricare report:', initialReportId))
+    }
+  }, [initialReportId, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
@@ -45,14 +56,43 @@ export default function AdminReports() {
 
   const activeFilters = [filterStatus, filterSeverity].filter(Boolean).length
 
+  const toggleSort = (field) => {
+    if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(field); setSortDir('asc') }
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
+    let va, vb
+    switch (sortBy) {
+      case 'created_at': va = a.created_at || ''; vb = b.created_at || ''; break
+      case 'machine': va = (a.machine || '').toLowerCase(); vb = (b.machine || '').toLowerCase(); break
+      case 'status': va = a.status || ''; vb = b.status || ''; break
+      case 'assigned_to_name': va = a.assigned_to_name || ''; vb = b.assigned_to_name || ''; break
+      default: return 0
+    }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1
+    if (va > vb) return sortDir === 'asc' ? 1 : -1
+    return 0
+  })
+
   const createReport = async () => {
     if (!form.title.trim() || !form.description.trim()) return
-    await db.createReport({
+    const created = await db.createReport({
       ...form, media,
       created_by: user?.id,
       created_by_name: user?.name || 'Admin',
       status: 'aperta',
     })
+    if (created?.id) {
+      db.addNotification({
+        type: 'new_report',
+        title: `Nuova segnalazione: ${form.title.trim()}`,
+        body: `${user?.name || 'Admin'} ha creato una segnalazione ${form.severity}`,
+        report_id: created.id,
+        from_user: user?.id,
+        target_user: null,
+      }).catch(e => console.warn('Side effect failed:', e.message))
+    }
     setShowNew(false)
     setForm({ title: '', machine: '', severity: 'media', description: '' })
     setMedia([])
@@ -128,15 +168,30 @@ export default function AdminReports() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-token">
-                {['Segnalazione', 'Macchinario', 'Gravità', 'Stato', 'Assegnato a', 'Data', ''].map((h, i) => (
-                  <th key={i} className={`text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider
-                    ${i === 1 || i === 4 || i === 5 ? 'hidden lg:table-cell' : ''}
-                    ${i === 2 ? 'hidden md:table-cell' : ''}`}>{h}</th>
+                {[
+                  { label: 'Segnalazione', field: null },
+                  { label: 'Macchinario', field: 'machine', hide: 'hidden lg:table-cell' },
+                  { label: 'Gravità', field: null, hide: 'hidden md:table-cell' },
+                  { label: 'Stato', field: 'status' },
+                  { label: 'Assegnato a', field: 'assigned_to_name', hide: 'hidden lg:table-cell' },
+                  { label: 'Data', field: 'created_at', hide: 'hidden lg:table-cell' },
+                  { label: '', field: null },
+                ].map((col, i) => (
+                  <th key={i} className={`text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider ${col.hide || ''}
+                    ${col.field ? 'cursor-pointer select-none hover:text-white text-faint' : 'text-faint'}`}
+                    onClick={col.field ? () => toggleSort(col.field) : undefined}>
+                    <span className="inline-flex items-center gap-1">
+                      {col.label}
+                      {col.field && sortBy === col.field && (
+                        sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                      )}
+                    </span>
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map(r => {
+              {sorted.map(r => {
                 const sts = STATUS[r.status] || STATUS.aperta
                 const sev = SEVERITY[r.severity] || SEVERITY.media
                 return (

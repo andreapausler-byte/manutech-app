@@ -3,11 +3,14 @@ import { ChevronRight } from 'lucide-react'
 export default function TeamWorkload({ users, reports, onNavigate }) {
   const workload = users
     .map(u => {
-      const assigned = reports.filter(r => r.assigned_to === u.id)
-      const active = assigned.filter(r => r.status !== 'risolta').length
-      const resolved = assigned.filter(r => r.status === 'risolta').length
-      const critical = assigned.filter(r => r.status !== 'risolta' && (r.severity === 'critica' || r.severity === 'alta')).length
-      return { ...u, active, resolved, total: assigned.length, critical }
+      let active = 0, resolved = 0, critical = 0, total = 0
+      for (const r of reports) {
+        if (r.assigned_to !== u.id) continue
+        total++
+        if (r.status === 'risolta') { resolved++ }
+        else { active++; if (r.severity === 'critica' || r.severity === 'alta') critical++ }
+      }
+      return { ...u, active, resolved, total, critical }
     })
     .filter(u => u.total > 0)
     .sort((a, b) => b.active - a.active)
@@ -70,11 +73,15 @@ export default function TeamWorkload({ users, reports, onNavigate }) {
       </div>
 
       <div className="mt-5 pt-4 border-t border-token grid grid-cols-3 gap-2">
-        {[
-          { label: 'Admin', count: users.filter(u => u.role === 'admin').length, color: '#f59e0b' },
-          { label: 'Tecnici', count: users.filter(u => u.role === 'tecnico').length, color: '#22c55e' },
-          { label: 'Operatori', count: users.filter(u => u.role === 'operatore').length, color: '#3b82f6' },
-        ].map(({ label, count }) => (
+        {(() => {
+          const counts = { admin: 0, tecnico: 0, operatore: 0 }
+          for (const u of users) if (counts[u.role] !== undefined) counts[u.role]++
+          return [
+            { label: 'Admin', count: counts.admin, color: '#f59e0b' },
+            { label: 'Tecnici', count: counts.tecnico, color: '#22c55e' },
+            { label: 'Operatori', count: counts.operatore, color: '#3b82f6' },
+          ]
+        })().map(({ label, count }) => (
           <div key={label} className="text-center p-2 bg-surface-1 rounded-lg">
             <p className="text-lg font-bold text-themed">{count}</p>
             <p className="text-[10px] text-faint uppercase">{label}</p>

@@ -102,18 +102,16 @@ export default function AdminMachines() {
     setSel(machine); setDetailTab('plans')
     const [url, p, l] = await Promise.all([generateQR(machine), db.getMaintenancePlans(machine.id), db.getMaintenanceLogs(machine.id)])
     setQrDataUrl(url); setPlans(p); setLogs(l)
-    const ll = {}
-    for (const plan of p) { ll[plan.id] = await db.getLastLogForPlan(plan.id) }
-    setPlanLastLogs(ll)
+    const entries = await Promise.all(p.map(plan => db.getLastLogForPlan(plan.id).then(log => [plan.id, log])))
+    setPlanLastLogs(Object.fromEntries(entries))
   }
 
   const refreshDetail = async () => {
     if (!sel) return
     const [p, l] = await Promise.all([db.getMaintenancePlans(sel.id), db.getMaintenanceLogs(sel.id)])
     setPlans(p); setLogs(l)
-    const ll = {}
-    for (const plan of p) { ll[plan.id] = await db.getLastLogForPlan(plan.id) }
-    setPlanLastLogs(ll)
+    const entries = await Promise.all(p.map(plan => db.getLastLogForPlan(plan.id).then(log => [plan.id, log])))
+    setPlanLastLogs(Object.fromEntries(entries))
   }
 
   // ── Machine CRUD ──

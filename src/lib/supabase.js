@@ -48,7 +48,7 @@ const KEYS = {
 
 function getStore(key) {
   try { return JSON.parse(localStorage.getItem(key) || '[]') }
-  catch { return [] }
+  catch (e) { console.warn(`[ManuTech] Dati corrotti in localStorage (${key}):`, e.message); return [] }
 }
 
 function setStore(key, data) {
@@ -176,7 +176,7 @@ export const db = {
         .eq('auth_id', session.user.id).single()
       return user || null
     }
-    try { return JSON.parse(localStorage.getItem(KEYS.session)) } catch { return null }
+    try { return JSON.parse(localStorage.getItem(KEYS.session)) } catch (e) { console.warn('[ManuTech] Sessione corrotta:', e.message); return null }
   },
 
   async logout() {
@@ -670,7 +670,7 @@ export const db = {
     try {
       const raw = localStorage.getItem(`manutech_notif_prefs_${userId}`)
       return raw ? JSON.parse(raw) : null
-    } catch { return null }
+    } catch (e) { console.warn('[ManuTech] Preferenze notifiche corrotte:', e.message); return null }
   },
 
   async saveUserNotifPrefs(userId, prefs, orgId = 'default') {
@@ -758,7 +758,7 @@ export const db = {
     try {
       const raw = localStorage.getItem('manutech_notif_org_defaults')
       return raw ? JSON.parse(raw) : null
-    } catch { return null }
+    } catch (e) { console.warn('[ManuTech] Default org notifiche corrotti:', e.message); return null }
   },
 
   async saveOrgNotifDefaults(orgId = 'default', role, prefs) {

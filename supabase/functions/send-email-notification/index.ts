@@ -109,7 +109,7 @@ const EMAIL_ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
     email_maintenance_overdue: true,
   },
   tecnico: {
-    email_new_report: false,
+    email_new_report: true,
     email_quick_report: false,
     email_assigned: true,
     email_status_change: true,
@@ -258,9 +258,13 @@ Deno.serve(async (req: Request) => {
     const html = buildEmailHtml(notification, appUrl)
     const subject = notification.title
 
-    // Invia email a tutti gli eligibili
-    const results = await Promise.allSettled(
-      eligible.map(async (user) => {
+    // Invia email in sequenza con delay per evitare rate limit Resend (2 req/s free tier)
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+    let sent = 0
+    let failed = 0
+
+    for (const user of eligible) {
+      try {
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -279,16 +283,21 @@ Deno.serve(async (req: Request) => {
 
         if (!res.ok) {
           console.error(`[Email] Failed for ${user.email}:`, result)
-          throw new Error(result.message || `HTTP ${res.status}`)
+          failed++
+        } else {
+          console.log(`[Email] Sent to ${user.email}: id=${result.id}`)
+          sent++
         }
+      } catch (err) {
+        console.error(`[Email] Error for ${user.email}:`, (err as Error).message)
+        failed++
+      }
 
-        console.log(`[Email] Sent to ${user.email}: id=${result.id}`)
-        return result
-      })
-    )
-
-    const sent = results.filter(r => r.status === 'fulfilled').length
-    const failed = results.filter(r => r.status === 'rejected').length
+      // Attendi 600ms tra un invio e l'altro per rispettare il rate limit
+      if (eligible.indexOf(user) < eligible.length - 1) {
+        await delay(600)
+      }
+    }
 
     console.log(`[Email] Sent: ${sent}, Failed: ${failed}`)
 

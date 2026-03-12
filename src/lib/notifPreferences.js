@@ -66,7 +66,7 @@ export const ROLE_DEFAULTS = {
     maintenance_reminder: true,
     maintenance_overdue: true,
     // Email
-    email_new_report: false,
+    email_new_report: true,
     email_quick_report: false,
     email_assigned: true,
     email_status_change: true,
