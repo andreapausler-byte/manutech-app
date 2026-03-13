@@ -49,23 +49,31 @@ export default function AdminUsers() {
     if (!confirm('Eliminare questo utente?')) return; await db.deleteUser(id); load()
   }
 
+  const SEV_ORDER = { critica: 0, alta: 1, media: 2, bassa: 3 }
+
   const printUserSummary = async (targetUser) => {
     setPrinting(targetUser.id)
     try {
       const allReports = await db.getReports({ assigned_to: targetUser.id })
-      const pending = allReports.filter(r => r.status !== 'risolta')
+      const pending = allReports
+        .filter(r => r.status !== 'risolta')
+        .sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9))
 
       const today = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
 
       const rows = pending.map((r, i) => {
         const sev = SEVERITY[r.severity]?.label || r.severity
+        const sevColor = SEVERITY[r.severity]?.color || '#666'
         const sts = STATUS[r.status]?.label || r.status
         const desc = r.description?.length > 120 ? r.description.slice(0, 120) + '...' : (r.description || '')
         return `<tr>
-          <td style="padding:8px 10px;border:1px solid #ddd;text-align:center;font-weight:600">${i + 1}</td>
+          <td style="padding:8px 6px;border:1px solid #ddd;text-align:center;width:28px">
+            <span style="display:inline-block;width:16px;height:16px;border:2px solid #888;border-radius:3px"></span>
+          </td>
+          <td style="padding:8px 10px;border:1px solid #ddd;text-align:center;font-weight:600;width:28px">${i + 1}</td>
           <td style="padding:8px 10px;border:1px solid #ddd;font-weight:600">${esc(r.title)}</td>
           <td style="padding:8px 10px;border:1px solid #ddd">${esc(r.machine || '—')}</td>
-          <td style="padding:8px 10px;border:1px solid #ddd;text-align:center">${esc(sev)}</td>
+          <td style="padding:8px 10px;border:1px solid #ddd;text-align:center;font-weight:600;color:${sevColor}">${esc(sev)}</td>
           <td style="padding:8px 10px;border:1px solid #ddd;text-align:center">${esc(sts)}</td>
           <td style="padding:8px 10px;border:1px solid #ddd;font-size:12px;color:#555">${esc(desc)}</td>
           <td style="padding:8px 10px;border:1px solid #ddd;white-space:nowrap">${formatDate(r.created_at)}</td>
@@ -74,12 +82,14 @@ export default function AdminUsers() {
 
       const html = `<!DOCTYPE html>
 <html lang="it">
-<head><meta charset="utf-8"><title>Riepilogo — ${esc(targetUser.name)}</title></head>
+<head><meta charset="utf-8"><title>Checklist — ${esc(targetUser.name)}</title>
+<style>@media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }</style>
+</head>
 <body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a2e">
-  <div style="max-width:900px;margin:0 auto">
+  <div style="max-width:960px;margin:0 auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:3px solid #6366f1;padding-bottom:16px">
       <div>
-        <h1 style="margin:0;font-size:22px;color:#1a1a2e">Riepilogo Segnalazioni</h1>
+        <h1 style="margin:0;font-size:22px;color:#1a1a2e">Checklist Segnalazioni</h1>
         <p style="margin:4px 0 0;font-size:16px;color:#6366f1;font-weight:600">${esc(targetUser.name)}</p>
       </div>
       <div style="text-align:right">
@@ -92,7 +102,8 @@ export default function AdminUsers() {
       : `<table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="background:#f8f9fa">
-            <th style="padding:10px;border:1px solid #ddd;width:30px">#</th>
+            <th style="padding:10px;border:1px solid #ddd;width:28px">&#x2610;</th>
+            <th style="padding:10px;border:1px solid #ddd;width:28px">#</th>
             <th style="padding:10px;border:1px solid #ddd;text-align:left">Titolo</th>
             <th style="padding:10px;border:1px solid #ddd;text-align:left">Macchinario</th>
             <th style="padding:10px;border:1px solid #ddd">Gravit&agrave;</th>
