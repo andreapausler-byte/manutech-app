@@ -8,6 +8,7 @@ import { Button, Modal, Input, Textarea, EmptyState, Spinner } from '../../compo
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import MachineDetailSheet from './machines/MachineDetailSheet'
+import ReportDetailModal from './reports/ReportDetailModal'
 import QRCode from 'qrcode'
 import {
   Plus, Edit, Trash2, FileText, Video, Cog, Search,
@@ -40,7 +41,10 @@ export default function AdminMachines() {
   const [plans, setPlans] = useState([])
   const [logs, setLogs] = useState([])
   const [planLastLogs, setPlanLastLogs] = useState({})
-  const [detailTab, setDetailTab] = useState('plans')
+  const [detailTab, setDetailTab] = useState('overview')
+
+  // Report detail
+  const [selectedReport, setSelectedReport] = useState(null)
 
   // Plan form
   const [showPlanForm, setShowPlanForm] = useState(false)
@@ -99,7 +103,7 @@ export default function AdminMachines() {
 
   // ── Detail ──
   const openDetail = async (machine) => {
-    setSel(machine); setDetailTab('plans')
+    setSel(machine); setDetailTab('overview')
     const [url, p, l] = await Promise.all([generateQR(machine), db.getMaintenancePlans(machine.id), db.getMaintenanceLogs(machine.id)])
     setQrDataUrl(url); setPlans(p); setLogs(l)
     const entries = await Promise.all(p.map(plan => db.getLastLogForPlan(plan.id).then(log => [plan.id, log])))
@@ -294,8 +298,21 @@ export default function AdminMachines() {
           planLastLogs={planLastLogs} reports={reports}
           detailTab={detailTab} setDetailTab={setDetailTab}
           onClose={() => setSel(null)} onEdit={openEdit} onDownloadQR={downloadQR}
+          onOpenReport={(report) => setSelectedReport(report)}
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
           onOpenLogForm={openLogForm} onHandleCSVFile={handleCSVFile}
+        />
+      )}
+
+      {/* Report Detail Modal (from machine detail, z-index above detail sheet) */}
+      {selectedReport && (
+        <ReportDetailModal
+          selected={selectedReport}
+          user={user}
+          users={users}
+          machines={machines}
+          onClose={() => { setSelectedReport(null); load() }}
+          onUpdate={(updated) => { setSelectedReport(updated); load() }}
         />
       )}
 
