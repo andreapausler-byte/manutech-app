@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS public.users (
               CHECK (role IN ('operatore', 'tecnico', 'admin')),
   org_id      TEXT NOT NULL DEFAULT 'default',
   avatar_url  TEXT,
+  phone       TEXT,
   created_at  TIMESTAMPTZ DEFAULT now(),
   updated_at  TIMESTAMPTZ DEFAULT now()
 );
