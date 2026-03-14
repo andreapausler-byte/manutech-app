@@ -107,6 +107,20 @@ export const db = {
     setStore(KEYS.users, users)
   },
 
+  async updateUser(id, updates) {
+    if (supabase) {
+      const { data, error } = await supabase.from('users').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+      if (error) throw error
+      return data
+    }
+    const users = getStore(KEYS.users)
+    const idx = users.findIndex(u => u.id === id)
+    if (idx === -1) throw new Error('Utente non trovato')
+    users[idx] = { ...users[idx], ...updates, updated_at: new Date().toISOString() }
+    setStore(KEYS.users, users)
+    return users[idx]
+  },
+
   async login(email, password) {
     if (supabase) {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password })

@@ -1,19 +1,26 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS } from '../../lib/constants'
+import { useAuth } from '../../contexts/AuthContext'
 import { EmptyState, Spinner } from '../../components/ui'
 import { Wrench, CheckCircle, Clock, AlertTriangle, TrendingUp } from 'lucide-react'
+import TechnicianDetailSheet from './technicians/TechnicianDetailSheet'
 
 export default function AdminTechnicians() {
+  const { user } = useAuth()
   const [users, setUsers] = useState([])
   const [reports, setReports] = useState([])
+  const [machines, setMachines] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedTech, setSelectedTech] = useState(null)
 
-  useEffect(() => {
-    Promise.all([db.getUsers(), db.getReports()]).then(([u, r]) => {
-      setUsers(u); setReports(r); setLoading(false)
+  const load = () => {
+    Promise.all([db.getUsers(), db.getReports(), db.getMachines()]).then(([u, r, m]) => {
+      setUsers(u); setReports(r); setMachines(m); setLoading(false)
     })
-  }, [])
+  }
+
+  useEffect(() => { load() }, [])
 
   const tecnici = users.filter(u => u.role === 'tecnico')
 
@@ -62,7 +69,7 @@ export default function AdminTechnicians() {
             const stats = getTechStats(tech.id)
             const rateColor = stats.rate > 70 ? '#22c55e' : stats.rate > 40 ? '#f59e0b' : '#ef4444'
             return (
-              <div key={tech.id} className="card-elevated rounded-2xl p-6 hover:border-token transition-all">
+              <div key={tech.id} className="card-elevated rounded-2xl p-6 hover:border-token transition-all cursor-pointer" onClick={() => setSelectedTech(tech)}>
                 <div className="flex items-center gap-4 mb-5">
                   <div className="w-12 h-12 bg-emerald-500/15 rounded-xl flex items-center justify-center">
                     <Wrench size={22} className="text-emerald-400" />
@@ -100,6 +107,21 @@ export default function AdminTechnicians() {
             )
           })}
         </div>
+      )}
+
+      {selectedTech && (
+        <TechnicianDetailSheet
+          tech={selectedTech}
+          reports={reports}
+          users={users}
+          machines={machines}
+          user={user}
+          onClose={() => setSelectedTech(null)}
+          onUpdate={(updated) => {
+            setUsers(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u))
+            setSelectedTech(prev => ({ ...prev, ...updated }))
+          }}
+        />
       )}
     </div>
   )
