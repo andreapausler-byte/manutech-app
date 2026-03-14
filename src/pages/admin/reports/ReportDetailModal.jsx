@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { db } from '../../../lib/supabase'
-import { STATUS, SEVERITY, formatDate, timeAgo } from '../../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo } from '../../../lib/constants'
 import { Badge } from '../../../components/ui'
 import MediaCapture from '../../../components/media/MediaCapture'
 import ActivityTimeline from '../../../components/reports/ActivityTimeline'
@@ -29,6 +29,9 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
   const [saving, setSaving] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showClosureForm, setShowClosureForm] = useState(false)
+  const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '' })
+  const [closureSaving, setClosureSaving] = useState(false)
 
   const allAssignableUsers = users.filter(u => u.role === 'tecnico' || u.role === 'operatore' || u.role === 'admin')
   const setEdit = (key, val) => setEditForm(f => ({ ...f, [key]: val }))
@@ -56,13 +59,41 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
     toast.success(`Assegnato a ${assignee?.name}`)
   }
 
-  const updateStatus = async (reportId, newStatus) => {
-    await db.updateReport(reportId, { status: newStatus })
+  const handleStatusClick = (reportId, newStatus) => {
+    if (newStatus === 'risolta' && selected?.status !== 'risolta') {
+      setShowClosureForm(true)
+      return
+    }
+    updateStatus(reportId, newStatus)
+  }
+
+  const submitClosure = async () => {
+    if (!closureForm.hours || !closureForm.rootCause.trim()) {
+      toast.warning('Compila ore lavoro e causa radice')
+      return
+    }
+    setClosureSaving(true)
+    await updateStatus(selected.id, 'risolta', {
+      closure_hours: parseFloat(closureForm.hours),
+      closure_parts: closureForm.parts.trim() || null,
+      closure_root_cause: closureForm.rootCause.trim(),
+      closure_action: closureForm.action.trim() || null,
+      closed_at: new Date().toISOString(),
+    })
+    setShowClosureForm(false)
+    setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
+    setClosureSaving(false)
+  }
+
+  const updateStatus = async (reportId, newStatus, extraUpdates = {}) => {
+    await db.updateReport(reportId, { status: newStatus, ...extraUpdates })
+    const activityDetail = newStatus === 'risolta' && extraUpdates.closure_hours
+      ? `Chiuso in ${extraUpdates.closure_hours}h — Causa: ${extraUpdates.closure_root_cause}`
+      : null
     db.addActivity(reportId, {
       type: 'status_change', from_status: selected?.status, to_status: newStatus,
-      user_id: user?.id, user_name: user?.name,
+      user_id: user?.id, user_name: user?.name, detail: activityDetail,
     }).catch(e => console.warn('Side effect failed:', e.message))
-    // Notifica tutti gli stakeholder tranne chi fa il cambio
     const recipients = new Set()
     if (selected?.created_by) recipients.add(selected.created_by)
     if (selected?.assigned_to) recipients.add(selected.assigned_to)
@@ -76,13 +107,14 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
         report_id: reportId, from_user: user?.id, target_user: targetId,
       }).catch(e => console.warn('Side effect failed:', e.message))
     }
-    onUpdate({ status: newStatus })
+    onUpdate({ status: newStatus, ...extraUpdates })
   }
 
   const startEditing = () => {
     setEditForm({
       title: selected.title || '', description: selected.description || '',
       machine: selected.machine || '', severity: selected.severity || 'media',
+      type: selected.type || 'correttiva',
     })
     setEditMedia(selected.media || [])
     setEditing(true)
@@ -98,7 +130,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
     try {
       const updates = {
         title: editForm.title.trim(), description: editForm.description.trim(),
-        machine: editForm.machine || null, severity: editForm.severity, media: editMedia,
+        machine: editForm.machine || null, severity: editForm.severity, type: editForm.type, media: editMedia,
       }
       const updated = await db.updateReport(selected.id, updates)
       db.addActivity(selected.id, {
@@ -147,6 +179,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                 <h2 className="text-lg font-bold text-themed truncate">{selected.title}</h2>
                 <Badge {...(STATUS[selected.status] || STATUS.aperta)} />
                 <Badge {...(SEVERITY[selected.severity] || SEVERITY.media)} />
+                {selected.type && REPORT_TYPES[selected.type] && <Badge {...REPORT_TYPES[selected.type]} />}
               </>
             )}
           </div>
@@ -196,6 +229,16 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                       <button key={key} onClick={() => setEdit('severity', key)}
                         className={`py-2 rounded-lg text-xs font-bold transition-all ${editForm.severity === key ? 'text-white' : 'bg-surface-2 text-muted'}`}
                         style={editForm.severity === key ? { background: color } : {}}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] text-faint uppercase tracking-wider mb-1.5">Tipo Intervento</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {Object.entries(REPORT_TYPES).map(([key, { label, color, icon }]) => (
+                      <button key={key} onClick={() => setEdit('type', key)}
+                        className={`py-2 rounded-lg text-xs font-bold transition-all ${editForm.type === key ? 'text-white' : 'bg-surface-2 text-muted'}`}
+                        style={editForm.type === key ? { background: color } : {}}>{icon} {label}</button>
                     ))}
                   </div>
                 </div>
@@ -257,9 +300,21 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                     ))}
                   </div>
                 )}
+                {selected.closure_hours != null && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 space-y-2">
+                    <p className="text-[11px] text-emerald-400 uppercase tracking-wider font-semibold">Dati Chiusura</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div><span className="text-faint">Ore:</span> <span className="text-themed font-bold">{selected.closure_hours}h</span></div>
+                      {selected.closure_parts && <div><span className="text-faint">Ricambi:</span> <span className="text-secondary">{selected.closure_parts}</span></div>}
+                    </div>
+                    {selected.closure_root_cause && <div className="text-xs"><span className="text-faint">Causa radice:</span> <span className="text-secondary">{selected.closure_root_cause}</span></div>}
+                    {selected.closure_action && <div className="text-xs"><span className="text-faint">Azione correttiva:</span> <span className="text-secondary">{selected.closure_action}</span></div>}
+                  </div>
+                )}
                 <div className="bg-surface-2/20 rounded-xl p-3 space-y-1.5 text-xs text-faint">
                   <p>ID: <span className="text-muted font-mono">{selected.id?.slice(0, 8)}…</span></p>
-                  {selected.is_quick && <p>Tipo: <span className="text-amber-400 font-medium">⚡ Quick Report</span></p>}
+                  {selected.type && <p>Tipo: <span className="text-secondary font-medium">{REPORT_TYPES[selected.type]?.icon} {REPORT_TYPES[selected.type]?.label || selected.type}</span></p>}
+                  {selected.is_quick && <p>Report: <span className="text-amber-400 font-medium">⚡ Quick Report</span></p>}
                 </div>
               </>
             )}
@@ -321,7 +376,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
               <p className="text-[11px] text-faint uppercase tracking-wider">Cambia Stato</p>
               <div className="grid grid-cols-1 gap-2">
                 {Object.entries(STATUS).map(([key, { label, color }]) => (
-                  <button key={key} onClick={() => updateStatus(selected.id, key)}
+                  <button key={key} onClick={() => handleStatusClick(selected.id, key)}
                     className={`flex items-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all ${selected.status === key ? 'text-white' : 'bg-surface-2 text-muted hover:text-white'}`}
                     style={selected.status === key ? { background: color } : {}}>
                     <span className="w-2 h-2 rounded-full" style={{ background: color }} />{label}
@@ -360,6 +415,58 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
             </div>
           </div>
         </div>
+
+        {/* Closure Form Overlay */}
+        {showClosureForm && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl"
+            onClick={() => setShowClosureForm(false)}>
+            <div className="bg-surface-1 border border-token rounded-2xl w-full max-w-md p-6 space-y-4 animate-fade-in shadow-2xl"
+              onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-bold text-themed">Chiusura Intervento</h3>
+              <p className="text-sm text-faint">Compila i dati dell'intervento prima di chiudere.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-faint uppercase mb-1">Ore lavoro *</label>
+                  <input type="number" step="0.5" min="0" value={closureForm.hours}
+                    onChange={e => setClosureForm(f => ({ ...f, hours: e.target.value }))}
+                    placeholder="es. 2.5"
+                    className="w-full input-field rounded-xl px-3 py-2.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-faint uppercase mb-1">Ricambi utilizzati</label>
+                  <input type="text" value={closureForm.parts}
+                    onChange={e => setClosureForm(f => ({ ...f, parts: e.target.value }))}
+                    placeholder="es. Cuscinetto, guarnizione"
+                    className="w-full input-field rounded-xl px-3 py-2.5 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-faint uppercase mb-1">Causa radice *</label>
+                <textarea value={closureForm.rootCause}
+                  onChange={e => setClosureForm(f => ({ ...f, rootCause: e.target.value }))}
+                  placeholder="Cosa ha causato il problema?" rows={2}
+                  className="w-full input-field rounded-xl px-3 py-2.5 text-sm resize-none" />
+              </div>
+              <div>
+                <label className="block text-[11px] text-faint uppercase mb-1">Azione correttiva</label>
+                <textarea value={closureForm.action}
+                  onChange={e => setClosureForm(f => ({ ...f, action: e.target.value }))}
+                  placeholder="Cosa è stato fatto per risolvere?" rows={2}
+                  className="w-full input-field rounded-xl px-3 py-2.5 text-sm resize-none" />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={submitClosure} disabled={closureSaving}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-all disabled:opacity-50">
+                  {closureSaving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save size={14} /> Chiudi Intervento</>}
+                </button>
+                <button onClick={() => setShowClosureForm(false)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-2 text-muted hover:text-white transition-all">
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

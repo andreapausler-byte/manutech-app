@@ -1,5 +1,5 @@
 -- ╔══════════════════════════════════════════════════════════════╗
--- ║  ManuTech — Schema Database Completo v3.0                  ║
+-- ║  ManuTech — Schema Database Completo v4.0                  ║
 -- ║                                                            ║
 -- ║  ISTRUZIONI:                                               ║
 -- ║  1. Vai su Supabase Dashboard → SQL Editor                 ║
@@ -7,7 +7,7 @@
 -- ║  3. Incolla TUTTO questo file                              ║
 -- ║  4. Clicca "Run" (▶)                                       ║
 -- ║                                                            ║
--- ║  Questo crea: 6 tabelle, indici, trigger, RLS, storage     ║
+-- ║  Questo crea: 10 tabelle, indici, trigger, RLS, storage    ║
 -- ╚══════════════════════════════════════════════════════════════╝
 
 
@@ -38,7 +38,13 @@ CREATE TABLE IF NOT EXISTS public.machines (
   description TEXT,
   location    TEXT,
   status      TEXT DEFAULT 'attivo'
-              CHECK (status IN ('attivo', 'in_manutenzione', 'fuori_servizio')),
+              CHECK (status IN ('attivo', 'in_manutenzione', 'fuori_servizio', 'dismessa')),
+  model       TEXT,
+  serial_number TEXT,
+  manufacturer TEXT,
+  year        INTEGER,
+  criticality TEXT DEFAULT 'media'
+              CHECK (criticality IN ('alta', 'media', 'bassa')),
   notes       TEXT,
   qr_code     TEXT,
   attachments JSONB DEFAULT '[]'::jsonb,
@@ -56,7 +62,9 @@ CREATE TABLE IF NOT EXISTS public.reports (
   severity        TEXT NOT NULL DEFAULT 'media'
                   CHECK (severity IN ('bassa', 'media', 'alta', 'critica')),
   status          TEXT NOT NULL DEFAULT 'aperta'
-                  CHECK (status IN ('aperta', 'assegnata', 'in_lavorazione', 'risolta')),
+                  CHECK (status IN ('aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso')),
+  type            TEXT NOT NULL DEFAULT 'correttiva'
+                  CHECK (type IN ('correttiva', 'preventiva', 'migliorativa', 'ispezione')),
   machine         TEXT,
   machine_id      UUID REFERENCES public.machines(id) ON DELETE SET NULL,
   media           JSONB DEFAULT '[]'::jsonb,
@@ -67,6 +75,12 @@ CREATE TABLE IF NOT EXISTS public.reports (
   is_quick        BOOLEAN DEFAULT false,
   template_id     TEXT,
   extra_data      JSONB,
+  -- Campi chiusura intervento (compilati dal tecnico alla risoluzione)
+  closure_hours   NUMERIC,                    -- Ore lavoro
+  closure_parts   TEXT,                       -- Ricambi utilizzati
+  closure_root_cause TEXT,                    -- Causa radice
+  closure_action  TEXT,                       -- Azione correttiva
+  closed_at       TIMESTAMPTZ,               -- Data chiusura effettiva
   org_id          TEXT NOT NULL DEFAULT 'default',
   created_at      TIMESTAMPTZ DEFAULT now(),
   updated_at      TIMESTAMPTZ DEFAULT now()
@@ -114,6 +128,69 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 );
 
 
+-- ── MAINTENANCE PLANS ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.maintenance_plans (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  machine_id      UUID NOT NULL REFERENCES public.machines(id) ON DELETE CASCADE,
+  name            TEXT NOT NULL,
+  frequency_days  INTEGER NOT NULL DEFAULT 30,
+  assigned_to     UUID REFERENCES public.users(id),
+  instructions    TEXT,
+  current_status  TEXT DEFAULT 'da_eseguire'
+                  CHECK (current_status IN ('da_eseguire', 'in_corso', 'completata')),
+  taken_by        UUID REFERENCES public.users(id),
+  taken_by_name   TEXT,
+  taken_at        TIMESTAMPTZ,
+  org_id          TEXT NOT NULL DEFAULT 'default',
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- ── MAINTENANCE LOGS ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.maintenance_logs (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  machine_id      UUID NOT NULL REFERENCES public.machines(id) ON DELETE CASCADE,
+  plan_id         UUID REFERENCES public.maintenance_plans(id) ON DELETE SET NULL,
+  type            TEXT NOT NULL DEFAULT 'programmata',
+  title           TEXT NOT NULL,
+  description     TEXT,
+  performed_by    UUID REFERENCES public.users(id),
+  performed_by_name TEXT,
+  duration_minutes INTEGER,
+  parts_replaced  TEXT,
+  media           JSONB DEFAULT '[]'::jsonb,
+  performed_at    TIMESTAMPTZ DEFAULT now(),
+  org_id          TEXT NOT NULL DEFAULT 'default',
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- ── PUSH SUBSCRIPTIONS ───────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  endpoint    TEXT NOT NULL,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  org_id      TEXT NOT NULL DEFAULT 'default',
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, endpoint)
+);
+
+-- ── NOTIFICATION PREFERENCES ─────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.notification_preferences (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  role            TEXT,
+  prefs           JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_org_default  BOOLEAN DEFAULT false,
+  org_id          TEXT NOT NULL DEFAULT 'default',
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id)
+);
+
+
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- 2. INDICI
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -131,7 +208,20 @@ CREATE INDEX IF NOT EXISTS idx_reports_assigned_to ON public.reports(assigned_to
 CREATE INDEX IF NOT EXISTS idx_reports_org      ON public.reports(org_id);
 CREATE INDEX IF NOT EXISTS idx_reports_created  ON public.reports(created_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_reports_type     ON public.reports(type);
+
 CREATE INDEX IF NOT EXISTS idx_comments_report  ON public.comments(report_id);
+
+CREATE INDEX IF NOT EXISTS idx_mplans_machine   ON public.maintenance_plans(machine_id);
+CREATE INDEX IF NOT EXISTS idx_mplans_org       ON public.maintenance_plans(org_id);
+CREATE INDEX IF NOT EXISTS idx_mplans_status    ON public.maintenance_plans(current_status);
+
+CREATE INDEX IF NOT EXISTS idx_mlogs_machine    ON public.maintenance_logs(machine_id);
+CREATE INDEX IF NOT EXISTS idx_mlogs_plan       ON public.maintenance_logs(plan_id);
+CREATE INDEX IF NOT EXISTS idx_mlogs_performed  ON public.maintenance_logs(performed_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_pushsub_user     ON public.push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifpref_user   ON public.notification_preferences(user_id);
 CREATE INDEX IF NOT EXISTS idx_activities_report ON public.activities(report_id);
 CREATE INDEX IF NOT EXISTS idx_activities_created ON public.activities(created_at DESC);
 
@@ -165,6 +255,22 @@ CREATE TRIGGER trg_reports_updated
 DROP TRIGGER IF EXISTS trg_machines_updated ON public.machines;
 CREATE TRIGGER trg_machines_updated
   BEFORE UPDATE ON public.machines
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+
+DROP TRIGGER IF EXISTS trg_mplans_updated ON public.maintenance_plans;
+CREATE TRIGGER trg_mplans_updated
+  BEFORE UPDATE ON public.maintenance_plans
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS trg_mlogs_updated ON public.maintenance_logs;
+CREATE TRIGGER trg_mlogs_updated
+  BEFORE UPDATE ON public.maintenance_logs
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS trg_notifpref_updated ON public.notification_preferences;
+CREATE TRIGGER trg_notifpref_updated
+  BEFORE UPDATE ON public.notification_preferences
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
 
@@ -302,6 +408,82 @@ CREATE POLICY "notif_update" ON public.notifications
   USING (
     target_user = public.get_my_user_id() OR target_user IS NULL
   );
+
+
+-- ── MAINTENANCE PLANS ──
+ALTER TABLE public.maintenance_plans ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "mplans_select" ON public.maintenance_plans
+  FOR SELECT TO authenticated
+  USING (org_id = public.get_my_org_id());
+
+CREATE POLICY "mplans_insert" ON public.maintenance_plans
+  FOR INSERT TO authenticated
+  WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() IN ('admin', 'tecnico'));
+
+CREATE POLICY "mplans_update" ON public.maintenance_plans
+  FOR UPDATE TO authenticated
+  USING (org_id = public.get_my_org_id() AND public.get_my_role() IN ('admin', 'tecnico'));
+
+CREATE POLICY "mplans_delete" ON public.maintenance_plans
+  FOR DELETE TO authenticated
+  USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+
+
+-- ── MAINTENANCE LOGS ──
+ALTER TABLE public.maintenance_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "mlogs_select" ON public.maintenance_logs
+  FOR SELECT TO authenticated
+  USING (org_id = public.get_my_org_id());
+
+CREATE POLICY "mlogs_insert" ON public.maintenance_logs
+  FOR INSERT TO authenticated
+  WITH CHECK (org_id = public.get_my_org_id());
+
+CREATE POLICY "mlogs_update" ON public.maintenance_logs
+  FOR UPDATE TO authenticated
+  USING (org_id = public.get_my_org_id() AND public.get_my_role() IN ('admin', 'tecnico'));
+
+CREATE POLICY "mlogs_delete" ON public.maintenance_logs
+  FOR DELETE TO authenticated
+  USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+
+
+-- ── PUSH SUBSCRIPTIONS ──
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "pushsub_select" ON public.push_subscriptions
+  FOR SELECT TO authenticated
+  USING (user_id = public.get_my_user_id());
+
+CREATE POLICY "pushsub_insert" ON public.push_subscriptions
+  FOR INSERT TO authenticated
+  WITH CHECK (user_id = public.get_my_user_id());
+
+CREATE POLICY "pushsub_delete" ON public.push_subscriptions
+  FOR DELETE TO authenticated
+  USING (user_id = public.get_my_user_id());
+
+
+-- ── NOTIFICATION PREFERENCES ──
+ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "notifpref_select" ON public.notification_preferences
+  FOR SELECT TO authenticated
+  USING (org_id = public.get_my_org_id());
+
+CREATE POLICY "notifpref_insert" ON public.notification_preferences
+  FOR INSERT TO authenticated
+  WITH CHECK (org_id = public.get_my_org_id());
+
+CREATE POLICY "notifpref_update" ON public.notification_preferences
+  FOR UPDATE TO authenticated
+  USING (org_id = public.get_my_org_id() AND (user_id = public.get_my_user_id() OR public.get_my_role() = 'admin'));
+
+CREATE POLICY "notifpref_delete" ON public.notification_preferences
+  FOR DELETE TO authenticated
+  USING (org_id = public.get_my_org_id() AND (user_id = public.get_my_user_id() OR public.get_my_role() = 'admin'));
 
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

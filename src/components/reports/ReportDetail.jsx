@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, timeAgo } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
 import { Badge } from '../ui'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -20,6 +20,8 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [showInfo, setShowInfo] = useState(true)
   const [activeSection, setActiveSection] = useState('chat') // 'chat' | 'timeline'
+  const [showClosureForm, setShowClosureForm] = useState(false)
+  const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '' })
 
   const toast = useToast()
   const haptic = useHaptic()
@@ -28,21 +30,51 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const severity = SEVERITY[report.severity] || SEVERITY.media
   const canUpdateStatus = user.role === 'tecnico' || user.role === 'admin'
 
-  const updateStatus = async (s) => {
+  const handleStatusClick = (s) => {
+    if (s === 'risolta' && report.status !== 'risolta') {
+      setShowClosureForm(true)
+      return
+    }
+    updateStatus(s)
+  }
+
+  const submitClosure = async () => {
+    if (!closureForm.hours || !closureForm.rootCause.trim()) {
+      toast.warning('Compila ore lavoro e causa radice')
+      haptic.warning()
+      return
+    }
+    await updateStatus('risolta', {
+      closure_hours: parseFloat(closureForm.hours),
+      closure_parts: closureForm.parts.trim() || null,
+      closure_root_cause: closureForm.rootCause.trim(),
+      closure_action: closureForm.action.trim() || null,
+      closed_at: new Date().toISOString(),
+    })
+    setShowClosureForm(false)
+    setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
+  }
+
+  const updateStatus = async (s, extraUpdates = {}) => {
     if (updatingStatus) return
     setUpdatingStatus(s)
     haptic.medium()
     try {
       const oldStatus = report.status
-      const updated = await db.updateReport(report.id, { status: s })
+      const updated = await db.updateReport(report.id, { status: s, ...extraUpdates })
       setReport(r => ({ ...r, ...updated }))
       const statusLabel = STATUS[s]?.label || s
       toast.success(`Stato → ${statusLabel}`)
+
+      const activityDetail = s === 'risolta' && extraUpdates.closure_hours
+        ? `Chiuso in ${extraUpdates.closure_hours}h — Causa: ${extraUpdates.closure_root_cause}`
+        : null
 
       db.addActivity(report.id, {
         type: 'status_change',
         from_status: oldStatus, to_status: s,
         user_id: user.id, user_name: user.name,
+        detail: activityDetail,
       }).catch(e => console.warn('Side effect failed:', e.message))
 
       // Notifica tutti gli stakeholder tranne chi fa il cambio
@@ -87,6 +119,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         >
           <div className="flex items-center gap-2 flex-wrap">
             <Badge {...severity} />
+            {report.type && REPORT_TYPES[report.type] && <Badge {...REPORT_TYPES[report.type]} />}
             {report.machine && <Badge label={`🏭 ${report.machine}`} color="#94a3b8" bg="#94a3b822" />}
             {report.assigned_to_name && <Badge label={`👤 ${report.assigned_to_name}`} color="#8b5cf6" bg="#8b5cf622" />}
           </div>
@@ -177,6 +210,37 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
               )
             })()}
 
+            {/* Closure info (se il report è risolta/chiuso e ha dati chiusura) */}
+            {report.closure_hours != null && (
+              <div className="card-elevated rounded-2xl p-[4vw] space-y-[2vw]">
+                <p className="label-section tracking-wider">Dati Chiusura Intervento</p>
+                <div className="grid grid-cols-2 gap-[2vw]">
+                  <div className="bg-surface-2 rounded-xl p-[2.5vw]">
+                    <p className="text-[10px] text-faint uppercase">Ore lavoro</p>
+                    <p className="text-base text-themed font-bold">{report.closure_hours}h</p>
+                  </div>
+                  {report.closure_parts && (
+                    <div className="bg-surface-2 rounded-xl p-[2.5vw]">
+                      <p className="text-[10px] text-faint uppercase">Ricambi</p>
+                      <p className="text-sm text-secondary">{report.closure_parts}</p>
+                    </div>
+                  )}
+                </div>
+                {report.closure_root_cause && (
+                  <div className="bg-surface-2 rounded-xl p-[2.5vw]">
+                    <p className="text-[10px] text-faint uppercase">Causa radice</p>
+                    <p className="text-sm text-secondary">{report.closure_root_cause}</p>
+                  </div>
+                )}
+                {report.closure_action && (
+                  <div className="bg-surface-2 rounded-xl p-[2.5vw]">
+                    <p className="text-[10px] text-faint uppercase">Azione correttiva</p>
+                    <p className="text-sm text-secondary">{report.closure_action}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Status Actions — BIG buttons for gloves */}
             {canUpdateStatus && (
               <div className="card-elevated rounded-2xl p-[4vw]">
@@ -186,7 +250,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                     const isActive = report.status === key
                     const isUpdating = updatingStatus === key
                     return (
-                      <button key={key} onClick={() => !isActive && !updatingStatus && updateStatus(key)}
+                      <button key={key} onClick={() => !isActive && !updatingStatus && handleStatusClick(key)}
                         disabled={isActive || !!updatingStatus}
                         className={`w-full flex items-center gap-[3.5vw] px-[4vw] py-[4vw] rounded-2xl transition-all press-scale ${
                           isActive
@@ -220,6 +284,59 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
         />
+      )}
+
+      {/* ═══ Closure Form Modal ═══ */}
+      {showClosureForm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowClosureForm(false)}>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="relative bg-surface-1 border-t border-token rounded-t-3xl w-full max-w-lg p-[5vw] pb-[8vw] animate-slide-up space-y-[4vw]"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-themed">Chiusura Intervento</h3>
+              <button onClick={() => setShowClosureForm(false)} className="p-2 rounded-lg text-muted hover:text-white">
+                <ChevronDown size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-faint">Compila i dati dell'intervento prima di chiudere la segnalazione.</p>
+            <div className="grid grid-cols-2 gap-[3vw]">
+              <div>
+                <label className="block text-xs text-faint uppercase mb-1.5">Ore lavoro *</label>
+                <input type="number" step="0.5" min="0" value={closureForm.hours}
+                  onChange={e => setClosureForm(f => ({ ...f, hours: e.target.value }))}
+                  placeholder="es. 2.5"
+                  className="w-full bg-surface-2 border border-token rounded-xl px-3 py-3 text-base text-themed focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-faint uppercase mb-1.5">Ricambi utilizzati</label>
+                <input type="text" value={closureForm.parts}
+                  onChange={e => setClosureForm(f => ({ ...f, parts: e.target.value }))}
+                  placeholder="es. Cuscinetto, guarnizione"
+                  className="w-full bg-surface-2 border border-token rounded-xl px-3 py-3 text-base text-themed focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-faint uppercase mb-1.5">Causa radice *</label>
+              <textarea value={closureForm.rootCause}
+                onChange={e => setClosureForm(f => ({ ...f, rootCause: e.target.value }))}
+                placeholder="Cosa ha causato il problema?"
+                rows={2}
+                className="w-full bg-surface-2 border border-token rounded-xl px-3 py-3 text-base text-themed focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none" />
+            </div>
+            <div>
+              <label className="block text-xs text-faint uppercase mb-1.5">Azione correttiva</label>
+              <textarea value={closureForm.action}
+                onChange={e => setClosureForm(f => ({ ...f, action: e.target.value }))}
+                placeholder="Cosa è stato fatto per risolvere?"
+                rows={2}
+                className="w-full bg-surface-2 border border-token rounded-xl px-3 py-3 text-base text-themed focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none" />
+            </div>
+            <button onClick={submitClosure} disabled={!!updatingStatus}
+              className="w-full py-[4vw] rounded-2xl text-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-all press-scale disabled:opacity-50">
+              {updatingStatus ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : '✅ Chiudi Intervento'}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ═══ Tab switcher: Chat / Timeline ═══ */}

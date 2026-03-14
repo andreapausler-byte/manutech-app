@@ -8,7 +8,16 @@ export const STATUS = {
   aperta: { label: 'Aperta', color: '#f59e0b', bg: '#f59e0b22' },
   assegnata: { label: 'Assegnata', color: '#3b82f6', bg: '#3b82f622' },
   in_lavorazione: { label: 'In Lavorazione', color: '#a855f7', bg: '#a855f722' },
+  in_attesa_ricambi: { label: 'Attesa Ricambi', color: '#f97316', bg: '#f9731622' },
   risolta: { label: 'Risolta', color: '#22c55e', bg: '#22c55e22' },
+  chiuso: { label: 'Chiuso', color: '#64748b', bg: '#64748b22' },
+}
+
+export const REPORT_TYPES = {
+  correttiva: { label: 'Correttiva', color: '#ef4444', bg: '#ef444422', icon: '🔧' },
+  preventiva: { label: 'Preventiva', color: '#3b82f6', bg: '#3b82f622', icon: '📅' },
+  migliorativa: { label: 'Migliorativa', color: '#22c55e', bg: '#22c55e22', icon: '💡' },
+  ispezione: { label: 'Ispezione', color: '#a855f7', bg: '#a855f722', icon: '🔍' },
 }
 
 export const SEVERITY = {
