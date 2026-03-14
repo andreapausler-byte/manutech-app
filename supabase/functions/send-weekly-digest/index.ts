@@ -405,7 +405,7 @@ Deno.serve(async (req: Request) => {
   try {
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
     const emailFrom = Deno.env.get('EMAIL_FROM') || 'ManuTech <onboarding@resend.dev>'
-    const appUrl = (Deno.env.get('APP_URL') || 'https://app.manutech.it').replace(/\/$/, '')
+    const appUrl = (Deno.env.get('APP_URL') || 'https://manutech-app.vercel.app').replace(/\/$/, '')
 
     if (!resendApiKey) {
       return new Response(JSON.stringify({ error: 'RESEND_API_KEY not configured' }), {
