@@ -5,12 +5,12 @@ export const ROLES = {
 }
 
 export const STATUS = {
-  aperta: { label: 'Aperta', color: '#f59e0b', bg: '#f59e0b22' },
-  assegnata: { label: 'Assegnata', color: '#3b82f6', bg: '#3b82f622' },
-  in_lavorazione: { label: 'In Lavorazione', color: '#a855f7', bg: '#a855f722' },
-  in_attesa_ricambi: { label: 'Attesa Ricambi', color: '#f97316', bg: '#f9731622' },
-  risolta: { label: 'Risolta', color: '#22c55e', bg: '#22c55e22' },
-  chiuso: { label: 'Chiuso', color: '#64748b', bg: '#64748b22' },
+  aperta: { label: 'Aperta', color: '#ff4757', bg: '#ff475722' },
+  assegnata: { label: 'Assegnata', color: '#ffa502', bg: '#ffa50222' },
+  in_lavorazione: { label: 'In Lavorazione', color: '#00d4ff', bg: '#00d4ff22' },
+  in_attesa_ricambi: { label: 'Attesa Ricambi', color: '#ffd43b', bg: '#ffd43b22' },
+  risolta: { label: 'Risolta', color: '#2ed573', bg: '#2ed57322' },
+  chiuso: { label: 'Chiuso', color: '#8a8a9a', bg: '#8a8a9a22' },
 }
 
 export const REPORT_TYPES = {

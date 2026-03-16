@@ -8,10 +8,14 @@
 /* ── 1. COLOR TOKENS ──────────────────────────────────── */
 :root {
   /* Brand */
-  --color-primary: #3b82f6;
-  --color-primary-light: #60a5fa;
-  --color-primary-dark: #2563eb;
-  --color-primary-glow: rgba(59, 130, 246, 0.15);
+  --color-primary: #7c6aff;
+  --color-primary-light: #9d8cff;
+  --color-primary-dark: #5b47e0;
+  --color-primary-glow: rgba(124, 106, 255, 0.15);
+
+  /* Accent */
+  --color-accent: #00d4ff;
+  --color-accent-glow: rgba(0, 212, 255, 0.15);
 
   /* Semantic */
   --color-success: #22c55e;
@@ -24,19 +28,19 @@
   --color-info: #06b6d4;
 
   /* Surfaces — layered depth system */
-  --color-bg: #06080f;
-  --color-bg-subtle: #0a0e1a;
-  --color-surface-0: #0d1220;
-  --color-surface-1: #111827;
-  --color-surface-2: #1a2235;
-  --color-surface-3: #1f2b3f;
-  --color-surface-elevated: rgba(17, 24, 39, 0.85);
+  --color-bg: #0a0a0f;
+  --color-bg-subtle: #0e0e16;
+  --color-surface-0: #0f0f17;
+  --color-surface-1: #12121a;
+  --color-surface-2: #16161f;
+  --color-surface-3: #1c1c28;
+  --color-surface-elevated: rgba(18, 18, 26, 0.88);
 
   /* Borders */
-  --color-border: rgba(255, 255, 255, 0.06);
-  --color-border-subtle: rgba(255, 255, 255, 0.04);
-  --color-border-hover: rgba(255, 255, 255, 0.12);
-  --color-border-active: rgba(59, 130, 246, 0.3);
+  --color-border: #2a2a3a;
+  --color-border-subtle: #222230;
+  --color-border-hover: #3a3a4a;
+  --color-border-active: rgba(124, 106, 255, 0.3);
 
   /* Text */
   --color-text: #f1f5f9;
@@ -50,7 +54,7 @@
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25);
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3);
-  --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.15), 0 0 60px rgba(59, 130, 246, 0.05);
+  --shadow-glow-blue: 0 0 20px rgba(124, 106, 255, 0.15), 0 0 60px rgba(124, 106, 255, 0.05);
   --shadow-glow-success: 0 0 20px rgba(34, 197, 94, 0.12);
   --shadow-glow-danger: 0 0 20px rgba(239, 68, 68, 0.12);
 
@@ -63,11 +67,11 @@
   --radius-full: 9999px;
 
   /* ── 4. GLASS TOKENS ─────────────────────────────────── */
-  --glass-bg: rgba(17, 24, 39, 0.7);
-  --glass-bg-heavy: rgba(13, 18, 32, 0.88);
+  --glass-bg: rgba(18, 18, 26, 0.7);
+  --glass-bg-heavy: rgba(15, 15, 23, 0.88);
   --glass-blur: 16px;
   --glass-blur-heavy: 24px;
-  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-border: #2a2a3a;
   --glass-highlight: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 50%);
 
   /* ── 5. TRANSITION TOKENS ────────────────────────────── */
@@ -79,14 +83,14 @@
 
   /* ── 6. GRADIENT TOKENS ──────────────────────────────── */
   --gradient-surface: linear-gradient(145deg, var(--color-surface-1) 0%, var(--color-surface-0) 100%);
-  --gradient-card: linear-gradient(160deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.3) 100%);
-  --gradient-blue-subtle: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.02) 100%);
+  --gradient-card: linear-gradient(160deg, rgba(28, 28, 40, 0.5) 0%, rgba(18, 18, 26, 0.3) 100%);
+  --gradient-blue-subtle: linear-gradient(135deg, rgba(124, 106, 255, 0.08) 0%, rgba(124, 106, 255, 0.02) 100%);
 
   /* ── 7. THEME ENGINE TOKENS (overridden by ThemeContext) ── */
-  --header-bg: linear-gradient(135deg, #3b82f6, #2563eb);
+  --header-bg: linear-gradient(135deg, #7c6aff, #5b47e0);
   --header-text: #ffffff;
-  --gradient-primary: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  --theme-color: #0a0e1a;
+  --gradient-primary: linear-gradient(135deg, #7c6aff 0%, #5b47e0 100%);
+  --theme-color: #0a0a0f;
 }
 
 /* ── RESET ─────────────────────────────────────────────── */
@@ -208,9 +212,14 @@ h1, h2, h3, h4 {
   100% { background-position: 200% 0; }
 }
 @keyframes pulseRing {
-  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(124, 106, 255, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(124, 106, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 106, 255, 0); }
+}
+
+@keyframes criticalPulse {
+  0%, 100% { border-color: rgba(255, 71, 87, 0.3); }
+  50% { border-color: rgba(255, 71, 87, 0.6); }
 }
 
 .animate-fade-in { animation: fadeIn 0.25s var(--ease-out-expo); }
@@ -317,7 +326,7 @@ h1, h2, h3, h4 {
   transform: translateX(-50%);
   width: 80%;
   height: 60%;
-  background: radial-gradient(ellipse, rgba(59, 130, 246, 0.04) 0%, transparent 70%);
+  background: radial-gradient(ellipse, rgba(124, 106, 255, 0.04) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -374,7 +383,7 @@ h1, h2, h3, h4 {
 }
 .input-field:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(124, 106, 255, 0.1);
   outline: none;
 }
 .input-field::placeholder {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { useKPIStats } from '../../hooks/useKPIStats'
+import { AlertTriangle } from 'lucide-react'
 import HeroKPIs from './dashboard/HeroKPIs'
 import MaintenanceAlertBanner from './dashboard/MaintenanceAlertBanner'
 import TimeKPIs from './dashboard/TimeKPIs'
@@ -75,11 +76,32 @@ export default function AdminDashboard({ onNavigate }) {
   const resolveRate = stats.total > 0 ? Math.round((stats.risolte / stats.total) * 100) : 0
   const urgenti = stats.critiche + stats.alte
   const nonAssegnate = reports.filter(r => r.status === 'aperta' && !r.assigned_to).length
+  const criticheNonAssegnate = reports.filter(r => r.severity === 'critica' && r.status === 'aperta' && !r.assigned_to).length
 
   if (loading) return null
 
   return (
     <div className="space-y-6 stagger-children">
+      {criticheNonAssegnate > 0 && (
+        <div
+          className="flex items-center gap-3 rounded-xl p-4 animate-fade-in"
+          style={{
+            background: 'rgba(255, 71, 87, 0.08)',
+            border: '1px solid rgba(255, 71, 87, 0.3)',
+            animation: 'fadeIn 0.3s ease, criticalPulse 2s ease-in-out infinite',
+          }}
+        >
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(255, 71, 87, 0.15)' }}>
+            <AlertTriangle size={20} style={{ color: '#ff4757' }} />
+          </div>
+          <div>
+            <p className="text-sm font-bold" style={{ color: '#ff4757' }}>
+              {criticheNonAssegnate} segnalazion{criticheNonAssegnate === 1 ? 'e critica non assegnata' : 'i critiche non assegnate'}
+            </p>
+            <p className="text-xs text-muted mt-0.5">Richiedono assegnazione immediata</p>
+          </div>
+        </div>
+      )}
       <HeroKPIs stats={stats} resolveRate={resolveRate} urgenti={urgenti} nonAssegnate={nonAssegnate} />
       <MaintenanceAlertBanner maintenanceTasks={maintenanceTasks} onNavigate={onNavigate} />
       <TimeKPIs kpi={kpi} />

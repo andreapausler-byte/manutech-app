@@ -200,8 +200,8 @@ export default function AdminReports({ initialReportId }) {
                 return (
                   <tr key={r.id} onClick={() => setSelected(r)}
                     className="border-b border-token/30 hover:bg-white/[0.02] transition-colors cursor-pointer group">
-                    <td className="px-5 py-4">
-                      <p className="text-[15px] text-white font-medium group-hover:text-blue-300 transition-colors">{r.title}</p>
+                    <td className="px-5 py-4" style={{ borderLeft: `3px solid ${sev.color}` }}>
+                      <p className="text-[15px] text-white font-medium group-hover:text-purple-300 transition-colors">{r.title}</p>
                       <p className="text-xs text-faint mt-0.5">{r.created_by_name || 'Sconosciuto'}</p>
                     </td>
                     <td className="px-5 py-4 hidden lg:table-cell"><span className="text-sm text-muted">{r.machine || '—'}</span></td>
