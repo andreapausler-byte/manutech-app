@@ -5,12 +5,12 @@ export const ROLES = {
 }
 
 export const STATUS = {
-  aperta: { label: 'Aperta', color: '#ff4757', bg: '#ff475722' },
-  assegnata: { label: 'Assegnata', color: '#ffa502', bg: '#ffa50222' },
-  in_lavorazione: { label: 'In Lavorazione', color: '#00d4ff', bg: '#00d4ff22' },
-  in_attesa_ricambi: { label: 'Attesa Ricambi', color: '#ffd43b', bg: '#ffd43b22' },
-  risolta: { label: 'Risolta', color: '#2ed573', bg: '#2ed57322' },
-  chiuso: { label: 'Chiuso', color: '#8a8a9a', bg: '#8a8a9a22' },
+  aperta: { label: 'Aperta', color: '#ff5c5c', bg: 'rgba(255,92,92,0.10)', icon: '⚠' },
+  assegnata: { label: 'Assegnata', color: '#ffaa2c', bg: 'rgba(255,170,44,0.10)', icon: '→' },
+  in_lavorazione: { label: 'In Corso', color: '#00d4ff', bg: 'rgba(0,212,255,0.10)', icon: '⚡' },
+  in_attesa_ricambi: { label: 'Attesa Ricambi', color: '#ffe066', bg: 'rgba(255,224,102,0.10)', icon: '⏳' },
+  risolta: { label: 'Completato', color: '#3ddc84', bg: 'rgba(61,220,132,0.10)', icon: '✓' },
+  chiuso: { label: 'Chiuso', color: '#5a5a72', bg: 'rgba(90,90,114,0.10)', icon: '✗' },
 }
 
 export const REPORT_TYPES = {
@@ -21,10 +21,10 @@ export const REPORT_TYPES = {
 }
 
 export const SEVERITY = {
-  bassa: { label: 'Bassa', color: '#22c55e', bg: '#22c55e22' },
-  media: { label: 'Media', color: '#f59e0b', bg: '#f59e0b22' },
-  alta: { label: 'Alta', color: '#f97316', bg: '#f9731622' },
-  critica: { label: 'Critica', color: '#ef4444', bg: '#ef444422' },
+  bassa: { label: 'Bassa', color: '#3ddc84', bg: 'rgba(61,220,132,0.10)' },
+  media: { label: 'Media', color: '#ffe066', bg: 'rgba(255,224,102,0.10)' },
+  alta: { label: 'Alta', color: '#ffaa2c', bg: 'rgba(255,170,44,0.10)' },
+  critica: { label: 'Critica', color: '#ff5c5c', bg: 'rgba(255,92,92,0.10)' },
 }
 
 // ── Quick Report Templates ────────────────────────────────

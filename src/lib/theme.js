@@ -1,17 +1,13 @@
 /**
- * ManuTech Theme Engine — Sprint Design 0
- * 
- * Genera 30+ CSS variables dalla combinazione mode + accent.
- * Compatibile al 100% con il token system esistente (Sprint 2.4).
- * 
- * Uso:
- *   const theme = makeTheme('dark', ACCENT_PRESETS[0])
- *   applyTheme(theme) // inietta le variabili in :root
+ * ManuTech Theme Engine — Design System v2
+ *
+ * Palette dark/light con toggle.
+ * Compatibile con il token system CSS variables.
  */
 
-// ── 6 Accent Presets ────────────────────────────────────────
+// ── Accent Presets (mantenuti per compatibilità) ──────────
 export const ACCENT_PRESETS = [
-  { name: 'Amarcord',  primary: '#1B6B4A', primaryLight: '#E8F5EE', primaryDark: '#0D4A30' },
+  { name: 'Default',   primary: '#7c6aff', primaryLight: '#9d8cff', primaryDark: '#5b47e0' },
   { name: 'Oceano',    primary: '#1D6FA5', primaryLight: '#E6F2FA', primaryDark: '#0E4D75' },
   { name: 'Ambra',     primary: '#B8860B', primaryLight: '#FFF6E0', primaryDark: '#8B6508' },
   { name: 'Vulcano',   primary: '#C0392B', primaryLight: '#FDECEA', primaryDark: '#922B21' },
@@ -19,11 +15,11 @@ export const ACCENT_PRESETS = [
   { name: 'Viola',     primary: '#7C3AED', primaryLight: '#F0EAFF', primaryDark: '#5B21B6' },
 ]
 
-// ── Default ─────────────────────────────────────────────────
+// ── Default ───────────────────────────────────────────────
 export const DEFAULT_ACCENT = ACCENT_PRESETS[0]
 export const DEFAULT_MODE = 'dark'
 
-// ── Generatore tema ─────────────────────────────────────────
+// ── Generatore tema ───────────────────────────────────────
 export function makeTheme(mode, accent) {
   const a = accent || DEFAULT_ACCENT
 
@@ -36,124 +32,155 @@ export function makeTheme(mode, accent) {
       '--color-primary-glow': `${a.primary}25`,
 
       // Semantic
-      '--color-success': '#66BB6A',
-      '--color-success-glow': 'rgba(102, 187, 106, 0.12)',
-      '--color-warning': '#FFB74D',
-      '--color-warning-glow': 'rgba(255, 183, 77, 0.12)',
-      '--color-danger': '#EF5350',
-      '--color-danger-glow': 'rgba(239, 83, 80, 0.12)',
-      '--color-critical': '#dc2626',
-      '--color-info': '#64B5F6',
+      '--color-success': '#3ddc84',
+      '--color-success-glow': 'rgba(61,220,132,0.10)',
+      '--color-warning': '#ffaa2c',
+      '--color-warning-glow': 'rgba(255,170,44,0.10)',
+      '--color-danger': '#ff5c5c',
+      '--color-danger-glow': 'rgba(255,92,92,0.10)',
+      '--color-critical': '#ff5c5c',
+      '--color-info': '#00d4ff',
 
-      // Surfaces
-      '--color-bg': '#111318',
-      '--color-bg-subtle': '#151920',
-      '--color-surface-0': '#1A1D23',
-      '--color-surface-1': '#22262E',
-      '--color-surface-2': '#2A2F38',
-      '--color-surface-3': '#323842',
-      '--color-surface-elevated': 'rgba(34, 38, 46, 0.85)',
+      // Design System — DARK palette
+      '--color-bg': '#0a0a0f',
+      '--color-bg-subtle': '#0e0e14',
+      '--color-surface-0': '#12121a',
+      '--color-surface-1': '#12121a',
+      '--color-surface-2': '#16161f',
+      '--color-surface-3': '#1a1a26',
+      '--color-surface-elevated': 'rgba(18, 18, 26, 0.88)',
+
+      // Card
+      '--color-card': '#16161f',
+      '--color-card-hover': '#1e1e2a',
 
       // Borders
-      '--color-border': '#2E3440',
-      '--color-border-subtle': 'rgba(255, 255, 255, 0.04)',
-      '--color-border-hover': 'rgba(255, 255, 255, 0.12)',
+      '--color-border': '#2a2a3a',
+      '--color-border-subtle': '#222233',
+      '--color-border-hover': '#3a3a4a',
       '--color-border-active': `${a.primary}50`,
 
       // Text
-      '--color-text': '#E8ECF2',
-      '--color-text-secondary': '#8E99A8',
-      '--color-text-muted': '#5F6B7A',
-      '--color-text-faint': '#475569',
+      '--color-text': '#e8e8f0',
+      '--color-text-secondary': '#8888a0',
+      '--color-text-muted': '#5a5a72',
+      '--color-text-faint': '#5a5a72',
+
+      // Status colors
+      '--color-cyan': '#00d4ff',
+      '--color-cyan-bg': 'rgba(0,212,255,0.10)',
+      '--color-green': '#3ddc84',
+      '--color-green-bg': 'rgba(61,220,132,0.10)',
+      '--color-red': '#ff5c5c',
+      '--color-red-bg': 'rgba(255,92,92,0.10)',
+      '--color-orange': '#ffaa2c',
+      '--color-orange-bg': 'rgba(255,170,44,0.10)',
+      '--color-yellow': '#ffe066',
+      '--color-yellow-bg': 'rgba(255,224,102,0.10)',
 
       // Shadows
       '--shadow-xs': '0 1px 2px rgba(0, 0, 0, 0.3)',
-      '--shadow-sm': '0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.4)',
-      '--shadow-md': '0 3px 8px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.3)',
-      '--shadow-lg': '0 6px 16px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.3)',
-      '--shadow-xl': '0 10px 32px rgba(0,0,0,0.5), 0 6px 12px rgba(0,0,0,0.35)',
+      '--shadow-sm': '0 2px 8px rgba(0,0,0,0.3)',
+      '--shadow-md': '0 2px 12px rgba(0,0,0,0.4)',
+      '--shadow-lg': '0 8px 32px rgba(0,0,0,0.4)',
+      '--shadow-xl': '0 16px 48px rgba(0,0,0,0.5)',
       '--shadow-glow-primary': `0 0 20px ${a.primary}20, 0 0 60px ${a.primary}08`,
 
       // Glass
-      '--glass-bg': 'rgba(26, 29, 35, 0.88)',
-      '--glass-bg-heavy': 'rgba(17, 19, 24, 0.92)',
+      '--glass-bg': 'rgba(18, 18, 26, 0.88)',
+      '--glass-bg-heavy': 'rgba(15, 15, 23, 0.92)',
       '--glass-blur': '16px',
       '--glass-blur-heavy': '24px',
-      '--glass-border': 'rgba(255, 255, 255, 0.06)',
+      '--glass-border': '#2a2a3a',
 
       // Gradients
-      '--gradient-surface': 'linear-gradient(145deg, #22262E 0%, #1A1D23 100%)',
-      '--gradient-card': 'linear-gradient(160deg, rgba(42, 47, 56, 0.5) 0%, rgba(26, 29, 35, 0.3) 100%)',
-      '--gradient-primary': `linear-gradient(135deg, ${a.primary} 0%, ${a.primaryDark} 100%)`,
+      '--gradient-surface': 'linear-gradient(145deg, #16161f 0%, #12121a 100%)',
+      '--gradient-card': 'linear-gradient(160deg, rgba(22, 22, 31, 0.5) 0%, rgba(18, 18, 26, 0.3) 100%)',
+      '--gradient-primary': `linear-gradient(135deg, ${a.primary} 0%, #00d4ff 100%)`,
 
       // Header
-      '--header-bg': `linear-gradient(135deg, ${a.primary}, ${a.primaryDark})`,
+      '--header-bg': `linear-gradient(135deg, ${a.primary}, #00d4ff)`,
       '--header-text': '#ffffff',
 
       // Meta
-      '--theme-color': '#111318',
+      '--theme-color': '#0a0a0f',
     }
   }
 
   // ── Light Mode ──────────────────────────────────────────
+  const primaryLight = a.name === 'Default' ? '#6347ff' : a.primary
   return {
-    '--color-primary': a.primary,
+    '--color-primary': primaryLight,
     '--color-primary-light': a.primaryLight,
     '--color-primary-dark': a.primaryDark,
-    '--color-primary-glow': `${a.primary}15`,
+    '--color-primary-glow': `${primaryLight}15`,
 
-    '--color-success': '#10B981',
-    '--color-success-glow': 'rgba(16, 185, 129, 0.10)',
-    '--color-warning': '#F59E0B',
-    '--color-warning-glow': 'rgba(245, 158, 11, 0.10)',
-    '--color-danger': '#DC3545',
-    '--color-danger-glow': 'rgba(220, 53, 69, 0.10)',
-    '--color-critical': '#dc2626',
-    '--color-info': '#3B82F6',
+    '--color-success': '#1aab5c',
+    '--color-success-glow': 'rgba(26,171,92,0.08)',
+    '--color-warning': '#dd8800',
+    '--color-warning-glow': 'rgba(221,136,0,0.08)',
+    '--color-danger': '#e53e3e',
+    '--color-danger-glow': 'rgba(229,62,62,0.08)',
+    '--color-critical': '#e53e3e',
+    '--color-info': '#0099cc',
 
-    '--color-bg': '#F0F2F5',
-    '--color-bg-subtle': '#F5F6F8',
-    '--color-surface-0': '#FAFBFC',
-    '--color-surface-1': '#FFFFFF',
-    '--color-surface-2': '#F5F6F8',
-    '--color-surface-3': '#EDF0F3',
+    '--color-bg': '#f4f5f7',
+    '--color-bg-subtle': '#f0f1f5',
+    '--color-surface-0': '#ffffff',
+    '--color-surface-1': '#ffffff',
+    '--color-surface-2': '#f0f1f5',
+    '--color-surface-3': '#f0f1f5',
     '--color-surface-elevated': 'rgba(255, 255, 255, 0.92)',
 
-    '--color-border': '#E3E7ED',
-    '--color-border-subtle': 'rgba(0, 0, 0, 0.04)',
-    '--color-border-hover': 'rgba(0, 0, 0, 0.12)',
-    '--color-border-active': `${a.primary}40`,
+    '--color-card': '#ffffff',
+    '--color-card-hover': '#f8f8fc',
 
-    '--color-text': '#1A1D21',
-    '--color-text-secondary': '#5F6B7A',
-    '--color-text-muted': '#8E99A8',
-    '--color-text-faint': '#A0AEC0',
+    '--color-border': '#e2e4ea',
+    '--color-border-subtle': '#eef0f4',
+    '--color-border-hover': '#d0d2d8',
+    '--color-border-active': `${primaryLight}40`,
+
+    '--color-text': '#1a1a2e',
+    '--color-text-secondary': '#5a5a72',
+    '--color-text-muted': '#8888a0',
+    '--color-text-faint': '#8888a0',
+
+    '--color-cyan': '#0099cc',
+    '--color-cyan-bg': 'rgba(0,153,204,0.08)',
+    '--color-green': '#1aab5c',
+    '--color-green-bg': 'rgba(26,171,92,0.08)',
+    '--color-red': '#e53e3e',
+    '--color-red-bg': 'rgba(229,62,62,0.08)',
+    '--color-orange': '#dd8800',
+    '--color-orange-bg': 'rgba(221,136,0,0.08)',
+    '--color-yellow': '#cc9900',
+    '--color-yellow-bg': 'rgba(204,153,0,0.08)',
 
     '--shadow-xs': '0 1px 2px rgba(0, 0, 0, 0.04)',
-    '--shadow-sm': '0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06)',
-    '--shadow-md': '0 2px 4px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.08)',
-    '--shadow-lg': '0 4px 8px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.10)',
-    '--shadow-xl': '0 8px 16px rgba(0,0,0,0.06), 0 16px 48px rgba(0,0,0,0.12)',
-    '--shadow-glow-primary': `0 0 20px ${a.primary}10, 0 0 60px ${a.primary}05`,
+    '--shadow-sm': '0 2px 8px rgba(0,0,0,0.06)',
+    '--shadow-md': '0 2px 12px rgba(0,0,0,0.06)',
+    '--shadow-lg': '0 4px 24px rgba(0,0,0,0.10)',
+    '--shadow-xl': '0 8px 48px rgba(0,0,0,0.12)',
+    '--shadow-glow-primary': `0 0 20px ${primaryLight}10, 0 0 60px ${primaryLight}05`,
 
     '--glass-bg': 'rgba(255, 255, 255, 0.88)',
     '--glass-bg-heavy': 'rgba(255, 255, 255, 0.95)',
     '--glass-blur': '16px',
     '--glass-blur-heavy': '24px',
-    '--glass-border': 'rgba(0, 0, 0, 0.06)',
+    '--glass-border': '#e2e4ea',
 
-    '--gradient-surface': 'linear-gradient(145deg, #FFFFFF 0%, #FAFBFC 100%)',
-    '--gradient-card': 'linear-gradient(160deg, rgba(255, 255, 255, 0.8) 0%, rgba(250, 251, 252, 0.4) 100%)',
-    '--gradient-primary': `linear-gradient(135deg, ${a.primary} 0%, ${a.primaryDark} 100%)`,
+    '--gradient-surface': 'linear-gradient(145deg, #FFFFFF 0%, #f4f5f7 100%)',
+    '--gradient-card': 'linear-gradient(160deg, rgba(255, 255, 255, 0.8) 0%, rgba(244, 245, 247, 0.4) 100%)',
+    '--gradient-primary': `linear-gradient(135deg, ${primaryLight} 0%, #0099cc 100%)`,
 
-    '--header-bg': `linear-gradient(135deg, ${a.primary}, ${a.primaryDark})`,
+    '--header-bg': `linear-gradient(135deg, ${primaryLight}, #0099cc)`,
     '--header-text': '#ffffff',
 
-    '--theme-color': a.primary,
+    '--theme-color': primaryLight,
   }
 }
 
-// ── Applica tema al DOM ─────────────────────────────────────
+// ── Applica tema al DOM ───────────────────────────────────
 export function applyTheme(themeVars) {
   const root = document.documentElement
   Object.entries(themeVars).forEach(([key, value]) => {
@@ -167,7 +194,7 @@ export function applyTheme(themeVars) {
   }
 }
 
-// ── Persistenza localStorage ────────────────────────────────
+// ── Persistenza localStorage ──────────────────────────────
 const STORAGE_KEY = 'manutech_theme'
 
 export function saveThemePrefs(mode, accentName) {
@@ -188,7 +215,7 @@ export function loadThemePrefs() {
   }
 }
 
-// ── Resolve "auto" mode ─────────────────────────────────────
+// ── Resolve "auto" mode ───────────────────────────────────
 export function resolveMode(mode) {
   if (mode === 'auto') {
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -196,7 +223,7 @@ export function resolveMode(mode) {
   return mode
 }
 
-// ── Utility: lighten hex color ──────────────────────────────
+// ── Utility: lighten hex color ────────────────────────────
 function lightenHex(hex, amount) {
   const num = parseInt(hex.replace('#', ''), 16)
   const r = Math.min(255, (num >> 16) + Math.round(255 * amount))

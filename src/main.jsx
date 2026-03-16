@@ -8,28 +8,31 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
     <Toaster
-      position="top-center"
-      gutter={10}
-      containerStyle={{ top: 16 }}
+      position="bottom-center"
+      gutter={8}
+      containerStyle={{ bottom: 70 }}
       toastOptions={{
+        duration: 3000,
         style: {
-          background: 'var(--color-surface-1)',
-          color: 'var(--color-text)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '16px',
-          padding: '14px 20px',
-          fontSize: '15px',
-          fontWeight: 600,
-          fontFamily: "'DM Sans', sans-serif",
-          boxShadow: 'var(--shadow-lg)',
+          background: 'var(--color-green)',
+          color: '#000',
+          borderRadius: 10,
+          padding: '10px 20px',
+          fontSize: 13,
+          fontWeight: 500,
+          fontFamily: "'Outfit', sans-serif",
           maxWidth: '92vw',
-          transition: 'background 0.4s ease, color 0.4s ease',
+          animation: 'toastIn 0.3s ease',
         },
         success: {
-          iconTheme: { primary: 'var(--color-success)', secondary: 'var(--color-surface-1)' },
+          iconTheme: { primary: '#000', secondary: 'var(--color-green)' },
         },
         error: {
-          iconTheme: { primary: 'var(--color-danger)', secondary: 'var(--color-surface-1)' },
+          style: {
+            background: 'var(--color-red)',
+            color: '#fff',
+          },
+          iconTheme: { primary: '#fff', secondary: 'var(--color-red)' },
         },
       }}
     />

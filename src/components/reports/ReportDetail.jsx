@@ -286,55 +286,103 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         />
       )}
 
-      {/* ═══ Closure Form Modal ═══ */}
+      {/* ═══ Closure Form — Design System Bottom Sheet ═══ */}
       {showClosureForm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowClosureForm(false)}>
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div className="relative bg-surface-1 border-t border-token rounded-t-3xl w-full max-w-lg p-[5vw] pb-[8vw] animate-slide-up space-y-[4vw]"
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-themed">Chiusura Intervento</h3>
-              <button onClick={() => setShowClosureForm(false)} className="p-2 rounded-lg text-muted hover:text-white">
-                <ChevronDown size={20} />
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', animation: 'fadeIn 0.2s ease both' }} />
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              background: 'var(--color-surface-1)',
+              borderRadius: '20px 20px 0 0',
+              width: '100%', maxWidth: 500,
+              maxHeight: '90vh', overflowY: 'auto',
+              padding: '20px 18px 30px',
+              animation: 'slideUp 0.3s ease both',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
+            </div>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)', marginBottom: 12 }}>Chiusura Intervento</h3>
+
+            {/* Form — Design System */}
+            <div style={{
+              background: 'var(--color-surface-3)',
+              borderRadius: 12, padding: 14,
+              border: '1px solid var(--color-border)',
+              display: 'flex', flexDirection: 'column', gap: 12,
+            }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Ore lavoro *</label>
+                  <input type="number" step="0.5" min="0" value={closureForm.hours}
+                    onChange={e => setClosureForm(f => ({ ...f, hours: e.target.value }))}
+                    placeholder="es. 2.5"
+                    style={{
+                      width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
+                      borderRadius: 8, padding: '8px 10px', fontSize: 13,
+                      color: 'var(--color-text)', outline: 'none',
+                    }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Ricambi usati</label>
+                  <input type="text" value={closureForm.parts}
+                    onChange={e => setClosureForm(f => ({ ...f, parts: e.target.value }))}
+                    placeholder="es. Cuscinetto"
+                    style={{
+                      width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
+                      borderRadius: 8, padding: '8px 10px', fontSize: 13,
+                      color: 'var(--color-text)', outline: 'none',
+                    }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Causa radice *</label>
+                <textarea value={closureForm.rootCause}
+                  onChange={e => setClosureForm(f => ({ ...f, rootCause: e.target.value }))}
+                  placeholder="Cosa ha causato il problema?"
+                  rows={2}
+                  style={{
+                    width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
+                    borderRadius: 8, padding: '8px 10px', fontSize: 13,
+                    color: 'var(--color-text)', outline: 'none', resize: 'none',
+                  }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Azione correttiva</label>
+                <textarea value={closureForm.action}
+                  onChange={e => setClosureForm(f => ({ ...f, action: e.target.value }))}
+                  placeholder="Cosa è stato fatto per risolvere?"
+                  rows={2}
+                  style={{
+                    width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
+                    borderRadius: 8, padding: '8px 10px', fontSize: 13,
+                    color: 'var(--color-text)', outline: 'none', resize: 'none',
+                  }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Note</label>
+                <input type="text"
+                  placeholder="Note aggiuntive..."
+                  style={{
+                    width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
+                    borderRadius: 8, padding: '8px 10px', fontSize: 13,
+                    color: 'var(--color-text)', outline: 'none',
+                  }} />
+              </div>
+              <button onClick={submitClosure} disabled={!!updatingStatus}
+                className="press-scale"
+                style={{
+                  width: '100%', padding: 12, borderRadius: 8,
+                  background: 'var(--color-green)', color: '#000',
+                  fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer',
+                  opacity: updatingStatus ? 0.5 : 1,
+                }}>
+                {updatingStatus ? '...' : '✓ Conferma Chiusura'}
               </button>
             </div>
-            <p className="text-sm text-faint">Compila i dati dell'intervento prima di chiudere la segnalazione.</p>
-            <div className="grid grid-cols-2 gap-[3vw]">
-              <div>
-                <label className="block text-xs text-faint uppercase mb-1.5">Ore lavoro *</label>
-                <input type="number" step="0.5" min="0" value={closureForm.hours}
-                  onChange={e => setClosureForm(f => ({ ...f, hours: e.target.value }))}
-                  placeholder="es. 2.5"
-                  className="w-full bg-surface-2 border border-token rounded-xl px-3 py-3 text-base text-themed focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-faint uppercase mb-1.5">Ricambi utilizzati</label>
-                <input type="text" value={closureForm.parts}
-                  onChange={e => setClosureForm(f => ({ ...f, parts: e.target.value }))}
-                  placeholder="es. Cuscinetto, guarnizione"
-                  className="w-full bg-surface-2 border border-token rounded-xl px-3 py-3 text-base text-themed focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-faint uppercase mb-1.5">Causa radice *</label>
-              <textarea value={closureForm.rootCause}
-                onChange={e => setClosureForm(f => ({ ...f, rootCause: e.target.value }))}
-                placeholder="Cosa ha causato il problema?"
-                rows={2}
-                className="w-full bg-surface-2 border border-token rounded-xl px-3 py-3 text-base text-themed focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none" />
-            </div>
-            <div>
-              <label className="block text-xs text-faint uppercase mb-1.5">Azione correttiva</label>
-              <textarea value={closureForm.action}
-                onChange={e => setClosureForm(f => ({ ...f, action: e.target.value }))}
-                placeholder="Cosa è stato fatto per risolvere?"
-                rows={2}
-                className="w-full bg-surface-2 border border-token rounded-xl px-3 py-3 text-base text-themed focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none" />
-            </div>
-            <button onClick={submitClosure} disabled={!!updatingStatus}
-              className="w-full py-[4vw] rounded-2xl text-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-all press-scale disabled:opacity-50">
-              {updatingStatus ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : '✅ Chiudi Intervento'}
-            </button>
           </div>
         </div>
       )}

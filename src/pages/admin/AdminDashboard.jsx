@@ -16,9 +16,9 @@ function getTrafficLight(plan, lastLog) {
   const lastDate = lastLog?.performed_at || plan.created_at
   const daysSince = daysBetween(lastDate, new Date())
   const daysLeft = plan.frequency_days - daysSince
-  if (daysLeft <= 0) return { label: `Scaduta da ${Math.abs(daysLeft)}g`, color: '#ef4444', daysLeft }
-  if (daysLeft <= 7) return { label: `Scade tra ${daysLeft}g`, color: '#f59e0b', daysLeft }
-  return { label: `Tra ${daysLeft}g`, color: '#22c55e', daysLeft }
+  if (daysLeft <= 0) return { label: `Scaduta da ${Math.abs(daysLeft)}g`, color: '#ff5c5c', daysLeft }
+  if (daysLeft <= 7) return { label: `Scade tra ${daysLeft}g`, color: '#ffaa2c', daysLeft }
+  return { label: `Tra ${daysLeft}g`, color: '#3ddc84', daysLeft }
 }
 
 export default function AdminDashboard({ onNavigate }) {
@@ -84,22 +84,28 @@ export default function AdminDashboard({ onNavigate }) {
     <div className="space-y-6 stagger-children">
       {criticheNonAssegnate > 0 && (
         <div
-          className="flex items-center gap-3 rounded-xl p-4 animate-fade-in"
           style={{
-            background: 'rgba(255, 71, 87, 0.08)',
-            border: '1px solid rgba(255, 71, 87, 0.3)',
-            animation: 'fadeIn 0.3s ease, criticalPulse 2s ease-in-out infinite',
+            background: 'var(--color-red-bg)',
+            borderBottom: '1px solid rgba(255, 92, 92, 0.33)',
+            padding: '10px 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            animation: 'pulse 2s infinite',
+            borderRadius: 8,
           }}
         >
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(255, 71, 87, 0.15)' }}>
-            <AlertTriangle size={20} style={{ color: '#ff4757' }} />
-          </div>
-          <div>
-            <p className="text-sm font-bold" style={{ color: '#ff4757' }}>
-              {criticheNonAssegnate} segnalazion{criticheNonAssegnate === 1 ? 'e critica non assegnata' : 'i critiche non assegnate'}
-            </p>
-            <p className="text-xs text-muted mt-0.5">Richiedono assegnazione immediata</p>
-          </div>
+          <span style={{ fontSize: 13, color: 'var(--color-red)' }}>
+            ⚠ {criticheNonAssegnate} segnalazion{criticheNonAssegnate === 1 ? 'e critica non assegnata' : 'i critiche non assegnate'}
+          </span>
+          <button
+            onClick={() => onNavigate('reports')}
+            style={{
+              fontSize: 12, fontWeight: 600, color: 'var(--color-red)',
+              background: 'transparent', border: '1px solid var(--color-red)',
+              borderRadius: 6, padding: '4px 12px', cursor: 'pointer',
+            }}
+          >
+            Vedi
+          </button>
         </div>
       )}
       <HeroKPIs stats={stats} resolveRate={resolveRate} urgenti={urgenti} nonAssegnate={nonAssegnate} />

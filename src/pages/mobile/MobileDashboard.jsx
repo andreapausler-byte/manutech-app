@@ -25,9 +25,9 @@ function getTrafficLight(plan, lastLog) {
   const lastDate = lastLog?.performed_at || plan.created_at
   const daysSince = daysBetween(lastDate, new Date())
   const daysLeft = plan.frequency_days - daysSince
-  if (daysLeft <= 0) return { label: `Scaduta da ${Math.abs(daysLeft)}g`, color: '#ef4444', daysLeft, urgent: true }
-  if (daysLeft <= 7) return { label: `Scade tra ${daysLeft}g`, color: '#f59e0b', daysLeft, urgent: true }
-  return { label: `Tra ${daysLeft}g`, color: '#22c55e', daysLeft, urgent: false }
+  if (daysLeft <= 0) return { label: `Scaduta da ${Math.abs(daysLeft)}g`, color: '#ff5c5c', daysLeft, urgent: true }
+  if (daysLeft <= 7) return { label: `Scade tra ${daysLeft}g`, color: '#ffaa2c', daysLeft, urgent: true }
+  return { label: `Tra ${daysLeft}g`, color: '#3ddc84', daysLeft, urgent: false }
 }
 
 const STATUS_CONFIG = {
@@ -211,7 +211,43 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
   return (
     <div ref={pullRef} className="px-[4vw] pt-0 pb-4">
       <PullToRefreshIndicator pullDistance={pullDistance} pullProgress={pullProgress} refreshing={refreshing} activated={activated} />
-      <p className="text-2xl font-extrabold text-themed mb-[4vw] pt-[4vw] tracking-tight">Ciao, {user.name?.split(' ')[0]} 👋</p>
+
+      {/* ═══ Vista Operatore Home — Design System ═══ */}
+      {user.role === 'operatore' && (
+        <div style={{ textAlign: 'center', paddingTop: 40, marginBottom: 32 }}>
+          <div style={{
+            width: 80, height: 80, borderRadius: 20, margin: '0 auto 16px',
+            background: 'linear-gradient(135deg, var(--color-primary), #00d4ff)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 36 }}>🔧</span>
+          </div>
+          <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)' }}>Ciao, {user.name?.split(' ')[0]}</p>
+          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+            {user.department || 'Area produzione'}
+          </p>
+          {onQuickReport && (
+            <button
+              onClick={() => { haptic.medium(); onQuickReport() }}
+              className="press-scale"
+              style={{
+                marginTop: 24, padding: '18px 48px', borderRadius: 16, fontSize: 16, fontWeight: 600,
+                background: 'linear-gradient(135deg, var(--color-primary), #00d4ff)',
+                color: '#fff', border: 'none', cursor: 'pointer',
+                boxShadow: '0 0 20px rgba(124,106,255,0.15)',
+              }}
+            >
+              Segnala Problema
+            </button>
+          )}
+        </div>
+      )}
+
+      {user.role !== 'operatore' && (
+        <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', paddingTop: 16, marginBottom: 16 }}>
+          Ciao, {user.name?.split(' ')[0]} 👋
+        </p>
+      )}
 
       {/* ═══ IN CORSO — Manutenzioni prese in carico ═══ */}
       {inCorsoTasks.length > 0 && (
@@ -318,22 +354,20 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
         </div>
       )}
 
-      {/* ═══ KPI Grid ═══ */}
-      <div className="grid grid-cols-2 gap-[3vw] mb-[3vw] stagger-children">
+      {/* ═══ KPI Grid — Design System ═══ */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 12 }}>
         {[
-          { label: 'Aperte', value: stats.aperte, icon: AlertTriangle, color: '#f59e0b' },
-          { label: 'In Corso', value: stats.inCorso, icon: Wrench, color: '#7c6aff' },
-          { label: 'Risolte', value: stats.risolte, icon: CheckCircle, color: '#22c55e' },
-          { label: 'Critiche', value: stats.critiche, icon: Activity, color: '#ef4444' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="card-elevated rounded-2xl p-[3.5vw] flex items-center gap-[3vw]">
-            <div className="w-[12vw] h-[12vw] max-w-12 max-h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: color + '14' }}>
-              <Icon size={24} style={{ color }} />
-            </div>
-            <div>
-              <p className="text-3xl font-extrabold text-white leading-none">{value}</p>
-              <p className="text-sm mt-0.5 text-muted">{label}</p>
-            </div>
+          { label: 'APERTI', value: stats.aperte, color: 'var(--color-red)' },
+          { label: 'IN CORSO', value: stats.inCorso, color: 'var(--color-cyan)' },
+          { label: 'COMPLETATI', value: stats.risolte, color: 'var(--color-green)' },
+          { label: 'CRITICHE', value: stats.critiche, color: 'var(--color-orange)' },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{
+            background: 'var(--color-card)', border: '1px solid var(--color-border)',
+            borderRadius: 12, padding: '14px 12px', textAlign: 'center',
+          }}>
+            <p style={{ fontSize: 28, fontWeight: 700, color, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.1 }}>{value}</p>
+            <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 6 }}>{label}</p>
           </div>
         ))}
       </div>
@@ -381,9 +415,11 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
       )}
 
       {/* ═══ Reports list ═══ */}
-      <div className="flex items-center justify-between mb-[2.5vw]">
-        <h3 className="text-lg font-bold text-secondary">Segnalazioni</h3>
-        <span className="text-sm text-faint">{reports.length} totali</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+          {user.role === 'operatore' ? 'I Tuoi Ticket Recenti' : 'Segnalazioni'}
+        </h3>
+        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{reports.length} totali</span>
       </div>
 
       {reports.length === 0 ? (
@@ -392,8 +428,8 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
           <p className="text-lg text-muted">Nessuna segnalazione</p>
         </div>
       ) : (
-        <div className="space-y-[2.5vw]">
-          {reports.map(report => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {(user.role === 'operatore' ? reports.slice(0, 3) : reports).map(report => {
             const rstatus = STATUS[report.status] || STATUS.aperta
             const severity = SEVERITY[report.severity] || SEVERITY.media
             return (

@@ -1,8 +1,6 @@
 /**
- * MobileMachinesList — Lista macchinari per operatori
- * 
- * Design: lista semplice, bottoni grandi, glove-friendly
- * Ogni card mostra: nome, reparto, semaforo manutenzione, segnalazioni attive
+ * MobileMachinesList — Lista macchinari
+ * Design System: card macchina con status chip, codice JetBrains Mono
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -10,7 +8,26 @@ import { db } from '../../lib/supabase'
 import { SkeletonReportsPage, EmptyState } from '../ui'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, ChevronRight, Cog, Factory, AlertTriangle, CheckCircle, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
+
+const MACHINE_STATUS = {
+  operativa: { label: 'Operativa', color: 'var(--color-green)', bg: 'var(--color-green-bg)' },
+  in_manutenzione: { label: 'In Manutenzione', color: 'var(--color-orange)', bg: 'var(--color-orange-bg)' },
+  ferma: { label: 'Ferma', color: 'var(--color-red)', bg: 'var(--color-red-bg)' },
+  dismessa: { label: 'Dismessa', color: 'var(--color-text-muted)', bg: 'var(--color-surface-3)' },
+}
+
+function MachineStatusChip({ status }) {
+  const s = MACHINE_STATUS[status] || MACHINE_STATUS.operativa
+  return (
+    <span style={{
+      fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 500,
+      color: s.color, background: s.bg, whiteSpace: 'nowrap',
+    }}>
+      {s.label}
+    </span>
+  )
+}
 
 export default function MobileMachinesList({ onSelectMachine }) {
   const [machines, setMachines] = useState([])
@@ -47,75 +64,83 @@ export default function MobileMachinesList({ onSelectMachine }) {
   const getActiveReports = (machineName) => reports.filter(r => r.machine === machineName && r.status !== 'risolta').length
 
   return (
-    <div ref={pullRef} className="px-[4vw] pt-0 pb-4 space-y-[3vw]">
+    <div ref={pullRef} style={{ padding: '0 16px 16px' }}>
       <PullToRefreshIndicator pullDistance={pullDistance} pullProgress={pullProgress} refreshing={refreshing} activated={activated} />
 
       {/* Search */}
-      <div className="relative">
-        <Search size={22} className="absolute left-[4vw] top-1/2 -translate-y-1/2 text-faint" />
+      <div className="relative" style={{ marginBottom: 12 }}>
+        <Search size={18} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
         <input
           type="text"
           placeholder="Cerca macchinario..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full bg-surface-2 border border-token rounded-2xl pl-[12vw] pr-[12vw] py-[3.5vw] text-lg text-themed placeholder-current opacity-40 focus:outline-none focus:border-current"
+          style={{
+            width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
+            borderRadius: 8, padding: '8px 36px 8px 36px', fontSize: 13,
+            color: 'var(--color-text)', outline: 'none',
+          }}
         />
         {search && (
-          <button onClick={() => setSearch('')} className="absolute right-[3vw] top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-surface-3 text-secondary">
-            <X size={18} />
+          <button onClick={() => setSearch('')} style={{
+            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+            width: 24, height: 24, borderRadius: 12, background: 'var(--color-surface-3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer',
+            color: 'var(--color-text-secondary)',
+          }}>
+            <X size={14} />
           </button>
         )}
       </div>
-
-      {/* Count */}
-      <p className="text-sm text-faint px-1">{filtered.length} macchinari</p>
 
       {/* List */}
       {loading ? <SkeletonReportsPage /> : filtered.length === 0 ? (
         <EmptyState icon="⚙️" title="Nessun macchinario" subtitle="I macchinari vengono configurati dall'admin" />
       ) : (
-        <div className="space-y-[2.5vw]">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map((m) => {
             const activeReports = getActiveReports(m.name)
             return (
               <button
                 key={m.id}
                 onClick={() => onSelectMachine(m)}
-                className="w-full text-left flex items-center gap-[3.5vw] card-interactive rounded-2xl px-[4vw] py-[4vw] active:bg-surface-2 transition-colors press-scale"
+                className="press-scale"
+                style={{
+                  width: '100%', textAlign: 'left',
+                  background: 'var(--color-card)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 12, padding: 14, cursor: 'pointer',
+                  transition: 'border-color 0.15s, background 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.background = 'var(--color-card-hover)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'var(--color-card)' }}
               >
-                {/* Machine icon / photo */}
-                {m.photo_url ? (
-                  <div className="w-[14vw] h-[14vw] max-w-14 max-h-14 rounded-xl overflow-hidden border border-token shrink-0">
-                    <img src={m.photo_url} alt="" className="w-full h-full object-cover" />
+                {/* Riga 1: nome + codice a sinistra, status chip a destra */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {m.name}
+                    </span>
+                    {m.code && (
+                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
+                        {m.code}
+                      </span>
+                    )}
                   </div>
-                ) : (
-                  <div className="w-[14vw] h-[14vw] max-w-14 max-h-14 rounded-xl bg-surface-2 flex items-center justify-center shrink-0">
-                    <Cog size={24} className="text-violet-400" />
+                  <MachineStatusChip status={m.status || 'operativa'} />
+                </div>
+                {/* Riga 2: area + produttore */}
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                  {m.department && <span>{m.department}</span>}
+                  {m.department && m.manufacturer && ' · '}
+                  {m.manufacturer && <span>{m.manufacturer}</span>}
+                </div>
+                {/* Riga 3: ticket aperti + prossima manutenzione */}
+                {activeReports > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--color-orange)', marginTop: 4 }}>
+                    ⚠ {activeReports} ticket aperti
                   </div>
                 )}
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold text-themed truncate">{m.name}</h3>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {m.department && (
-                      <span className="text-sm text-muted truncate">{m.department}</span>
-                    )}
-                    {m.manufacturer && (
-                      <span className="text-sm text-faint truncate">{m.manufacturer}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right side — status indicators */}
-                <div className="flex items-center gap-2 shrink-0">
-                  {activeReports > 0 && (
-                    <span className="min-w-[28px] h-[28px] bg-amber-500/20 rounded-full text-xs font-bold text-amber-400 flex items-center justify-center px-1.5">
-                      {activeReports}
-                    </span>
-                  )}
-                  <ChevronRight size={22} className="text-faint" />
-                </div>
               </button>
             )
           })}

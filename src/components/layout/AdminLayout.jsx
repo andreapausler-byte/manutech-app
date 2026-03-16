@@ -72,15 +72,18 @@ export default function AdminLayout({ initialReportId }) {
         {/* Logo area */}
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-5'} py-5`} style={{ borderBottom: '1px solid var(--color-border)' }}>
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: 'var(--gradient-primary)', boxShadow: 'var(--shadow-glow-primary)' }}
+            className="shrink-0 flex items-center justify-center"
+            style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: 'linear-gradient(135deg, var(--color-primary), #00d4ff)',
+            }}
           >
-            <span className="text-lg">🔧</span>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: "'Outfit', sans-serif" }}>M</span>
           </div>
           {!collapsed && (
             <div>
-              <span className="text-lg font-extrabold text-themed tracking-tight">ManuTech</span>
-              <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--color-text-faint)' }}>Admin Console · v{__APP_VERSION__}</p>
+              <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)' }}>ManuTech</span>
+              <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--color-text-faint)' }}>Admin Console</p>
             </div>
           )}
         </div>
@@ -162,14 +165,19 @@ export default function AdminLayout({ initialReportId }) {
             <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-faint)' }}>{current?.desc}</p>
           </div>
           <div className="flex items-center gap-3">
-            {/* Theme toggle */}
+            {/* Theme toggle ☀/☾ */}
             <button
               onClick={toggleMode}
               aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
-              className="w-9 h-9 rounded-xl flex items-center justify-center press-scale transition-colors"
-              style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-secondary)' }}
+              className="press-scale"
+              style={{
+                width: 36, height: 36, borderRadius: 8,
+                background: 'var(--color-surface-2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: 'none', cursor: 'pointer', fontSize: 16,
+              }}
             >
-              {isDark ? <Sun size={17} /> : <Moon size={17} />}
+              {isDark ? '☀' : '☾'}
             </button>
             {/* Settings */}
             <button
