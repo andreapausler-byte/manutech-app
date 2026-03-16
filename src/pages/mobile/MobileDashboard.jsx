@@ -32,7 +32,7 @@ function getTrafficLight(plan, lastLog) {
 
 const STATUS_CONFIG = {
   da_eseguire: { label: 'Da eseguire', color: '#f59e0b', icon: Clock },
-  in_corso: { label: 'In corso', color: '#7c6aff', icon: Wrench },
+  in_corso: { label: 'In corso', color: 'var(--color-primary)', icon: Wrench },
   completata: { label: 'Completata', color: '#22c55e', icon: CheckCircle },
 }
 
@@ -340,9 +340,9 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
                   disabled={taking === task.plan.id}
                   className="w-full py-[3.5vw] flex items-center justify-center gap-2 text-base font-bold press-scale active:scale-[0.97] transition-all border-t"
                   style={{
-                    color: '#7c6aff',
+                    color: 'var(--color-primary)',
                     borderColor: task.light.color === '#ef4444' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.12)',
-                    background: 'rgba(124,106,255,0.05)',
+                    background: 'var(--color-primary-glow)',
                   }}>
                   {taking === task.plan.id
                     ? <div className="w-5 h-5 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
@@ -364,10 +364,10 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
         ].map(({ label, value, color }) => (
           <div key={label} style={{
             background: 'var(--color-card)', border: '1px solid var(--color-border)',
-            borderRadius: 12, padding: '14px 12px', textAlign: 'center',
+            borderRadius: 14, padding: '16px 12px', textAlign: 'center',
           }}>
-            <p style={{ fontSize: 28, fontWeight: 700, color, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.1 }}>{value}</p>
-            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 6 }}>{label}</p>
+            <p style={{ fontSize: 36, fontWeight: 800, color, lineHeight: 1 }}>{value}</p>
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 8, fontWeight: 600 }}>{label}</p>
           </div>
         ))}
       </div>

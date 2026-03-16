@@ -167,10 +167,10 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
           </div>
         </div>
 
-        {/* Priorità — Design System: 4 bottoni flex con colori */}
+        {/* Priorità — Design System: 4 bottoni grid con colori */}
         <div>
           <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8 }}>Priorità</label>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {Object.entries(SEVERITY).map(([key, { label, color }]) => {
               const selected = form.severity === key
               return (
@@ -179,14 +179,14 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
                   onClick={() => handleSeverityChange(key)}
                   className="press-scale"
                   style={{
-                    flex: 1, padding: '10px 4px', borderRadius: 8, fontSize: 12, fontWeight: selected ? 600 : 400,
+                    padding: '10px 4px', borderRadius: 8, fontSize: 13, fontWeight: selected ? 600 : 400,
                     border: `1px solid ${selected ? color : 'var(--color-border)'}`,
                     background: selected ? color + '18' : 'var(--color-card)',
                     color: selected ? color : 'var(--color-text-secondary)',
                     cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
                   }}
                 >
-                  {label}
+                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginBottom: 4 }} /><br />{label}
                 </button>
               )
             })}

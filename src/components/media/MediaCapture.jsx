@@ -143,8 +143,8 @@ export default function MediaCapture({ media, onChange }) {
                 <p className="text-sm text-faint">{m.type === 'photo' ? 'Foto' : m.type === 'video' ? 'Video' : 'Audio'}</p>
               </div>
               <button type="button" onClick={() => removeFile(m.id)}
-                className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center hover:bg-red-500/20 text-faint hover:text-red-400 press-scale">
-                <X size={20} />
+                className="w-[40px] h-[40px] min-w-[40px] rounded-xl flex items-center justify-center bg-red-500/10 active:bg-red-500/30 text-red-400 press-scale">
+                <X size={22} />
               </button>
             </div>
           ))}

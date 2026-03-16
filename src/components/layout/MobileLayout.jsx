@@ -42,7 +42,7 @@ function FABMenu({ onNewReport, onQuickReport }) {
         <div className="fixed inset-0 bg-black/50 z-[48] backdrop-blur-sm" aria-hidden="true" onClick={() => setOpen(false)} />
       )}
 
-      <div className={`fixed bottom-[36vw] right-[4vw] z-[49] flex flex-col items-end gap-[3vw] transition-all duration-200 ${
+      <div className={`fixed bottom-[100px] right-[16px] z-[49] flex flex-col items-end gap-[12px] transition-all duration-200 ${
         open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
       }`}>
         <button
@@ -73,7 +73,7 @@ function FABMenu({ onNewReport, onQuickReport }) {
         onClick={toggle}
         aria-label={open ? 'Chiudi menu segnalazioni' : 'Nuova segnalazione'}
         aria-expanded={open}
-        className={`fixed bottom-[20vw] right-[4vw] z-50 w-[15vw] h-[15vw] max-w-16 max-h-16 rounded-2xl flex items-center justify-center press-scale transition-all duration-200 ${
+        className={`fixed bottom-[76px] right-[16px] z-50 w-[56px] h-[56px] rounded-2xl flex items-center justify-center press-scale transition-all duration-200 ${
           open ? 'rotate-45' : ''
         }`}
         style={{
