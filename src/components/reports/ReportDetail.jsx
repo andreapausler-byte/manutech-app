@@ -11,7 +11,7 @@ import ActivityTimeline from './ActivityTimeline'
 import ChatPanel from '../chat/ChatPanel'
 import {
   ArrowLeft, MessageCircle, Video, Mic, Expand, Image, Clock,
-  ChevronDown, ChevronUp
+  ChevronDown
 } from 'lucide-react'
 
 export default function ReportDetail({ report: initialReport, user, onBack }) {
@@ -123,7 +123,10 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             {report.machine && <Badge label={`🏭 ${report.machine}`} color="#94a3b8" bg="#94a3b822" />}
             {report.assigned_to_name && <Badge label={`👤 ${report.assigned_to_name}`} color="#8b5cf6" bg="#8b5cf622" />}
           </div>
-          {showInfo ? <ChevronUp size={18} className="text-faint" /> : <ChevronDown size={18} className="text-faint" />}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-faint font-medium">{showInfo ? 'Nascondi' : 'Dettagli'}</span>
+            <ChevronDown size={18} className="text-faint transition-transform duration-200" style={{ transform: showInfo ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+          </div>
         </button>
 
         {/* Assegnazione visibile sempre (fuori dal collapse) */}
@@ -136,8 +139,12 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           </div>
         )}
 
-        {showInfo && (
-          <div className="px-[4vw] pb-[4vw] space-y-[3vw] animate-fade-in">
+        <div style={{
+          maxHeight: showInfo ? '2000px' : '0',
+          overflow: 'hidden',
+          transition: 'max-height 0.3s ease',
+        }}>
+          <div className="px-[4vw] pb-[4vw] space-y-[3vw]">
             {/* Assignment info */}
             {report.assigned_to_name && (
               <div className="flex items-center gap-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl px-[4vw] py-[3vw]">
@@ -176,9 +183,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                       <div className={`grid gap-[2.5vw] ${photos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                         {photos.map((m, i) => (
                           <button key={m.id || i} onClick={() => { haptic.light(); setLightboxIndex(i) }}
-                            className={`relative rounded-2xl bg-gray-800 overflow-hidden border border-token active:opacity-80 press-scale ${
-                              photos.length === 1 ? 'aspect-[16/10]' : 'aspect-[4/3]'
-                            }`}>
+                            className="relative rounded-2xl bg-gray-800 overflow-hidden border border-token active:opacity-80 press-scale aspect-[4/3]">
                             <img src={m.url} alt="" className="w-full h-full object-cover" />
                             <div className="absolute bottom-2 right-2 w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm flex items-center justify-center">
                               <Expand size={14} className="text-white" />
@@ -245,26 +250,26 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             {canUpdateStatus && (
               <div className="card-elevated rounded-2xl p-[4vw]">
                 <p className="label-section tracking-wider mb-[3vw]">Aggiorna Stato</p>
-                <div className="space-y-[2.5vw]">
+                <div className="grid grid-cols-2 gap-[2.5vw]">
                   {Object.entries(STATUS).map(([key, { label, color }]) => {
                     const isActive = report.status === key
                     const isUpdating = updatingStatus === key
                     return (
                       <button key={key} onClick={() => !isActive && !updatingStatus && handleStatusClick(key)}
                         disabled={isActive || !!updatingStatus}
-                        className={`w-full flex items-center gap-[3.5vw] px-[4vw] py-[4vw] rounded-2xl transition-all press-scale ${
+                        className={`flex flex-col items-center gap-2 px-[3vw] py-[3.5vw] rounded-2xl transition-all press-scale ${
                           isActive
                             ? 'border-2 text-white'
                             : 'bg-surface-2 border-2 border-transparent active:bg-surface-3 text-secondary'
                         } ${updatingStatus && !isActive && !isUpdating ? 'opacity-40' : ''}`}
                         style={isActive ? { background: color + '20', borderColor: color } : {}}>
-                        <div className={`w-6 h-6 rounded-full shrink-0 border-[3px] flex items-center justify-center ${isUpdating ? 'animate-pulse' : ''}`}
+                        <div className={`w-7 h-7 rounded-full shrink-0 border-[3px] flex items-center justify-center ${isUpdating ? 'animate-pulse' : ''}`}
                           style={{ background: isActive ? color : 'transparent', borderColor: color }}>
                           {isUpdating && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                         </div>
-                        <span className="text-lg font-bold flex-1 text-left">{label}</span>
+                        <span className="text-base font-bold text-center">{label}</span>
                         {isActive && (
-                          <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg"
+                          <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg"
                             style={{ background: color + '30', color }}>Attivo</span>
                         )}
                       </button>
@@ -274,7 +279,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
               </div>
             )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Lightbox */}
@@ -390,19 +395,19 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
       {/* ═══ Tab switcher: Chat / Timeline ═══ */}
       <div className="flex border-b border-token shrink-0 bg-base">
         <button onClick={() => setActiveSection('chat')}
-          className={`flex-1 flex items-center justify-center gap-2 py-[3vw] text-sm font-semibold transition-all ${
-            activeSection === 'chat'
-              ? 'text-violet-400 border-b-2 border-violet-400 bg-violet-400/5'
-              : 'text-faint active:text-secondary'
-          }`}>
+          className="flex-1 flex items-center justify-center gap-2 py-[3vw] text-sm font-semibold transition-all"
+          style={activeSection === 'chat'
+            ? { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)', background: 'var(--color-primary-glow)' }
+            : { color: 'var(--color-text-muted)' }
+          }>
           <MessageCircle size={18} /> Chat
         </button>
         <button onClick={() => setActiveSection('timeline')}
-          className={`flex-1 flex items-center justify-center gap-2 py-[3vw] text-sm font-semibold transition-all ${
-            activeSection === 'timeline'
-              ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-400/5'
-              : 'text-faint active:text-secondary'
-          }`}>
+          className="flex-1 flex items-center justify-center gap-2 py-[3vw] text-sm font-semibold transition-all"
+          style={activeSection === 'timeline'
+            ? { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)', background: 'var(--color-primary-glow)' }
+            : { color: 'var(--color-text-muted)' }
+          }>
           <Clock size={18} /> Cronologia
         </button>
       </div>
