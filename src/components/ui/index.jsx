@@ -4,12 +4,16 @@ import { X } from 'lucide-react'
 export { SkeletonBlock, SkeletonKPIGrid, SkeletonReportCard, SkeletonReportList, SkeletonDashboard, SkeletonReportsPage } from './Skeleton'
 
 // ── Badge ────────────────────────────────────────────────
-export function Badge({ label, color, bg }) {
+export function Badge({ label, color, bg, icon }) {
   return (
     <span
-      className="inline-flex items-center px-3 py-1.5 rounded-full text-base font-bold tracking-wide whitespace-nowrap"
-      style={{ background: bg || color + '18', color }}
+      style={{
+        display: 'inline-flex', alignItems: 'center',
+        fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 500,
+        background: bg || color + '18', color, whiteSpace: 'nowrap',
+      }}
     >
+      {icon && <span style={{ marginRight: 3 }}>{icon}</span>}
       {label}
     </span>
   )
@@ -141,36 +145,53 @@ export function Textarea({ label, className = '', ...props }) {
 export function Modal({ open, onClose, title, children, size = 'md' }) {
   if (!open) return null
 
-  const sizes = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
-    full: 'max-w-[95vw] max-h-[95vh]',
-  }
-
   const titleId = title ? `modal-title-${title.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}` : undefined
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
+    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
+      {/* Overlay — Design System */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'rgba(0,0,0,0.6)',
+        animation: 'fadeIn 0.2s ease both',
+      }} aria-hidden="true" />
+      {/* Bottom Sheet — Design System */}
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative glass-heavy rounded-2xl w-full ${sizes[size]} max-h-[85vh] overflow-y-auto animate-scale-in`}
-        style={{ border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-xl)' }}
         onClick={e => e.stopPropagation()}
+        style={{
+          position: 'relative',
+          background: 'var(--color-surface-1)',
+          borderRadius: '20px 20px 0 0',
+          width: '100%', maxWidth: 500,
+          maxHeight: '90vh', overflowY: 'auto',
+          padding: '20px 18px 30px',
+          boxShadow: 'var(--shadow-xl)',
+          animation: 'slideUp 0.3s ease both',
+        }}
       >
+        {/* Handle bar */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
+        </div>
         {title && (
-          <div className="flex items-center justify-between p-6" style={{ borderBottom: '1px solid var(--color-border)' }}>
-            <h2 id={titleId} className="text-xl font-extrabold text-white tracking-tight">{title}</h2>
-            <button onClick={onClose} aria-label="Chiudi" className="p-2 rounded-lg hover:bg-white/10 transition-colors" style={{ color: 'var(--color-text-muted)' }}>
-              <X size={22} />
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--color-border)',
+          }}>
+            <h2 id={titleId} style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>{title}</h2>
+            <button onClick={onClose} aria-label="Chiudi" style={{
+              padding: 6, borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: 'var(--color-surface-3)', color: 'var(--color-text-muted)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <X size={18} />
             </button>
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div>{children}</div>
       </div>
     </div>
   )

@@ -110,7 +110,12 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
               <Select
                 value={form.machine}
                 onChange={e => set('machine', e.target.value)}
-                options={[{ value: '', label: 'Seleziona (opzionale)' }, ...machines.map(m => ({ value: m.name, label: m.name }))]}
+                options={[
+                  { value: '', label: 'Seleziona (opzionale)' },
+                  ...machines
+                    .filter(m => m.status !== 'dismessa')
+                    .map(m => ({ value: m.name, label: m.code ? `${m.code} — ${m.name}` : m.name }))
+                ]}
               />
             </div>
             <button
@@ -136,45 +141,55 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
           />
         )}
 
-        {/* Tipo intervento */}
+        {/* Tipo intervento — Design System: 4 bottoni affiancati */}
         <div>
-          <label className="block text-base text-muted mb-[2.5vw] uppercase tracking-wider font-semibold">Tipo Intervento</label>
-          <div className="grid grid-cols-2 gap-[2.5vw]">
-            {Object.entries(REPORT_TYPES).map(([key, { label, color, icon }]) => (
-              <button
-                key={key}
-                onClick={() => { haptic.light(); set('type', key) }}
-                className={`py-[3.5vw] rounded-2xl text-base font-bold transition-all press-scale ${
-                  form.type === key
-                    ? 'text-white shadow-lg'
-                    : 'btn-chip'
-                }`}
-                style={form.type === key ? { background: color, boxShadow: `0 4px 14px ${color}33` } : {}}
-              >
-                {icon} {label}
-              </button>
-            ))}
+          <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 8 }}>Tipo Intervento</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {Object.entries(REPORT_TYPES).map(([key, { label, icon }]) => {
+              const selected = form.type === key
+              return (
+                <button
+                  key={key}
+                  onClick={() => { haptic.light(); set('type', key) }}
+                  className="press-scale"
+                  style={{
+                    padding: '10px 4px', borderRadius: 8, fontSize: 12, fontWeight: selected ? 600 : 400,
+                    border: `1px solid ${selected ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: selected ? 'var(--color-primary-glow)' : 'var(--color-card)',
+                    color: selected ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                    cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
+                  }}
+                >
+                  {icon}<br />{label}
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        {/* Severity — 2x2 responsive con haptic */}
+        {/* Priorità — Design System: 4 bottoni flex con colori */}
         <div>
-          <label className="block text-base text-muted mb-[2.5vw] uppercase tracking-wider font-semibold">Gravità</label>
-          <div className="grid grid-cols-2 gap-[2.5vw]">
-            {Object.entries(SEVERITY).map(([key, { label, color }]) => (
-              <button
-                key={key}
-                onClick={() => handleSeverityChange(key)}
-                className={`py-[4vw] rounded-2xl text-lg font-bold transition-all press-scale ${
-                  form.severity === key
-                    ? 'text-white shadow-lg'
-                    : 'btn-chip'
-                }`}
-                style={form.severity === key ? { background: color, boxShadow: `0 4px 14px ${color}33` } : {}}
-              >
-                {label}
-              </button>
-            ))}
+          <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 8 }}>Priorità</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {Object.entries(SEVERITY).map(([key, { label, color }]) => {
+              const selected = form.severity === key
+              return (
+                <button
+                  key={key}
+                  onClick={() => handleSeverityChange(key)}
+                  className="press-scale"
+                  style={{
+                    flex: 1, padding: '10px 4px', borderRadius: 8, fontSize: 12, fontWeight: selected ? 600 : 400,
+                    border: `1px solid ${selected ? color : 'var(--color-border)'}`,
+                    background: selected ? color + '18' : 'var(--color-card)',
+                    color: selected ? color : 'var(--color-text-secondary)',
+                    cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -182,13 +197,21 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
 
         <MediaCapture media={media} onChange={setMedia} />
 
-        <Button onClick={handleSubmit} className="w-full" size="lg" disabled={!isValid || loading}>
-          {loading ? (
-            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <><Send size={20} /> Invia Segnalazione</>
-          )}
-        </Button>
+        <button
+          onClick={handleSubmit}
+          disabled={!isValid || loading}
+          className="press-scale"
+          style={{
+            width: '100%', padding: 14, borderRadius: 12, fontSize: 15, fontWeight: 600,
+            background: (isValid && !loading) ? 'linear-gradient(135deg, var(--color-primary), #00d4ff)' : 'var(--color-surface-3)',
+            color: (isValid && !loading) ? '#fff' : 'var(--color-text-muted)',
+            border: 'none', cursor: (isValid && !loading) ? 'pointer' : 'not-allowed',
+            opacity: (isValid && !loading) ? 1 : 0.5,
+            transition: 'all 0.2s',
+          }}
+        >
+          {loading ? '...' : 'Invia Segnalazione'}
+        </button>
       </div>
     </div>
   )

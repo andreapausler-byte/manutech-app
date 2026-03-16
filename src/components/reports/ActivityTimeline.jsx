@@ -12,13 +12,13 @@ import { ArrowRight } from 'lucide-react'
 
 const EVENT_COLORS = {
   created:        '#7c6aff',
-  quick_created:  '#ffa502',
+  quick_created:  '#ffaa2c',
   status_change:  '#00d4ff',
-  comment:        '#6366f1',
-  media_photo:    '#06b6d4',
-  media_video:    '#2ed573',
-  media_audio:    '#f97316',
-  assigned:       '#8b5cf6',
+  comment:        '#7c6aff',
+  media_photo:    '#00d4ff',
+  media_video:    '#3ddc84',
+  media_audio:    '#ffaa2c',
+  assigned:       '#7c6aff',
 }
 
 const EVENT_LABELS = {
@@ -75,7 +75,7 @@ export default function ActivityTimeline({ reportId, report }) {
         top: 8,
         bottom: 8,
         width: 2,
-        background: '#2a2a3a',
+        background: 'var(--color-border)',
         borderRadius: 1,
       }} />
 
@@ -98,7 +98,7 @@ export default function ActivityTimeline({ reportId, report }) {
               paddingTop: i === 0 ? 0 : 4,
             }}
           >
-            {/* Dot */}
+            {/* Dot — Design System: 12px, border 2px solid surface */}
             <div style={{
               position: 'absolute',
               left: -17,
@@ -107,23 +107,24 @@ export default function ActivityTimeline({ reportId, report }) {
               height: 12,
               borderRadius: '50%',
               background: dotColor,
+              border: '2px solid var(--color-surface-1)',
               zIndex: 2,
             }} />
 
             {/* Content */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <p className="text-secondary" style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.4, color: dotColor }}>
                   {label}
                 </p>
                 {event.detail && (
-                  <p className="text-muted" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.3 }}>{event.detail}</p>
+                  <p style={{ fontSize: 12, marginTop: 3, lineHeight: 1.4, color: 'var(--color-text)' }}>{event.detail}</p>
                 )}
                 {event.user_name && (
-                  <p className="text-faint" style={{ fontSize: 12, marginTop: 2 }}>{event.user_name}</p>
+                  <p style={{ fontSize: 11, marginTop: 2, color: 'var(--color-text-secondary)' }}>{event.user_name}</p>
                 )}
               </div>
-              <span className="text-faint" style={{ fontSize: 11, flexShrink: 0, marginTop: 2 }}>
+              <span style={{ fontSize: 10, flexShrink: 0, marginTop: 2, color: 'var(--color-text-muted)' }}>
                 {timeAgo(event.created_at)}
               </span>
             </div>
@@ -153,17 +154,17 @@ export default function ActivityTimeline({ reportId, report }) {
               </div>
             )}
 
-            {/* Work data box (closure info) */}
+            {/* Work data box — Design System */}
             {event.workData && (
               <div
                 style={{
                   marginTop: 8,
-                  padding: '8px 12px',
+                  padding: 10,
                   borderRadius: 8,
-                  background: 'rgba(46, 213, 115, 0.08)',
-                  border: '1px solid rgba(46, 213, 115, 0.2)',
-                  fontSize: 12,
-                  color: '#2ed573',
+                  background: 'var(--color-green-bg)',
+                  border: '1px solid rgba(61, 220, 132, 0.33)',
+                  fontSize: 11,
+                  color: 'var(--color-text)',
                   lineHeight: 1.5,
                 }}
               >

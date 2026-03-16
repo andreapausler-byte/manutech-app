@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
-import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, Sun, Moon, Settings } from 'lucide-react'
+import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import { useChatRealtime } from '../../hooks/useChatRealtime'
@@ -92,17 +92,27 @@ function FABMenu({ onNewReport, onQuickReport }) {
   )
 }
 
-const TABS = [
-  { id: 'home', icon: Home, label: 'Home' },
-  { id: 'reports', icon: ClipboardList, label: 'Segnalazioni' },
-  { id: 'machines', icon: Cog, label: 'Macchine' },
-  { id: 'profile', icon: User, label: 'Profilo' },
-]
+// Tab basati su ruolo — Design System
+const TABS_BY_ROLE = {
+  admin: [
+    { id: 'home', icon: Home, label: 'Dashboard' },
+    { id: 'reports', icon: ClipboardList, label: 'Ticket' },
+    { id: 'machines', icon: Cog, label: 'Macchine' },
+  ],
+  tecnico: [
+    { id: 'reports', icon: ClipboardList, label: 'Assegnati' },
+    { id: 'machines', icon: Cog, label: 'Macchine' },
+  ],
+  operatore: [
+    { id: 'home', icon: Home, label: 'Home' },
+    { id: 'reports', icon: ClipboardList, label: 'I Miei Ticket' },
+  ],
+}
 
 export default function MobileLayout({ initialReportId }) {
   const { user, logout } = useAuth()
   const { toggleMode, isDark } = useTheme()
-  const [tab, setTab] = useState('home')
+  const [tab, setTab] = useState(user?.role === 'tecnico' ? 'reports' : 'home')
   const [screen, setScreen] = useState(null)
   const [selectedReport, setSelectedReport] = useState(null)
   const [transitionClass, setTransitionClass] = useState('page-slide-in')
@@ -224,44 +234,43 @@ export default function MobileLayout({ initialReportId }) {
 
   return (
     <div className="min-h-screen min-h-[100dvh] flex flex-col ambient-glow bg-base">
-      {/* Header — theme primary gradient */}
-      <header className="sticky top-0 z-40" style={{ background: 'var(--header-bg)', transition: 'background 0.4s ease' }}>
-        <div className="flex items-center justify-between px-[4vw] py-[2.5vw]">
-          <div className="flex items-center gap-[2.5vw]">
+      {/* Top Bar — Design System */}
+      <header className="sticky top-0 z-40" style={{
+        background: 'var(--color-surface-1)',
+        borderBottom: '1px solid var(--color-border)',
+        padding: '10px 16px',
+        transition: 'background 0.4s ease',
+      }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <div
-              className="w-[11vw] h-[11vw] max-w-12 max-h-12 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}
+              style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: 'linear-gradient(135deg, var(--color-primary), #00d4ff)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
             >
-              <span className="text-xl">🔧</span>
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: "'Outfit', sans-serif" }}>M</span>
             </div>
-            <div>
-              <h1 className="text-lg font-extrabold leading-tight tracking-tight" style={{ color: 'var(--header-text)' }}>ManuTech</h1>
-              <p className="text-sm leading-tight" style={{ color: 'rgba(255,255,255,0.6)' }}>{user.name} · v{__APP_VERSION__}</p>
-            </div>
+            <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)' }}>ManuTech</span>
           </div>
-          <div className="flex items-center gap-[1vw]">
-            {/* Theme toggle */}
+          <div className="flex items-center gap-2">
+            {/* Theme toggle ☀/☾ */}
             <button
               onClick={() => { haptic.light(); toggleMode() }}
               aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
-              className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center press-scale"
-              style={{ background: 'rgba(255,255,255,0.12)' }}
+              className="press-scale"
+              style={{
+                width: 36, height: 36, borderRadius: 8,
+                background: 'var(--color-surface-3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: 'none', cursor: 'pointer',
+                fontSize: 16,
+              }}
             >
-              {isDark ? <Sun size={18} color="rgba(255,255,255,0.9)" /> : <Moon size={18} color="rgba(255,255,255,0.9)" />}
-            </button>
-            {/* Settings */}
-            <button
-              onClick={() => { haptic.light(); setSettingsOpen(true) }}
-              aria-label="Impostazioni"
-              className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center press-scale"
-              style={{ background: 'rgba(255,255,255,0.12)' }}
-            >
-              <Settings size={18} color="rgba(255,255,255,0.9)" />
+              {isDark ? '☀' : '☾'}
             </button>
             <NotificationCenter userId={user.id} userRole={user.role} onOpenReport={openReportById} onNewNotifications={showNotification} />
-            <button onClick={logout} aria-label="Disconnetti" className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center active:bg-white/20" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              <LogOut size={20} />
-            </button>
           </div>
         </div>
       </header>
@@ -296,40 +305,41 @@ export default function MobileLayout({ initialReportId }) {
       {/* Settings Panel */}
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user.id} userRole={user.role} />
 
-      {/* Bottom Nav — glass + badge non letti + theme-aware active pill */}
-      <nav aria-label="Navigazione principale" className="fixed bottom-0 left-0 right-0 glass-heavy border-t z-40 safe-area-bottom" style={{ borderColor: 'var(--glass-border)' }}>
-        <div className="flex items-center justify-around h-[16vw] max-h-[68px] max-w-md mx-auto">
-          {TABS.map(({ id, icon: Icon, label }) => {
+      {/* Bottom Nav — Design System */}
+      <nav aria-label="Navigazione principale" className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom" style={{
+        background: 'var(--color-surface-1)',
+        borderTop: '1px solid var(--color-border)',
+        padding: '6px 0 10px',
+      }}>
+        <div className="flex items-center justify-around max-w-md mx-auto">
+          {(TABS_BY_ROLE[user?.role] || TABS_BY_ROLE.operatore).map(({ id, icon: Icon, label }) => {
             const active = tab === id
             const showBadge = id === 'reports' && totalUnread > 0
             return (
               <button key={id} onClick={() => switchTab(id)}
                 aria-current={active ? 'page' : undefined}
                 aria-label={showBadge ? `${label} (${totalUnread} non letti)` : label}
-                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full press-scale relative">
-                <div
-                  className="flex flex-col items-center justify-center gap-0.5 px-3 py-1 rounded-xl transition-all duration-200"
-                  style={{
-                    background: active ? 'var(--color-primary-glow)' : 'transparent',
-                  }}
-                >
-                  <div className="relative">
-                    <Icon size={22} strokeWidth={active ? 2.5 : 1.8}
-                      className="transition-colors"
-                      style={{ color: active ? 'var(--color-primary)' : 'var(--color-text-faint)' }} />
-                    {/* Badge non letti */}
-                    {showBadge && (
-                      <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] rounded-full text-[10px] font-bold text-white flex items-center justify-center px-1 animate-scale-in"
-                        style={{ background: 'var(--color-danger)' }}>
-                        {totalUnread > 9 ? '9+' : totalUnread}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs font-bold transition-colors"
-                    style={{ color: active ? 'var(--color-primary)' : 'var(--color-text-faint)' }}>
-                    {label}
-                  </span>
+                className="flex flex-col items-center justify-center gap-0.5 flex-1 press-scale"
+                style={{ minHeight: 48, background: 'transparent', border: 'none', cursor: 'pointer' }}
+              >
+                <div className="relative">
+                  <Icon size={18} strokeWidth={active ? 2.5 : 1.8}
+                    style={{ color: active ? 'var(--color-primary)' : 'var(--color-text-muted)', transition: 'color 0.2s' }} />
+                  {showBadge && (
+                    <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-[16px] rounded-full text-[9px] font-bold text-white flex items-center justify-center px-1"
+                      style={{ background: 'var(--color-danger)' }}>
+                      {totalUnread > 9 ? '9+' : totalUnread}
+                    </span>
+                  )}
                 </div>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: active ? 600 : 400,
+                  color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                  transition: 'color 0.2s',
+                }}>
+                  {label}
+                </span>
               </button>
             )
           })}

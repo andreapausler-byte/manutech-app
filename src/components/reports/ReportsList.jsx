@@ -1,10 +1,33 @@
 import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, timeAgo } from '../../lib/constants'
-import { Badge, EmptyState, SkeletonReportsPage } from '../ui'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
+import { EmptyState, SkeletonReportsPage } from '../ui'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { Search, ChevronRight, X, MessageCircle } from 'lucide-react'
+
+// ── Status Chip — Design System ──
+function StatusChip({ status }) {
+  const s = STATUS[status] || STATUS.aperta
+  return (
+    <span style={{
+      fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 500,
+      color: s.color, background: s.bg, whiteSpace: 'nowrap',
+    }}>
+      {s.icon} {s.label}
+    </span>
+  )
+}
+
+// ── Priority Chip — Design System ──
+function PriorityChip({ severity }) {
+  const sv = SEVERITY[severity] || SEVERITY.media
+  return (
+    <span style={{ fontSize: 11, color: sv.color, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+      ● {sv.label}
+    </span>
+  )
+}
 
 export default function ReportsList({ user, onSelectReport, unreadByReport = {} }) {
   const [reports, setReports] = useState([])
@@ -38,17 +61,26 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       <PullToRefreshIndicator pullDistance={pullDistance} pullProgress={pullProgress} refreshing={refreshing} activated={activated} />
       {/* Search */}
       <div className="relative">
-        <Search size={22} className="absolute left-[4vw] top-1/2 -translate-y-1/2 text-faint" />
+        <Search size={18} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
         <input
           type="text"
           placeholder="Cerca..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full bg-surface-2 border border-token rounded-2xl pl-[12vw] pr-[12vw] py-[3.5vw] text-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
+          style={{
+            width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
+            borderRadius: 8, padding: '8px 36px 8px 36px', fontSize: 13,
+            color: 'var(--color-text)', outline: 'none',
+          }}
         />
         {search && (
-          <button onClick={() => setSearch('')} className="absolute right-[3vw] top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-surface-3 text-secondary">
-            <X size={18} />
+          <button onClick={() => setSearch('')} style={{
+            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+            width: 24, height: 24, borderRadius: 12, background: 'var(--color-surface-3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer',
+            color: 'var(--color-text-secondary)',
+          }}>
+            <X size={14} />
           </button>
         )}
       </div>
@@ -85,44 +117,67 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       {loading ? <SkeletonReportsPage /> : filtered.length === 0 ? (
         <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
       ) : (
-        <div className="space-y-[2.5vw]">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(report => {
-            const status = STATUS[report.status] || STATUS.aperta
             const severity = SEVERITY[report.severity] || SEVERITY.media
+            const reportType = REPORT_TYPES[report.type] || REPORT_TYPES.correttiva
+            const unread = unreadByReport[report.id] || 0
             return (
               <button
                 key={report.id}
                 onClick={() => onSelectReport(report)}
-                className="w-full text-left flex items-center gap-[3vw] card-interactive rounded-2xl px-[4vw] py-[3vw] active:bg-gray-800/60 transition-colors press-scale"
-                style={{ borderLeft: `3px solid ${severity.color}` }}
+                className="w-full text-left press-scale"
+                style={{
+                  background: 'var(--color-card)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  borderLeft: `3px solid ${severity.color}`,
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s, background 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.background = 'var(--color-card-hover)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.borderLeftColor = severity.color; e.currentTarget.style.background = 'var(--color-card)' }}
               >
-                <div className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: severity.color + '15' }}>
-                  <div className="w-3 h-3 rounded-full" style={{ background: status.color }} />
-                </div>
-                <div className="flex-1 min-w-0 mr-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-lg font-bold text-themed truncate">{report.title}</h3>
-                    <span className="text-sm text-faint shrink-0">{timeAgo(report.created_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <Badge {...severity} />
-                    {report.assigned_to_name && (
-                      <span className="text-xs font-medium text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-lg">
-                        👤 {report.assigned_to_name}
-                      </span>
-                    )}
-                    {report.media?.length > 0 && <span className="text-sm text-gray-500">📎 {report.media.length}</span>}
-                  </div>
-                </div>
-                {/* Badge messaggi non letti oppure chevron */}
-                {unreadByReport[report.id] > 0 ? (
-                  <span className="min-w-[28px] h-[28px] rounded-full text-xs font-bold text-white flex items-center justify-center px-1.5 shrink-0 animate-scale-in"
-                    style={{ background: '#7c6aff', boxShadow: '0 2px 8px rgba(124,106,255,0.4)' }}>
-                    <MessageCircle size={12} className="mr-0.5" />
-                    {unreadByReport[report.id]}
+                {/* Riga 1: titolo + status chip */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    {report.title}
                   </span>
-                ) : (
-                  <ChevronRight size={22} className="text-faint shrink-0" />
+                  <StatusChip status={report.status} />
+                </div>
+                {/* Riga 2: macchina · codice */}
+                {report.machine && (
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                    {report.machine}
+                    {report.machine_code && <span style={{ fontFamily: "'JetBrains Mono', monospace" }}> · {report.machine_code}</span>}
+                  </div>
+                )}
+                {/* Riga 3: tipo | priorità | tempo fa */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 11 }}>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>{reportType.icon} {reportType.label}</span>
+                  <span style={{ color: 'var(--color-border)' }}>|</span>
+                  <PriorityChip severity={report.severity} />
+                  <span style={{ color: 'var(--color-border)' }}>|</span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>{timeAgo(report.created_at)}</span>
+                  {unread > 0 && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      minWidth: 20, height: 20, borderRadius: 10,
+                      background: 'var(--color-primary)',
+                      color: '#fff', fontSize: 10, fontWeight: 600,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '0 5px',
+                    }}>
+                      {unread}
+                    </span>
+                  )}
+                </div>
+                {/* Riga 4: assegnatario */}
+                {report.assigned_to_name && (
+                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                    → {report.assigned_to_name}
+                  </div>
                 )}
               </button>
             )
