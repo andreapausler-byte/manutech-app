@@ -143,7 +143,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
 
         {/* Tipo intervento — Design System: 4 bottoni affiancati */}
         <div>
-          <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 8 }}>Tipo Intervento</label>
+          <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8 }}>Tipo Intervento</label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {Object.entries(REPORT_TYPES).map(([key, { label, icon }]) => {
               const selected = form.type === key
@@ -153,7 +153,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
                   onClick={() => { haptic.light(); set('type', key) }}
                   className="press-scale"
                   style={{
-                    padding: '10px 4px', borderRadius: 8, fontSize: 12, fontWeight: selected ? 600 : 400,
+                    padding: '10px 4px', borderRadius: 8, fontSize: 13, fontWeight: selected ? 600 : 400,
                     border: `1px solid ${selected ? 'var(--color-primary)' : 'var(--color-border)'}`,
                     background: selected ? 'var(--color-primary-glow)' : 'var(--color-card)',
                     color: selected ? 'var(--color-primary)' : 'var(--color-text-secondary)',
@@ -169,7 +169,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
 
         {/* Priorità — Design System: 4 bottoni flex con colori */}
         <div>
-          <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 8 }}>Priorità</label>
+          <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8 }}>Priorità</label>
           <div style={{ display: 'flex', gap: 8 }}>
             {Object.entries(SEVERITY).map(([key, { label, color }]) => {
               const selected = form.severity === key

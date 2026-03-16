@@ -114,17 +114,17 @@ export default function ActivityTimeline({ reportId, report }) {
             {/* Content */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.4, color: dotColor }}>
+                <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4, color: dotColor }}>
                   {label}
                 </p>
                 {event.detail && (
-                  <p style={{ fontSize: 12, marginTop: 3, lineHeight: 1.4, color: 'var(--color-text)' }}>{event.detail}</p>
+                  <p style={{ fontSize: 13, marginTop: 3, lineHeight: 1.4, color: 'var(--color-text)' }}>{event.detail}</p>
                 )}
                 {event.user_name && (
-                  <p style={{ fontSize: 11, marginTop: 2, color: 'var(--color-text-secondary)' }}>{event.user_name}</p>
+                  <p style={{ fontSize: 12, marginTop: 2, color: 'var(--color-text-secondary)' }}>{event.user_name}</p>
                 )}
               </div>
-              <span style={{ fontSize: 10, flexShrink: 0, marginTop: 2, color: 'var(--color-text-muted)' }}>
+              <span style={{ fontSize: 11, flexShrink: 0, marginTop: 2, color: 'var(--color-text-muted)' }}>
                 {timeAgo(event.created_at)}
               </span>
             </div>
@@ -134,7 +134,7 @@ export default function ActivityTimeline({ reportId, report }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 <span
                   style={{
-                    fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 9999,
+                    fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 9999,
                     background: (STATUS[event.from_status]?.color || '#666') + '20',
                     color: STATUS[event.from_status]?.color || '#666',
                   }}
@@ -144,7 +144,7 @@ export default function ActivityTimeline({ reportId, report }) {
                 <ArrowRight size={12} className="text-faint" />
                 <span
                   style={{
-                    fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 9999,
+                    fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 9999,
                     background: (STATUS[event.to_status]?.color || '#666') + '20',
                     color: STATUS[event.to_status]?.color || '#666',
                   }}

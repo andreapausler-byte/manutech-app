@@ -216,25 +216,25 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                 <p className="label-section tracking-wider">Dati Chiusura Intervento</p>
                 <div className="grid grid-cols-2 gap-[2vw]">
                   <div className="bg-surface-2 rounded-xl p-[2.5vw]">
-                    <p className="text-[10px] text-faint uppercase">Ore lavoro</p>
+                    <p className="text-xs text-faint uppercase">Ore lavoro</p>
                     <p className="text-base text-themed font-bold">{report.closure_hours}h</p>
                   </div>
                   {report.closure_parts && (
                     <div className="bg-surface-2 rounded-xl p-[2.5vw]">
-                      <p className="text-[10px] text-faint uppercase">Ricambi</p>
+                      <p className="text-xs text-faint uppercase">Ricambi</p>
                       <p className="text-sm text-secondary">{report.closure_parts}</p>
                     </div>
                   )}
                 </div>
                 {report.closure_root_cause && (
                   <div className="bg-surface-2 rounded-xl p-[2.5vw]">
-                    <p className="text-[10px] text-faint uppercase">Causa radice</p>
+                    <p className="text-xs text-faint uppercase">Causa radice</p>
                     <p className="text-sm text-secondary">{report.closure_root_cause}</p>
                   </div>
                 )}
                 {report.closure_action && (
                   <div className="bg-surface-2 rounded-xl p-[2.5vw]">
-                    <p className="text-[10px] text-faint uppercase">Azione correttiva</p>
+                    <p className="text-xs text-faint uppercase">Azione correttiva</p>
                     <p className="text-sm text-secondary">{report.closure_action}</p>
                   </div>
                 )}
@@ -305,7 +305,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)', marginBottom: 12 }}>Chiusura Intervento</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text)', marginBottom: 12 }}>Chiusura Intervento</h3>
 
             {/* Form — Design System */}
             <div style={{
@@ -316,24 +316,24 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Ore lavoro *</label>
+                  <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 4 }}>Ore lavoro *</label>
                   <input type="number" step="0.5" min="0" value={closureForm.hours}
                     onChange={e => setClosureForm(f => ({ ...f, hours: e.target.value }))}
                     placeholder="es. 2.5"
                     style={{
                       width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                      borderRadius: 8, padding: '8px 10px', fontSize: 13,
+                      borderRadius: 8, padding: '10px 12px', fontSize: 14,
                       color: 'var(--color-text)', outline: 'none',
                     }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Ricambi usati</label>
+                  <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 4 }}>Ricambi usati</label>
                   <input type="text" value={closureForm.parts}
                     onChange={e => setClosureForm(f => ({ ...f, parts: e.target.value }))}
                     placeholder="es. Cuscinetto"
                     style={{
                       width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                      borderRadius: 8, padding: '8px 10px', fontSize: 13,
+                      borderRadius: 8, padding: '10px 12px', fontSize: 14,
                       color: 'var(--color-text)', outline: 'none',
                     }} />
                 </div>
@@ -377,7 +377,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                 style={{
                   width: '100%', padding: 12, borderRadius: 8,
                   background: 'var(--color-green)', color: '#000',
-                  fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer',
+                  fontSize: 15, fontWeight: 600, border: 'none', cursor: 'pointer',
                   opacity: updatingStatus ? 0.5 : 1,
                 }}>
                 {updatingStatus ? '...' : '✓ Conferma Chiusura'}

@@ -367,7 +367,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
             borderRadius: 12, padding: '14px 12px', textAlign: 'center',
           }}>
             <p style={{ fontSize: 28, fontWeight: 700, color, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.1 }}>{value}</p>
-            <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 6 }}>{label}</p>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 6 }}>{label}</p>
           </div>
         ))}
       </div>
@@ -416,10 +416,10 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
 
       {/* ═══ Reports list ═══ */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
           {user.role === 'operatore' ? 'I Tuoi Ticket Recenti' : 'Segnalazioni'}
         </h3>
-        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{reports.length} totali</span>
+        <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>{reports.length} totali</span>
       </div>
 
       {reports.length === 0 ? (
