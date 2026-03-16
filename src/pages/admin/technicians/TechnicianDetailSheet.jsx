@@ -237,7 +237,7 @@ export default function TechnicianDetailSheet({ tech, reports, users, machines, 
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { label: 'Totali', value: stats.total, color: '#94a3b8' },
-                    { label: 'Attesa', value: stats.pending, color: '#3b82f6' },
+                    { label: 'Attesa', value: stats.pending, color: '#7c6aff' },
                     { label: 'In corso', value: stats.inProgress, color: '#a855f7' },
                     { label: 'Risolte', value: stats.resolved, color: '#22c55e' },
                   ].map(({ label, value, color }) => (

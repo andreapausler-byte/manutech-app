@@ -22,12 +22,12 @@ import {
 import { shouldShowNotificationSync, preloadPrefs } from '../../lib/notifPreferences'
 
 const NOTIF_ICONS = {
-  new_report:            { icon: FileText,      color: '#3b82f6' },
+  new_report:            { icon: FileText,      color: '#7c6aff' },
   quick_report:          { icon: Zap,           color: '#f59e0b' },
   status_change:         { icon: ArrowRight,    color: '#a855f7' },
   comment:               { icon: MessageCircle, color: '#6366f1' },
   assigned:              { icon: UserCheck,      color: '#8b5cf6' },
-  maintenance_taken:     { icon: Wrench,        color: '#3b82f6' },
+  maintenance_taken:     { icon: Wrench,        color: '#7c6aff' },
   maintenance_completed: { icon: CalendarCheck, color: '#22c55e' },
   maintenance_overdue:   { icon: AlertTriangle, color: '#ef4444' },
   maintenance_reminder:  { icon: Clock,         color: '#f59e0b' },

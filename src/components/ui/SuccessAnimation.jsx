@@ -64,7 +64,7 @@ export default function SuccessAnimation({ message = 'Fatto!', subtitle, onCompl
             style={{
               left: '50%',
               top: '45%',
-              background: i % 2 === 0 ? '#22c55e' : '#3b82f6',
+              background: i % 2 === 0 ? '#22c55e' : '#7c6aff',
               '--angle': `${i * 45}deg`,
               '--distance': `${60 + Math.random() * 40}px`,
               animationDelay: `${200 + i * 50}ms`,

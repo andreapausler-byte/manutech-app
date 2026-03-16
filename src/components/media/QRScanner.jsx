@@ -120,7 +120,7 @@ export default function QRScanner({ onScan, onClose, machines = [] }) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-black/80 relative z-10">
         <div className="flex items-center gap-2">
-          <QrCode size={20} className="text-blue-400" />
+          <QrCode size={20} className="text-violet-400" />
           <span className="text-base font-bold text-white">Scansiona QR</span>
         </div>
         <button
@@ -146,13 +146,13 @@ export default function QRScanner({ onScan, onClose, machines = [] }) {
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-64 h-64 relative">
               {/* Corner markers */}
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-blue-400 rounded-tl-lg" />
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-blue-400 rounded-tr-lg" />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-3 border-l-3 border-blue-400 rounded-bl-lg" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-3 border-r-3 border-blue-400 rounded-br-lg" />
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-violet-400 rounded-tl-lg" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-violet-400 rounded-tr-lg" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-3 border-l-3 border-violet-400 rounded-bl-lg" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-3 border-r-3 border-violet-400 rounded-br-lg" />
 
               {/* Scanning line animation */}
-              <div className="absolute left-2 right-2 h-0.5 bg-blue-400/80 animate-scan-line rounded-full" />
+              <div className="absolute left-2 right-2 h-0.5 bg-violet-400/80 animate-scan-line rounded-full" />
             </div>
           </div>
         )}

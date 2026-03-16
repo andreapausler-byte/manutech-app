@@ -248,7 +248,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                 </div>
                 <div className="flex gap-2 pt-2">
                   <button onClick={saveEdit} disabled={saving}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50">
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold bg-violet-600 text-white hover:bg-violet-700 transition-all disabled:opacity-50">
                     {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save size={14} /> Salva</>}
                   </button>
                   <button onClick={cancelEditing}
@@ -324,7 +324,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
           <div className="col-span-6 border-r border-token flex flex-col overflow-hidden">
             <div className="flex border-b border-token shrink-0">
               <button onClick={() => setDetailTab('chat')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'chat' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-faint hover:text-secondary'}`}>
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'chat' ? 'text-violet-400 border-b-2 border-violet-400 bg-violet-400/5' : 'text-faint hover:text-secondary'}`}>
                 <MessageCircle size={16} /> Chat
               </button>
               <button onClick={() => setDetailTab('timeline')}

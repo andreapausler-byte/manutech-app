@@ -228,7 +228,7 @@ export default function AdminMachines() {
             <div className="relative flex-1 min-w-[200px]">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
               <input type="text" placeholder="Cerca macchinari..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50" />
+                className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50" />
             </div>
             <p className="text-sm text-faint shrink-0">{filtered.length} macchinari</p>
             {machines.length >= 2 && <Button variant="outline" onClick={() => { setReorderMode(true); setSearch('') }}><ArrowUpDown size={16} /> Ordina</Button>}
@@ -252,7 +252,7 @@ export default function AdminMachines() {
               className={`flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all select-none cursor-grab ${dragIndex === i ? 'opacity-30' : overIndex === i ? 'border-amber-400/60 bg-amber-500/10' : 'bg-surface-1/80 border-token'}`}>
               <GripVertical size={20} className="text-faint" />
               <span className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-sm font-bold text-amber-400">{i + 1}</span>
-              <Cog size={18} className="text-blue-400" />
+              <Cog size={18} className="text-violet-400" />
               <div className="flex-1 min-w-0"><h3 className="text-sm font-bold text-white truncate">{m.name}</h3></div>
               <div className="flex flex-col gap-0.5">
                 <button onClick={e => { e.stopPropagation(); moveItem(i, -1) }} disabled={i === 0} className="p-1.5 rounded-lg text-faint hover:text-white disabled:cursor-not-allowed"><ArrowUp size={14} /></button>
@@ -266,24 +266,24 @@ export default function AdminMachines() {
           {filtered.map((m, i) => {
             const mr = getReportsForMachine(m.name); const active = mr.filter(r => r.status !== 'risolta').length
             return (
-              <div key={m.id} onClick={() => openDetail(m)} className="card-elevated rounded-2xl p-6 hover:border-blue-500/30 transition-all group relative cursor-pointer">
+              <div key={m.id} onClick={() => openDetail(m)} className="card-elevated rounded-2xl p-6 hover:border-violet-500/30 transition-all group relative cursor-pointer">
                 <div className="absolute top-3 left-3 w-6 h-6 rounded-md bg-amber-500/15 flex items-center justify-center"><span className="text-[11px] font-bold text-amber-400">{m.sort_order || i + 1}</span></div>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 pl-6">
                     {m.photo_url ? <div className="w-12 h-12 rounded-xl overflow-hidden border border-token shrink-0"><img src={m.photo_url} alt="" className="w-full h-full object-cover" /></div>
-                      : <div className="w-12 h-12 bg-blue-600/15 rounded-xl flex items-center justify-center shrink-0"><Cog size={22} className="text-blue-400" /></div>}
+                      : <div className="w-12 h-12 bg-violet-600/15 rounded-xl flex items-center justify-center shrink-0"><Cog size={22} className="text-violet-400" /></div>}
                     <div><h3 className="text-base font-bold text-themed">{m.name}</h3>{m.department && <p className="text-sm text-faint">{m.department}</p>}</div>
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={e => { e.stopPropagation(); openEdit(m) }} className="p-2 rounded-lg hover:bg-white/10 text-muted hover:text-white"><Edit size={15} /></button>
-                    <button onClick={e => { e.stopPropagation(); downloadQR(m) }} className="p-2 rounded-lg hover:bg-blue-500/20 text-muted hover:text-blue-400"><QrCode size={15} /></button>
+                    <button onClick={e => { e.stopPropagation(); downloadQR(m) }} className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400"><QrCode size={15} /></button>
                   </div>
                 </div>
                 {(m.manufacturer || m.model) && <p className="text-sm text-muted mb-2 pl-6">{[m.manufacturer, m.model].filter(Boolean).join(' — ')}</p>}
                 <div className="flex items-center gap-3 pt-3 border-t border-token/30">
                   {m.attachments?.length > 0 && <span className="text-xs text-faint flex items-center gap-1"><FileText size={12} /> {m.attachments.length}</span>}
                   {active > 0 && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">{active} segnalaz.</span>}
-                  <span className="ml-auto text-xs text-blue-400 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">Scheda <ChevronRight size={12} /></span>
+                  <span className="ml-auto text-xs text-violet-400 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">Scheda <ChevronRight size={12} /></span>
                 </div>
               </div>
             )
@@ -361,7 +361,7 @@ export default function AdminMachines() {
             <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Frequenza</label>
             <div className="flex gap-2 mb-3 flex-wrap">
               {FREQ_PRESETS.map(p => <button key={p.days} onClick={() => setPlanForm(f => ({ ...f, frequency_days: p.days }))}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${parseInt(planForm.frequency_days) === p.days ? 'bg-blue-600 text-white' : 'bg-surface-2 text-muted'}`}>{p.label}</button>)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${parseInt(planForm.frequency_days) === p.days ? 'bg-violet-600 text-white' : 'bg-surface-2 text-muted'}`}>{p.label}</button>)}
             </div>
             <div className="flex items-center gap-2"><span className="text-sm text-faint">Ogni</span>
               <input type="number" value={planForm.frequency_days} onChange={e => setPlanForm(f => ({ ...f, frequency_days: e.target.value }))} className="w-20 input-field rounded-xl px-3 py-2 text-sm text-center" />
@@ -388,7 +388,7 @@ export default function AdminMachines() {
             <Input label="Durata (minuti)" placeholder="60" type="number" value={logForm.duration_minutes} onChange={e => setLogForm(f => ({ ...f, duration_minutes: e.target.value }))} />
             <Input label="Ricambi" placeholder="Filtro XF-420" value={logForm.parts_replaced} onChange={e => setLogForm(f => ({ ...f, parts_replaced: e.target.value }))} />
           </div>
-          {logForm.plan_id ? <p className="text-xs text-blue-400 bg-blue-500/10 rounded-xl px-3 py-2">✓ Piano: {plans.find(p => p.id === logForm.plan_id)?.name}</p>
+          {logForm.plan_id ? <p className="text-xs text-violet-400 bg-violet-500/10 rounded-xl px-3 py-2">✓ Piano: {plans.find(p => p.id === logForm.plan_id)?.name}</p>
             : <p className="text-xs text-amber-400 bg-amber-500/10 rounded-xl px-3 py-2">⚡ Manutenzione straordinaria</p>}
           <Button onClick={saveLog} className="w-full" size="lg" disabled={!logForm.title.trim()}>Registra</Button>
         </div>

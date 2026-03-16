@@ -138,7 +138,7 @@ export default function AdminReports({ initialReportId }) {
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
           <input type="text" placeholder="Cerca per titolo, macchinario o autore..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 transition-colors" />
+            className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 transition-colors" />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-white">
               <X size={16} />
@@ -146,7 +146,7 @@ export default function AdminReports({ initialReportId }) {
           )}
         </div>
         <select value={filterSeverity} onChange={e => setFilterSeverity(e.target.value)}
-          className="card-elevated rounded-xl px-4 py-3 text-sm text-themed focus:outline-none focus:border-blue-500/50">
+          className="card-elevated rounded-xl px-4 py-3 text-sm text-themed focus:outline-none focus:border-violet-500/50">
           <option value="">Tutte le gravità</option>
           {Object.entries(SEVERITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>

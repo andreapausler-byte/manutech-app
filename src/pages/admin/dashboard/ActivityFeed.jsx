@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 
 const ACTIVITY_ICONS = {
-  created:       { icon: FileText,      color: '#3b82f6' },
+  created:       { icon: FileText,      color: '#7c6aff' },
   quick_created: { icon: Zap,           color: '#f59e0b' },
   status_change: { icon: ArrowRight,    color: '#a855f7' },
   comment:       { icon: MessageCircle, color: '#6366f1' },
@@ -17,7 +17,7 @@ export default function ActivityFeed({ activities, reports, onNavigate }) {
     <div className="col-span-3 card-elevated rounded-2xl p-6">
       <div className="flex items-center justify-between mb-5">
         <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Attività Recente</h3>
-        <button onClick={() => onNavigate?.('reports')} className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-0.5">
+        <button onClick={() => onNavigate?.('reports')} className="text-xs text-violet-400 hover:text-violet-300 font-medium flex items-center gap-0.5">
           Vedi tutte <ChevronRight size={12} />
         </button>
       </div>

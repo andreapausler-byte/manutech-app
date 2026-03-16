@@ -14,7 +14,7 @@ export default function TimeKPIs({ kpi }) {
 
       <div className="card-elevated rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-3">
-          <TrendingUp size={16} className="text-blue-400" />
+          <TrendingUp size={16} className="text-violet-400" />
           <span className="text-xs text-muted uppercase tracking-wider font-semibold">Questa Settimana</span>
         </div>
         <div className="flex items-end gap-2">
@@ -50,7 +50,7 @@ export default function TimeKPIs({ kpi }) {
             return (
               <div key={i} className="flex-1 flex flex-col items-center">
                 <div
-                  className="w-full bg-blue-500/60 rounded-sm min-h-[2px] transition-all"
+                  className="w-full bg-violet-500/60 rounded-sm min-h-[2px] transition-all"
                   style={{ height: `${(count / max) * 100}%` }}
                 />
                 <span className="text-[8px] text-faint mt-0.5">{kpi.dayLabels?.[i]?.[0]}</span>

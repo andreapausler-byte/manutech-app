@@ -108,13 +108,13 @@ export default function MediaCapture({ media, onChange }) {
   return (
     <div>
       <label className="block text-base text-muted mb-[2.5vw] uppercase tracking-wider font-semibold">
-        Allegati {media.length > 0 && <span className="text-blue-400">({media.length})</span>}
+        Allegati {media.length > 0 && <span className="text-violet-400">({media.length})</span>}
       </label>
 
       {/* Capture buttons — 2x2 responsive */}
       <div className="grid grid-cols-2 gap-[2.5vw] mb-[3vw]">
         {[
-          { action: () => handleCapture('image/*', 'photo'), label: '📷 Foto', color: '#3b82f6' },
+          { action: () => handleCapture('image/*', 'photo'), label: '📷 Foto', color: '#7c6aff' },
           { action: () => handleCapture('video/*', 'video'), label: '🎥 Video', color: '#22c55e' },
           { action: recording ? stopAudio : startAudio, label: recording ? `⏹ ${fmt(audioTime)}` : '🎤 Audio', color: recording ? '#ef4444' : '#f59e0b' },
           { action: handleGallery, label: '🖼 Galleria', color: '#a855f7' },

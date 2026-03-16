@@ -344,7 +344,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         <button onClick={() => setActiveSection('chat')}
           className={`flex-1 flex items-center justify-center gap-2 py-[3vw] text-sm font-semibold transition-all ${
             activeSection === 'chat'
-              ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5'
+              ? 'text-violet-400 border-b-2 border-violet-400 bg-violet-400/5'
               : 'text-faint active:text-secondary'
           }`}>
           <MessageCircle size={18} /> Chat

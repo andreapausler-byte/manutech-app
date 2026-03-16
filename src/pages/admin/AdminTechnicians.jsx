@@ -49,7 +49,7 @@ export default function AdminTechnicians() {
       <div className="grid grid-cols-4 gap-4">
         {[
           { label: 'Tecnici', value: tecnici.length, icon: Wrench, color: '#22c55e' },
-          { label: 'Segnalazioni Assegnate', value: totalAssigned, icon: ClipboardList, color: '#3b82f6' },
+          { label: 'Segnalazioni Assegnate', value: totalAssigned, icon: ClipboardList, color: '#7c6aff' },
           { label: 'Risolte dal Team', value: totalResolved, icon: CheckCircle, color: '#22c55e' },
           { label: 'Efficienza Team', value: `${teamRate}%`, icon: TrendingUp, color: teamRate > 60 ? '#22c55e' : '#f59e0b' },
         ].map(({ label, value, icon: Icon, color }) => (
@@ -83,7 +83,7 @@ export default function AdminTechnicians() {
                 <div className="grid grid-cols-4 gap-2 mb-5">
                   {[
                     { label: 'Totali', value: stats.total, color: '#94a3b8' },
-                    { label: 'Attesa', value: stats.pending, color: '#3b82f6' },
+                    { label: 'Attesa', value: stats.pending, color: '#7c6aff' },
                     { label: 'In corso', value: stats.inProgress, color: '#a855f7' },
                     { label: 'Risolte', value: stats.resolved, color: '#22c55e' },
                   ].map(({ label, value, color }) => (

@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────
-const ROLE_COLORS = { admin: '#3b82f6', tecnico: '#10b981', operatore: '#f59e0b' }
+const ROLE_COLORS = { admin: '#7c6aff', tecnico: '#10b981', operatore: '#f59e0b' }
 const ROLE_LABELS = { admin: 'Admin', tecnico: 'Tecnico', operatore: 'Operatore' }
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
@@ -322,7 +322,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
   const canSend = (text.trim() || pendingMedia.length > 0) && !sending
 
   const mediaActions = useMemo(() => [
-    { action: capturePhoto, icon: Camera, label: 'Foto', color: '#3b82f6' },
+    { action: capturePhoto, icon: Camera, label: 'Foto', color: '#7c6aff' },
     { action: captureVideo, icon: Video, label: 'Video', color: '#22c55e' },
     { action: startAudio, icon: Mic, label: 'Audio', color: '#f59e0b' },
     { action: pickGallery, icon: Image, label: 'Galleria', color: '#a855f7' },
@@ -339,10 +339,10 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
     >
       {/* Drag overlay (desktop) */}
       {dragOver && (
-        <div className="absolute inset-0 z-30 bg-blue-500/10 border-2 border-dashed border-blue-400/50 rounded-xl flex items-center justify-center backdrop-blur-sm pointer-events-none">
+        <div className="absolute inset-0 z-30 bg-violet-500/10 border-2 border-dashed border-violet-400/50 rounded-xl flex items-center justify-center backdrop-blur-sm pointer-events-none">
           <div className="text-center">
-            <Paperclip size={36} className="text-blue-400 mx-auto mb-2" />
-            <p className="text-blue-300 font-semibold text-sm">Rilascia per allegare</p>
+            <Paperclip size={36} className="text-violet-400 mx-auto mb-2" />
+            <p className="text-violet-300 font-semibold text-sm">Rilascia per allegare</p>
           </div>
         </div>
       )}
@@ -398,11 +398,11 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
               </div>
             ))}
             {uploading && (
-              <div className={`shrink-0 rounded-xl bg-surface-2 border border-dashed border-blue-500/30 flex flex-col items-center justify-center ${
+              <div className={`shrink-0 rounded-xl bg-surface-2 border border-dashed border-violet-500/30 flex flex-col items-center justify-center ${
                 isMobile ? 'w-[16vw] h-[16vw] max-w-[72px] max-h-[72px]' : 'w-16 h-16'
               }`}>
-                <div className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-                {uploadLabel && <span className="text-[8px] text-blue-400 mt-1">{uploadLabel}</span>}
+                <div className="w-4 h-4 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
+                {uploadLabel && <span className="text-[8px] text-violet-400 mt-1">{uploadLabel}</span>}
               </div>
             )}
           </div>
@@ -453,7 +453,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
               onClick={() => { setShowMediaBar(prev => !prev); hapticRef.current.light() }}
               disabled={uploading}
               className={`shrink-0 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
-                showMediaBar ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30' : 'bg-surface-2 text-muted hover:text-gray-300'
+                showMediaBar ? 'bg-violet-500/20 text-violet-400 ring-1 ring-violet-500/30' : 'bg-surface-2 text-muted hover:text-gray-300'
               } ${isMobile ? 'w-[12vw] h-[12vw] max-w-12 max-h-12' : 'w-10 h-10'}`}
             >
               {showMediaBar ? <X size={isMobile ? 22 : 18} /> : <Paperclip size={isMobile ? 22 : 18} />}
@@ -466,7 +466,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
               onKeyDown={handleKeyDown}
               placeholder="Scrivi un messaggio..."
               rows={1}
-              className={`flex-1 bg-surface-2 border border-token rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 resize-none transition-all ${
+              className={`flex-1 bg-surface-2 border border-token rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none transition-all ${
                 isMobile ? 'px-[4vw] py-[3vw] text-base' : 'px-4 py-2.5 text-sm'
               }`}
               style={{ minHeight: isMobile ? '48px' : '40px', maxHeight: isMobile ? '120px' : '150px' }}
@@ -476,7 +476,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
               onClick={sendMessage}
               disabled={!canSend}
               className={`shrink-0 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
-                canSend ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/20' : 'bg-surface-1 text-faint cursor-not-allowed'
+                canSend ? 'bg-violet-500 text-white hover:bg-violet-600 shadow-lg shadow-violet-500/20' : 'bg-surface-1 text-faint cursor-not-allowed'
               } ${isMobile ? 'w-[12vw] h-[12vw] max-w-12 max-h-12' : 'w-10 h-10'}`}
             >
               {sending
@@ -512,7 +512,7 @@ function ChatSkeleton({ isMobile }) {
               <div className="w-2 h-2 rounded-full bg-surface-2" />
               <div className="h-3 w-16 bg-surface-3 rounded" />
             </div>
-            <div className={`rounded-2xl ${isRight ? 'bg-blue-500/10 rounded-tr-sm' : 'bg-surface-2/40 rounded-tl-sm'}`}>
+            <div className={`rounded-2xl ${isRight ? 'bg-violet-500/10 rounded-tr-sm' : 'bg-surface-2/40 rounded-tl-sm'}`}>
               <div className={`space-y-1.5 ${isMobile ? 'px-[4vw] py-[2.5vw]' : 'px-4 py-3'}`}>
                 <div className="h-3.5 bg-surface-2 rounded w-full" />
                 <div className="h-3.5 bg-surface-2 rounded w-3/4" />
@@ -556,7 +556,7 @@ function ChatBubble({ comment: c, isMe, isMobile, onPhotoClick, onDownload, toas
 
         {/* Bubble */}
         <div className={`rounded-2xl overflow-hidden ${
-          isMe ? 'bg-blue-500/12 border border-blue-500/20 rounded-tr-sm' : 'bg-surface-2/40 border border-gray-700/25 rounded-tl-sm'
+          isMe ? 'bg-violet-500/12 border border-violet-500/20 rounded-tr-sm' : 'bg-surface-2/40 border border-gray-700/25 rounded-tl-sm'
         }`}>
 
           {/* ── PHOTOS with download overlay (desktop) ── */}

@@ -1,5 +1,5 @@
 export const ROLES = {
-  operatore: { label: 'Operatore', color: '#3b82f6', icon: '👷' },
+  operatore: { label: 'Operatore', color: '#7c6aff', icon: '👷' },
   tecnico: { label: 'Tecnico', color: '#22c55e', icon: '🔧' },
   admin: { label: 'Admin', color: '#f59e0b', icon: '🛡️' },
 }
@@ -15,7 +15,7 @@ export const STATUS = {
 
 export const REPORT_TYPES = {
   correttiva: { label: 'Correttiva', color: '#ef4444', bg: '#ef444422', icon: '🔧' },
-  preventiva: { label: 'Preventiva', color: '#3b82f6', bg: '#3b82f622', icon: '📅' },
+  preventiva: { label: 'Preventiva', color: '#7c6aff', bg: '#7c6aff22', icon: '📅' },
   migliorativa: { label: 'Migliorativa', color: '#22c55e', bg: '#22c55e22', icon: '💡' },
   ispezione: { label: 'Ispezione', color: '#a855f7', bg: '#a855f722', icon: '🔍' },
 }
@@ -38,7 +38,7 @@ export const QUICK_TEMPLATES = [
     title: 'Perdita rilevata',
     description: 'Perdita di fluido rilevata sul macchinario. Richiede intervento.',
     severity: 'alta',
-    color: '#3b82f6',
+    color: '#7c6aff',
     extraFields: [
       { key: 'fluid_type', label: 'Tipo fluido', type: 'select', options: ['Acqua', 'Olio', 'Refrigerante', 'Aria compressa', 'Altro'] },
       { key: 'leak_size', label: 'Entità', type: 'select', options: ['Gocciolamento', 'Flusso costante', 'Getto'] },

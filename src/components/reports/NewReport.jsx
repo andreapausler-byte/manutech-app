@@ -118,7 +118,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
               onClick={() => { haptic.light(); setShowQR(true) }}
               className="w-[14vw] h-[14vw] max-w-14 max-h-14 bg-surface-2 border border-token rounded-2xl flex items-center justify-center active:bg-gray-700 press-scale shrink-0"
             >
-              <QrCode size={24} className="text-blue-400" />
+              <QrCode size={24} className="text-violet-400" />
             </button>
           </div>
         </div>
