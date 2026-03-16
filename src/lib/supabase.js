@@ -204,7 +204,7 @@ export const db = {
   // ─── REPORTS ───
   async getReports(filters = {}) {
     if (supabase) {
-      let query = supabase.from('reports').select('*, assigned_to_user:users!reports_assigned_to_fkey(name), created_by_user:users!reports_created_by_fkey(name)').order('created_at', { ascending: false })
+      let query = supabase.from('reports').select('*, assigned_to_user:users!reports_assigned_to_fkey(name), created_by_user:users!reports_created_by_fkey(name)').order('updated_at', { ascending: false })
       if (filters.status) query = query.eq('status', filters.status)
       if (filters.severity) query = query.eq('severity', filters.severity)
       if (filters.assigned_to) query = query.eq('assigned_to', filters.assigned_to)
@@ -215,7 +215,7 @@ export const db = {
     let reports = getStore(KEYS.reports)
     if (filters.status) reports = reports.filter(r => r.status === filters.status)
     if (filters.severity) reports = reports.filter(r => r.severity === filters.severity)
-    return reports
+    return reports.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
   },
 
   async getReport(id) {
