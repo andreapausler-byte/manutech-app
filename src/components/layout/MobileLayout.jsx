@@ -92,20 +92,23 @@ function FABMenu({ onNewReport, onQuickReport }) {
   )
 }
 
-// Tab basati su ruolo — Design System
+// Tab basati su ruolo — Design System (con Profilo per tutti)
 const TABS_BY_ROLE = {
   admin: [
     { id: 'home', icon: Home, label: 'Dashboard' },
     { id: 'reports', icon: ClipboardList, label: 'Ticket' },
     { id: 'machines', icon: Cog, label: 'Macchine' },
+    { id: 'profile', icon: User, label: 'Profilo' },
   ],
   tecnico: [
     { id: 'reports', icon: ClipboardList, label: 'Assegnati' },
     { id: 'machines', icon: Cog, label: 'Macchine' },
+    { id: 'profile', icon: User, label: 'Profilo' },
   ],
   operatore: [
     { id: 'home', icon: Home, label: 'Home' },
     { id: 'reports', icon: ClipboardList, label: 'I Miei Ticket' },
+    { id: 'profile', icon: User, label: 'Profilo' },
   ],
 }
 
@@ -252,7 +255,10 @@ export default function MobileLayout({ initialReportId }) {
             >
               <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: "'Outfit', sans-serif" }}>M</span>
             </div>
-            <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)' }}>ManuTech</span>
+            <div>
+              <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)', display: 'block', lineHeight: 1.2 }}>ManuTech</span>
+              <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{user.name}</span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Theme toggle ☀/☾ */}
@@ -261,16 +267,31 @@ export default function MobileLayout({ initialReportId }) {
               aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
               className="press-scale"
               style={{
-                width: 36, height: 36, borderRadius: 8,
+                width: 40, height: 40, borderRadius: 8,
                 background: 'var(--color-surface-3)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 border: 'none', cursor: 'pointer',
-                fontSize: 16,
+                fontSize: 18,
               }}
             >
               {isDark ? '☀' : '☾'}
             </button>
             <NotificationCenter userId={user.id} userRole={user.role} onOpenReport={openReportById} onNewNotifications={showNotification} />
+            {/* Logout */}
+            <button
+              onClick={logout}
+              aria-label="Disconnetti"
+              className="press-scale"
+              style={{
+                width: 40, height: 40, borderRadius: 8,
+                background: 'var(--color-surface-3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: 'none', cursor: 'pointer',
+                color: 'var(--color-text-secondary)',
+              }}
+            >
+              <LogOut size={18} />
+            </button>
           </div>
         </div>
       </header>
@@ -333,7 +354,7 @@ export default function MobileLayout({ initialReportId }) {
                   )}
                 </div>
                 <span style={{
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: active ? 600 : 400,
                   color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
                   transition: 'color 0.2s',

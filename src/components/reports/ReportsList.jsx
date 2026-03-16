@@ -11,7 +11,7 @@ function StatusChip({ status }) {
   const s = STATUS[status] || STATUS.aperta
   return (
     <span style={{
-      fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 500,
+      fontSize: 12, padding: '3px 8px', borderRadius: 6, fontWeight: 500,
       color: s.color, background: s.bg, whiteSpace: 'nowrap',
     }}>
       {s.icon} {s.label}
@@ -23,7 +23,7 @@ function StatusChip({ status }) {
 function PriorityChip({ severity }) {
   const sv = SEVERITY[severity] || SEVERITY.media
   return (
-    <span style={{ fontSize: 11, color: sv.color, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+    <span style={{ fontSize: 13, color: sv.color, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
       ● {sv.label}
     </span>
   )
@@ -69,7 +69,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           onChange={e => setSearch(e.target.value)}
           style={{
             width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
-            borderRadius: 8, padding: '8px 36px 8px 36px', fontSize: 13,
+            borderRadius: 8, padding: '10px 36px 10px 36px', fontSize: 14,
             color: 'var(--color-text)', outline: 'none',
           }}
         />
@@ -141,20 +141,20 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               >
                 {/* Riga 1: titolo + status chip */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {report.title}
                   </span>
                   <StatusChip status={report.status} />
                 </div>
                 {/* Riga 2: macchina · codice */}
                 {report.machine && (
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                  <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 4 }}>
                     {report.machine}
                     {report.machine_code && <span style={{ fontFamily: "'JetBrains Mono', monospace" }}> · {report.machine_code}</span>}
                   </div>
                 )}
                 {/* Riga 3: tipo | priorità | tempo fa */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 11 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 13 }}>
                   <span style={{ color: 'var(--color-text-secondary)' }}>{reportType.icon} {reportType.label}</span>
                   <span style={{ color: 'var(--color-border)' }}>|</span>
                   <PriorityChip severity={report.severity} />
@@ -175,7 +175,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
                 </div>
                 {/* Riga 4: assegnatario */}
                 {report.assigned_to_name && (
-                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                  <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
                     → {report.assigned_to_name}
                   </div>
                 )}

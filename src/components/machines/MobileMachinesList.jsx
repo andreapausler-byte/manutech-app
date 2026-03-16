@@ -21,7 +21,7 @@ function MachineStatusChip({ status }) {
   const s = MACHINE_STATUS[status] || MACHINE_STATUS.operativa
   return (
     <span style={{
-      fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 500,
+      fontSize: 12, padding: '3px 8px', borderRadius: 6, fontWeight: 500,
       color: s.color, background: s.bg, whiteSpace: 'nowrap',
     }}>
       {s.label}
@@ -77,7 +77,7 @@ export default function MobileMachinesList({ onSelectMachine }) {
           onChange={e => setSearch(e.target.value)}
           style={{
             width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
-            borderRadius: 8, padding: '8px 36px 8px 36px', fontSize: 13,
+            borderRadius: 8, padding: '10px 36px 10px 36px', fontSize: 14,
             color: 'var(--color-text)', outline: 'none',
           }}
         />
@@ -118,11 +118,11 @@ export default function MobileMachinesList({ onSelectMachine }) {
                 {/* Riga 1: nome + codice a sinistra, status chip a destra */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, flex: 1 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {m.name}
                     </span>
                     {m.code && (
-                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
                         {m.code}
                       </span>
                     )}
@@ -130,14 +130,14 @@ export default function MobileMachinesList({ onSelectMachine }) {
                   <MachineStatusChip status={m.status || 'operativa'} />
                 </div>
                 {/* Riga 2: area + produttore */}
-                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
                   {m.department && <span>{m.department}</span>}
                   {m.department && m.manufacturer && ' · '}
                   {m.manufacturer && <span>{m.manufacturer}</span>}
                 </div>
                 {/* Riga 3: ticket aperti + prossima manutenzione */}
                 {activeReports > 0 && (
-                  <div style={{ fontSize: 11, color: 'var(--color-orange)', marginTop: 4 }}>
+                  <div style={{ fontSize: 13, color: 'var(--color-orange)', marginTop: 4 }}>
                     ⚠ {activeReports} ticket aperti
                   </div>
                 )}

@@ -40,7 +40,7 @@ export default function HeroKPIs({ stats, resolveRate, urgenti, nonAssegnate }) 
             {value}
           </p>
           <p style={{
-            fontSize: 10, color: 'var(--color-text-secondary)',
+            fontSize: 12, color: 'var(--color-text-secondary)',
             textTransform: 'uppercase', letterSpacing: '0.05em',
             marginTop: 6,
           }}>
