@@ -32,7 +32,7 @@ function getTrafficLight(plan, lastLog) {
 
 const STATUS_CONFIG = {
   da_eseguire: { label: 'Da eseguire', color: '#f59e0b', icon: Clock },
-  in_corso: { label: 'In corso', color: '#3b82f6', icon: Wrench },
+  in_corso: { label: 'In corso', color: '#7c6aff', icon: Wrench },
   completata: { label: 'Completata', color: '#22c55e', icon: CheckCircle },
 }
 
@@ -217,8 +217,8 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
       {inCorsoTasks.length > 0 && (
         <div className="mb-[5vw]">
           <div className="flex items-center gap-2.5 mb-[3vw]">
-            <div className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl bg-blue-500/15 flex items-center justify-center">
-              <Wrench size={20} className="text-blue-400" />
+            <div className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl bg-violet-500/15 flex items-center justify-center">
+              <Wrench size={20} className="text-violet-400" />
             </div>
             <div>
               <h3 className="text-lg font-bold text-themed">In corso</h3>
@@ -228,10 +228,10 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
 
           <div className="space-y-[3vw]">
             {inCorsoTasks.map((task, i) => (
-              <div key={`ic-${task.plan.id}`} className="rounded-2xl overflow-hidden bg-blue-500/5 border-2 border-blue-500/20">
+              <div key={`ic-${task.plan.id}`} className="rounded-2xl overflow-hidden bg-violet-500/5 border-2 border-violet-500/20">
                 <div className="px-[4vw] pt-[3.5vw] pb-[2.5vw]">
                   <div className="flex items-start gap-[3vw]">
-                    <div className="w-5 h-5 rounded-full bg-blue-500 shrink-0 mt-0.5 flex items-center justify-center">
+                    <div className="w-5 h-5 rounded-full bg-violet-500 shrink-0 mt-0.5 flex items-center justify-center">
                       <Wrench size={12} className="text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -239,7 +239,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-sm text-faint flex items-center gap-1"><Cog size={13} /> {task.machine.name}</span>
                         {task.plan.taken_by_name && (
-                          <span className="text-xs text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                          <span className="text-xs text-violet-400 bg-violet-500/15 px-2 py-0.5 rounded-lg flex items-center gap-1">
                             <User size={10} /> {task.plan.taken_by_name}
                           </span>
                         )}
@@ -250,7 +250,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
                 </div>
 
                 <button onClick={() => openComplete(task)}
-                  className="w-full py-[4vw] flex items-center justify-center gap-2 text-lg font-bold press-scale active:scale-[0.97] transition-all border-t border-blue-500/15"
+                  className="w-full py-[4vw] flex items-center justify-center gap-2 text-lg font-bold press-scale active:scale-[0.97] transition-all border-t border-violet-500/15"
                   style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: 'white', boxShadow: '0 4px 16px rgba(34,197,94,0.25)' }}>
                   <CheckCircle size={22} /> Completa — Registra Report
                 </button>
@@ -304,12 +304,12 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
                   disabled={taking === task.plan.id}
                   className="w-full py-[3.5vw] flex items-center justify-center gap-2 text-base font-bold press-scale active:scale-[0.97] transition-all border-t"
                   style={{
-                    color: '#3b82f6',
+                    color: '#7c6aff',
                     borderColor: task.light.color === '#ef4444' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.12)',
-                    background: 'rgba(59,130,246,0.05)',
+                    background: 'rgba(124,106,255,0.05)',
                   }}>
                   {taking === task.plan.id
-                    ? <div className="w-5 h-5 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+                    ? <div className="w-5 h-5 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
                     : <><Play size={18} /> Prendo in carico</>}
                 </button>
               </div>
@@ -322,7 +322,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
       <div className="grid grid-cols-2 gap-[3vw] mb-[3vw] stagger-children">
         {[
           { label: 'Aperte', value: stats.aperte, icon: AlertTriangle, color: '#f59e0b' },
-          { label: 'In Corso', value: stats.inCorso, icon: Wrench, color: '#a855f7' },
+          { label: 'In Corso', value: stats.inCorso, icon: Wrench, color: '#7c6aff' },
           { label: 'Risolte', value: stats.risolte, icon: CheckCircle, color: '#22c55e' },
           { label: 'Critiche', value: stats.critiche, icon: Activity, color: '#ef4444' },
         ].map(({ label, value, icon: Icon, color }) => (
@@ -444,14 +444,14 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
 
             {/* Machine info */}
             <div className="flex items-center gap-2 bg-surface-2 rounded-xl px-[3vw] py-[2vw] mb-[3vw]">
-              <Cog size={16} className="text-blue-400" />
+              <Cog size={16} className="text-violet-400" />
               <span className="text-sm text-secondary font-medium">{completeTask.machine.name}</span>
             </div>
 
             {/* Istruzioni */}
             {completeTask.plan.instructions && (
-              <div className="bg-blue-500/5 border border-blue-500/15 rounded-2xl px-[4vw] py-[3vw] mb-[4vw]">
-                <p className="text-xs text-blue-300/70 uppercase tracking-wider font-semibold mb-1">Istruzioni</p>
+              <div className="bg-violet-500/5 border border-violet-500/15 rounded-2xl px-[4vw] py-[3vw] mb-[4vw]">
+                <p className="text-xs text-violet-300/70 uppercase tracking-wider font-semibold mb-1">Istruzioni</p>
                 <p className="text-sm text-secondary leading-relaxed">{completeTask.plan.instructions}</p>
               </div>
             )}
@@ -483,7 +483,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
                 <label className="block text-sm text-muted mb-[2vw] font-semibold">Foto e Documenti</label>
                 <div className="flex gap-[2.5vw] mb-[2.5vw]">
                   <button onClick={() => uploadMedia('photo')} disabled={uploading}
-                    className="flex-1 flex items-center justify-center gap-2 py-[3vw] bg-blue-500/10 border border-blue-500/20 rounded-2xl text-base font-bold text-blue-400 press-scale active:bg-blue-500/20 disabled:opacity-40">
+                    className="flex-1 flex items-center justify-center gap-2 py-[3vw] bg-violet-500/10 border border-violet-500/20 rounded-2xl text-base font-bold text-violet-400 press-scale active:bg-violet-500/20 disabled:opacity-40">
                     <Camera size={20} /> Foto
                   </button>
                   <button onClick={() => uploadMedia('file')} disabled={uploading}
@@ -494,7 +494,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
 
                 {uploading && (
                   <div className="flex items-center justify-center gap-2 py-[2vw] text-sm text-faint">
-                    <div className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
                     Caricamento...
                   </div>
                 )}

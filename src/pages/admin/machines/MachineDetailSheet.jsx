@@ -22,7 +22,7 @@ function getTrafficLight(plan, lastLog) {
 
 const healthColors = {
   ottimo: { bg: '#22c55e', ring: '#22c55e40' },
-  buono: { bg: '#3b82f6', ring: '#3b82f640' },
+  buono: { bg: '#7c6aff', ring: '#7c6aff40' },
   attenzione: { bg: '#f59e0b', ring: '#f59e0b40' },
   critico: { bg: '#ef4444', ring: '#ef444440' },
 }
@@ -113,7 +113,7 @@ export default function MachineDetailSheet({
             {assessment && (
               <div className="w-3 h-3 rounded-full shrink-0 animate-pulse" style={{ background: healthColor, boxShadow: `0 0 8px ${healthColor}60` }} />
             )}
-            <Cog size={20} className="text-blue-400 shrink-0" />
+            <Cog size={20} className="text-violet-400 shrink-0" />
             <h2 className="text-lg font-bold text-themed truncate">{sel.name}</h2>
             {sel.department && (
               <span className="text-xs text-faint px-2.5 py-1 bg-surface-2 rounded-lg shrink-0 font-medium">{sel.department}</span>
@@ -128,7 +128,7 @@ export default function MachineDetailSheet({
             )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <button onClick={() => onDownloadQR(sel)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-blue-400 hover:bg-blue-400/10 transition-all" title="Scarica QR Code">
+            <button onClick={() => onDownloadQR(sel)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-violet-400 hover:bg-violet-400/10 transition-all" title="Scarica QR Code">
               <QrCode size={15} />
             </button>
             <button onClick={() => onEdit(sel)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-amber-400 hover:bg-amber-400/10 transition-all">
@@ -151,7 +151,7 @@ export default function MachineDetailSheet({
                 <img src={sel.photo_url} alt="" className="w-full h-full object-cover" />
               </div>
             ) : (
-              <button onClick={() => onEdit(sel)} className="rounded-xl border border-dashed border-token/50 bg-surface-2/30 aspect-video flex flex-col items-center justify-center text-faint hover:border-blue-500/30 hover:text-blue-400 transition-all cursor-pointer">
+              <button onClick={() => onEdit(sel)} className="rounded-xl border border-dashed border-token/50 bg-surface-2/30 aspect-video flex flex-col items-center justify-center text-faint hover:border-violet-500/30 hover:text-violet-400 transition-all cursor-pointer">
                 <Camera size={24} className="mb-1 opacity-40" />
                 <span className="text-xs">Aggiungi foto</span>
               </button>
@@ -164,7 +164,7 @@ export default function MachineDetailSheet({
               </p>
               {assessmentLoading ? (
                 <div className="flex items-center justify-center py-4">
-                  <div className="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-violet-400/30 border-t-blue-400 rounded-full animate-spin" />
                 </div>
               ) : assessment ? (
                 <div className="flex flex-col items-center">
@@ -205,7 +205,7 @@ export default function MachineDetailSheet({
                 <p className="text-[9px] text-faint uppercase tracking-wider group-hover:text-secondary transition-colors">Segnalazioni</p>
               </button>
               <button onClick={() => setDetailTab('plans')} className="bg-surface-2 rounded-xl p-3 text-center hover:bg-surface-3 transition-all cursor-pointer group">
-                <p className="text-xl font-bold text-blue-400">{plans.length}</p>
+                <p className="text-xl font-bold text-violet-400">{plans.length}</p>
                 <p className="text-[9px] text-faint uppercase tracking-wider group-hover:text-secondary transition-colors">Piani</p>
               </button>
               <div className="bg-surface-2 rounded-xl p-3 text-center">
@@ -250,7 +250,7 @@ export default function MachineDetailSheet({
                 </div>
               ))}
               {![sel.manufacturer, sel.model, sel.serial_number, sel.year].some(Boolean) && (
-                <p className="text-xs text-faint text-center py-2">Nessun dato tecnico. <button onClick={() => onEdit(sel)} className="text-blue-400 underline">Compila scheda</button></p>
+                <p className="text-xs text-faint text-center py-2">Nessun dato tecnico. <button onClick={() => onEdit(sel)} className="text-violet-400 underline">Compila scheda</button></p>
               )}
             </div>
 
@@ -281,11 +281,11 @@ export default function MachineDetailSheet({
             {/* Tab Bar */}
             <div className="flex border-b border-token shrink-0">
               <button onClick={() => setDetailTab('overview')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'overview' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-faint hover:text-secondary'}`}>
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'overview' ? 'text-violet-400 border-b-2 border-violet-400 bg-violet-400/5' : 'text-faint hover:text-secondary'}`}>
                 <LayoutDashboard size={16} /> Panoramica
               </button>
               <button onClick={() => setDetailTab('plans')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'plans' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-faint hover:text-secondary'}`}>
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'plans' ? 'text-violet-400 border-b-2 border-violet-400 bg-violet-400/5' : 'text-faint hover:text-secondary'}`}>
                 <Shield size={16} /> Piani Manutenzione
                 {plans.length > 0 && <span className="text-xs bg-surface-2 rounded-full px-2 py-0.5">{plans.length}</span>}
               </button>
@@ -316,7 +316,7 @@ export default function MachineDetailSheet({
                     <div className="bg-surface-2 rounded-xl p-5 flex flex-col items-center justify-center">
                       <p className="text-[10px] text-faint uppercase tracking-wider mb-3 font-semibold">Stato Salute</p>
                       {assessmentLoading ? (
-                        <div className="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 border-violet-400/30 border-t-blue-400 rounded-full animate-spin" />
                       ) : assessment ? (
                         <>
                           <div className="relative w-24 h-24 mb-2">
@@ -378,7 +378,7 @@ export default function MachineDetailSheet({
                       <div className="space-y-3">
                         <div>
                           <p className="text-[10px] text-faint">Piani attivi</p>
-                          <p className="text-xl font-bold text-blue-400">{plans.length}</p>
+                          <p className="text-xl font-bold text-violet-400">{plans.length}</p>
                         </div>
                         {nextMaintenance && (
                           <div>
@@ -406,7 +406,7 @@ export default function MachineDetailSheet({
                           <ClipboardList size={15} /> Segnalazioni attive recenti
                         </p>
                         {activeReports.length > 3 && (
-                          <button onClick={() => setDetailTab('reports')} className="text-xs text-blue-400 hover:underline flex items-center gap-1">
+                          <button onClick={() => setDetailTab('reports')} className="text-xs text-violet-400 hover:underline flex items-center gap-1">
                             Vedi tutte ({activeReports.length}) <ChevronRight size={12} />
                           </button>
                         )}
@@ -444,7 +444,7 @@ export default function MachineDetailSheet({
                         <p className="text-sm font-semibold text-muted flex items-center gap-2">
                           <Shield size={15} /> Piani manutenzione
                         </p>
-                        <button onClick={() => setDetailTab('plans')} className="text-xs text-blue-400 hover:underline flex items-center gap-1">
+                        <button onClick={() => setDetailTab('plans')} className="text-xs text-violet-400 hover:underline flex items-center gap-1">
                           Gestisci <ChevronRight size={12} />
                         </button>
                       </div>
@@ -481,7 +481,7 @@ export default function MachineDetailSheet({
                         <Upload size={14} /> CSV
                         <input type="file" accept=".csv,.txt" className="hidden" onChange={onHandleCSVFile} />
                       </label>
-                      <button onClick={() => onOpenPlanForm()} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all"><Plus size={14} /> Nuovo Piano</button>
+                      <button onClick={() => onOpenPlanForm()} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-bold transition-all"><Plus size={14} /> Nuovo Piano</button>
                     </div>
                   </div>
 
@@ -520,7 +520,7 @@ export default function MachineDetailSheet({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-muted">{logs.length} interventi</p>
-                    <button onClick={() => onOpenLogForm()} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all"><Plus size={14} /> Registra</button>
+                    <button onClick={() => onOpenLogForm()} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-bold transition-all"><Plus size={14} /> Registra</button>
                   </div>
                   {logs.length === 0 ? (
                     <div className="text-center py-16"><Wrench size={48} className="mx-auto text-faint opacity-15 mb-3" /><p className="text-sm text-faint">Nessun intervento</p></div>
@@ -528,13 +528,13 @@ export default function MachineDetailSheet({
                     <div className="space-y-2">
                       {logs.map(log => (
                         <div key={log.id} className="flex items-start gap-3 p-4 bg-surface-2 rounded-xl">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${log.type === 'programmata' ? 'bg-blue-500/15' : 'bg-amber-500/15'}`}>
-                            {log.type === 'programmata' ? <Shield size={14} className="text-blue-400" /> : <Wrench size={14} className="text-amber-400" />}
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${log.type === 'programmata' ? 'bg-violet-500/15' : 'bg-amber-500/15'}`}>
+                            {log.type === 'programmata' ? <Shield size={14} className="text-violet-400" /> : <Wrench size={14} className="text-amber-400" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-sm font-bold text-white">{log.title}</p>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${log.type === 'programmata' ? 'bg-blue-500/15 text-blue-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${log.type === 'programmata' ? 'bg-violet-500/15 text-violet-400' : 'bg-amber-500/15 text-amber-400'}`}>
                                 {log.type === 'programmata' ? 'Programmata' : 'Straordinaria'}
                               </span>
                             </div>
@@ -561,7 +561,7 @@ export default function MachineDetailSheet({
                     {[
                       { key: 'all', label: 'Tutte', count: machineReports.length, color: 'text-themed' },
                       { key: 'aperta', label: 'Aperte', count: machineReports.filter(r => r.status === 'aperta').length, color: 'text-amber-400' },
-                      { key: 'assegnata', label: 'Assegnate', count: machineReports.filter(r => r.status === 'assegnata').length, color: 'text-blue-400' },
+                      { key: 'assegnata', label: 'Assegnate', count: machineReports.filter(r => r.status === 'assegnata').length, color: 'text-violet-400' },
                       { key: 'in_lavorazione', label: 'In Lavorazione', count: machineReports.filter(r => r.status === 'in_lavorazione').length, color: 'text-purple-400' },
                       { key: 'risolta', label: 'Risolte', count: machineReports.filter(r => r.status === 'risolta').length, color: 'text-emerald-400' },
                     ].map(f => (

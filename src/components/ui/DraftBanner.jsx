@@ -15,13 +15,13 @@ export default function DraftBanner({ lastSaved, onDiscard }) {
     : 'Bozza ripristinata'
 
   return (
-    <div className="bg-blue-600/15 border border-blue-500/30 rounded-2xl px-[4vw] py-[3vw] flex items-center gap-[3vw] animate-fade-in">
-      <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
-        <FileText size={20} className="text-blue-400" />
+    <div className="bg-violet-600/15 border border-violet-500/30 rounded-2xl px-[4vw] py-[3vw] flex items-center gap-[3vw] animate-fade-in">
+      <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center shrink-0">
+        <FileText size={20} className="text-violet-400" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-base font-bold text-blue-300">Bozza ripristinata</p>
-        <p className="text-sm text-blue-400/70">{timeStr}</p>
+        <p className="text-base font-bold text-violet-300">Bozza ripristinata</p>
+        <p className="text-sm text-violet-400/70">{timeStr}</p>
       </div>
       <button
         onClick={() => { setVisible(false); onDiscard?.() }}

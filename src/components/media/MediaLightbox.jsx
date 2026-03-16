@@ -216,12 +216,12 @@ export default function MediaLightbox({ images, initialIndex = 0, onClose }) {
           <button
             onClick={handleDownload}
             disabled={downloading}
-            className="h-11 px-4 rounded-full bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30
-              flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-all active:scale-95"
+            className="h-11 px-4 rounded-full bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30
+              flex items-center gap-2 text-violet-400 hover:text-violet-300 transition-all active:scale-95"
             title="Scarica foto (Ctrl+S)"
           >
             {downloading
-              ? <div className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+              ? <div className="w-4 h-4 border-2 border-violet-400/30 border-t-blue-400 rounded-full animate-spin" />
               : <Download size={18} />}
             <span className="text-sm font-medium hidden sm:inline">Scarica</span>
           </button>

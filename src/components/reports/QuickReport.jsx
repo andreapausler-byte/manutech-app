@@ -200,8 +200,9 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
                 <button
                   onClick={() => { haptic.light(); setMachine('') }}
                   className={`py-[3.5vw] rounded-2xl text-base font-bold text-center transition-all press-scale ${
-                    !machine ? 'bg-blue-600 text-white' : 'btn-chip'
+                    !machine ? 'text-white' : 'btn-chip'
                   }`}
+                  style={!machine ? { background: '#7c6aff' } : {}}
                 >
                   Nessuno
                 </button>
@@ -210,8 +211,9 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
                     key={m.id}
                     onClick={() => { haptic.light(); setMachine(m.name) }}
                     className={`py-[3.5vw] rounded-2xl text-base font-bold text-center transition-all press-scale truncate px-2 ${
-                      machine === m.name ? 'bg-blue-600 text-white' : 'btn-chip'
+                      machine === m.name ? 'text-white' : 'btn-chip'
                     }`}
+                    style={machine === m.name ? { background: '#7c6aff' } : {}}
                   >
                     {m.name}
                   </button>
@@ -224,7 +226,7 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
             {/* QR Scan button */}
             <button
               onClick={() => { haptic.light(); setShowQR(true) }}
-              className="w-full flex items-center justify-center gap-2 py-[3.5vw] mt-[2.5vw] bg-blue-600/10 border border-blue-500/30 rounded-2xl text-base font-bold text-blue-400 active:bg-blue-600/20 press-scale"
+              className="w-full flex items-center justify-center gap-2 py-[3.5vw] mt-[2.5vw] bg-violet-600/10 border border-violet-500/30 rounded-2xl text-base font-bold text-violet-400 active:bg-violet-600/20 press-scale"
             >
               <QrCode size={20} />
               Scansiona QR Macchinario

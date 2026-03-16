@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { STATUS, SEVERITY, timeAgo } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
 import { Badge, Button, Modal, Input, Textarea, Select, EmptyState, Spinner } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
 import { useToast } from '../../hooks/useToast'
@@ -19,7 +19,7 @@ export default function AdminReports({ initialReportId }) {
   const [filterSeverity, setFilterSeverity] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [selected, setSelected] = useState(null)
-  const [form, setForm] = useState({ title: '', machine: '', severity: 'media', description: '' })
+  const [form, setForm] = useState({ title: '', machine: '', severity: 'media', type: 'correttiva', description: '' })
   const [media, setMedia] = useState([])
   const [machines, setMachines] = useState([])
   const [sortBy, setSortBy] = useState('created_at')
@@ -78,7 +78,9 @@ export default function AdminReports({ initialReportId }) {
   const createReport = async () => {
     if (!form.title.trim() || !form.description.trim()) return
     const created = await db.createReport({
-      ...form, media,
+      title: form.title.trim(), machine: form.machine || null,
+      severity: form.severity, type: form.type, description: form.description.trim(),
+      media,
       created_by: user?.id,
       created_by_name: user?.name || 'Admin',
       status: 'aperta',
@@ -94,7 +96,7 @@ export default function AdminReports({ initialReportId }) {
       }).catch(e => console.warn('Side effect failed:', e.message))
     }
     setShowNew(false)
-    setForm({ title: '', machine: '', severity: 'media', description: '' })
+    setForm({ title: '', machine: '', severity: 'media', type: 'correttiva', description: '' })
     setMedia([])
     load()
   }
@@ -136,7 +138,7 @@ export default function AdminReports({ initialReportId }) {
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
           <input type="text" placeholder="Cerca per titolo, macchinario o autore..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 transition-colors" />
+            className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 transition-colors" />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-white">
               <X size={16} />
@@ -144,7 +146,7 @@ export default function AdminReports({ initialReportId }) {
           )}
         </div>
         <select value={filterSeverity} onChange={e => setFilterSeverity(e.target.value)}
-          className="card-elevated rounded-xl px-4 py-3 text-sm text-themed focus:outline-none focus:border-blue-500/50">
+          className="card-elevated rounded-xl px-4 py-3 text-sm text-themed focus:outline-none focus:border-violet-500/50">
           <option value="">Tutte le gravità</option>
           {Object.entries(SEVERITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
@@ -172,6 +174,7 @@ export default function AdminReports({ initialReportId }) {
                   { label: 'Segnalazione', field: null },
                   { label: 'Macchinario', field: 'machine', hide: 'hidden lg:table-cell' },
                   { label: 'Gravità', field: null, hide: 'hidden md:table-cell' },
+                  { label: 'Tipo', field: null, hide: 'hidden lg:table-cell' },
                   { label: 'Stato', field: 'status' },
                   { label: 'Assegnato a', field: 'assigned_to_name', hide: 'hidden lg:table-cell' },
                   { label: 'Data', field: 'created_at', hide: 'hidden lg:table-cell' },
@@ -197,12 +200,15 @@ export default function AdminReports({ initialReportId }) {
                 return (
                   <tr key={r.id} onClick={() => setSelected(r)}
                     className="border-b border-token/30 hover:bg-white/[0.02] transition-colors cursor-pointer group">
-                    <td className="px-5 py-4">
-                      <p className="text-[15px] text-white font-medium group-hover:text-blue-300 transition-colors">{r.title}</p>
+                    <td className="px-5 py-4" style={{ borderLeft: `3px solid ${sev.color}` }}>
+                      <p className="text-[15px] text-white font-medium group-hover:text-purple-300 transition-colors">{r.title}</p>
                       <p className="text-xs text-faint mt-0.5">{r.created_by_name || 'Sconosciuto'}</p>
                     </td>
                     <td className="px-5 py-4 hidden lg:table-cell"><span className="text-sm text-muted">{r.machine || '—'}</span></td>
                     <td className="px-5 py-4 hidden md:table-cell"><Badge {...sev} /></td>
+                    <td className="px-5 py-4 hidden lg:table-cell">
+                      {r.type && REPORT_TYPES[r.type] ? <Badge {...REPORT_TYPES[r.type]} /> : <span className="text-xs text-faint">—</span>}
+                    </td>
                     <td className="px-5 py-4"><Badge {...sts} /></td>
                     <td className="px-5 py-4 hidden lg:table-cell">
                       {r.assigned_to_name
@@ -240,6 +246,16 @@ export default function AdminReports({ initialReportId }) {
                     style={form.severity === key ? { background: color } : {}}>{label}</button>
                 ))}
               </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Tipo Intervento</label>
+            <div className="flex gap-2">
+              {Object.entries(REPORT_TYPES).map(([key, { label, color, icon }]) => (
+                <button key={key} onClick={() => set('type', key)}
+                  className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${form.type === key ? 'text-white' : 'bg-surface-2 text-muted'}`}
+                  style={form.type === key ? { background: color } : {}}>{icon} {label}</button>
+              ))}
             </div>
           </div>
           <Textarea label="Descrizione *" placeholder="Dettagli..."

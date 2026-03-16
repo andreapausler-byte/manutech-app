@@ -1,14 +1,23 @@
 export const ROLES = {
-  operatore: { label: 'Operatore', color: '#3b82f6', icon: '👷' },
+  operatore: { label: 'Operatore', color: '#7c6aff', icon: '👷' },
   tecnico: { label: 'Tecnico', color: '#22c55e', icon: '🔧' },
   admin: { label: 'Admin', color: '#f59e0b', icon: '🛡️' },
 }
 
 export const STATUS = {
-  aperta: { label: 'Aperta', color: '#f59e0b', bg: '#f59e0b22' },
-  assegnata: { label: 'Assegnata', color: '#3b82f6', bg: '#3b82f622' },
-  in_lavorazione: { label: 'In Lavorazione', color: '#a855f7', bg: '#a855f722' },
-  risolta: { label: 'Risolta', color: '#22c55e', bg: '#22c55e22' },
+  aperta: { label: 'Aperta', color: '#ff4757', bg: '#ff475722' },
+  assegnata: { label: 'Assegnata', color: '#ffa502', bg: '#ffa50222' },
+  in_lavorazione: { label: 'In Lavorazione', color: '#00d4ff', bg: '#00d4ff22' },
+  in_attesa_ricambi: { label: 'Attesa Ricambi', color: '#ffd43b', bg: '#ffd43b22' },
+  risolta: { label: 'Risolta', color: '#2ed573', bg: '#2ed57322' },
+  chiuso: { label: 'Chiuso', color: '#8a8a9a', bg: '#8a8a9a22' },
+}
+
+export const REPORT_TYPES = {
+  correttiva: { label: 'Correttiva', color: '#ef4444', bg: '#ef444422', icon: '🔧' },
+  preventiva: { label: 'Preventiva', color: '#7c6aff', bg: '#7c6aff22', icon: '📅' },
+  migliorativa: { label: 'Migliorativa', color: '#22c55e', bg: '#22c55e22', icon: '💡' },
+  ispezione: { label: 'Ispezione', color: '#a855f7', bg: '#a855f722', icon: '🔍' },
 }
 
 export const SEVERITY = {
@@ -29,7 +38,7 @@ export const QUICK_TEMPLATES = [
     title: 'Perdita rilevata',
     description: 'Perdita di fluido rilevata sul macchinario. Richiede intervento.',
     severity: 'alta',
-    color: '#3b82f6',
+    color: '#7c6aff',
     extraFields: [
       { key: 'fluid_type', label: 'Tipo fluido', type: 'select', options: ['Acqua', 'Olio', 'Refrigerante', 'Aria compressa', 'Altro'] },
       { key: 'leak_size', label: 'Entità', type: 'select', options: ['Gocciolamento', 'Flusso costante', 'Getto'] },

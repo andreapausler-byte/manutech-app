@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
-import { SEVERITY } from '../../lib/constants'
+import { SEVERITY, REPORT_TYPES } from '../../lib/constants'
 import { Button, Input, Textarea, Select } from '../ui'
 import MediaCapture from '../media/MediaCapture'
 import SuccessAnimation from '../ui/SuccessAnimation'
@@ -11,7 +11,7 @@ import { useHaptic } from '../../hooks/useHaptic'
 import { useAutosave } from '../../hooks/useAutosave'
 import { ArrowLeft, Send, QrCode } from 'lucide-react'
 
-const DEFAULT_FORM = { title: '', machine: '', severity: 'media', description: '' }
+const DEFAULT_FORM = { title: '', machine: '', severity: 'media', type: 'correttiva', description: '' }
 
 export default function NewReport({ user, onBack, onCreated, preselectedMachine }) {
   const [form, setForm] = useState({ ...DEFAULT_FORM, machine: preselectedMachine || '' })
@@ -46,7 +46,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
     try {
       const created = await db.createReport({
         title: form.title.trim(), machine: form.machine || null,
-        severity: form.severity, description: form.description.trim(),
+        severity: form.severity, type: form.type, description: form.description.trim(),
         media, created_by: user.id, created_by_name: user.name, status: 'aperta',
       })
       // Log activity + notification
@@ -118,7 +118,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
               onClick={() => { haptic.light(); setShowQR(true) }}
               className="w-[14vw] h-[14vw] max-w-14 max-h-14 bg-surface-2 border border-token rounded-2xl flex items-center justify-center active:bg-gray-700 press-scale shrink-0"
             >
-              <QrCode size={24} className="text-blue-400" />
+              <QrCode size={24} className="text-violet-400" />
             </button>
           </div>
         </div>
@@ -135,6 +135,27 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
             onClose={() => setShowQR(false)}
           />
         )}
+
+        {/* Tipo intervento */}
+        <div>
+          <label className="block text-base text-muted mb-[2.5vw] uppercase tracking-wider font-semibold">Tipo Intervento</label>
+          <div className="grid grid-cols-2 gap-[2.5vw]">
+            {Object.entries(REPORT_TYPES).map(([key, { label, color, icon }]) => (
+              <button
+                key={key}
+                onClick={() => { haptic.light(); set('type', key) }}
+                className={`py-[3.5vw] rounded-2xl text-base font-bold transition-all press-scale ${
+                  form.type === key
+                    ? 'text-white shadow-lg'
+                    : 'btn-chip'
+                }`}
+                style={form.type === key ? { background: color, boxShadow: `0 4px 14px ${color}33` } : {}}
+              >
+                {icon} {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Severity — 2x2 responsive con haptic */}
         <div>

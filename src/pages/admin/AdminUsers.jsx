@@ -158,7 +158,7 @@ export default function AdminUsers() {
         <div className="relative flex-1">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
           <input type="text" placeholder="Cerca utenti..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50" />
+            className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50" />
         </div>
         <Button onClick={() => setShowNewSupplier(true)} variant="secondary"><Truck size={18} /> Aggiungi Fornitore</Button>
         <Button onClick={() => setShowNew(true)}><Plus size={18} /> Nuovo Utente</Button>
@@ -187,10 +187,10 @@ export default function AdminUsers() {
                           : <p className="text-sm text-faint">{u.email}</p>}
                       </div>
                       <button onClick={() => printUserSummary(u)} disabled={printing === u.id}
-                        className="p-2 rounded-lg hover:bg-blue-500/20 text-muted hover:text-blue-400 transition-all"
+                        className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-all"
                         title="Stampa riepilogo segnalazioni">
                         {printing === u.id
-                          ? <div className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+                          ? <div className="w-4 h-4 border-2 border-violet-400/30 border-t-blue-400 rounded-full animate-spin" />
                           : <Printer size={15} />}
                       </button>
                       {u.id !== 'admin-1' && (
@@ -220,7 +220,7 @@ export default function AdminUsers() {
               {Object.entries(ROLES).map(([key, { label, icon }]) => (
                 <button key={key} onClick={() => set('role', key)}
                   className={`flex-1 p-4 rounded-xl border text-center transition-all press-scale ${
-                    form.role === key ? 'border-blue-500 bg-blue-500/10 text-white' : 'border-token text-muted hover:border-gray-500'
+                    form.role === key ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-token text-muted hover:border-gray-500'
                   }`}>
                   <div className="text-2xl mb-1.5">{icon}</div>
                   <div className="text-sm font-medium">{label}</div>

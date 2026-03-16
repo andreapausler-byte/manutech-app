@@ -221,7 +221,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         {(machine.manufacturer || machine.model || machine.serial_number || machine.year) && (
           <div className="grid grid-cols-2 gap-[2.5vw]">
             {[
-              { icon: Factory, label: 'Costruttore', value: machine.manufacturer, color: '#3b82f6' },
+              { icon: Factory, label: 'Costruttore', value: machine.manufacturer, color: '#7c6aff' },
               { icon: Cog, label: 'Modello', value: machine.model, color: '#8b5cf6' },
               { icon: Hash, label: 'Matricola', value: machine.serial_number, color: '#06b6d4' },
               { icon: Calendar, label: 'Anno', value: machine.year, color: '#f59e0b' },
@@ -245,7 +245,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
         {/* ═══ HEALTH SCORE ═══ */}
         {assessment && (() => {
-          const colors = { ottimo: '#22c55e', buono: '#3b82f6', attenzione: '#f59e0b', critico: '#ef4444' }
+          const colors = { ottimo: '#22c55e', buono: '#7c6aff', attenzione: '#f59e0b', critico: '#ef4444' }
           const color = colors[assessment.status] || '#6b7280'
           return (
             <div className="card-elevated rounded-2xl p-[4vw]">
@@ -418,8 +418,8 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
               ) : logs.slice(0, 8).map(log => (
                 <div key={log.id} className="card-elevated rounded-2xl p-[4vw]">
                   <div className="flex items-start gap-[3vw]">
-                    <div className={`w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center shrink-0 ${log.type === 'programmata' ? 'bg-blue-500/15' : 'bg-amber-500/15'}`}>
-                      {log.type === 'programmata' ? <Shield size={18} className="text-blue-400" /> : <AlertTriangle size={18} className="text-amber-400" />}
+                    <div className={`w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center shrink-0 ${log.type === 'programmata' ? 'bg-violet-500/15' : 'bg-amber-500/15'}`}>
+                      {log.type === 'programmata' ? <Shield size={18} className="text-violet-400" /> : <AlertTriangle size={18} className="text-amber-400" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-base font-bold text-themed">{log.title}</p>

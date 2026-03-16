@@ -26,7 +26,7 @@ export default function MaintenanceSummary({ maintenanceTasks, nonAssegnate, rep
       <div className="card-elevated rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Manutenzioni</h3>
-          <button onClick={() => onNavigate?.('maintenance')} className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-0.5">
+          <button onClick={() => onNavigate?.('maintenance')} className="text-xs text-violet-400 hover:text-violet-300 font-medium flex items-center gap-0.5">
             Gestisci <ChevronRight size={12} />
           </button>
         </div>

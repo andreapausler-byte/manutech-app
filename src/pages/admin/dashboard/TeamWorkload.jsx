@@ -21,7 +21,7 @@ export default function TeamWorkload({ users, reports, onNavigate }) {
     <div className="card-elevated rounded-2xl p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Carico di Lavoro</h3>
-        <button onClick={() => onNavigate?.('users')} className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-0.5">
+        <button onClick={() => onNavigate?.('users')} className="text-xs text-violet-400 hover:text-violet-300 font-medium flex items-center gap-0.5">
           Gestisci <ChevronRight size={12} />
         </button>
       </div>
@@ -32,7 +32,7 @@ export default function TeamWorkload({ users, reports, onNavigate }) {
         ) : (
           workload.map(u => {
             const roleIcon = u.role === 'tecnico' ? '🔧' : u.role === 'admin' ? '👔' : '👷'
-            const roleColor = u.role === 'tecnico' ? '#22c55e' : u.role === 'admin' ? '#f59e0b' : '#3b82f6'
+            const roleColor = u.role === 'tecnico' ? '#22c55e' : u.role === 'admin' ? '#f59e0b' : '#7c6aff'
             const loadPct = (u.active / maxActive) * 100
             const isOverloaded = u.active >= 4
 
@@ -79,7 +79,7 @@ export default function TeamWorkload({ users, reports, onNavigate }) {
           return [
             { label: 'Admin', count: counts.admin, color: '#f59e0b' },
             { label: 'Tecnici', count: counts.tecnico, color: '#22c55e' },
-            { label: 'Operatori', count: counts.operatore, color: '#3b82f6' },
+            { label: 'Operatori', count: counts.operatore, color: '#7c6aff' },
           ]
         })().map(({ label, count }) => (
           <div key={label} className="text-center p-2 bg-surface-1 rounded-lg">

@@ -5,7 +5,7 @@ import { Badge } from '../../../components/ui'
 import ReportDetailModal from '../reports/ReportDetailModal'
 import {
   X, Wrench, Pencil, Save, XCircle, Phone, Mail, User,
-  ChevronRight, Filter, CheckCircle, Clock, AlertTriangle
+  ChevronRight, Filter, CheckCircle, Clock, AlertTriangle, Printer
 } from 'lucide-react'
 
 export default function TechnicianDetailSheet({ tech, reports, users, machines, user, onClose, onUpdate }) {
@@ -67,6 +67,60 @@ export default function TechnicianDetailSheet({ tech, reports, users, machines, 
     setEditing(false)
   }
 
+  const handlePrintChecklist = () => {
+    const rows = filtered.map(r => {
+      const st = STATUS[r.status] || {}
+      const sev = SEVERITY[r.severity] || {}
+      const done = r.status === 'risolta'
+      return `
+        <tr>
+          <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">
+            <input type="checkbox" ${done ? 'checked' : ''} style="width:16px;height:16px;" />
+          </td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">${r.title}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${st.label || r.status}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${sev.label || r.severity}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${r.machine || '—'}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#6b7280;">${r.created_at ? new Date(r.created_at).toLocaleDateString('it-IT') : '—'}</td>
+        </tr>`
+    }).join('')
+
+    const html = `<!DOCTYPE html><html><head><title>Checklist - ${tech.name}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 40px; color: #1f2937; }
+        h1 { font-size: 22px; margin-bottom: 4px; }
+        .subtitle { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
+        .stats { display: flex; gap: 24px; margin-bottom: 24px; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 20px; font-weight: 700; }
+        .stat-label { font-size: 11px; color: #6b7280; text-transform: uppercase; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { text-align: left; padding: 8px 10px; background: #f3f4f6; border-bottom: 2px solid #d1d5db; font-size: 12px; text-transform: uppercase; color: #6b7280; }
+        @media print { body { padding: 20px; } }
+      </style></head><body>
+      <h1>Checklist Segnalazioni — ${tech.name}</h1>
+      <p class="subtitle">${tech.email}${tech.phone ? ' · ' + tech.phone : ''} · Stampata il ${new Date().toLocaleDateString('it-IT')}</p>
+      <div class="stats">
+        <div class="stat"><div class="stat-value">${stats.total}</div><div class="stat-label">Totali</div></div>
+        <div class="stat"><div class="stat-value">${stats.pending}</div><div class="stat-label">In attesa</div></div>
+        <div class="stat"><div class="stat-value">${stats.inProgress}</div><div class="stat-label">In corso</div></div>
+        <div class="stat"><div class="stat-value">${stats.resolved}</div><div class="stat-label">Risolte</div></div>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:40px;">✓</th><th>Segnalazione</th><th>Stato</th><th>Severità</th><th>Macchinario</th><th>Data</th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" style="padding:20px;text-align:center;color:#9ca3af;">Nessuna segnalazione</td></tr>'}</tbody>
+      </table>
+    </body></html>`
+
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    win.print()
+  }
+
   const rateColor = stats.rate > 70 ? '#22c55e' : stats.rate > 40 ? '#f59e0b' : '#ef4444'
 
   const statusFilters = [
@@ -97,6 +151,9 @@ export default function TechnicianDetailSheet({ tech, reports, users, machines, 
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={handlePrintChecklist} title="Stampa checklist" className="p-2 rounded-xl hover:bg-white/10 text-muted hover:text-themed transition-colors">
+                <Printer size={18} />
+              </button>
               {!editing && (
                 <button onClick={() => setEditing(true)} className="p-2 rounded-xl hover:bg-white/10 text-muted hover:text-themed transition-colors">
                   <Pencil size={18} />
@@ -180,7 +237,7 @@ export default function TechnicianDetailSheet({ tech, reports, users, machines, 
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { label: 'Totali', value: stats.total, color: '#94a3b8' },
-                    { label: 'Attesa', value: stats.pending, color: '#3b82f6' },
+                    { label: 'Attesa', value: stats.pending, color: '#7c6aff' },
                     { label: 'In corso', value: stats.inProgress, color: '#a855f7' },
                     { label: 'Risolte', value: stats.resolved, color: '#22c55e' },
                   ].map(({ label, value, color }) => (

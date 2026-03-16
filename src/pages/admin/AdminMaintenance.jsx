@@ -213,7 +213,7 @@ export default function AdminMaintenance() {
       {/* ═══ KPI Semaforo ═══ */}
       <div className="grid grid-cols-4 gap-5">
         {[
-          { label: 'Totale Piani', value: tasks.length, icon: Shield, color: '#3b82f6', gradient: 'from-blue-500/15 to-blue-600/5' },
+          { label: 'Totale Piani', value: tasks.length, icon: Shield, color: '#7c6aff', gradient: 'from-blue-500/15 to-blue-600/5' },
           { label: 'Scadute', value: overdue.length, icon: AlertTriangle, color: overdue.length > 0 ? '#ef4444' : '#22c55e', gradient: overdue.length > 0 ? 'from-red-500/15 to-red-600/5' : 'from-emerald-500/15 to-emerald-600/5' },
           { label: 'In Scadenza', value: warning.length, icon: Clock, color: warning.length > 0 ? '#f59e0b' : '#22c55e', gradient: warning.length > 0 ? 'from-amber-500/15 to-amber-600/5' : 'from-emerald-500/15 to-emerald-600/5' },
           { label: 'In Regola', value: ok.length, icon: CheckCircle, color: '#22c55e', gradient: 'from-emerald-500/15 to-emerald-600/5' },
@@ -235,7 +235,7 @@ export default function AdminMaintenance() {
         {/* View toggle */}
         <div className="flex bg-surface-2 rounded-xl p-1">
           <button onClick={() => setViewMode('plans')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'plans' ? 'bg-blue-600 text-white' : 'text-muted hover:text-white'}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'plans' ? 'bg-violet-600 text-white' : 'text-muted hover:text-white'}`}>
             <Shield size={14} className="inline mr-1.5" />Piani
           </button>
           <button onClick={() => setViewMode('logs')}
@@ -247,7 +247,7 @@ export default function AdminMaintenance() {
         <div className="relative flex-1 min-w-[180px]">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
           <input type="text" placeholder="Cerca..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full card-elevated rounded-xl pl-10 pr-4 py-2.5 text-sm text-themed placeholder-gray-500 focus:outline-none focus:border-blue-500/50" />
+            className="w-full card-elevated rounded-xl pl-10 pr-4 py-2.5 text-sm text-themed placeholder-gray-500 focus:outline-none focus:border-violet-500/50" />
           {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-white"><X size={14} /></button>}
         </div>
 
@@ -269,7 +269,7 @@ export default function AdminMaintenance() {
             ].map(f => (
               <button key={f.id} onClick={() => setFilterStatus(filterStatus === f.id ? '' : f.id)}
                 className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${filterStatus === f.id ? 'text-white' : 'bg-surface-2 text-muted hover:text-white'}`}
-                style={filterStatus === f.id && f.color ? { background: f.color } : filterStatus === f.id ? { background: '#3b82f6' } : {}}>
+                style={filterStatus === f.id && f.color ? { background: f.color } : filterStatus === f.id ? { background: '#7c6aff' } : {}}>
                 {f.label}
               </button>
             ))}
@@ -316,7 +316,7 @@ export default function AdminMaintenance() {
                       <td className="px-5 py-4">
                         {(() => {
                           const st = task.plan.current_status || 'da_eseguire'
-                          const cfg = { da_eseguire: { label: 'Da eseguire', bg: '#f59e0b18', color: '#f59e0b' }, in_corso: { label: 'In corso', bg: '#3b82f618', color: '#3b82f6' }, completata: { label: 'Completata', bg: '#22c55e18', color: '#22c55e' } }
+                          const cfg = { da_eseguire: { label: 'Da eseguire', bg: '#f59e0b18', color: '#f59e0b' }, in_corso: { label: 'In corso', bg: '#7c6aff18', color: '#7c6aff' }, completata: { label: 'Completata', bg: '#22c55e18', color: '#22c55e' } }
                           const c = cfg[st] || cfg.da_eseguire
                           return (
                             <div>
@@ -398,7 +398,7 @@ export default function AdminMaintenance() {
                     return (
                       <tr key={log.id} className="border-b border-token/30 hover:bg-white/[0.02] transition-colors">
                         <td className="px-5 py-4">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${log.type === 'programmata' ? 'bg-blue-500/15 text-blue-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${log.type === 'programmata' ? 'bg-violet-500/15 text-violet-400' : 'bg-amber-500/15 text-amber-400'}`}>
                             {log.type === 'programmata' ? 'Progr.' : 'Straord.'}
                           </span>
                         </td>
@@ -447,7 +447,7 @@ export default function AdminMaintenance() {
             <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Frequenza</label>
             <div className="flex gap-2 mb-3 flex-wrap">
               {FREQ_PRESETS.map(p => <button key={p.days} onClick={() => setPlanForm(f => ({ ...f, frequency_days: p.days }))}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${parseInt(planForm.frequency_days) === p.days ? 'bg-blue-600 text-white' : 'bg-surface-2 text-muted'}`}>{p.label}</button>)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${parseInt(planForm.frequency_days) === p.days ? 'bg-violet-600 text-white' : 'bg-surface-2 text-muted'}`}>{p.label}</button>)}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-faint">Ogni</span>
@@ -483,7 +483,7 @@ export default function AdminMaintenance() {
             <Input label="Durata (min)" placeholder="60" type="number" value={logForm.duration_minutes} onChange={e => setLogForm(f => ({ ...f, duration_minutes: e.target.value }))} />
             <Input label="Ricambi" placeholder="Filtro XF-420" value={logForm.parts_replaced} onChange={e => setLogForm(f => ({ ...f, parts_replaced: e.target.value }))} />
           </div>
-          {logForm.plan_id ? <p className="text-xs text-blue-400 bg-blue-500/10 rounded-xl px-3 py-2">✓ Manutenzione programmata</p>
+          {logForm.plan_id ? <p className="text-xs text-violet-400 bg-violet-500/10 rounded-xl px-3 py-2">✓ Manutenzione programmata</p>
             : <p className="text-xs text-amber-400 bg-amber-500/10 rounded-xl px-3 py-2">⚡ Manutenzione straordinaria</p>}
           <Button onClick={saveLog} className="w-full" size="lg" disabled={!logForm.title.trim() || !logForm.machine_id}>Registra</Button>
         </div>

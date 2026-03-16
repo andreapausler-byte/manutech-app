@@ -15,7 +15,7 @@ export default function PullToRefreshIndicator({ pullDistance, pullProgress, ref
       <div
         className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-200 ${
           activated || refreshing
-            ? 'border-blue-500 bg-blue-500/15'
+            ? 'border-violet-500 bg-violet-500/15'
             : 'border-gray-600 bg-surface-2/50'
         }`}
         style={{
@@ -26,7 +26,7 @@ export default function PullToRefreshIndicator({ pullDistance, pullProgress, ref
         <RefreshCw
           size={18}
           className={`transition-colors ${
-            activated || refreshing ? 'text-blue-400' : 'text-faint'
+            activated || refreshing ? 'text-violet-400' : 'text-faint'
           } ${refreshing ? 'animate-spin' : ''}`}
         />
       </div>

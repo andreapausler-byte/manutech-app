@@ -90,7 +90,7 @@ export default function MobileMachinesList({ onSelectMachine }) {
                   </div>
                 ) : (
                   <div className="w-[14vw] h-[14vw] max-w-14 max-h-14 rounded-xl bg-surface-2 flex items-center justify-center shrink-0">
-                    <Cog size={24} className="text-blue-400" />
+                    <Cog size={24} className="text-violet-400" />
                   </div>
                 )}
 

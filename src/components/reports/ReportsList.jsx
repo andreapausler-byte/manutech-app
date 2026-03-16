@@ -44,7 +44,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           placeholder="Cerca..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full bg-surface-2 border border-token rounded-2xl pl-[12vw] pr-[12vw] py-[3.5vw] text-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+          className="w-full bg-surface-2 border border-token rounded-2xl pl-[12vw] pr-[12vw] py-[3.5vw] text-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
         />
         {search && (
           <button onClick={() => setSearch('')} className="absolute right-[3vw] top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-surface-3 text-secondary">
@@ -58,8 +58,9 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         <button
           onClick={() => setFilterStatus('')}
           className={`py-[3vw] rounded-2xl text-base font-bold text-center transition-all press-scale ${
-            !filterStatus ? 'bg-blue-600 text-white' : 'btn-chip'
+            !filterStatus ? 'text-white' : 'btn-chip'
           }`}
+          style={!filterStatus ? { background: '#7c6aff' } : {}}
         >
           Tutte ({reports.length})
         </button>
@@ -92,10 +93,11 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               <button
                 key={report.id}
                 onClick={() => onSelectReport(report)}
-                className="w-full text-left flex items-center gap-[3vw] card-interactive rounded-2xl px-[4vw] py-[3.5vw] active:bg-gray-800/60 transition-colors press-scale"
+                className="w-full text-left flex items-center gap-[3vw] card-interactive rounded-2xl px-[4vw] py-[3vw] active:bg-gray-800/60 transition-colors press-scale"
+                style={{ borderLeft: `3px solid ${severity.color}` }}
               >
-                <div className="w-[12vw] h-[12vw] max-w-12 max-h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: severity.color + '15' }}>
-                  <div className="w-3.5 h-3.5 rounded-full" style={{ background: status.color }} />
+                <div className="w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: severity.color + '15' }}>
+                  <div className="w-3 h-3 rounded-full" style={{ background: status.color }} />
                 </div>
                 <div className="flex-1 min-w-0 mr-1">
                   <div className="flex items-center justify-between gap-2">
@@ -114,8 +116,8 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
                 </div>
                 {/* Badge messaggi non letti oppure chevron */}
                 {unreadByReport[report.id] > 0 ? (
-                  <span className="min-w-[28px] h-[28px] bg-blue-500 rounded-full text-xs font-bold text-white flex items-center justify-center px-1.5 shrink-0 animate-scale-in"
-                    style={{ boxShadow: '0 2px 8px rgba(59,130,246,0.4)' }}>
+                  <span className="min-w-[28px] h-[28px] rounded-full text-xs font-bold text-white flex items-center justify-center px-1.5 shrink-0 animate-scale-in"
+                    style={{ background: '#7c6aff', boxShadow: '0 2px 8px rgba(124,106,255,0.4)' }}>
                     <MessageCircle size={12} className="mr-0.5" />
                     {unreadByReport[report.id]}
                   </span>
