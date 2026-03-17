@@ -11,8 +11,9 @@ function StatusChip({ status }) {
   const s = STATUS[status] || STATUS.aperta
   return (
     <span style={{
-      fontSize: 13, padding: '4px 10px', borderRadius: 6, fontWeight: 600,
+      fontSize: 12, padding: '5px 10px', borderRadius: 8, fontWeight: 700,
       color: s.color, background: s.bg, whiteSpace: 'nowrap',
+      letterSpacing: '0.02em',
     }}>
       {s.icon} {s.label}
     </span>
@@ -23,8 +24,15 @@ function StatusChip({ status }) {
 function PriorityChip({ severity }) {
   const sv = SEVERITY[severity] || SEVERITY.media
   return (
-    <span style={{ fontSize: 14, color: sv.color, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-      ● {sv.label}
+    <span style={{
+      fontSize: 13, color: sv.color, fontWeight: 600,
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+    }}>
+      <span style={{
+        width: 8, height: 8, borderRadius: '50%', background: sv.color,
+        boxShadow: `0 0 6px ${sv.color}60`,
+      }} />
+      {sv.label}
     </span>
   )
 }
@@ -117,7 +125,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       {loading ? <SkeletonReportsPage /> : filtered.length === 0 ? (
         <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map(report => {
             const severity = SEVERITY[report.severity] || SEVERITY.media
             const reportType = REPORT_TYPES[report.type] || REPORT_TYPES.correttiva
@@ -130,9 +138,9 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
                 style={{
                   background: 'var(--color-card)',
                   border: '1px solid var(--color-border)',
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                  borderLeft: `3px solid ${severity.color}`,
+                  borderRadius: 16,
+                  padding: '16px 18px',
+                  borderLeft: `4px solid ${severity.color}`,
                   cursor: 'pointer',
                   transition: 'border-color 0.15s, background 0.15s',
                 }}
@@ -140,43 +148,68 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.borderLeftColor = severity.color; e.currentTarget.style.background = 'var(--color-card)' }}
               >
                 {/* Riga 1: titolo + status chip */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{
+                    fontSize: 17, fontWeight: 700, color: 'var(--color-text)',
+                    lineHeight: 1.3, flex: 1,
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}>
                     {report.title}
                   </span>
-                  <StatusChip status={report.status} />
+                  <div style={{ flexShrink: 0, paddingTop: 2 }}>
+                    <StatusChip status={report.status} />
+                  </div>
                 </div>
-                {/* Riga 2: macchina · codice */}
+
+                {/* Riga 2: macchina */}
                 {report.machine && (
-                  <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginTop: 5 }}>
+                  <div style={{
+                    fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 6,
+                    fontWeight: 500,
+                  }}>
                     {report.machine}
-                    {report.machine_code && <span style={{ fontFamily: "'JetBrains Mono', monospace" }}> · {report.machine_code}</span>}
+                    {report.machine_code && <span style={{ fontFamily: "'JetBrains Mono', monospace", opacity: 0.7 }}> · {report.machine_code}</span>}
                   </div>
                 )}
-                {/* Riga 3: tipo | priorità | tempo fa */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, fontSize: 14 }}>
-                  <span style={{ color: 'var(--color-text-secondary)' }}>{reportType.icon} {reportType.label}</span>
-                  <span style={{ color: 'var(--color-border)' }}>|</span>
+
+                {/* Riga 3: tipo | priorità | tempo fa + unread */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', flexWrap: 'wrap',
+                  gap: '6px 10px', marginTop: 10,
+                }}>
+                  <span style={{
+                    fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 500,
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                  }}>
+                    {reportType.icon} {reportType.label}
+                  </span>
+                  <span style={{ color: 'var(--color-border)', fontSize: 10 }}>|</span>
                   <PriorityChip severity={report.severity} />
-                  <span style={{ color: 'var(--color-border)' }}>|</span>
-                  <span style={{ color: 'var(--color-text-muted)' }}>{timeAgo(report.created_at)}</span>
+                  <span style={{ color: 'var(--color-border)', fontSize: 10 }}>|</span>
+                  <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>{timeAgo(report.created_at)}</span>
                   {unread > 0 && (
                     <span style={{
                       marginLeft: 'auto',
-                      minWidth: 20, height: 20, borderRadius: 10,
+                      minWidth: 22, height: 22, borderRadius: 11,
                       background: 'var(--color-primary)',
-                      color: '#fff', fontSize: 10, fontWeight: 600,
+                      color: '#fff', fontSize: 11, fontWeight: 700,
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                      padding: '0 5px',
+                      padding: '0 6px',
                     }}>
                       {unread}
                     </span>
                   )}
                 </div>
+
                 {/* Riga 4: assegnatario */}
                 {report.assigned_to_name && (
-                  <div style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 5 }}>
-                    → {report.assigned_to_name}
+                  <div style={{
+                    fontSize: 13, color: 'var(--color-text-muted)', marginTop: 8,
+                    display: 'flex', alignItems: 'center', gap: 5,
+                  }}>
+                    <span style={{ fontSize: 12, opacity: 0.6 }}>&#x279C;</span>
+                    <span style={{ fontWeight: 500 }}>{report.assigned_to_name}</span>
                   </div>
                 )}
               </button>
