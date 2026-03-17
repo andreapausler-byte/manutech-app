@@ -1,91 +1,137 @@
-import { CheckCircle, ChevronRight, Cog, AlertTriangle, Shield } from 'lucide-react'
+import { CheckCircle, ChevronRight, Cog, AlertTriangle, Clock } from 'lucide-react'
 
 export default function MaintenanceSummary({ maintenanceTasks, nonAssegnate, reports, onNavigate }) {
   return (
-    <div className="col-span-2 space-y-5">
-      {/* Segnalazioni da assegnare */}
-      <div className={`border rounded-2xl p-5 ${nonAssegnate > 0 ? 'bg-amber-500/5 border-amber-500/20' : 'bg-surface-1/80 border-token'}`}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${nonAssegnate > 0 ? 'bg-amber-500/20' : 'bg-surface-2'}`}>
-            <AlertTriangle size={18} className={nonAssegnate > 0 ? 'text-amber-400' : 'text-faint'} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Da assegnare */}
+      <div style={{
+        background: nonAssegnate > 0 ? '#f59e0b08' : 'var(--color-card)',
+        border: `1px solid ${nonAssegnate > 0 ? '#f59e0b30' : 'var(--color-border)'}`,
+        borderRadius: 16, padding: 20,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: nonAssegnate > 0 ? 14 : 0 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10,
+            background: nonAssegnate > 0 ? '#f59e0b18' : 'var(--color-surface-2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <AlertTriangle size={18} style={{ color: nonAssegnate > 0 ? '#f59e0b' : 'var(--color-text-muted)' }} />
           </div>
           <div>
-            <p className="text-2xl font-bold text-white">{nonAssegnate}</p>
-            <p className="text-sm text-muted">Da assegnare</p>
+            <p style={{ fontSize: 26, fontWeight: 800, color: 'var(--color-text)' }}>{nonAssegnate}</p>
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Da assegnare</p>
           </div>
         </div>
         {nonAssegnate > 0 && (
-          <button onClick={() => onNavigate?.('reports')}
-            className="w-full py-2.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 text-sm font-semibold rounded-xl transition-colors">
+          <button onClick={() => onNavigate?.('reports')} style={{
+            width: '100%', padding: '10px 0', borderRadius: 10,
+            background: '#f59e0b18', border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 600, color: '#f59e0b',
+            transition: 'background 0.15s',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = '#f59e0b28'}
+            onMouseLeave={e => e.currentTarget.style.background = '#f59e0b18'}
+          >
             Assegna ora →
           </button>
         )}
       </div>
 
-      {/* Stato Manutenzioni Programmate */}
-      <div className="card-elevated rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Manutenzioni</h3>
-          <button onClick={() => onNavigate?.('maintenance')} className="text-xs text-violet-400 hover:text-violet-300 font-medium flex items-center gap-0.5">
+      {/* Manutenzioni */}
+      <div className="card-elevated" style={{ borderRadius: 16, padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Clock size={15} style={{ color: 'var(--color-text-muted)' }} />
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Manutenzioni</h3>
+          </div>
+          <button onClick={() => onNavigate?.('maintenance')} style={{
+            fontSize: 12, fontWeight: 600, color: '#8b5cf6',
+            background: 'none', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 2,
+          }}>
             Gestisci <ChevronRight size={12} />
           </button>
         </div>
 
         {(() => {
           if (maintenanceTasks.length === 0) {
-            return <p className="text-sm text-faint text-center py-4">Nessun piano configurato</p>
+            return <p style={{ fontSize: 14, color: 'var(--color-text-muted)', textAlign: 'center', padding: '16px 0' }}>Nessun piano configurato</p>
           }
 
           const overdue = [], warning = [], ok = []
           for (const t of maintenanceTasks) {
-            if (t.light.color === '#ef4444') overdue.push(t)
-            else if (t.light.color === '#f59e0b') warning.push(t)
+            if (t.light.color === '#ff5c5c' || t.light.color === '#ef4444') overdue.push(t)
+            else if (t.light.color === '#ffaa2c' || t.light.color === '#f59e0b') warning.push(t)
             else ok.push(t)
           }
           const urgent = [...overdue, ...warning]
 
           return (
             <>
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className={`rounded-xl p-2.5 text-center ${overdue.length > 0 ? 'bg-red-500/10 border border-red-500/20' : 'bg-surface-2'}`}>
-                  <p className={`text-xl font-bold ${overdue.length > 0 ? 'text-red-400' : 'text-white'}`}>{overdue.length}</p>
-                  <p className="text-[10px] text-faint">Scadute</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: urgent.length > 0 ? 14 : 0 }}>
+                <div style={{
+                  borderRadius: 10, padding: '10px 8px', textAlign: 'center',
+                  background: overdue.length > 0 ? '#ef444412' : 'var(--color-surface-2)',
+                  border: overdue.length > 0 ? '1px solid #ef444425' : '1px solid transparent',
+                }}>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: overdue.length > 0 ? '#ef4444' : 'var(--color-text)' }}>{overdue.length}</p>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Scadute</p>
                 </div>
-                <div className={`rounded-xl p-2.5 text-center ${warning.length > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-surface-2'}`}>
-                  <p className={`text-xl font-bold ${warning.length > 0 ? 'text-amber-400' : 'text-white'}`}>{warning.length}</p>
-                  <p className="text-[10px] text-faint">In scadenza</p>
+                <div style={{
+                  borderRadius: 10, padding: '10px 8px', textAlign: 'center',
+                  background: warning.length > 0 ? '#f59e0b12' : 'var(--color-surface-2)',
+                  border: warning.length > 0 ? '1px solid #f59e0b25' : '1px solid transparent',
+                }}>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: warning.length > 0 ? '#f59e0b' : 'var(--color-text)' }}>{warning.length}</p>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>In scadenza</p>
                 </div>
-                <div className="bg-surface-2 rounded-xl p-2.5 text-center">
-                  <p className="text-xl font-bold text-emerald-400">{ok.length}</p>
-                  <p className="text-[10px] text-faint">In regola</p>
+                <div style={{ borderRadius: 10, padding: '10px 8px', textAlign: 'center', background: 'var(--color-surface-2)' }}>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: '#22c55e' }}>{ok.length}</p>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>In regola</p>
                 </div>
               </div>
 
               {urgent.length > 0 ? (
-                <div className="space-y-2">
-                  {urgent.slice(0, 5).map((task, i) => (
-                    <div key={`${task.plan.id}-${i}`} className="flex items-center gap-3 p-2.5 bg-surface-2 rounded-xl">
-                      <div className="w-3 h-3 rounded-full shrink-0" style={{ background: task.light.color, boxShadow: `0 0 8px ${task.light.color}40` }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-themed font-medium truncate">{task.plan.name}</p>
-                        <p className="text-[11px] text-faint truncate">
-                          <Cog size={10} className="inline mr-1" />{task.machine.name}
-                          {task.plan.assigned_to_name && <> · 👤 {task.plan.assigned_to_name}</>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {urgent.slice(0, 4).map((task, i) => (
+                    <div key={`${task.plan.id}-${i}`} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px', background: 'var(--color-surface-2)', borderRadius: 10,
+                    }}>
+                      <div style={{
+                        width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                        background: task.light.color,
+                        boxShadow: `0 0 8px ${task.light.color}50`,
+                      }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {task.plan.name}
+                        </p>
+                        <p style={{ fontSize: 11, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <Cog size={10} style={{ display: 'inline', marginRight: 3, verticalAlign: 'middle' }} />
+                          {task.machine.name}
                         </p>
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg shrink-0" style={{ background: task.light.color + '18', color: task.light.color }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, flexShrink: 0,
+                        background: `${task.light.color}18`, color: task.light.color,
+                      }}>
                         {task.light.label}
                       </span>
                     </div>
                   ))}
-                  {urgent.length > 5 && (
-                    <p className="text-xs text-faint text-center py-1">+ {urgent.length - 5} altre</p>
+                  {urgent.length > 4 && (
+                    <p style={{ fontSize: 12, color: 'var(--color-text-muted)', textAlign: 'center', padding: '4px 0' }}>+ {urgent.length - 4} altre</p>
                   )}
                 </div>
               ) : (
-                <div className="flex items-center gap-3 p-3 bg-emerald-500/5 border border-emerald-500/15 rounded-xl">
-                  <CheckCircle size={18} className="text-emerald-400 shrink-0" />
-                  <p className="text-sm text-emerald-400 font-medium">Tutte le manutenzioni in regola</p>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '12px 14px', borderRadius: 10,
+                  background: '#22c55e08', border: '1px solid #22c55e18',
+                }}>
+                  <CheckCircle size={16} style={{ color: '#22c55e', flexShrink: 0 }} />
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#22c55e' }}>Tutte le manutenzioni in regola</p>
                 </div>
               )}
             </>

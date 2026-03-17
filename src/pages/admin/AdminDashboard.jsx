@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { useKPIStats } from '../../hooks/useKPIStats'
-import { AlertTriangle } from 'lucide-react'
 import HeroKPIs from './dashboard/HeroKPIs'
 import MaintenanceAlertBanner from './dashboard/MaintenanceAlertBanner'
 import TimeKPIs from './dashboard/TimeKPIs'
@@ -76,48 +75,28 @@ export default function AdminDashboard({ onNavigate }) {
   const resolveRate = stats.total > 0 ? Math.round((stats.risolte / stats.total) * 100) : 0
   const urgenti = stats.critiche + stats.alte
   const nonAssegnate = reports.filter(r => r.status === 'aperta' && !r.assigned_to).length
-  const criticheNonAssegnate = reports.filter(r => r.severity === 'critica' && r.status === 'aperta' && !r.assigned_to).length
 
   if (loading) return null
 
   return (
-    <div className="space-y-6 stagger-children">
-      {criticheNonAssegnate > 0 && (
-        <div
-          style={{
-            background: 'var(--color-red-bg)',
-            borderBottom: '1px solid rgba(255, 92, 92, 0.33)',
-            padding: '10px 16px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            animation: 'pulse 2s infinite',
-            borderRadius: 8,
-          }}
-        >
-          <span style={{ fontSize: 13, color: 'var(--color-red)' }}>
-            ⚠ {criticheNonAssegnate} segnalazion{criticheNonAssegnate === 1 ? 'e critica non assegnata' : 'i critiche non assegnate'}
-          </span>
-          <button
-            onClick={() => onNavigate('reports')}
-            style={{
-              fontSize: 12, fontWeight: 600, color: 'var(--color-red)',
-              background: 'transparent', border: '1px solid var(--color-red)',
-              borderRadius: 6, padding: '4px 12px', cursor: 'pointer',
-            }}
-          >
-            Vedi
-          </button>
-        </div>
-      )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }} className="stagger-children">
+      {/* Row 1: Hero KPIs */}
       <HeroKPIs stats={stats} resolveRate={resolveRate} urgenti={urgenti} nonAssegnate={nonAssegnate} />
+
+      {/* Row 2: Maintenance Alert (conditional) */}
       <MaintenanceAlertBanner maintenanceTasks={maintenanceTasks} onNavigate={onNavigate} />
+
+      {/* Row 3: Time KPIs */}
       <TimeKPIs kpi={kpi} />
 
-      <div className="grid grid-cols-3 gap-5">
+      {/* Row 4: Charts + Team — 2 col bilanciato */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
         <ResolutionChart reports={reports} stats={stats} resolveRate={resolveRate} />
         <TeamWorkload users={users} reports={reports} onNavigate={onNavigate} />
       </div>
 
-      <div className="grid grid-cols-5 gap-5">
+      {/* Row 5: Activity + Maintenance — full width */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 16 }}>
         <ActivityFeed activities={activities} reports={reports} onNavigate={onNavigate} />
         <MaintenanceSummary maintenanceTasks={maintenanceTasks} nonAssegnate={nonAssegnate} reports={reports} onNavigate={onNavigate} />
       </div>
