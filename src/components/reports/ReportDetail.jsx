@@ -44,15 +44,17 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
       haptic.warning()
       return
     }
-    await updateStatus('risolta', {
+    const success = await updateStatus('risolta', {
       closure_hours: parseFloat(closureForm.hours),
       closure_parts: closureForm.parts.trim() || null,
       closure_root_cause: closureForm.rootCause.trim(),
       closure_action: closureForm.action.trim() || null,
       closed_at: new Date().toISOString(),
     })
-    setShowClosureForm(false)
-    setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
+    if (success) {
+      setShowClosureForm(false)
+      setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
+    }
   }
 
   const updateStatus = async (s, extraUpdates = {}) => {
@@ -91,10 +93,13 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           report_id: report.id, from_user: user.id, target_user: targetId,
         }).catch(e => console.warn('Side effect failed:', e.message))
       }
+      return true
     } catch {
       toast.error('Errore aggiornamento stato')
+      return false
+    } finally {
+      setUpdatingStatus(null)
     }
-    setUpdatingStatus(null)
   }
 
   return (

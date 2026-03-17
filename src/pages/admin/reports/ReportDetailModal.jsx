@@ -73,16 +73,22 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
       return
     }
     setClosureSaving(true)
-    await updateStatus(selected.id, 'risolta', {
-      closure_hours: parseFloat(closureForm.hours),
-      closure_parts: closureForm.parts.trim() || null,
-      closure_root_cause: closureForm.rootCause.trim(),
-      closure_action: closureForm.action.trim() || null,
-      closed_at: new Date().toISOString(),
-    })
-    setShowClosureForm(false)
-    setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
-    setClosureSaving(false)
+    try {
+      await updateStatus(selected.id, 'risolta', {
+        closure_hours: parseFloat(closureForm.hours),
+        closure_parts: closureForm.parts.trim() || null,
+        closure_root_cause: closureForm.rootCause.trim(),
+        closure_action: closureForm.action.trim() || null,
+        closed_at: new Date().toISOString(),
+      })
+      setShowClosureForm(false)
+      setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
+      toast.success('Intervento chiuso con successo')
+    } catch (err) {
+      toast.error('Errore chiusura intervento: ' + err.message)
+    } finally {
+      setClosureSaving(false)
+    }
   }
 
   const updateStatus = async (reportId, newStatus, extraUpdates = {}) => {
