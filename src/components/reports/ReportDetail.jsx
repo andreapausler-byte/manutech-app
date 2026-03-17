@@ -49,7 +49,6 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
       closure_parts: closureForm.parts.trim() || null,
       closure_root_cause: closureForm.rootCause.trim(),
       closure_action: closureForm.action.trim() || null,
-      closed_at: new Date().toISOString(),
     })
     if (success) {
       setShowClosureForm(false)

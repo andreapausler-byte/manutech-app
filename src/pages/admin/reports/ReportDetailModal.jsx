@@ -79,7 +79,6 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
         closure_parts: closureForm.parts.trim() || null,
         closure_root_cause: closureForm.rootCause.trim(),
         closure_action: closureForm.action.trim() || null,
-        closed_at: new Date().toISOString(),
       })
       setShowClosureForm(false)
       setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
