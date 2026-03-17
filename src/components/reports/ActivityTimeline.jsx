@@ -214,9 +214,9 @@ function buildFallbackTimeline(report) {
 
   if (report.status !== 'aperta') {
     const workParts = []
-    if (report.closure_hours) workParts.push(`${report.closure_hours}h lavoro`)
-    if (report.closure_parts) workParts.push(`Ricambi: ${report.closure_parts}`)
-    if (report.closure_root_cause) workParts.push(`Causa: ${report.closure_root_cause}`)
+    if (report.extra_data?.closure_hours) workParts.push(`${report.extra_data.closure_hours}h lavoro`)
+    if (report.extra_data?.closure_parts) workParts.push(`Ricambi: ${report.extra_data.closure_parts}`)
+    if (report.extra_data?.closure_root_cause) workParts.push(`Causa: ${report.extra_data.closure_root_cause}`)
 
     timeline.push({
       id: 'status-current',

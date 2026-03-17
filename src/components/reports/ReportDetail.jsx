@@ -44,19 +44,22 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
       haptic.warning()
       return
     }
-    const success = await updateStatus('risolta', {
+    const closureData = {
       closure_hours: parseFloat(closureForm.hours),
       closure_parts: closureForm.parts.trim() || null,
       closure_root_cause: closureForm.rootCause.trim(),
       closure_action: closureForm.action.trim() || null,
-    })
+    }
+    const success = await updateStatus('risolta', {
+      extra_data: { ...(report.extra_data || {}), ...closureData },
+    }, closureData)
     if (success) {
       setShowClosureForm(false)
       setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
     }
   }
 
-  const updateStatus = async (s, extraUpdates = {}) => {
+  const updateStatus = async (s, extraUpdates = {}, closureData = null) => {
     if (updatingStatus) return
     setUpdatingStatus(s)
     haptic.medium()
@@ -67,8 +70,8 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
       const statusLabel = STATUS[s]?.label || s
       toast.success(`Stato → ${statusLabel}`)
 
-      const activityDetail = s === 'risolta' && extraUpdates.closure_hours
-        ? `Chiuso in ${extraUpdates.closure_hours}h — Causa: ${extraUpdates.closure_root_cause}`
+      const activityDetail = s === 'risolta' && closureData?.closure_hours
+        ? `Chiuso in ${closureData.closure_hours}h — Causa: ${closureData.closure_root_cause}`
         : null
 
       db.addActivity(report.id, {
@@ -220,31 +223,31 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             })()}
 
             {/* Closure info (se il report è risolta/chiuso e ha dati chiusura) */}
-            {report.closure_hours != null && (
+            {report.extra_data?.closure_hours != null && (
               <div className="card-elevated rounded-2xl p-[4vw] space-y-[2vw]">
                 <p className="label-section tracking-wider">Dati Chiusura Intervento</p>
                 <div className="grid grid-cols-2 gap-[2vw]">
                   <div className="bg-surface-2 rounded-xl p-[2.5vw]">
                     <p className="text-xs text-faint uppercase">Ore lavoro</p>
-                    <p className="text-base text-themed font-bold">{report.closure_hours}h</p>
+                    <p className="text-base text-themed font-bold">{report.extra_data.closure_hours}h</p>
                   </div>
-                  {report.closure_parts && (
+                  {report.extra_data.closure_parts && (
                     <div className="bg-surface-2 rounded-xl p-[2.5vw]">
                       <p className="text-xs text-faint uppercase">Ricambi</p>
-                      <p className="text-sm text-secondary">{report.closure_parts}</p>
+                      <p className="text-sm text-secondary">{report.extra_data.closure_parts}</p>
                     </div>
                   )}
                 </div>
-                {report.closure_root_cause && (
+                {report.extra_data.closure_root_cause && (
                   <div className="bg-surface-2 rounded-xl p-[2.5vw]">
                     <p className="text-xs text-faint uppercase">Causa radice</p>
-                    <p className="text-sm text-secondary">{report.closure_root_cause}</p>
+                    <p className="text-sm text-secondary">{report.extra_data.closure_root_cause}</p>
                   </div>
                 )}
-                {report.closure_action && (
+                {report.extra_data.closure_action && (
                   <div className="bg-surface-2 rounded-xl p-[2.5vw]">
                     <p className="text-xs text-faint uppercase">Azione correttiva</p>
-                    <p className="text-sm text-secondary">{report.closure_action}</p>
+                    <p className="text-sm text-secondary">{report.extra_data.closure_action}</p>
                   </div>
                 )}
               </div>

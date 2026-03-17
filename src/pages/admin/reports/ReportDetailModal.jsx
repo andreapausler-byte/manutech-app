@@ -73,13 +73,16 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
       return
     }
     setClosureSaving(true)
+    const closureData = {
+      closure_hours: parseFloat(closureForm.hours),
+      closure_parts: closureForm.parts.trim() || null,
+      closure_root_cause: closureForm.rootCause.trim(),
+      closure_action: closureForm.action.trim() || null,
+    }
     try {
       await updateStatus(selected.id, 'risolta', {
-        closure_hours: parseFloat(closureForm.hours),
-        closure_parts: closureForm.parts.trim() || null,
-        closure_root_cause: closureForm.rootCause.trim(),
-        closure_action: closureForm.action.trim() || null,
-      })
+        extra_data: { ...(selected.extra_data || {}), ...closureData },
+      }, closureData)
       setShowClosureForm(false)
       setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
       toast.success('Intervento chiuso con successo')
@@ -90,10 +93,10 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
     }
   }
 
-  const updateStatus = async (reportId, newStatus, extraUpdates = {}) => {
+  const updateStatus = async (reportId, newStatus, extraUpdates = {}, closureData = null) => {
     await db.updateReport(reportId, { status: newStatus, ...extraUpdates })
-    const activityDetail = newStatus === 'risolta' && extraUpdates.closure_hours
-      ? `Chiuso in ${extraUpdates.closure_hours}h — Causa: ${extraUpdates.closure_root_cause}`
+    const activityDetail = newStatus === 'risolta' && closureData?.closure_hours
+      ? `Chiuso in ${closureData.closure_hours}h — Causa: ${closureData.closure_root_cause}`
       : null
     db.addActivity(reportId, {
       type: 'status_change', from_status: selected?.status, to_status: newStatus,
@@ -294,10 +297,10 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                     </div>
                   </div>
                 )}
-                {selected.extra_data && Object.keys(selected.extra_data).length > 0 && (
+                {selected.extra_data && Object.entries(selected.extra_data).filter(([k]) => !k.startsWith('closure_')).length > 0 && (
                   <div>
                     <p className="text-[11px] text-faint uppercase tracking-wider mb-2">Dati aggiuntivi</p>
-                    {Object.entries(selected.extra_data).map(([k, v]) => (
+                    {Object.entries(selected.extra_data).filter(([k]) => !k.startsWith('closure_')).map(([k, v]) => (
                       <div key={k} className="flex justify-between bg-surface-1 rounded-lg px-3 py-2 mb-1">
                         <span className="text-xs text-muted">{k}</span>
                         <span className="text-xs text-white font-medium">{String(v)}</span>
@@ -305,15 +308,15 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                     ))}
                   </div>
                 )}
-                {selected.closure_hours != null && (
+                {selected.extra_data?.closure_hours != null && (
                   <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 space-y-2">
                     <p className="text-[11px] text-emerald-400 uppercase tracking-wider font-semibold">Dati Chiusura</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div><span className="text-faint">Ore:</span> <span className="text-themed font-bold">{selected.closure_hours}h</span></div>
-                      {selected.closure_parts && <div><span className="text-faint">Ricambi:</span> <span className="text-secondary">{selected.closure_parts}</span></div>}
+                      <div><span className="text-faint">Ore:</span> <span className="text-themed font-bold">{selected.extra_data.closure_hours}h</span></div>
+                      {selected.extra_data.closure_parts && <div><span className="text-faint">Ricambi:</span> <span className="text-secondary">{selected.extra_data.closure_parts}</span></div>}
                     </div>
-                    {selected.closure_root_cause && <div className="text-xs"><span className="text-faint">Causa radice:</span> <span className="text-secondary">{selected.closure_root_cause}</span></div>}
-                    {selected.closure_action && <div className="text-xs"><span className="text-faint">Azione correttiva:</span> <span className="text-secondary">{selected.closure_action}</span></div>}
+                    {selected.extra_data.closure_root_cause && <div className="text-xs"><span className="text-faint">Causa radice:</span> <span className="text-secondary">{selected.extra_data.closure_root_cause}</span></div>}
+                    {selected.extra_data.closure_action && <div className="text-xs"><span className="text-faint">Azione correttiva:</span> <span className="text-secondary">{selected.extra_data.closure_action}</span></div>}
                   </div>
                 )}
                 <div className="bg-surface-2/20 rounded-xl p-3 space-y-1.5 text-xs text-faint">
