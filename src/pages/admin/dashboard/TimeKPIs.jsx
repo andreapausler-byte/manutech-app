@@ -2,58 +2,77 @@ import { Timer, TrendingUp, CheckCircle, Zap, ArrowUpRight, ArrowDownRight } fro
 
 export default function TimeKPIs({ kpi }) {
   return (
-    <div className="grid grid-cols-4 gap-5">
-      <div className="card-elevated rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Timer size={16} className="text-cyan-400" />
-          <span className="text-xs text-muted uppercase tracking-wider font-semibold">Tempo Medio</span>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+      {/* Tempo Medio */}
+      <div className="card-elevated" style={{ borderRadius: 16, padding: '20px 20px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#06b6d415', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Timer size={16} style={{ color: '#06b6d4' }} />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Tempo medio</span>
         </div>
-        <p className="text-3xl font-bold text-white">{kpi.avgResolutionLabel}</p>
-        <p className="text-xs text-faint mt-1">dalla creazione alla risoluzione</p>
+        <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1 }}>{kpi.avgResolutionLabel}</p>
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>dalla creazione alla risoluzione</p>
       </div>
 
-      <div className="card-elevated rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp size={16} className="text-violet-400" />
-          <span className="text-xs text-muted uppercase tracking-wider font-semibold">Questa Settimana</span>
+      {/* Questa Settimana */}
+      <div className="card-elevated" style={{ borderRadius: 16, padding: '20px 20px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#8b5cf615', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <TrendingUp size={16} style={{ color: '#8b5cf6' }} />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Questa settimana</span>
         </div>
-        <div className="flex items-end gap-2">
-          <p className="text-3xl font-bold text-white">{kpi.reportsThisWeek}</p>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1 }}>{kpi.reportsThisWeek}</p>
           {kpi.weeklyTrend.change !== 0 && (
-            <span className={`text-sm font-bold flex items-center mb-1 ${kpi.weeklyTrend.change > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+            <span style={{
+              fontSize: 13, fontWeight: 700,
+              color: kpi.weeklyTrend.change > 0 ? '#ef4444' : '#22c55e',
+              display: 'inline-flex', alignItems: 'center',
+            }}>
               {kpi.weeklyTrend.change > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
               {Math.abs(kpi.weeklyTrend.change)}%
             </span>
           )}
         </div>
-        <p className="text-xs text-faint mt-1">vs {kpi.reportsLastWeek} settimana scorsa</p>
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>vs {kpi.reportsLastWeek} settimana scorsa</p>
       </div>
 
-      <div className="card-elevated rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <CheckCircle size={16} className="text-emerald-400" />
-          <span className="text-xs text-muted uppercase tracking-wider font-semibold">Risolte</span>
+      {/* Risolte */}
+      <div className="card-elevated" style={{ borderRadius: 16, padding: '20px 20px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#22c55e15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <CheckCircle size={16} style={{ color: '#22c55e' }} />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Risolte</span>
         </div>
-        <p className="text-3xl font-bold text-emerald-400">{kpi.resolvedThisWeek}</p>
-        <p className="text-xs text-faint mt-1">chiuse questa settimana</p>
+        <p style={{ fontSize: 28, fontWeight: 800, color: '#22c55e', lineHeight: 1 }}>{kpi.resolvedThisWeek}</p>
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>chiuse questa settimana</p>
       </div>
 
-      <div className="card-elevated rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Zap size={16} className="text-amber-400" />
-          <span className="text-xs text-muted uppercase tracking-wider font-semibold">Report Rapidi</span>
+      {/* Report Rapidi + Sparkline */}
+      <div className="card-elevated" style={{ borderRadius: 16, padding: '20px 20px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f59e0b15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Zap size={16} style={{ color: '#f59e0b' }} />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Report rapidi</span>
         </div>
-        <p className="text-3xl font-bold text-amber-400">{kpi.quickReportPct}%</p>
-        <div className="flex items-end gap-0.5 mt-2 h-8">
+        <p style={{ fontSize: 28, fontWeight: 800, color: '#f59e0b', lineHeight: 1 }}>{kpi.quickReportPct}%</p>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, marginTop: 10, height: 28 }}>
           {kpi.dailyDistribution.map((count, i) => {
             const max = Math.max(...kpi.dailyDistribution, 1)
             return (
-              <div key={i} className="flex-1 flex flex-col items-center">
-                <div
-                  className="w-full bg-violet-500/60 rounded-sm min-h-[2px] transition-all"
-                  style={{ height: `${(count / max) * 100}%` }}
-                />
-                <span className="text-[8px] text-faint mt-0.5">{kpi.dayLabels?.[i]?.[0]}</span>
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{
+                  width: '100%', borderRadius: 3, minHeight: 2,
+                  height: `${(count / max) * 100}%`,
+                  background: '#8b5cf6',
+                  opacity: 0.7,
+                  transition: 'height 0.5s ease',
+                }} />
+                <span style={{ fontSize: 9, color: 'var(--color-text-muted)', marginTop: 3 }}>{kpi.dayLabels?.[i]?.[0]}</span>
               </div>
             )
           })}

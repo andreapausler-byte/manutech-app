@@ -14,26 +14,42 @@ const ACTIVITY_ICONS = {
 
 export default function ActivityFeed({ activities, reports, onNavigate }) {
   return (
-    <div className="col-span-3 card-elevated rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Attività Recente</h3>
-        <button onClick={() => onNavigate?.('reports')} className="text-xs text-violet-400 hover:text-violet-300 font-medium flex items-center gap-0.5">
+    <div className="card-elevated" style={{ borderRadius: 16, padding: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Attività recente</h3>
+        <button onClick={() => onNavigate?.('reports')} style={{
+          fontSize: 12, fontWeight: 600, color: '#8b5cf6',
+          background: 'none', border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 2,
+        }}>
           Vedi tutte <ChevronRight size={12} />
         </button>
       </div>
 
       {activities.length > 0 ? (
-        <div className="space-y-1">
-          {activities.slice(0, 12).map((act, i) => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {activities.slice(0, 8).map((act, i) => {
             const config = ACTIVITY_ICONS[act.type] || ACTIVITY_ICONS.created
             const Icon = config.icon
             return (
-              <div key={act.id || i} className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-surface-2 transition-colors">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: config.color + '18' }}>
+              <div key={act.id || i} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 12px', borderRadius: 12,
+                transition: 'background 0.15s',
+                cursor: 'default',
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--color-surface-2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                  background: `${config.color}15`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
                   <Icon size={14} style={{ color: config.color }} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[15px] text-white truncate">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 14, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {act.type === 'status_change' && act.to_status
                       ? `Stato → ${STATUS[act.to_status]?.label || act.to_status}`
                       : act.type === 'comment'
@@ -42,31 +58,40 @@ export default function ActivityFeed({ activities, reports, onNavigate }) {
                       ? 'Report rapido creato'
                       : 'Segnalazione creata'}
                   </p>
-                  <p className="text-xs text-faint">{act.user_name || '—'}</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 1 }}>{act.user_name || '—'}</p>
                 </div>
                 {act.type === 'status_change' && act.to_status && (
                   <Badge {...(STATUS[act.to_status] || {})} />
                 )}
-                <span className="text-sm text-faint shrink-0 w-20 text-right">{timeAgo(act.created_at)}</span>
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)', flexShrink: 0, width: 72, textAlign: 'right' }}>
+                  {timeAgo(act.created_at)}
+                </span>
               </div>
             )
           })}
         </div>
       ) : (
-        <div className="space-y-1">
-          {reports.slice(0, 10).map((r) => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {reports.slice(0, 8).map((r) => {
             const st = STATUS[r.status] || STATUS.aperta
             const sev = SEVERITY[r.severity] || SEVERITY.media
             return (
-              <div key={r.id} className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-surface-2 transition-colors cursor-pointer" onClick={() => onNavigate?.('reports')}>
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: st.color }} />
-                <span className="text-[15px] text-white flex-1 truncate">{r.title}</span>
+              <div key={r.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
+              }}
+                onClick={() => onNavigate?.('reports')}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--color-surface-2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 14, color: 'var(--color-text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
                 <Badge {...sev} />
-                <span className="text-sm text-faint shrink-0 w-20 text-right">{timeAgo(r.created_at)}</span>
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)', flexShrink: 0, width: 72, textAlign: 'right' }}>{timeAgo(r.created_at)}</span>
               </div>
             )
           })}
-          {reports.length === 0 && <p className="text-center py-10 text-faint">Nessuna segnalazione registrata</p>}
+          {reports.length === 0 && <p style={{ textAlign: 'center', padding: '30px 0', color: 'var(--color-text-muted)', fontSize: 14 }}>Nessuna segnalazione registrata</p>}
         </div>
       )}
     </div>

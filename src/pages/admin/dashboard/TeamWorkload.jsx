@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Users } from 'lucide-react'
 
 export default function TeamWorkload({ users, reports, onNavigate }) {
   const workload = users
@@ -17,54 +17,79 @@ export default function TeamWorkload({ users, reports, onNavigate }) {
 
   const maxActive = Math.max(...workload.map(u => u.active), 1)
 
+  const roleCounts = { admin: 0, tecnico: 0, operatore: 0 }
+  for (const u of users) if (roleCounts[u.role] !== undefined) roleCounts[u.role]++
+
   return (
-    <div className="card-elevated rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-semibold text-muted uppercase tracking-wider">Carico di Lavoro</h3>
-        <button onClick={() => onNavigate?.('users')} className="text-xs text-violet-400 hover:text-violet-300 font-medium flex items-center gap-0.5">
+    <div className="card-elevated" style={{ borderRadius: 16, padding: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Users size={16} style={{ color: 'var(--color-text-muted)' }} />
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Carico di lavoro</h3>
+        </div>
+        <button onClick={() => onNavigate?.('users')} style={{
+          fontSize: 12, fontWeight: 600, color: '#8b5cf6',
+          background: 'none', border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 2,
+        }}>
           Gestisci <ChevronRight size={12} />
         </button>
       </div>
 
-      <div className="space-y-2.5">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {workload.length === 0 ? (
-          <p className="text-sm text-faint text-center py-6">Nessuna segnalazione assegnata</p>
+          <p style={{ fontSize: 14, color: 'var(--color-text-muted)', textAlign: 'center', padding: '20px 0' }}>Nessuna segnalazione assegnata</p>
         ) : (
           workload.map(u => {
             const roleIcon = u.role === 'tecnico' ? '🔧' : u.role === 'admin' ? '👔' : '👷'
-            const roleColor = u.role === 'tecnico' ? '#22c55e' : u.role === 'admin' ? '#f59e0b' : '#7c6aff'
             const loadPct = (u.active / maxActive) * 100
             const isOverloaded = u.active >= 4
+            const barColor = isOverloaded ? '#ef4444' : u.active > 2 ? '#f59e0b' : '#22c55e'
 
             return (
-              <div key={u.id} className="p-3 bg-surface-2 rounded-xl">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center text-sm shrink-0"
-                    style={{ background: roleColor + '18' }}>
+              <div key={u.id} style={{
+                background: 'var(--color-surface-2)',
+                borderRadius: 12,
+                padding: '12px 14px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 8,
+                    background: 'var(--color-surface-1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 15,
+                  }}>
                     {roleIcon}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{u.name}</p>
-                    <p className="text-[11px] text-faint capitalize">{u.role}</p>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</p>
+                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>{u.role}</p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                     {u.critical > 0 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">{u.critical} urg</span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
+                        background: '#ef444418', color: '#ef4444',
+                      }}>{u.critical} urg</span>
                     )}
-                    <span className={`text-lg font-bold ${isOverloaded ? 'text-red-400' : u.active > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    <span style={{
+                      fontSize: 20, fontWeight: 800,
+                      color: isOverloaded ? '#ef4444' : u.active > 0 ? '#f59e0b' : '#22c55e',
+                    }}>
                       {u.active}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-surface-1 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${loadPct}%`,
-                        background: isOverloaded ? '#ef4444' : u.active > 2 ? '#f59e0b' : '#22c55e'
-                      }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ flex: 1, height: 5, background: 'var(--color-surface-1)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 3,
+                      width: `${loadPct}%`,
+                      background: barColor,
+                      transition: 'width 0.5s ease',
+                    }} />
                   </div>
-                  <span className="text-[10px] text-faint w-16 text-right">{u.resolved} risolte</span>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{u.resolved} risolte</span>
                 </div>
               </div>
             )
@@ -72,19 +97,23 @@ export default function TeamWorkload({ users, reports, onNavigate }) {
         )}
       </div>
 
-      <div className="mt-5 pt-4 border-t border-token grid grid-cols-3 gap-2">
-        {(() => {
-          const counts = { admin: 0, tecnico: 0, operatore: 0 }
-          for (const u of users) if (counts[u.role] !== undefined) counts[u.role]++
-          return [
-            { label: 'Admin', count: counts.admin, color: '#f59e0b' },
-            { label: 'Tecnici', count: counts.tecnico, color: '#22c55e' },
-            { label: 'Operatori', count: counts.operatore, color: '#7c6aff' },
-          ]
-        })().map(({ label, count }) => (
-          <div key={label} className="text-center p-2 bg-surface-1 rounded-lg">
-            <p className="text-lg font-bold text-themed">{count}</p>
-            <p className="text-[10px] text-faint uppercase">{label}</p>
+      {/* Role counts */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
+        marginTop: 16, paddingTop: 16,
+        borderTop: '1px solid var(--color-border)',
+      }}>
+        {[
+          { label: 'Admin', count: roleCounts.admin, color: '#f59e0b' },
+          { label: 'Tecnici', count: roleCounts.tecnico, color: '#22c55e' },
+          { label: 'Operatori', count: roleCounts.operatore, color: '#8b5cf6' },
+        ].map(({ label, count, color }) => (
+          <div key={label} style={{
+            textAlign: 'center', padding: '10px 8px',
+            background: 'var(--color-surface-1)', borderRadius: 10,
+          }}>
+            <p style={{ fontSize: 20, fontWeight: 700, color }}>{count}</p>
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>{label}</p>
           </div>
         ))}
       </div>

@@ -1,50 +1,77 @@
+import { AlertCircle, Loader, CheckCircle2, AlertTriangle } from 'lucide-react'
+
 export default function HeroKPIs({ stats, resolveRate, urgenti, nonAssegnate }) {
   const cards = [
     {
-      label: 'APERTI',
+      label: 'Aperti',
       value: stats.aperte,
-      color: 'var(--color-red)',
+      subtitle: nonAssegnate > 0 ? `${nonAssegnate} da assegnare` : 'Tutti assegnati',
+      icon: AlertCircle,
+      color: '#ef4444',
+      pulse: nonAssegnate > 0,
     },
     {
-      label: 'IN CORSO',
+      label: 'In Corso',
       value: stats.assegnate + stats.inCorso,
-      color: 'var(--color-cyan)',
+      subtitle: `${stats.assegnate} assegnati · ${stats.inCorso} in lavorazione`,
+      icon: Loader,
+      color: '#3b82f6',
     },
     {
-      label: 'COMPLETATI',
+      label: 'Completati',
       value: stats.risolte,
-      color: 'var(--color-green)',
+      subtitle: `${resolveRate}% tasso risoluzione`,
+      icon: CheckCircle2,
+      color: '#22c55e',
     },
     {
-      label: 'MACCHINE FERME',
+      label: 'Urgenti',
       value: urgenti,
-      color: 'var(--color-orange)',
+      subtitle: `${stats.critiche} critiche · ${stats.alte} alta priorità`,
+      icon: AlertTriangle,
+      color: '#f59e0b',
+      pulse: urgenti > 0,
     },
   ]
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-      {cards.map(({ label, value, color }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+      {cards.map(({ label, value, subtitle, icon: Icon, color, pulse }) => (
         <div key={label} style={{
           background: 'var(--color-card)',
           border: '1px solid var(--color-border)',
-          borderRadius: 12,
-          padding: '14px 12px',
-          textAlign: 'center',
+          borderTop: `3px solid ${color}`,
+          borderRadius: 16,
+          padding: '20px 20px 18px',
+          animation: pulse ? 'pulse 3s ease-in-out infinite' : undefined,
         }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: `${color}15`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon size={18} style={{ color }} />
+            </div>
+            <span style={{
+              fontSize: 36, fontWeight: 800, color,
+              fontFamily: "'JetBrains Mono', monospace",
+              lineHeight: 1,
+            }}>
+              {value}
+            </span>
+          </div>
           <p style={{
-            fontSize: 28, fontWeight: 700, color,
-            fontFamily: "'JetBrains Mono', monospace",
-            lineHeight: 1.1,
+            fontSize: 14, fontWeight: 600, color: 'var(--color-text)',
+            marginBottom: 2,
           }}>
-            {value}
+            {label}
           </p>
           <p style={{
             fontSize: 12, color: 'var(--color-text-secondary)',
-            textTransform: 'uppercase', letterSpacing: '0.05em',
-            marginTop: 6,
+            lineHeight: 1.3,
           }}>
-            {label}
+            {subtitle}
           </p>
         </div>
       ))}
