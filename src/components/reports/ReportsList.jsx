@@ -62,7 +62,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
     if (!search) return true
     const q = search.toLowerCase()
     return r.title?.toLowerCase().includes(q) || r.machine?.toLowerCase().includes(q)
-  })
+  }).sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
 
   return (
     <div ref={pullRef} className="px-[4vw] pt-0 pb-4 space-y-[3vw]">
