@@ -32,26 +32,19 @@ export default function AdminDashboard({ onNavigate }) {
 
   useEffect(() => {
     async function loadAll() {
-      const [r, u, a, m, plans, logs] = await Promise.all([
+      const [r, u, a, m, plans, lastLogByPlan] = await Promise.all([
         db.getReports(), db.getUsers(), db.getAllActivities(20), db.getMachines(),
-        db.getAllMaintenancePlans(), db.getAllMaintenanceLogs()
+        db.getAllMaintenancePlansWithMachine(), db.getLastLogPerPlan()
       ])
       setReports(r); setUsers(u); setActivities(a); setMachines(m)
 
-      const machineMap = Object.fromEntries(m.map(machine => [machine.id, machine]))
-      const lastLogByPlan = {}
-      for (const log of logs) {
-        if (log.plan_id && (!lastLogByPlan[log.plan_id] || new Date(log.performed_at) > new Date(lastLogByPlan[log.plan_id].performed_at))) {
-          lastLogByPlan[log.plan_id] = log
-        }
-      }
-
       const tasks = plans.map(plan => {
-        const machine = machineMap[plan.machine_id]
+        const machine = plan.machine
+        if (!machine) return null
         const lastLog = lastLogByPlan[plan.id] || null
         const light = getTrafficLight(plan, lastLog)
         return { plan, machine, lastLog, light }
-      }).filter(t => t.machine)
+      }).filter(Boolean)
 
       tasks.sort((a, b) => a.light.daysLeft - b.light.daysLeft)
       setMaintenanceTasks(tasks)
