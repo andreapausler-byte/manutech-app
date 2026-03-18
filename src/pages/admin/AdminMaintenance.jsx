@@ -65,31 +65,23 @@ export default function AdminMaintenance() {
 
   const load = async () => {
     setLoading(true)
-    const [m, u, plans, allL] = await Promise.all([
-      db.getMachines(), db.getUsers(), db.getAllMaintenancePlans(), db.getAllMaintenanceLogs()
+    const [m, u, plans, lastLogByPlan, paginatedLogs] = await Promise.all([
+      db.getMachines(), db.getUsers(), db.getAllMaintenancePlansWithMachine(),
+      db.getLastLogPerPlan(), db.getMaintenanceLogsPaginated(200)
     ])
     setMachines(m); setUsers(u)
 
-    // Build machine lookup and find last log per plan from pre-fetched data
-    const machineMap = Object.fromEntries(m.map(machine => [machine.id, machine]))
-    const lastLogByPlan = {}
-    for (const log of allL) {
-      if (log.plan_id && (!lastLogByPlan[log.plan_id] || new Date(log.performed_at) > new Date(lastLogByPlan[log.plan_id].performed_at))) {
-        lastLogByPlan[log.plan_id] = log
-      }
-    }
-
     const allTasks = plans.map(plan => {
-      const machine = machineMap[plan.machine_id]
+      const machine = plan.machine
+      if (!machine) return null
       const lastLog = lastLogByPlan[plan.id] || null
       const light = getTrafficLight(plan, lastLog)
       return { plan, machine, lastLog, light }
-    }).filter(t => t.machine)
+    }).filter(Boolean)
 
     allTasks.sort((a, b) => a.light.daysLeft - b.light.daysLeft)
-    allL.sort((a, b) => new Date(b.performed_at) - new Date(a.performed_at))
     setTasks(allTasks)
-    setAllLogs(allL)
+    setAllLogs(paginatedLogs)
     setLoading(false)
   }
 
@@ -394,7 +386,6 @@ export default function AdminMaintenance() {
                 </thead>
                 <tbody>
                   {filteredLogs.slice(0, 50).map(log => {
-                    const machine = machines.find(m => m.id === log.machine_id)
                     return (
                       <tr key={log.id} className="border-b border-token/30 hover:bg-white/[0.02] transition-colors">
                         <td className="px-5 py-4">
@@ -407,7 +398,7 @@ export default function AdminMaintenance() {
                           {log.description && <p className="text-xs text-faint mt-0.5 truncate max-w-[200px]">{log.description}</p>}
                         </td>
                         <td className="px-5 py-4 hidden lg:table-cell">
-                          <span className="text-sm text-muted">{machine?.name || '—'}</span>
+                          <span className="text-sm text-muted">{log.machine?.name || '—'}</span>
                         </td>
                         <td className="px-5 py-4 hidden md:table-cell">
                           <span className="text-sm text-secondary">{log.performed_by_name || '—'}</span>

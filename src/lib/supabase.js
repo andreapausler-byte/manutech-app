@@ -381,6 +381,50 @@ export const db = {
     return []
   },
 
+  // Piani con macchina inclusa (evita join client-side)
+  async getAllMaintenancePlansWithMachine() {
+    if (supabase) {
+      const { data, error } = await supabase.from('maintenance_plans')
+        .select('*, machine:machines(id, name, department)')
+        .order('name')
+      if (error) throw error
+      return data || []
+    }
+    return []
+  },
+
+  // Ultimo log per ogni piano (evita di scaricare TUTTI i log)
+  async getLastLogPerPlan() {
+    if (supabase) {
+      // Fetch all logs ordered by plan_id and performed_at desc,
+      // then deduplicate client-side (Supabase doesn't support DISTINCT ON directly)
+      const { data, error } = await supabase.from('maintenance_logs')
+        .select('*')
+        .not('plan_id', 'is', null)
+        .order('performed_at', { ascending: false })
+      if (error) throw error
+      const lastByPlan = {}
+      for (const log of (data || [])) {
+        if (!lastByPlan[log.plan_id]) lastByPlan[log.plan_id] = log
+      }
+      return lastByPlan
+    }
+    return {}
+  },
+
+  // Log con paginazione (per la vista interventi)
+  async getMaintenanceLogsPaginated(limit = 50, offset = 0) {
+    if (supabase) {
+      const { data, error } = await supabase.from('maintenance_logs')
+        .select('*, machine:machines(id, name)')
+        .order('performed_at', { ascending: false })
+        .range(offset, offset + limit - 1)
+      if (error) throw error
+      return data || []
+    }
+    return []
+  },
+
   async createMaintenancePlan(plan) {
     if (supabase) {
       const { data, error } = await supabase.from('maintenance_plans').insert(plan).select().single()

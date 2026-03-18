@@ -1,25 +1,24 @@
 /**
- * AdminMachines v4.2 — Refactored with extracted MachineDetailSheet
+ * AdminMachines v4.3 — Refactored with extracted modals
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
-import { Button, Modal, Input, Textarea, EmptyState, Spinner } from '../../components/ui'
+import { Button, EmptyState, Spinner } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import MachineDetailSheet from './machines/MachineDetailSheet'
 import ReportDetailModal from './reports/ReportDetailModal'
+import MachineFormModal from './machines/MachineFormModal'
+import PlanFormModal from './machines/PlanFormModal'
+import LogFormModal from './machines/LogFormModal'
+import CSVImportModal from './machines/CSVImportModal'
 import QRCode from 'qrcode'
 import {
-  Plus, Edit, Trash2, FileText, Video, Cog, Search,
+  Plus, Edit, FileText, Cog, Search,
   GripVertical, ArrowUpDown, Check, ArrowUp, ArrowDown,
-  X, QrCode, Camera, ChevronRight, Upload
+  QrCode, ChevronRight
 } from 'lucide-react'
-
-const FREQ_PRESETS = [
-  { label: 'Settim.', days: 7 }, { label: 'Mensile', days: 30 }, { label: 'Trim.', days: 90 },
-  { label: 'Sem.', days: 180 }, { label: 'Annuale', days: 365 },
-]
 
 export default function AdminMachines() {
   const { user } = useAuth()
@@ -72,8 +71,6 @@ export default function AdminMachines() {
     setMachines(m); setReports(r); setUsers(u); setLoading(false)
   }
   useEffect(() => { load() }, [])
-
-  const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   // ── QR ──
   const generateQR = async (machine) => {
@@ -316,111 +313,28 @@ export default function AdminMachines() {
         />
       )}
 
-      {/* Machine Form */}
-      <Modal open={showForm} onClose={() => setShowForm(false)} title={editing ? 'Modifica Macchinario' : 'Nuovo Macchinario'} size="lg">
-        <div className="space-y-4">
-          <Input label="Nome *" placeholder="Es. Pressa idraulica #3" value={form.name} onChange={e => set('name', e.target.value)} />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Costruttore" placeholder="Siemens" value={form.manufacturer} onChange={e => set('manufacturer', e.target.value)} />
-            <Input label="Modello" placeholder="XR-500" value={form.model} onChange={e => set('model', e.target.value)} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Matricola" placeholder="SN-2024-0042" value={form.serial_number} onChange={e => set('serial_number', e.target.value)} />
-            <Input label="Anno" placeholder="2022" type="number" value={form.year} onChange={e => set('year', e.target.value)} />
-            <Input label="Reparto" placeholder="Linea 1" value={form.department} onChange={e => set('department', e.target.value)} />
-          </div>
-          <Textarea label="Descrizione" placeholder="Note..." value={form.description} onChange={e => set('description', e.target.value)} />
-          <div>
-            <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Foto</label>
-            {photoUrl ? <div className="relative w-32 h-24 rounded-xl overflow-hidden border border-token"><img src={photoUrl} alt="" className="w-full h-full object-cover" /><button onClick={() => setPhotoUrl('')} className="absolute top-1 right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center"><X size={12} className="text-white" /></button></div>
-              : <button onClick={uploadPhoto} className="flex items-center gap-2 px-4 py-3 bg-surface-2 border border-token rounded-xl text-sm text-muted hover:text-white transition-all"><Camera size={16} /> Carica foto</button>}
-          </div>
-          <div>
-            <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Documentazione ({attachments.length})</label>
-            <div className="flex gap-2 mb-3">
-              <Button size="sm" variant="outline" onClick={() => addAttachment('pdf')}><FileText size={14} className="text-red-400" /> PDF</Button>
-              <Button size="sm" variant="outline" onClick={() => addAttachment('video')}><Video size={14} className="text-emerald-400" /> Video</Button>
-            </div>
-            {attachments.map((a, i) => (
-              <div key={i} className="flex items-center gap-2 bg-surface-2 rounded-lg p-2.5 mb-1.5">
-                {a.type === 'pdf' ? <FileText size={14} className="text-red-400" /> : <Video size={14} className="text-emerald-400" />}
-                <span className="text-sm text-secondary flex-1 truncate">{a.name}</span>
-                <button onClick={() => setAttachments(at => at.filter((_, j) => j !== i))} className="text-faint hover:text-red-400"><Trash2 size={13} /></button>
-              </div>
-            ))}
-          </div>
-          <Button onClick={saveMachine} className="w-full" size="lg" disabled={!form.name.trim()}>{editing ? 'Salva' : 'Crea'}</Button>
-        </div>
-      </Modal>
+      <MachineFormModal
+        open={showForm} onClose={() => setShowForm(false)} editing={editing}
+        form={form} setForm={setForm} photoUrl={photoUrl} setPhotoUrl={setPhotoUrl}
+        attachments={attachments} setAttachments={setAttachments}
+        onSave={saveMachine} onUploadPhoto={uploadPhoto} onAddAttachment={addAttachment}
+      />
 
-      {/* Plan Form */}
-      <Modal open={showPlanForm} onClose={() => setShowPlanForm(false)} title={editingPlan ? 'Modifica Piano' : 'Nuovo Piano'} size="md">
-        <div className="space-y-4">
-          <Input label="Attività *" placeholder="Lubrificazione cuscinetti" value={planForm.name} onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))} />
-          <div>
-            <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Frequenza</label>
-            <div className="flex gap-2 mb-3 flex-wrap">
-              {FREQ_PRESETS.map(p => <button key={p.days} onClick={() => setPlanForm(f => ({ ...f, frequency_days: p.days }))}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${parseInt(planForm.frequency_days) === p.days ? 'bg-violet-600 text-white' : 'bg-surface-2 text-muted'}`}>{p.label}</button>)}
-            </div>
-            <div className="flex items-center gap-2"><span className="text-sm text-faint">Ogni</span>
-              <input type="number" value={planForm.frequency_days} onChange={e => setPlanForm(f => ({ ...f, frequency_days: e.target.value }))} className="w-20 input-field rounded-xl px-3 py-2 text-sm text-center" />
-              <span className="text-sm text-faint">giorni</span></div>
-          </div>
-          <div>
-            <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Responsabile</label>
-            <select value={planForm.assigned_to} onChange={e => setPlanForm(f => ({ ...f, assigned_to: e.target.value }))} className="w-full input-field rounded-xl px-3 py-2.5 text-sm">
-              <option value="">Non assegnato</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
-            </select>
-          </div>
-          <Textarea label="Istruzioni" placeholder="Come eseguire..." value={planForm.instructions} onChange={e => setPlanForm(f => ({ ...f, instructions: e.target.value }))} />
-          <Button onClick={savePlan} className="w-full" size="lg" disabled={!planForm.name.trim()}>{editingPlan ? 'Salva' : 'Crea Piano'}</Button>
-        </div>
-      </Modal>
+      <PlanFormModal
+        open={showPlanForm} onClose={() => setShowPlanForm(false)} editing={editingPlan}
+        form={planForm} setForm={setPlanForm} users={users} onSave={savePlan}
+      />
 
-      {/* Log Form */}
-      <Modal open={showLogForm} onClose={() => setShowLogForm(false)} title="Registra Intervento" size="md">
-        <div className="space-y-4">
-          <Input label="Titolo *" placeholder="Lubrificazione completata" value={logForm.title} onChange={e => setLogForm(f => ({ ...f, title: e.target.value }))} />
-          <Textarea label="Descrizione" placeholder="Cosa è stato fatto..." value={logForm.description} onChange={e => setLogForm(f => ({ ...f, description: e.target.value }))} />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Durata (minuti)" placeholder="60" type="number" value={logForm.duration_minutes} onChange={e => setLogForm(f => ({ ...f, duration_minutes: e.target.value }))} />
-            <Input label="Ricambi" placeholder="Filtro XF-420" value={logForm.parts_replaced} onChange={e => setLogForm(f => ({ ...f, parts_replaced: e.target.value }))} />
-          </div>
-          {logForm.plan_id ? <p className="text-xs text-violet-400 bg-violet-500/10 rounded-xl px-3 py-2">✓ Piano: {plans.find(p => p.id === logForm.plan_id)?.name}</p>
-            : <p className="text-xs text-amber-400 bg-amber-500/10 rounded-xl px-3 py-2">⚡ Manutenzione straordinaria</p>}
-          <Button onClick={saveLog} className="w-full" size="lg" disabled={!logForm.title.trim()}>Registra</Button>
-        </div>
-      </Modal>
+      <LogFormModal
+        open={showLogForm} onClose={() => setShowLogForm(false)}
+        form={logForm} setForm={setLogForm} plans={plans} onSave={saveLog}
+      />
 
-      {/* CSV Import */}
-      <Modal open={showCSVImport} onClose={() => setShowCSVImport(false)} title="Importa Piani da CSV" size="lg">
-        <div className="space-y-4">
-          <p className="text-sm text-muted">Trovati <strong className="text-white">{csvData.length}</strong> piani.</p>
-          <div>
-            <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Responsabile default</label>
-            <select value={csvDefaultUser} onChange={e => setCsvDefaultUser(e.target.value)} className="w-full input-field rounded-xl px-3 py-2.5 text-sm">
-              <option value="">Non assegnato</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
-            </select>
-          </div>
-          <div className="bg-surface-2 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
-            <table className="w-full">
-              <thead><tr className="border-b border-token"><th className="text-left px-4 py-2 text-[11px] text-faint uppercase">Attività</th><th className="text-left px-4 py-2 text-[11px] text-faint uppercase">Freq.</th><th className="text-left px-4 py-2 text-[11px] text-faint uppercase">Note</th></tr></thead>
-              <tbody>{csvData.map((r, i) => <tr key={i} className="border-b border-token/30"><td className="px-4 py-2.5 text-sm text-themed">{r.name}</td><td className="px-4 py-2.5 text-sm text-muted">{r.frequency_days}g</td><td className="px-4 py-2.5 text-sm text-faint truncate max-w-[200px]">{r.instructions||'—'}</td></tr>)}</tbody>
-            </table>
-          </div>
-          <div className="flex gap-3">
-            <Button onClick={importCSV} className="flex-1" size="lg"><Upload size={16} /> Importa {csvData.length} piani</Button>
-            <Button variant="outline" onClick={() => setShowCSVImport(false)} className="flex-1" size="lg">Annulla</Button>
-          </div>
-          <div className="bg-surface-2/50 rounded-xl p-3">
-            <p className="text-[11px] text-faint uppercase tracking-wider mb-1">Formato CSV</p>
-            <code className="text-xs text-muted block">attività;frequenza_giorni;note</code>
-          </div>
-        </div>
-      </Modal>
+      <CSVImportModal
+        open={showCSVImport} onClose={() => setShowCSVImport(false)}
+        csvData={csvData} users={users} defaultUser={csvDefaultUser}
+        onDefaultUserChange={setCsvDefaultUser} onImport={importCSV}
+      />
     </div>
   )
 }
