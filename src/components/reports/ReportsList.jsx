@@ -242,6 +242,20 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
   }
 
+  // Sort sections: most recently updated first, empty sections last
+  const sortedStatuses = [...STATUSES].sort((a, b) => {
+    const aReports = grouped[a]
+    const bReports = grouped[b]
+    // Empty sections go to the bottom
+    if (aReports.length === 0 && bReports.length > 0) return 1
+    if (aReports.length > 0 && bReports.length === 0) return -1
+    if (aReports.length === 0 && bReports.length === 0) return 0
+    // Compare most recent report in each group
+    const aLatest = new Date(aReports[0].updated_at || aReports[0].created_at)
+    const bLatest = new Date(bReports[0].updated_at || bReports[0].created_at)
+    return bLatest - aLatest
+  })
+
   // Auto-expand sections with reports on first load
   useEffect(() => {
     if (!loading && !initialized) {
@@ -317,7 +331,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
       ) : (
         <div className="px-[4vw] pt-[2vw]">
-          {STATUSES.map(s => (
+          {sortedStatuses.map(s => (
             <AccordionSection
               key={s}
               statusKey={s}
