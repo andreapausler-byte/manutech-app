@@ -4,9 +4,9 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react'
 
-const THRESHOLD = 70
-const MAX_PULL = 110
-const RESISTANCE = 0.4
+const THRESHOLD = 90
+const MAX_PULL = 130
+const RESISTANCE = 0.25
 
 export function usePullToRefresh(onRefresh) {
   const pullRef = useRef(null)
