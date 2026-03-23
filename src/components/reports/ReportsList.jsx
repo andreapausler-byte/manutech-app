@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES } from '../../lib/constants'
 import { EmptyState, SkeletonReportsPage } from '../ui'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, X, Clock, User, ChevronDown, ChevronRight } from 'lucide-react'
+import { Search, X, User, ChevronDown, ChevronRight } from 'lucide-react'
 
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
@@ -22,6 +22,19 @@ function AvatarInitials({ name, color }) {
 }
 
 // ── Compact report card for accordion ──
+// Short date helper — always compact (e.g. "2h fa", "5g fa", "12 mar")
+function shortDate(dateStr) {
+  if (!dateStr) return ''
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+  if (seconds < 60) return 'ora'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}min`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
+  if (seconds < 2592000) return `${Math.floor(seconds / 86400)}g`
+  const d = new Date(dateStr)
+  const months = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
+  return `${d.getDate()} ${months[d.getMonth()]}`
+}
+
 function AccordionReportCard({ report, onSelect, unread }) {
   const severity = SEVERITY[report.severity] || SEVERITY.media
   const reportType = REPORT_TYPES[report.type] || REPORT_TYPES.correttiva
@@ -34,65 +47,72 @@ function AccordionReportCard({ report, onSelect, unread }) {
         background: 'var(--color-card)',
         border: '1px solid var(--color-border)',
         borderLeft: `4px solid ${severity.color}`,
-        borderRadius: 12,
-        padding: '10px 12px 10px 14px',
+        borderRadius: 10,
+        padding: '8px 10px 8px 12px',
         cursor: 'pointer',
         transition: 'border-color 0.15s, box-shadow 0.15s',
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: 8,
       }}
     >
-      {/* Avatar */}
+      {/* Avatar — smaller */}
       {report.assigned_to_name ? (
-        <AvatarInitials name={report.assigned_to_name} color={STATUS[report.status]?.color} />
+        <div className="avatar-initials" style={{
+          background: STATUS[report.status]?.color || 'var(--color-primary)',
+          width: 28, height: 28, fontSize: 10,
+        }}>
+          {report.assigned_to_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+        </div>
       ) : (
-        <div className="avatar-initials" style={{ background: 'var(--color-surface-3)', border: '1.5px dashed var(--color-border)' }}>
-          <User size={14} style={{ color: 'var(--color-text-muted)' }} />
+        <div className="avatar-initials" style={{
+          background: 'var(--color-surface-3)', border: '1.5px dashed var(--color-border)',
+          width: 28, height: 28,
+        }}>
+          <User size={12} style={{ color: 'var(--color-text-muted)' }} />
         </div>
       )}
 
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Row 1: Title + severity + time */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* Row 1: Title + severity */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <span style={{
-            fontSize: 14, fontWeight: 700, color: 'var(--color-text)',
+            fontSize: 13, fontWeight: 700, color: 'var(--color-text)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            flex: 1, minWidth: 0,
+            flex: 1, minWidth: 0, lineHeight: 1.2,
           }}>
             {report.title}
           </span>
           <span style={{
-            fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 5,
+            fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
             background: severity.bg, color: severity.color,
-            flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3,
+            flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 2,
           }}>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: severity.color }} />
+            <span style={{ width: 4, height: 4, borderRadius: '50%', background: severity.color }} />
             {severity.label}
           </span>
         </div>
 
-        {/* Row 2: Machine + type + assigned */}
+        {/* Row 2: Machine + type + time — compact */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, marginTop: 4,
-          fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 500,
+          display: 'flex', alignItems: 'center', gap: 5, marginTop: 2,
+          fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500,
         }}>
           {report.machine && (
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '40%' }}>
-              🏭 {report.machine}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '35%' }}>
+              {report.machine}
             </span>
           )}
           <span style={{
-            fontSize: 10, padding: '1px 5px', borderRadius: 4,
+            fontSize: 9, padding: '0px 4px', borderRadius: 3,
             background: reportType.bg, color: reportType.color, fontWeight: 600, flexShrink: 0,
           }}>
-            {reportType.icon} {reportType.label}
+            {reportType.label}
           </span>
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-            <Clock size={11} />
-            {timeAgo(report.created_at)}
+          <span style={{ marginLeft: 'auto', fontSize: 10, flexShrink: 0, opacity: 0.7 }}>
+            {shortDate(report.updated_at || report.created_at)}
           </span>
         </div>
       </div>
@@ -101,19 +121,19 @@ function AccordionReportCard({ report, onSelect, unread }) {
       {unread > 0 && (
         <span style={{
           position: 'absolute', top: -4, right: -2,
-          minWidth: 18, height: 18, borderRadius: 9,
+          minWidth: 16, height: 16, borderRadius: 8,
           background: 'var(--color-danger)',
-          color: '#fff', fontSize: 10, fontWeight: 700,
+          color: '#fff', fontSize: 9, fontWeight: 700,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          padding: '0 4px',
-          boxShadow: '0 0 8px rgba(255, 92, 92, 0.4)',
+          padding: '0 3px',
+          boxShadow: '0 0 6px rgba(255, 92, 92, 0.4)',
         }}>
           {unread > 9 ? '9+' : unread}
         </span>
       )}
 
       {/* Chevron */}
-      <ChevronRight size={16} style={{ color: 'var(--color-text-muted)', flexShrink: 0, opacity: 0.5 }} />
+      <ChevronRight size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0, opacity: 0.4 }} />
     </button>
   )
 }
@@ -125,44 +145,38 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
 
   return (
     <div style={{ borderBottom: '1px solid var(--color-border)' }}>
-      {/* Header */}
+      {/* Header — compact */}
       <button
         onClick={onToggle}
         className="press-scale"
         style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          width: '100%', padding: '14px 0',
+          display: 'flex', alignItems: 'center', gap: 6,
+          width: '100%', padding: '10px 0',
           background: 'none', border: 'none', cursor: 'pointer',
           color: 'var(--color-text)',
         }}
       >
-        {/* Status dot */}
         <div style={{
-          width: 10, height: 10, borderRadius: '50%',
+          width: 8, height: 8, borderRadius: '50%',
           background: st.color,
-          boxShadow: `0 0 8px ${st.color}60`,
+          boxShadow: `0 0 6px ${st.color}60`,
           flexShrink: 0,
         }} />
-
-        {/* Icon + label */}
-        <span style={{ fontSize: 15, fontWeight: 700 }}>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>
           {st.icon} {st.label}
         </span>
-
-        {/* Count badge */}
         <span style={{
-          fontSize: 12, fontWeight: 700,
-          minWidth: 22, height: 22, borderRadius: 11,
+          fontSize: 11, fontWeight: 700,
+          minWidth: 20, height: 20, borderRadius: 10,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          background: st.bg, color: st.color,
-          padding: '0 6px',
+          background: count > 0 ? st.bg : 'var(--color-surface-2)',
+          color: count > 0 ? st.color : 'var(--color-text-muted)',
+          padding: '0 5px',
         }}>
           {count}
         </span>
-
-        {/* Chevron */}
         <ChevronDown
-          size={18}
+          size={16}
           style={{
             marginLeft: 'auto',
             color: 'var(--color-text-muted)',
@@ -175,19 +189,19 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
       {/* Content */}
       <div
         className="accordion-content"
-        style={{ maxHeight: isExpanded ? `${count * 80 + 40}px` : '0' }}
+        style={{ maxHeight: isExpanded ? `${count * 60 + 20}px` : '0' }}
       >
         {count === 0 ? (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 8, padding: '16px',
-            color: 'var(--color-text-muted)', fontSize: 13,
+            gap: 6, padding: '10px',
+            color: 'var(--color-text-muted)', fontSize: 12,
           }}>
-            <span style={{ opacity: 0.4, fontSize: 20 }}>{st.icon}</span>
+            <span style={{ opacity: 0.3 }}>{st.icon}</span>
             Nessuna segnalazione
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10 }}>
             {reports.map(report => (
               <AccordionReportCard
                 key={report.id}
@@ -241,6 +255,20 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       .filter(r => r.status === s)
       .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
   }
+
+  // Sort sections: most recently updated first, empty sections last
+  const sortedStatuses = [...STATUSES].sort((a, b) => {
+    const aReports = grouped[a]
+    const bReports = grouped[b]
+    // Empty sections go to the bottom
+    if (aReports.length === 0 && bReports.length > 0) return 1
+    if (aReports.length > 0 && bReports.length === 0) return -1
+    if (aReports.length === 0 && bReports.length === 0) return 0
+    // Compare most recent report in each group
+    const aLatest = new Date(aReports[0].updated_at || aReports[0].created_at)
+    const bLatest = new Date(bReports[0].updated_at || bReports[0].created_at)
+    return bLatest - aLatest
+  })
 
   // Auto-expand sections with reports on first load
   useEffect(() => {
@@ -317,7 +345,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
       ) : (
         <div className="px-[4vw] pt-[2vw]">
-          {STATUSES.map(s => (
+          {sortedStatuses.map(s => (
             <AccordionSection
               key={s}
               statusKey={s}
