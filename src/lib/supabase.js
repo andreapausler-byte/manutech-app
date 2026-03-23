@@ -245,8 +245,9 @@ export const db = {
 
   async updateReport(id, updates) {
     if (supabase) {
-      const { data, error } = await supabase.from('reports').update(updates).eq('id', id).select().single()
+      const { data, error } = await supabase.from('reports').update(updates).eq('id', id).select().maybeSingle()
       if (error) throw error
+      if (!data) throw new Error('Permessi insufficienti: impossibile aggiornare questa segnalazione')
       return data
     }
     const reports = getStore(KEYS.reports)

@@ -100,10 +100,9 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
       closure_parts: closureForm.parts.trim() || null,
       closure_root_cause: closureForm.rootCause.trim(),
       closure_action: closureForm.action.trim() || null,
+      closed_at: new Date().toISOString(),
     }
-    const success = await updateStatus('risolta', {
-      extra_data: { ...(report.extra_data || {}), ...closureData },
-    }, closureData)
+    const success = await updateStatus('risolta', closureData, closureData)
     if (success) {
       setShowClosureForm(false)
       setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
@@ -146,8 +145,10 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         }).catch(e => console.warn('Side effect failed:', e.message))
       }
       return true
-    } catch {
-      toast.error('Errore aggiornamento stato')
+    } catch (err) {
+      console.error('[ManuTech] Errore aggiornamento stato:', err)
+      const msg = err?.message || err?.code || 'Errore sconosciuto'
+      toast.error(`Errore aggiornamento stato: ${msg}`)
       return false
     } finally {
       setUpdatingStatus(null)
