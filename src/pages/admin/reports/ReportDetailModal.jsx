@@ -78,11 +78,10 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
       closure_parts: closureForm.parts.trim() || null,
       closure_root_cause: closureForm.rootCause.trim(),
       closure_action: closureForm.action.trim() || null,
+      closed_at: new Date().toISOString(),
     }
     try {
-      await updateStatus(selected.id, 'risolta', {
-        extra_data: { ...(selected.extra_data || {}), ...closureData },
-      }, closureData)
+      await updateStatus(selected.id, 'risolta', closureData, closureData)
       setShowClosureForm(false)
       setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
       toast.success('Intervento chiuso con successo')
