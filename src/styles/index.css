@@ -485,30 +485,8 @@ h1, h2, h3, h4 {
 }
 
 /* ══════════════════════════════════════════════════════════
-   KANBAN BOARD — Report Revamping
+   ACCORDION SECTIONS — Report List
    ══════════════════════════════════════════════════════════ */
-
-/* Kanban scroll container */
-.kanban-board {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  overflow-y: visible;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 8px;
-  width: 100%;
-  max-width: 100vw;
-}
-.kanban-board::-webkit-scrollbar { height: 0; display: none; }
-.kanban-board { scrollbar-width: none; }
-
-.kanban-column {
-  min-width: 82vw;
-  max-width: 82vw;
-  scroll-snap-align: center;
-  flex-shrink: 0;
-}
 
 @keyframes kanbanCardIn {
   from { opacity: 0; transform: translateY(12px) scale(0.97); }
@@ -531,17 +509,9 @@ h1, h2, h3, h4 {
 }
 .count-bounce { animation: countBounce 0.3s var(--ease-spring); }
 
-/* Kanban tab pills */
-.kanban-tab {
-  padding: 6px 14px;
-  border-radius: var(--radius-full);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  transition: all var(--duration-fast) ease;
-  border: 1.5px solid transparent;
-  cursor: pointer;
-  flex-shrink: 0;
+.accordion-content {
+  overflow: hidden;
+  transition: max-height 0.3s ease;
 }
 
 /* Avatar initials */
