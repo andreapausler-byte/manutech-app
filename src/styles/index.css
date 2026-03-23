@@ -493,9 +493,12 @@ h1, h2, h3, h4 {
   display: flex;
   gap: 12px;
   overflow-x: auto;
+  overflow-y: visible;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 8px;
+  width: 100%;
+  max-width: 100vw;
 }
 .kanban-board::-webkit-scrollbar { height: 0; display: none; }
 .kanban-board { scrollbar-width: none; }
