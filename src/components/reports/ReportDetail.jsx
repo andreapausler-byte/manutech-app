@@ -11,15 +11,66 @@ import ActivityTimeline from './ActivityTimeline'
 import ChatPanel from '../chat/ChatPanel'
 import {
   ArrowLeft, MessageCircle, Video, Mic, Expand, Image, Clock,
-  ChevronDown
+  ChevronDown, Check, User, Wrench, Factory
 } from 'lucide-react'
+
+// ── Status Stepper ──
+const STEPPER_STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'risolta']
+
+function StatusStepper({ currentStatus }) {
+  const currentIdx = STEPPER_STATUSES.indexOf(currentStatus)
+  const isChiuso = currentStatus === 'chiuso'
+
+  return (
+    <div className="status-stepper" style={{ padding: '0 8px' }}>
+      {STEPPER_STATUSES.map((s, i) => {
+        const st = STATUS[s]
+        const isPast = i < currentIdx || isChiuso
+        const isCurrent = i === currentIdx && !isChiuso
+        return (
+          <div key={s} className="status-step" style={{ position: 'relative' }}>
+            {/* Connector line */}
+            {i < STEPPER_STATUSES.length - 1 && (
+              <div style={{
+                position: 'absolute', top: 13, left: '50%', width: '100%', height: 2,
+                background: isPast ? st.color : 'var(--color-border)',
+                zIndex: 0, opacity: isPast ? 0.5 : 1,
+              }} />
+            )}
+            {/* Dot */}
+            <div
+              className="status-step-dot"
+              style={{
+                background: isCurrent ? st.color : isPast ? st.color + '30' : 'var(--color-surface-2)',
+                borderColor: isCurrent || isPast ? st.color : 'var(--color-border)',
+                boxShadow: isCurrent ? `0 0 12px ${st.color}50` : 'none',
+                transform: isCurrent ? 'scale(1.1)' : 'scale(1)',
+              }}
+            >
+              {isPast ? <Check size={12} style={{ color: st.color }} /> : null}
+              {isCurrent ? <span style={{ fontSize: 10 }}>{st.icon}</span> : null}
+            </div>
+            {/* Label */}
+            <span style={{
+              fontSize: 10, fontWeight: isCurrent ? 700 : 500,
+              color: isCurrent ? st.color : isPast ? 'var(--color-text-secondary)' : 'var(--color-text-muted)',
+              textAlign: 'center',
+            }}>
+              {st.label}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [report, setReport] = useState(initialReport)
   const [updatingStatus, setUpdatingStatus] = useState(null)
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [showInfo, setShowInfo] = useState(true)
-  const [activeSection, setActiveSection] = useState('chat') // 'chat' | 'timeline'
+  const [activeSection, setActiveSection] = useState('chat')
   const [showClosureForm, setShowClosureForm] = useState(false)
   const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '' })
 
@@ -81,7 +132,6 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         detail: activityDetail,
       }).catch(e => console.warn('Side effect failed:', e.message))
 
-      // Notifica tutti gli stakeholder tranne chi fa il cambio
       const recipients = new Set()
       if (report.created_by) recipients.add(report.created_by)
       if (report.assigned_to) recipients.add(report.assigned_to)
@@ -106,45 +156,69 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-base flex flex-col">
-      {/* ═══ Header ═══ */}
-      <header className="header-page flex items-center gap-[2vw] px-[3vw] py-[2.5vw]">
-        <button onClick={onBack} className="w-[12vw] h-[12vw] max-w-12 max-h-12 rounded-xl flex items-center justify-center active:bg-white/10 text-muted press-scale shrink-0">
-          <ArrowLeft size={26} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-themed truncate">{report.title}</h1>
-          <p className="text-sm text-faint">{timeAgo(report.created_at)}</p>
+      {/* ═══ Hero Header with severity accent ═══ */}
+      <header style={{
+        background: `linear-gradient(180deg, ${severity.color}12 0%, transparent 100%)`,
+        borderBottom: '1px solid var(--color-border)',
+        position: 'sticky', top: 0, zIndex: 40,
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+      }}>
+        <div className="flex items-center gap-[2vw] px-[3vw] py-[2.5vw]">
+          <button onClick={onBack} className="w-[12vw] h-[12vw] max-w-12 max-h-12 rounded-xl flex items-center justify-center active:bg-white/10 text-muted press-scale shrink-0">
+            <ArrowLeft size={26} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold text-themed truncate">{report.title}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <Clock size={12} style={{ color: 'var(--color-text-muted)' }} />
+              <span className="text-sm text-faint">{timeAgo(report.created_at)}</span>
+            </div>
+          </div>
+          {/* Status pill with pulse */}
+          <span style={{
+            fontSize: 12, padding: '6px 12px', borderRadius: 'var(--radius-full)',
+            fontWeight: 700, color: status.color, background: status.bg,
+            border: `1.5px solid ${status.color}40`,
+            whiteSpace: 'nowrap', letterSpacing: '0.02em',
+            boxShadow: `0 0 12px ${status.color}20`,
+          }}>
+            {status.icon} {status.label}
+          </span>
         </div>
-        <Badge {...status} />
+
+        {/* Status stepper */}
+        <div style={{ padding: '4px 16px 14px' }}>
+          <StatusStepper currentStatus={report.status} />
+        </div>
       </header>
 
-      {/* ═══ Collapsible Info Section ═══ */}
-      <div className="glass border-b border-token">
+      {/* ═══ Info chips — scrollable horizontal ═══ */}
+      <div style={{
+        display: 'flex', gap: 8, overflowX: 'auto',
+        padding: '12px 4vw',
+        borderBottom: '1px solid var(--color-border)',
+      }}
+        className="no-scrollbar"
+      >
+        <Badge {...severity} />
+        {report.type && REPORT_TYPES[report.type] && <Badge {...REPORT_TYPES[report.type]} />}
+        {report.machine && <Badge label={`🏭 ${report.machine}`} color="#94a3b8" bg="#94a3b822" />}
+        {report.assigned_to_name && <Badge label={`👤 ${report.assigned_to_name}`} color="#8b5cf6" bg="#8b5cf622" />}
+        {report.created_by_name && <Badge label={`Creata da ${report.created_by_name}`} color="var(--color-text-muted)" bg="var(--color-surface-2)" />}
+      </div>
+
+      {/* ═══ Collapsible Details ═══ */}
+      <div>
         <button
           onClick={() => setShowInfo(!showInfo)}
           className="w-full flex items-center justify-between px-[4vw] py-[2.5vw] active:bg-white/[0.02]"
         >
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge {...severity} />
-            {report.type && REPORT_TYPES[report.type] && <Badge {...REPORT_TYPES[report.type]} />}
-            {report.machine && <Badge label={`🏭 ${report.machine}`} color="#94a3b8" bg="#94a3b822" />}
-            {report.assigned_to_name && <Badge label={`👤 ${report.assigned_to_name}`} color="#8b5cf6" bg="#8b5cf622" />}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-faint font-medium">{showInfo ? 'Nascondi' : 'Dettagli'}</span>
-            <ChevronDown size={18} className="text-faint transition-transform duration-200" style={{ transform: showInfo ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Dettagli
+          </span>
+          <ChevronDown size={18} className="text-faint transition-transform duration-200" style={{ transform: showInfo ? 'rotate(180deg)' : 'rotate(0deg)' }} />
         </button>
-
-        {/* Assegnazione visibile sempre (fuori dal collapse) */}
-        {report.assigned_to_name && !showInfo && (
-          <div className="px-[4vw] pb-[2.5vw]">
-            <div className="flex items-center gap-2 bg-purple-500/10 rounded-xl px-[3vw] py-[2vw]">
-              <span className="text-sm">👤</span>
-              <span className="text-sm text-purple-300 font-medium">Assegnata a: <strong className="text-themed">{report.assigned_to_name}</strong></span>
-            </div>
-          </div>
-        )}
 
         <div style={{
           maxHeight: showInfo ? '2000px' : '0',
@@ -152,30 +226,40 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           transition: 'max-height 0.3s ease',
         }}>
           <div className="px-[4vw] pb-[4vw] space-y-[3vw]">
-            {/* Assignment info */}
+            {/* Assignment card */}
             {report.assigned_to_name && (
-              <div className="flex items-center gap-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl px-[4vw] py-[3vw]">
-                <div className="w-[10vw] h-[10vw] max-w-10 max-h-10 bg-purple-500/20 rounded-xl flex items-center justify-center shrink-0">
-                  <span className="text-lg">👤</span>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                background: 'rgba(139, 92, 246, 0.08)',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                borderRadius: 16, padding: '12px 16px',
+              }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: '50%',
+                  background: 'rgba(139, 92, 246, 0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <User size={18} style={{ color: '#8b5cf6' }} />
                 </div>
                 <div>
-                  <p className="text-xs text-purple-300/70 uppercase tracking-wider font-semibold">Assegnata a</p>
-                  <p className="text-base font-bold text-white">{report.assigned_to_name}</p>
+                  <p style={{ fontSize: 11, color: 'rgba(139, 92, 246, 0.7)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Assegnata a</p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>{report.assigned_to_name}</p>
                 </div>
-              </div>
-            )}
-
-            {/* Created by */}
-            {report.created_by_name && (
-              <div className="flex items-center gap-2 text-sm text-faint">
-                <span>Creata da: <span className="text-secondary font-medium">{report.created_by_name}</span></span>
               </div>
             )}
 
             {/* Description */}
-            <p className="text-base text-secondary leading-relaxed">{report.description}</p>
+            <div style={{
+              background: 'var(--color-surface-2)',
+              borderRadius: 16, padding: '14px 16px',
+              border: '1px solid var(--color-border)',
+            }}>
+              <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+                {report.description}
+              </p>
+            </div>
 
-            {/* Media — Photo gallery, Video player, Audio player */}
+            {/* Media */}
             {report.media?.length > 0 && (() => {
               const photos = report.media.filter(m => m.type === 'photo')
               const videos = report.media.filter(m => m.type === 'video')
@@ -222,63 +306,80 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
               )
             })()}
 
-            {/* Closure info (se il report è risolta/chiuso e ha dati chiusura) */}
+            {/* Closure data */}
             {report.extra_data?.closure_hours != null && (
-              <div className="card-elevated rounded-2xl p-[4vw] space-y-[2vw]">
-                <p className="label-section tracking-wider">Dati Chiusura Intervento</p>
+              <div style={{
+                background: 'var(--color-surface-2)',
+                borderRadius: 16, padding: '16px',
+                border: '1px solid var(--color-border)',
+              }}>
+                <p className="label-section tracking-wider" style={{ marginBottom: 12 }}>Dati Chiusura</p>
                 <div className="grid grid-cols-2 gap-[2vw]">
-                  <div className="bg-surface-2 rounded-xl p-[2.5vw]">
-                    <p className="text-xs text-faint uppercase">Ore lavoro</p>
-                    <p className="text-base text-themed font-bold">{report.extra_data.closure_hours}h</p>
+                  <div style={{ background: 'var(--color-surface-3)', borderRadius: 12, padding: '10px 12px' }}>
+                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Ore lavoro</p>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>{report.extra_data.closure_hours}h</p>
                   </div>
                   {report.extra_data.closure_parts && (
-                    <div className="bg-surface-2 rounded-xl p-[2.5vw]">
-                      <p className="text-xs text-faint uppercase">Ricambi</p>
-                      <p className="text-sm text-secondary">{report.extra_data.closure_parts}</p>
+                    <div style={{ background: 'var(--color-surface-3)', borderRadius: 12, padding: '10px 12px' }}>
+                      <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Ricambi</p>
+                      <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{report.extra_data.closure_parts}</p>
                     </div>
                   )}
                 </div>
                 {report.extra_data.closure_root_cause && (
-                  <div className="bg-surface-2 rounded-xl p-[2.5vw]">
-                    <p className="text-xs text-faint uppercase">Causa radice</p>
-                    <p className="text-sm text-secondary">{report.extra_data.closure_root_cause}</p>
+                  <div style={{ background: 'var(--color-surface-3)', borderRadius: 12, padding: '10px 12px', marginTop: 8 }}>
+                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Causa radice</p>
+                    <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{report.extra_data.closure_root_cause}</p>
                   </div>
                 )}
                 {report.extra_data.closure_action && (
-                  <div className="bg-surface-2 rounded-xl p-[2.5vw]">
-                    <p className="text-xs text-faint uppercase">Azione correttiva</p>
-                    <p className="text-sm text-secondary">{report.extra_data.closure_action}</p>
+                  <div style={{ background: 'var(--color-surface-3)', borderRadius: 12, padding: '10px 12px', marginTop: 8 }}>
+                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Azione correttiva</p>
+                    <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{report.extra_data.closure_action}</p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Status Actions — BIG buttons for gloves */}
+            {/* Status Actions — Modern compact grid */}
             {canUpdateStatus && (
-              <div className="card-elevated rounded-2xl p-[4vw]">
-                <p className="label-section tracking-wider mb-[3vw]">Aggiorna Stato</p>
-                <div className="grid grid-cols-2 gap-[2.5vw]">
+              <div style={{
+                background: 'var(--color-surface-2)',
+                borderRadius: 16, padding: '16px',
+                border: '1px solid var(--color-border)',
+              }}>
+                <p className="label-section tracking-wider" style={{ marginBottom: 12 }}>Aggiorna Stato</p>
+                <div className="grid grid-cols-3 gap-[2vw]">
                   {Object.entries(STATUS).map(([key, { label, color }]) => {
                     const isActive = report.status === key
                     const isUpdating = updatingStatus === key
                     return (
                       <button key={key} onClick={() => !isActive && !updatingStatus && handleStatusClick(key)}
                         disabled={isActive || !!updatingStatus}
-                        className={`flex flex-col items-center gap-2 px-[3vw] py-[3.5vw] rounded-2xl transition-all press-scale ${
-                          isActive
-                            ? 'border-2 text-white'
-                            : 'bg-surface-2 border-2 border-transparent active:bg-surface-3 text-secondary'
-                        } ${updatingStatus && !isActive && !isUpdating ? 'opacity-40' : ''}`}
-                        style={isActive ? { background: color + '20', borderColor: color } : {}}>
-                        <div className={`w-7 h-7 rounded-full shrink-0 border-[3px] flex items-center justify-center ${isUpdating ? 'animate-pulse' : ''}`}
-                          style={{ background: isActive ? color : 'transparent', borderColor: color }}>
-                          {isUpdating && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                        className="press-scale"
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                          padding: '12px 6px', borderRadius: 14,
+                          background: isActive ? color + '18' : 'var(--color-surface-3)',
+                          border: `2px solid ${isActive ? color : 'transparent'}`,
+                          cursor: isActive ? 'default' : 'pointer',
+                          opacity: (updatingStatus && !isActive && !isUpdating) ? 0.4 : 1,
+                          transition: 'all 0.15s',
+                        }}>
+                        <div style={{
+                          width: 24, height: 24, borderRadius: '50%',
+                          background: isActive ? color : 'transparent',
+                          border: `2.5px solid ${color}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {isUpdating && <div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'pulse 0.6s linear infinite' }} />}
+                          {isActive && <Check size={12} style={{ color: '#fff' }} />}
                         </div>
-                        <span className="text-base font-bold text-center">{label}</span>
-                        {isActive && (
-                          <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg"
-                            style={{ background: color + '30', color }}>Attivo</span>
-                        )}
+                        <span style={{
+                          fontSize: 11, fontWeight: isActive ? 700 : 600,
+                          color: isActive ? color : 'var(--color-text-secondary)',
+                          textAlign: 'center', lineHeight: 1.2,
+                        }}>{label}</span>
                       </button>
                     )
                   })}
@@ -298,7 +399,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         />
       )}
 
-      {/* ═══ Closure Form — Design System Bottom Sheet ═══ */}
+      {/* ═══ Closure Form — Modern Bottom Sheet ═══ */}
       {showClosureForm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowClosureForm(false)}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', animation: 'fadeIn 0.2s ease both' }} />
@@ -307,90 +408,70 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             style={{
               position: 'relative',
               background: 'var(--color-surface-1)',
-              borderRadius: '20px 20px 0 0',
+              borderRadius: '24px 24px 0 0',
               width: '100%', maxWidth: 500,
               maxHeight: '90vh', overflowY: 'auto',
-              padding: '20px 18px 30px',
+              padding: '20px 20px 32px',
               animation: 'slideUp 0.3s ease both',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
             </div>
-            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text)', marginBottom: 12 }}>Chiusura Intervento</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 16 }}>
+              Chiusura Intervento
+            </h3>
 
-            {/* Form — Design System */}
-            <div style={{
-              background: 'var(--color-surface-3)',
-              borderRadius: 12, padding: 14,
-              border: '1px solid var(--color-border)',
-              display: 'flex', flexDirection: 'column', gap: 12,
-            }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 4 }}>Ore lavoro *</label>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ore lavoro *</label>
                   <input type="number" step="0.5" min="0" value={closureForm.hours}
                     onChange={e => setClosureForm(f => ({ ...f, hours: e.target.value }))}
                     placeholder="es. 2.5"
-                    style={{
-                      width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                      borderRadius: 8, padding: '10px 12px', fontSize: 14,
-                      color: 'var(--color-text)', outline: 'none',
-                    }} />
+                    className="input-field"
+                    style={{ width: '100%', borderRadius: 12, padding: '12px 14px', fontSize: 14 }}
+                  />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 4 }}>Ricambi usati</label>
+                  <label style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ricambi usati</label>
                   <input type="text" value={closureForm.parts}
                     onChange={e => setClosureForm(f => ({ ...f, parts: e.target.value }))}
                     placeholder="es. Cuscinetto"
-                    style={{
-                      width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                      borderRadius: 8, padding: '10px 12px', fontSize: 14,
-                      color: 'var(--color-text)', outline: 'none',
-                    }} />
+                    className="input-field"
+                    style={{ width: '100%', borderRadius: 12, padding: '12px 14px', fontSize: 14 }}
+                  />
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Causa radice *</label>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Causa radice *</label>
                 <textarea value={closureForm.rootCause}
                   onChange={e => setClosureForm(f => ({ ...f, rootCause: e.target.value }))}
                   placeholder="Cosa ha causato il problema?"
                   rows={2}
-                  style={{
-                    width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                    borderRadius: 8, padding: '8px 10px', fontSize: 13,
-                    color: 'var(--color-text)', outline: 'none', resize: 'none',
-                  }} />
+                  className="input-field"
+                  style={{ width: '100%', borderRadius: 12, padding: '12px 14px', fontSize: 14, resize: 'none' }}
+                />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Azione correttiva</label>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Azione correttiva</label>
                 <textarea value={closureForm.action}
                   onChange={e => setClosureForm(f => ({ ...f, action: e.target.value }))}
                   placeholder="Cosa è stato fatto per risolvere?"
                   rows={2}
-                  style={{
-                    width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                    borderRadius: 8, padding: '8px 10px', fontSize: 13,
-                    color: 'var(--color-text)', outline: 'none', resize: 'none',
-                  }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>Note</label>
-                <input type="text"
-                  placeholder="Note aggiuntive..."
-                  style={{
-                    width: '100%', background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                    borderRadius: 8, padding: '8px 10px', fontSize: 13,
-                    color: 'var(--color-text)', outline: 'none',
-                  }} />
+                  className="input-field"
+                  style={{ width: '100%', borderRadius: 12, padding: '12px 14px', fontSize: 14, resize: 'none' }}
+                />
               </div>
               <button onClick={submitClosure} disabled={!!updatingStatus}
                 className="press-scale"
                 style={{
-                  width: '100%', padding: 12, borderRadius: 8,
-                  background: 'var(--color-green)', color: '#000',
-                  fontSize: 15, fontWeight: 600, border: 'none', cursor: 'pointer',
+                  width: '100%', padding: 14, borderRadius: 14,
+                  background: 'var(--color-success)',
+                  color: '#000', fontSize: 15, fontWeight: 700,
+                  border: 'none', cursor: 'pointer',
                   opacity: updatingStatus ? 0.5 : 1,
+                  boxShadow: '0 4px 16px rgba(61, 220, 132, 0.3)',
                 }}>
                 {updatingStatus ? '...' : '✓ Conferma Chiusura'}
               </button>
@@ -399,23 +480,23 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         </div>
       )}
 
-      {/* ═══ Tab switcher: Chat / Timeline ═══ */}
-      <div className="flex border-b border-token shrink-0 bg-base">
-        <button onClick={() => setActiveSection('chat')}
-          className="flex-1 flex items-center justify-center gap-2 py-[3vw] text-sm font-semibold transition-all"
-          style={activeSection === 'chat'
-            ? { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)', background: 'var(--color-primary-glow)' }
-            : { color: 'var(--color-text-muted)' }
-          }>
-          <MessageCircle size={18} /> Chat
+      {/* ═══ Pill toggle: Chat / Timeline ═══ */}
+      <div className="pill-toggle shrink-0" style={{ margin: '0 4vw', marginTop: 4 }}>
+        <button
+          onClick={() => setActiveSection('chat')}
+          className={`pill-toggle-btn ${activeSection === 'chat' ? 'active' : ''}`}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <MessageCircle size={16} /> Chat
+          </span>
         </button>
-        <button onClick={() => setActiveSection('timeline')}
-          className="flex-1 flex items-center justify-center gap-2 py-[3vw] text-sm font-semibold transition-all"
-          style={activeSection === 'timeline'
-            ? { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)', background: 'var(--color-primary-glow)' }
-            : { color: 'var(--color-text-muted)' }
-          }>
-          <Clock size={18} /> Cronologia
+        <button
+          onClick={() => setActiveSection('timeline')}
+          className={`pill-toggle-btn ${activeSection === 'timeline' ? 'active' : ''}`}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Clock size={16} /> Cronologia
+          </span>
         </button>
       </div>
 

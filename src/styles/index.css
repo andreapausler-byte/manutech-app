@@ -483,3 +483,164 @@ h1, h2, h3, h4 {
   animation: bellShake 0.8s ease-in-out;
   transform-origin: top center;
 }
+
+/* ══════════════════════════════════════════════════════════
+   KANBAN BOARD — Report Revamping
+   ══════════════════════════════════════════════════════════ */
+
+/* Kanban scroll container */
+.kanban-board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}
+.kanban-board::-webkit-scrollbar { height: 0; display: none; }
+.kanban-board { scrollbar-width: none; }
+
+.kanban-column {
+  min-width: 82vw;
+  max-width: 82vw;
+  scroll-snap-align: center;
+  flex-shrink: 0;
+}
+
+@keyframes kanbanCardIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.kanban-card-enter {
+  animation: kanbanCardIn 0.3s var(--ease-out-expo) backwards;
+}
+.kanban-card-enter:nth-child(1) { animation-delay: 0ms; }
+.kanban-card-enter:nth-child(2) { animation-delay: 50ms; }
+.kanban-card-enter:nth-child(3) { animation-delay: 100ms; }
+.kanban-card-enter:nth-child(4) { animation-delay: 150ms; }
+.kanban-card-enter:nth-child(5) { animation-delay: 200ms; }
+.kanban-card-enter:nth-child(6) { animation-delay: 250ms; }
+
+@keyframes countBounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.count-bounce { animation: countBounce 0.3s var(--ease-spring); }
+
+/* Kanban tab pills */
+.kanban-tab {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: all var(--duration-fast) ease;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Avatar initials */
+.avatar-initials {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* Shimmer button effect */
+@keyframes shimmerBtn {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.shimmer-btn {
+  background-size: 200% auto;
+  animation: shimmerBtn 3s linear infinite;
+}
+
+/* Status stepper */
+.status-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+}
+.status-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+.status-step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface-2);
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+.status-step-line {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--color-border);
+  z-index: 0;
+}
+
+/* Progress ring */
+.progress-bar-form {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-surface-3);
+  overflow: hidden;
+}
+.progress-bar-form-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--gradient-primary);
+  transition: width 0.4s var(--ease-out-expo);
+}
+
+/* Pill toggle for tabs */
+.pill-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+}
+.pill-toggle-btn {
+  flex: 1;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  transition: all var(--duration-fast) ease;
+  cursor: pointer;
+  border: none;
+  color: var(--color-text-muted);
+  background: transparent;
+}
+.pill-toggle-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}

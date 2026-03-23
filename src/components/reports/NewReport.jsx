@@ -9,9 +9,17 @@ import QRScanner from '../media/QRScanner'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useAutosave } from '../../hooks/useAutosave'
-import { ArrowLeft, Send, QrCode } from 'lucide-react'
+import { ArrowLeft, Send, QrCode, Camera, FileText, AlertTriangle, Wrench } from 'lucide-react'
 
 const DEFAULT_FORM = { title: '', machine: '', severity: 'media', type: 'correttiva', description: '' }
+
+// ── Type Icons mapping ──
+const TYPE_ICONS = {
+  correttiva: Wrench,
+  preventiva: FileText,
+  migliorativa: Send,
+  ispezione: AlertTriangle,
+}
 
 export default function NewReport({ user, onBack, onCreated, preselectedMachine }) {
   const [form, setForm] = useState({ ...DEFAULT_FORM, machine: preselectedMachine || '' })
@@ -29,6 +37,11 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
   const isValid = form.title.trim() && form.description.trim()
+
+  // Progress calculation
+  const filledFields = [form.title.trim(), form.machine, form.description.trim()].filter(Boolean).length
+  const totalFields = 3
+  const progress = (filledFields / totalFields) * 100
 
   const handleSeverityChange = (key) => {
     haptic.light()
@@ -49,7 +62,6 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
         severity: form.severity, type: form.type, description: form.description.trim(),
         media, created_by: user.id, created_by_name: user.name, status: 'aperta',
       })
-      // Log activity + notification
       db.addActivity(created.id, {
         type: 'created', user_id: user.id, user_name: user.name,
         detail: form.machine ? `Macchinario: ${form.machine}` : null,
@@ -59,7 +71,6 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
         body: `${user.name} ha creato una segnalazione ${form.severity}`,
         report_id: created.id, from_user: user.id, target_user: null,
       }).catch(e => console.warn('Side effect failed:', e.message))
-      // Mostra animazione di successo invece di navigare subito
       clearDraft()
       setShowSuccess(true)
     } catch (err) {
@@ -73,7 +84,6 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
     onCreated()
   }
 
-  // Overlay di successo
   if (showSuccess) {
     return (
       <SuccessAnimation
@@ -86,21 +96,29 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-base">
+      {/* Header */}
       <header className="header-page flex items-center gap-[2vw] px-[3vw] py-[2.5vw]">
         <button onClick={onBack} className="w-[12vw] h-[12vw] max-w-12 max-h-12 rounded-xl flex items-center justify-center active:bg-white/10 text-muted press-scale">
           <ArrowLeft size={24} />
         </button>
-        <h1 className="text-lg font-bold text-themed">Nuova Segnalazione</h1>
+        <h1 className="text-lg font-bold text-themed flex-1">Nuova Segnalazione</h1>
       </header>
 
+      {/* Progress bar */}
+      <div className="progress-bar-form" style={{ margin: '0 4vw' }}>
+        <div className="progress-bar-form-fill" style={{ width: `${progress}%` }} />
+      </div>
+
       <div className="px-[4vw] py-[5vw] space-y-[5vw] pb-10 animate-fade-in">
-        {/* Banner bozza ripristinata */}
+        {/* Draft banner */}
         {hasDraft && (
           <DraftBanner lastSaved={lastSaved} onDiscard={() => discardDraft(DEFAULT_FORM)} />
         )}
 
+        {/* Title */}
         <Input label="Titolo *" placeholder="Es. Pompa guasta linea 3" value={form.title} onChange={e => set('title', e.target.value)} />
 
+        {/* Machine selector */}
         <div>
           <label className="block text-base text-muted mb-2.5 uppercase tracking-wider font-semibold">
             Macchinario
@@ -121,9 +139,17 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
             <button
               type="button"
               onClick={() => { haptic.light(); setShowQR(true) }}
-              className="w-[14vw] h-[14vw] max-w-14 max-h-14 bg-surface-2 border border-token rounded-2xl flex items-center justify-center active:bg-gray-700 press-scale shrink-0"
+              style={{
+                width: 56, height: 56, flexShrink: 0,
+                background: 'var(--color-surface-2)',
+                border: '1.5px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              className="press-scale"
             >
-              <QrCode size={24} className="text-violet-400" />
+              <QrCode size={22} style={{ color: '#8b5cf6' }} />
             </button>
           </div>
         </div>
@@ -141,35 +167,58 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
           />
         )}
 
-        {/* Tipo intervento — Design System: 4 bottoni affiancati */}
+        {/* Report Type — 2x2 card grid */}
         <div>
-          <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8 }}>Tipo Intervento</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-            {Object.entries(REPORT_TYPES).map(([key, { label, icon }]) => {
+          <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Tipo Intervento
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+            {Object.entries(REPORT_TYPES).map(([key, { label, icon, color }]) => {
               const selected = form.type === key
+              const Icon = TYPE_ICONS[key] || Wrench
               return (
                 <button
                   key={key}
                   onClick={() => { haptic.light(); set('type', key) }}
                   className="press-scale"
                   style={{
-                    padding: '10px 4px', borderRadius: 8, fontSize: 13, fontWeight: selected ? 600 : 400,
-                    border: `1px solid ${selected ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                    background: selected ? 'var(--color-primary-glow)' : 'var(--color-card)',
-                    color: selected ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                    cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
+                    padding: '14px 12px',
+                    borderRadius: 14,
+                    border: `2px solid ${selected ? color : 'var(--color-border)'}`,
+                    background: selected ? color + '15' : 'var(--color-surface-2)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: 10,
                   }}
                 >
-                  {icon}<br />{label}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: selected ? color + '25' : 'var(--color-surface-3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 18 }}>{icon}</span>
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <span style={{
+                      fontSize: 14, fontWeight: selected ? 700 : 500,
+                      color: selected ? color : 'var(--color-text-secondary)',
+                      display: 'block',
+                    }}>
+                      {label}
+                    </span>
+                  </div>
                 </button>
               )
             })}
           </div>
         </div>
 
-        {/* Priorità — Design System: 4 bottoni grid con colori */}
+        {/* Severity — Expressive colored cards */}
         <div>
-          <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8 }}>Priorità</label>
+          <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Priorità
+          </label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {Object.entries(SEVERITY).map(([key, { label, color }]) => {
               const selected = form.severity === key
@@ -179,38 +228,66 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
                   onClick={() => handleSeverityChange(key)}
                   className="press-scale"
                   style={{
-                    padding: '10px 4px', borderRadius: 8, fontSize: 13, fontWeight: selected ? 600 : 400,
-                    border: `1px solid ${selected ? color : 'var(--color-border)'}`,
-                    background: selected ? color + '18' : 'var(--color-card)',
-                    color: selected ? color : 'var(--color-text-secondary)',
-                    cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
+                    padding: '12px 6px',
+                    borderRadius: 14,
+                    border: `2px solid ${selected ? color : 'var(--color-border)'}`,
+                    background: selected ? color + '18' : 'var(--color-surface-2)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                   }}
                 >
-                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginBottom: 4 }} /><br />{label}
+                  <div style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    background: color,
+                    boxShadow: selected ? `0 0 12px ${color}60` : 'none',
+                    transition: 'box-shadow 0.2s',
+                  }} />
+                  <span style={{
+                    fontSize: 12, fontWeight: selected ? 700 : 500,
+                    color: selected ? color : 'var(--color-text-secondary)',
+                  }}>
+                    {label}
+                  </span>
                 </button>
               )
             })}
           </div>
         </div>
 
+        {/* Description */}
         <Textarea label="Descrizione *" placeholder="Descrivi il problema..." value={form.description} onChange={e => set('description', e.target.value)} />
 
+        {/* Media */}
         <MediaCapture media={media} onChange={setMedia} />
 
+        {/* Submit button with gradient */}
         <button
           onClick={handleSubmit}
           disabled={!isValid || loading}
           className="press-scale"
           style={{
-            width: '100%', padding: 14, borderRadius: 12, fontSize: 15, fontWeight: 600,
-            background: (isValid && !loading) ? 'linear-gradient(135deg, var(--color-primary), #00d4ff)' : 'var(--color-surface-3)',
+            width: '100%', padding: 16, borderRadius: 16, fontSize: 16, fontWeight: 700,
+            background: (isValid && !loading)
+              ? 'linear-gradient(135deg, var(--color-primary), #00d4ff)'
+              : 'var(--color-surface-3)',
             color: (isValid && !loading) ? '#fff' : 'var(--color-text-muted)',
-            border: 'none', cursor: (isValid && !loading) ? 'pointer' : 'not-allowed',
+            border: 'none',
+            cursor: (isValid && !loading) ? 'pointer' : 'not-allowed',
             opacity: (isValid && !loading) ? 1 : 0.5,
-            transition: 'all 0.2s',
+            transition: 'all 0.3s',
+            boxShadow: (isValid && !loading) ? '0 4px 20px rgba(124, 106, 255, 0.3)' : 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}
         >
-          {loading ? '...' : 'Invia Segnalazione'}
+          {loading ? (
+            <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'pulse 0.6s linear infinite' }} />
+          ) : (
+            <>
+              <Send size={18} />
+              Invia Segnalazione
+            </>
+          )}
         </button>
       </div>
     </div>
