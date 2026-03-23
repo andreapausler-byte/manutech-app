@@ -125,10 +125,42 @@ export const db = {
     if (supabase) {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (authError) throw authError
-      const { data: user } = await supabase.from('users').select('*')
-        .eq('auth_id', authData.user.id).single()
-      if (!user) throw new Error('Profilo utente non trovato')
-      return user
+
+      // 1. Cerca profilo per auth_id
+      const { data: user, error: profileError } = await supabase.from('users').select('*')
+        .eq('auth_id', authData.user.id).maybeSingle()
+
+      if (user) return user
+
+      // 2. Fallback: cerca per email e linka auth_id se mancante
+      const { data: userByEmail } = await supabase.from('users').select('*')
+        .eq('email', email).maybeSingle()
+
+      if (userByEmail) {
+        // Profilo esiste ma auth_id non linkato — aggiorna
+        if (!userByEmail.auth_id || userByEmail.auth_id !== authData.user.id) {
+          const { data: updated } = await supabase.from('users')
+            .update({ auth_id: authData.user.id, updated_at: new Date().toISOString() })
+            .eq('id', userByEmail.id).select().single()
+          return updated || userByEmail
+        }
+        return userByEmail
+      }
+
+      // 3. Nessun profilo trovato — crea automaticamente
+      const { data: created, error: createError } = await supabase.from('users').insert({
+        auth_id: authData.user.id,
+        email: authData.user.email || email,
+        name: authData.user.user_metadata?.name || email.split('@')[0],
+        role: authData.user.user_metadata?.role || 'operatore',
+        org_id: authData.user.user_metadata?.org_id || 'default',
+      }).select().single()
+
+      if (createError) {
+        const detail = profileError?.message || createError.message
+        throw new Error('Profilo utente non trovato e creazione fallita: ' + detail)
+      }
+      return created
     }
     const users = getStore(KEYS.users)
     const user = users.find(u => u.email === email && u.password === password)
@@ -185,10 +217,29 @@ export const db = {
     if (supabase) {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return null
-      // Cerca per auth_id (più affidabile di email)
+
+      // 1. Cerca per auth_id
       const { data: user } = await supabase.from('users').select('*')
-        .eq('auth_id', session.user.id).single()
-      return user || null
+        .eq('auth_id', session.user.id).maybeSingle()
+      if (user) return user
+
+      // 2. Fallback: cerca per email e linka auth_id
+      const email = session.user.email
+      if (email) {
+        const { data: userByEmail } = await supabase.from('users').select('*')
+          .eq('email', email).maybeSingle()
+        if (userByEmail) {
+          if (!userByEmail.auth_id || userByEmail.auth_id !== session.user.id) {
+            const { data: updated } = await supabase.from('users')
+              .update({ auth_id: session.user.id, updated_at: new Date().toISOString() })
+              .eq('id', userByEmail.id).select().single()
+            return updated || userByEmail
+          }
+          return userByEmail
+        }
+      }
+
+      return null
     }
     try { return JSON.parse(localStorage.getItem(KEYS.session)) } catch (e) { console.warn('[ManuTech] Sessione corrotta:', e.message); return null }
   },
