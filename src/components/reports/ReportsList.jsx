@@ -310,7 +310,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   }, [loading])
 
   return (
-    <div ref={pullRef} className="pb-4" style={{ minHeight: '60vh' }}>
+    <div ref={pullRef} className="pb-4" style={{ minHeight: '60vh', overflowX: 'hidden' }}>
       <PullToRefreshIndicator pullDistance={pullDistance} pullProgress={pullProgress} refreshing={refreshing} activated={activated} />
 
       <div className="px-[4vw] pt-0 space-y-[3vw]">

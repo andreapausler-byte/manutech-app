@@ -38,37 +38,48 @@ function FABMenu({ onNewReport, onQuickReport }) {
 
   return (
     <>
+      {/* Overlay */}
       {open && (
-        <div className="fixed inset-0 bg-black/50 z-[48] backdrop-blur-sm" aria-hidden="true" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 bg-black/60 z-[48] backdrop-blur-sm" aria-hidden="true" onClick={() => setOpen(false)}
+          style={{ animation: 'fadeIn 0.2s ease' }}
+        />
       )}
 
-      <div className={`fixed bottom-[100px] right-[16px] z-[49] flex flex-col items-end gap-[12px] transition-all duration-200 ${
-        open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+      {/* Action buttons — full width, centered above FAB */}
+      <div className={`fixed left-0 right-0 bottom-[140px] z-[49] flex flex-col items-center gap-[14px] px-[6vw] transition-all duration-300 ${
+        open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
       }`}>
         <button
           onClick={() => handleAction(onQuickReport)}
-          className="flex items-center gap-3 text-white px-5 py-3.5 rounded-full press-scale"
+          className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
           style={{
+            padding: '18px 24px',
             background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-            boxShadow: '0 4px 20px rgba(245, 158, 11, 0.3)',
+            boxShadow: '0 6px 28px rgba(245, 158, 11, 0.35)',
+            fontSize: 17,
+            fontWeight: 700,
           }}
         >
-          <Zap size={20} strokeWidth={2.5} />
-          <span className="text-base font-bold whitespace-nowrap">Report Rapido</span>
+          <Zap size={24} strokeWidth={2.5} />
+          Report Rapido
         </button>
         <button
           onClick={() => handleAction(onNewReport)}
-          className="flex items-center gap-3 text-white px-5 py-3.5 rounded-full press-scale"
+          className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
           style={{
+            padding: '18px 24px',
             background: 'var(--gradient-primary)',
-            boxShadow: 'var(--shadow-glow-primary)',
+            boxShadow: '0 6px 28px rgba(124, 106, 255, 0.35)',
+            fontSize: 17,
+            fontWeight: 700,
           }}
         >
-          <ClipboardList size={20} strokeWidth={2.5} />
-          <span className="text-base font-bold whitespace-nowrap">Report Completo</span>
+          <ClipboardList size={24} strokeWidth={2.5} />
+          Report Completo
         </button>
       </div>
 
+      {/* FAB + button */}
       <button
         onClick={toggle}
         aria-label={open ? 'Chiudi menu segnalazioni' : 'Nuova segnalazione'}
