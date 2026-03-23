@@ -1,13 +1,15 @@
 /**
- * ChatPanel v2.1 — Chat unificata con DOWNLOAD desktop
+ * ChatPanel v3.0 — Discord-style chat layout
  *
  * FEATURES:
- *  ✅ Messaggi di testo con bolle colorate per ruolo
+ *  ✅ Layout stile Discord: messaggi allineati a sinistra con avatar, badge ruolo, timestamp
+ *  ✅ Raggruppamento messaggi consecutivi dello stesso utente
+ *  ✅ Separatori di data tra gruppi di messaggi
  *  ✅ Invio foto (camera + galleria) con compressione automatica
  *  ✅ Invio video (camera + galleria) con player inline
  *  ✅ Registrazione audio vocale con timer
  *  ✅ Preview media prima dell'invio (rimuovibili)
- *  ✅ Player audio/video inline nelle bolle
+ *  ✅ Player audio/video inline nei messaggi
  *  ✅ Lightbox foto fullscreen con zoom + download
  *  ✅ DOWNLOAD foto/video/audio su desktop (hover overlay)
  *  ✅ Auto-scroll ai nuovi messaggi
@@ -37,6 +39,46 @@ import {
 const ROLE_COLORS = { admin: '#7c6aff', tecnico: '#10b981', operatore: '#f59e0b' }
 const ROLE_LABELS = { admin: 'Admin', tecnico: 'Tecnico', operatore: 'Operatore' }
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+const GROUP_THRESHOLD_MS = 5 * 60 * 1000 // 5 min — messages closer than this from same user are grouped
+
+function getInitials(name) {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase()
+}
+
+function formatDateSeparator(dateStr) {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const isToday = d.toDateString() === now.toDateString()
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1)
+  const isYesterday = d.toDateString() === yesterday.toDateString()
+  if (isToday) return 'Oggi'
+  if (isYesterday) return 'Ieri'
+  return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function formatTimestamp(dateStr) {
+  return new Date(dateStr).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+}
+
+function shouldShowHeader(comments, index) {
+  if (index === 0) return true
+  const prev = comments[index - 1]
+  const curr = comments[index]
+  if (prev.user_id !== curr.user_id) return true
+  const diff = new Date(curr.created_at) - new Date(prev.created_at)
+  return diff > GROUP_THRESHOLD_MS
+}
+
+function shouldShowDateSeparator(comments, index) {
+  if (index === 0) return true
+  const prevDate = new Date(comments[index - 1].created_at).toDateString()
+  const currDate = new Date(comments[index].created_at).toDateString()
+  return prevDate !== currDate
+}
 
 // ── Download utility ─────────────────────────────────────
 async function downloadFile(url, filename) {
@@ -348,7 +390,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
       )}
 
       {/* ═══ Messages area ═══ */}
-      <div className={`flex-1 overflow-y-auto ${isMobile ? 'px-[4vw] py-[3vw] space-y-[3vw]' : 'p-4 space-y-3'}`}>
+      <div className={`flex-1 overflow-y-auto ${isMobile ? 'px-[3vw] py-[2vw]' : 'p-3'}`}>
         {loading ? (
           <ChatSkeleton isMobile={isMobile} />
         ) : comments.length === 0 ? (
@@ -360,17 +402,23 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
             </p>
           </div>
         ) : (
-          comments.map(c => (
-            <ChatBubble
-              key={c.id}
-              comment={c}
-              isMe={c.user_id === user?.id}
-              isMobile={isMobile}
-              onPhotoClick={(idx) => openLightbox(c, idx)}
-              onDownload={downloadFile}
-              toast={toast}
-            />
-          ))
+          comments.map((c, i) => {
+            const showDate = shouldShowDateSeparator(comments, i)
+            const showHeader = shouldShowHeader(comments, i)
+            return (
+              <div key={c.id}>
+                {showDate && <DateSeparator date={c.created_at} />}
+                <DiscordMessage
+                  comment={c}
+                  showHeader={showHeader}
+                  isMobile={isMobile}
+                  onPhotoClick={(idx) => openLightbox(c, idx)}
+                  onDownload={downloadFile}
+                  toast={toast}
+                />
+              </div>
+            )
+          })
         )}
         <div ref={chatEndRef} />
       </div>
@@ -500,24 +548,35 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
 }
 
 
-// ── ChatSkeleton ─────────────────────────────────────────
+// ── DateSeparator ────────────────────────────────────────
+
+function DateSeparator({ date }) {
+  return (
+    <div className="flex items-center gap-3 my-3">
+      <div className="flex-1 h-px bg-gray-700/30" />
+      <span className="text-[11px] text-faint font-medium px-2">{formatDateSeparator(date)}</span>
+      <div className="flex-1 h-px bg-gray-700/30" />
+    </div>
+  )
+}
+
+
+// ── ChatSkeleton — Discord-style ─────────────────────────
 
 function ChatSkeleton({ isMobile }) {
   return (
-    <div className="space-y-4 animate-pulse">
-      {[false, true, false].map((isRight, i) => (
-        <div key={i} className={`flex ${isRight ? 'justify-end' : 'justify-start'}`}>
-          <div className={isMobile ? 'max-w-[75%]' : 'max-w-[70%]'}>
-            <div className={`flex items-center gap-2 mb-1.5 ${isRight ? 'justify-end' : ''}`}>
-              <div className="w-2 h-2 rounded-full bg-surface-2" />
-              <div className="h-3 w-16 bg-surface-3 rounded" />
+    <div className="animate-pulse space-y-1">
+      {[1, 2, 3].map(i => (
+        <div key={i} className={`flex gap-3 ${isMobile ? 'px-[2vw] py-[2vw]' : 'px-3 py-2'}`}>
+          <div className={`shrink-0 rounded-full bg-surface-3 ${isMobile ? 'w-10 h-10' : 'w-9 h-9'}`} />
+          <div className="flex-1 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-20 bg-surface-3 rounded" />
+              <div className="h-2.5 w-12 bg-surface-3/50 rounded" />
+              <div className="h-2.5 w-10 bg-surface-3/30 rounded" />
             </div>
-            <div className={`rounded-2xl ${isRight ? 'bg-violet-500/10 rounded-tr-sm' : 'bg-surface-2/40 rounded-tl-sm'}`}>
-              <div className={`space-y-1.5 ${isMobile ? 'px-[4vw] py-[2.5vw]' : 'px-4 py-3'}`}>
-                <div className="h-3.5 bg-surface-2 rounded w-full" />
-                <div className="h-3.5 bg-surface-2 rounded w-3/4" />
-              </div>
-            </div>
+            <div className="h-3.5 bg-surface-2 rounded w-3/4" />
+            {i === 2 && <div className="h-3.5 bg-surface-2 rounded w-1/2" />}
           </div>
         </div>
       ))}
@@ -526,9 +585,9 @@ function ChatSkeleton({ isMobile }) {
 }
 
 
-// ── ChatBubble — Message with text + media + DOWNLOAD ────
+// ── DiscordMessage — Single message in Discord style ─────
 
-function ChatBubble({ comment: c, isMe, isMobile, onPhotoClick, onDownload, toast }) {
+function DiscordMessage({ comment: c, showHeader, isMobile, onPhotoClick, onDownload, toast }) {
   const color = ROLE_COLORS[c.user_role] || '#6b7280'
   const media = c.media || []
   const photos = media.filter(m => m.type === 'photo')
@@ -544,83 +603,119 @@ function ChatBubble({ comment: c, isMe, isMobile, onPhotoClick, onDownload, toas
   }
 
   return (
-    <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-      <div className={isMobile ? 'max-w-[85%]' : 'max-w-[80%]'}>
-        {/* Header */}
-        <div className={`flex items-center gap-2 mb-1 ${isMe ? 'justify-end' : ''}`}>
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-          <span className="text-[11px] font-semibold" style={{ color }}>{c.user_name || 'Utente'}</span>
-          <span className="text-[10px] text-faint">{ROLE_LABELS[c.user_role] || c.user_role}</span>
-          <span className="text-[10px] text-faint">{timeAgo(c.created_at)}</span>
-        </div>
+    <div className={`group flex gap-3 rounded-lg transition-colors hover:bg-surface-1/30 ${
+      showHeader
+        ? (isMobile ? 'px-[2vw] pt-[2.5vw] pb-[1vw] mt-[1vw]' : 'px-3 pt-2.5 pb-1 mt-1')
+        : (isMobile ? 'px-[2vw] py-[0.5vw]' : 'px-3 py-0.5')
+    }`}>
+      {/* Avatar or spacer */}
+      <div className={`shrink-0 ${isMobile ? 'w-10' : 'w-9'}`}>
+        {showHeader ? (
+          <div
+            className={`rounded-full flex items-center justify-center font-bold text-white ${
+              isMobile ? 'w-10 h-10 text-sm' : 'w-9 h-9 text-xs'
+            }`}
+            style={{ background: color }}
+          >
+            {getInitials(c.user_name)}
+          </div>
+        ) : (
+          <span className={`text-[10px] text-faint/0 group-hover:text-faint transition-colors block text-center ${
+            isMobile ? 'leading-[24px]' : 'leading-[20px]'
+          }`}>
+            {formatTimestamp(c.created_at)}
+          </span>
+        )}
+      </div>
 
-        {/* Bubble */}
-        <div className={`rounded-2xl overflow-hidden ${
-          isMe ? 'bg-violet-500/12 border border-violet-500/20 rounded-tr-sm' : 'bg-surface-2/40 border border-gray-700/25 rounded-tl-sm'
-        }`}>
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        {/* Header: name + role badge + timestamp */}
+        {showHeader && (
+          <div className="flex items-baseline gap-2 mb-0.5">
+            <span className={`font-semibold ${isMobile ? 'text-[15px]' : 'text-[14px]'}`} style={{ color }}>
+              {c.user_name || 'Utente'}
+            </span>
+            <span
+              className={`font-semibold rounded px-1.5 py-0.5 ${isMobile ? 'text-[10px]' : 'text-[9px]'}`}
+              style={{ background: color + '20', color }}
+            >
+              {ROLE_LABELS[c.user_role] || c.user_role}
+            </span>
+            <span className={`text-faint ${isMobile ? 'text-[11px]' : 'text-[10px]'}`}>
+              {formatTimestamp(c.created_at)}
+            </span>
+          </div>
+        )}
 
-          {/* ── PHOTOS with download overlay (desktop) ── */}
-          {photos.length > 0 && (
-            <div className={photos.length === 1 ? '' : 'grid grid-cols-2 gap-0.5'}>
-              {photos.map((p, i) => (
-                <div key={i} className="relative group">
-                  <button onClick={() => onPhotoClick(i)}
-                    className={`block w-full overflow-hidden active:opacity-80 transition-opacity ${
-                      photos.length === 1 ? (isMobile ? 'max-h-72' : 'max-h-64') : 'aspect-square'
-                    }`}>
-                    <img src={p.url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                  </button>
-                  {/* Download overlay — desktop only */}
-                  {!isMobile && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDownload(p.url, p.name || `foto-${i+1}.jpg`, 'Foto') }}
-                      className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-black/60 backdrop-blur-sm flex items-center justify-center
-                        opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80 cursor-pointer"
-                      title="Scarica foto"
-                    >
-                      <Download size={14} className="text-white" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Text */}
+        {c.text && !isMediaOnly && (
+          <p className={`text-themed leading-relaxed whitespace-pre-wrap break-words ${
+            isMobile ? 'text-[15px]' : 'text-[14px]'
+          }`}>
+            {c.text}
+          </p>
+        )}
 
-          {/* ── VIDEOS with download (desktop) ── */}
-          {videos.map((v, i) => (
-            <div key={i} className="p-1.5">
-              <VideoPlayer src={v.url} name={v.name} />
-              {!isMobile && (
-                <button
-                  onClick={() => handleDownload(v.url, v.name || `video-${i+1}.mp4`, 'Video')}
-                  className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg
-                    bg-surface-2 hover:bg-surface-2 text-faint hover:text-green-400
-                    text-[11px] font-medium transition-all group"
-                >
-                  <ArrowDownToLine size={12} className="group-hover:translate-y-0.5 transition-transform" />
-                  Scarica video
+        {/* ── PHOTOS with download overlay (desktop) ── */}
+        {photos.length > 0 && (
+          <div className={`mt-1 ${photos.length === 1 ? 'max-w-sm' : 'grid grid-cols-2 gap-1 max-w-md'}`}>
+            {photos.map((p, i) => (
+              <div key={i} className="relative group/photo rounded-lg overflow-hidden">
+                <button onClick={() => onPhotoClick(i)}
+                  className={`block w-full overflow-hidden active:opacity-80 transition-opacity ${
+                    photos.length === 1 ? (isMobile ? 'max-h-72' : 'max-h-64') : 'aspect-square'
+                  }`}>
+                  <img src={p.url} alt="" className="w-full h-full object-cover rounded-lg" loading="lazy" />
                 </button>
-              )}
-            </div>
-          ))}
+                {!isMobile && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDownload(p.url, p.name || `foto-${i+1}.jpg`, 'Foto') }}
+                    className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-black/60 backdrop-blur-sm flex items-center justify-center
+                      opacity-0 group-hover/photo:opacity-100 transition-opacity hover:bg-black/80 cursor-pointer"
+                    title="Scarica foto"
+                  >
+                    <Download size={14} className="text-white" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
-          {/* ── AUDIO with download (desktop) ── */}
-          {audios.map((a, i) => (
-            <div key={i} className="p-2">
-              <MiniAudioPlayer src={a.url} name={a.name} isMobile={isMobile}
-                onDownload={!isMobile ? () => handleDownload(a.url, a.name || `audio-${i+1}.webm`, 'Audio') : null} />
-            </div>
-          ))}
+        {/* ── VIDEOS with download (desktop) ── */}
+        {videos.length > 0 && (
+          <div className="mt-1 max-w-sm">
+            {videos.map((v, i) => (
+              <div key={i} className="rounded-lg overflow-hidden">
+                <VideoPlayer src={v.url} name={v.name} />
+                {!isMobile && (
+                  <button
+                    onClick={() => handleDownload(v.url, v.name || `video-${i+1}.mp4`, 'Video')}
+                    className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg
+                      bg-surface-2 hover:bg-surface-3 text-faint hover:text-green-400
+                      text-[11px] font-medium transition-all group/dl"
+                  >
+                    <ArrowDownToLine size={12} className="group-hover/dl:translate-y-0.5 transition-transform" />
+                    Scarica video
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
-          {/* ── TEXT ── */}
-          {c.text && !isMediaOnly && (
-            <p className={`text-themed leading-relaxed whitespace-pre-wrap break-words ${
-              isMobile ? 'px-[4vw] py-[2.5vw] text-base' : 'px-4 py-2.5 text-[14px]'
-            } ${hasMedia ? 'border-t border-gray-700/15' : ''}`}>
-              {c.text}
-            </p>
-          )}
-        </div>
+        {/* ── AUDIO with download (desktop) ── */}
+        {audios.length > 0 && (
+          <div className="mt-1 max-w-sm">
+            {audios.map((a, i) => (
+              <div key={i}>
+                <MiniAudioPlayer src={a.url} name={a.name} isMobile={isMobile}
+                  onDownload={!isMobile ? () => handleDownload(a.url, a.name || `audio-${i+1}.webm`, 'Audio') : null} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
