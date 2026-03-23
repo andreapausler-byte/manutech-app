@@ -279,6 +279,36 @@ export const db = {
     return report?.comments || []
   },
 
+  // Get last comment for each report (for preview in list)
+  async getLastCommentsByReports(reportIds) {
+    if (!reportIds?.length) return {}
+    if (supabase) {
+      // Fetch the most recent comment for each report in a single query
+      // We get all comments for these reports ordered by created_at desc, then pick the first per report
+      const { data, error } = await supabase
+        .from('comments')
+        .select('report_id, text, user_name, user_role, media, created_at')
+        .in('report_id', reportIds)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      // Keep only the latest per report
+      const map = {}
+      for (const c of (data || [])) {
+        if (!map[c.report_id]) map[c.report_id] = c
+      }
+      return map
+    }
+    // Demo mode
+    const allReports = getStore(KEYS.reports)
+    const map = {}
+    for (const id of reportIds) {
+      const r = allReports.find(rep => rep.id === id)
+      const comments = r?.comments || []
+      if (comments.length > 0) map[id] = comments[comments.length - 1]
+    }
+    return map
+  },
+
   async addComment(reportId, comment) {
     if (supabase) {
       // Auto-inject org_id if not provided (required by RLS policy)
