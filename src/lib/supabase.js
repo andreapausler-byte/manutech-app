@@ -478,7 +478,12 @@ export const db = {
   async createMaintenancePlan(plan) {
     if (supabase) {
       const insertData = { ...plan }
-      if (!insertData.org_id) insertData.org_id = await getMyOrgId()
+      // Forza org_id dal server per garantire match con RLS policy
+      const orgId = await getMyOrgId()
+      insertData.org_id = orgId
+      // Debug: verifica valori inviati vs RLS
+      const { data: rpcRole } = await supabase.rpc('get_my_role')
+      console.log('[ManuTech] createMaintenancePlan →', { org_id: orgId, role: rpcRole, insertData })
       const { data, error } = await supabase.from('maintenance_plans').insert(insertData).select().single()
       if (error) throw error
       return data
