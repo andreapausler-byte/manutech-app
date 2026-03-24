@@ -69,6 +69,20 @@ export function ensureDefaultAdmin() {
     })
     setStore(KEYS.users, users)
   }
+  // Ensure demo users exist for testing messaging
+  const updated = getStore(KEYS.users)
+  const demoUsers = [
+    { id: 'tecnico-1', name: 'Marco Rossi', email: 'marco@manutech.it', password: 'demo123', role: 'tecnico', created_at: new Date().toISOString() },
+    { id: 'operatore-1', name: 'Luca Bianchi', email: 'luca@manutech.it', password: 'demo123', role: 'operatore', created_at: new Date().toISOString() },
+  ]
+  let changed = false
+  for (const du of demoUsers) {
+    if (!updated.find(u => u.id === du.id)) {
+      updated.push(du)
+      changed = true
+    }
+  }
+  if (changed) setStore(KEYS.users, updated)
 }
 
 // ── API unificata (Supabase o localStorage) ──────────────
@@ -78,9 +92,11 @@ export const db = {
   async getUsers() {
     if (supabase) {
       const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false })
+      console.log('[ManuTech] getUsers → supabase:', { count: data?.length, error: error?.message })
       if (error) throw error
       return data || []
     }
+    console.log('[ManuTech] getUsers → demo mode (localStorage)')
     return getStore(KEYS.users)
   },
 
@@ -980,7 +996,7 @@ export const db = {
         .select('*, p1:users!conversations_participant_1_fkey(id, name, role, avatar_url), p2:users!conversations_participant_2_fkey(id, name, role, avatar_url)')
         .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
         .order('last_message_at', { ascending: false, nullsFirst: false })
-      if (error) throw error
+      if (error) { console.warn('[DM] getConversations error:', error.message); return [] }
       return (data || []).map(c => {
         const other = c.p1?.id === userId ? c.p2 : c.p1
         return { ...c, otherUser: other }
@@ -1019,7 +1035,10 @@ export const db = {
         .insert({ participant_1: p1, participant_2: p2, org_id: insertOrgId })
         .select()
         .single()
-      if (error) throw error
+      if (error) {
+        console.warn('[DM] getOrCreateConversation insert error:', error.message)
+        throw new Error('Impossibile creare la conversazione. Verifica che la migrazione DB sia stata eseguita.')
+      }
       return data
     }
     // Demo mode
@@ -1049,7 +1068,7 @@ export const db = {
         .select('*')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true })
-      if (error) throw error
+      if (error) { console.warn('[DM] getDirectMessages error:', error.message); return [] }
       return data || []
     }
     const msgs = JSON.parse(localStorage.getItem('manutech_direct_messages') || '[]')
