@@ -69,6 +69,20 @@ export function ensureDefaultAdmin() {
     })
     setStore(KEYS.users, users)
   }
+  // Ensure demo users exist for testing messaging
+  const updated = getStore(KEYS.users)
+  const demoUsers = [
+    { id: 'tecnico-1', name: 'Marco Rossi', email: 'marco@manutech.it', password: 'demo123', role: 'tecnico', created_at: new Date().toISOString() },
+    { id: 'operatore-1', name: 'Luca Bianchi', email: 'luca@manutech.it', password: 'demo123', role: 'operatore', created_at: new Date().toISOString() },
+  ]
+  let changed = false
+  for (const du of demoUsers) {
+    if (!updated.find(u => u.id === du.id)) {
+      updated.push(du)
+      changed = true
+    }
+  }
+  if (changed) setStore(KEYS.users, updated)
 }
 
 // ── API unificata (Supabase o localStorage) ──────────────

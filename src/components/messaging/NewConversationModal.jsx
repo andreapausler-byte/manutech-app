@@ -61,7 +61,8 @@ export default function NewConversationModal({ user, onSelect, onClose }) {
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-md max-h-[80vh] flex flex-col rounded-t-2xl sm:rounded-2xl overflow-hidden"
+        onClick={e => e.stopPropagation()}
+        className="relative z-10 w-full max-w-md max-h-[80vh] flex flex-col rounded-t-2xl sm:rounded-2xl overflow-hidden"
         style={{
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
