@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { ROLES } from '../../lib/constants'
-import { X, Search, Loader, MessageCircle } from 'lucide-react'
+import { X, Search, Loader, MessageCircle, AlertCircle, RefreshCw } from 'lucide-react'
 
 function getInitials(name) {
   if (!name) return '?'
@@ -20,22 +20,31 @@ function getInitials(name) {
 export default function NewConversationModal({ user, onSelect, onClose }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const allUsers = await db.getUsers()
-        // Exclude self
-        setUsers(allUsers.filter(u => u.id !== user.id))
-      } catch (err) {
-        console.warn('[NewConvModal] Errore:', err)
-      } finally {
-        setLoading(false)
+  const loadUsers = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const allUsers = await db.getUsers()
+      // Exclude self — show all other org members
+      const others = (allUsers || []).filter(u => u.id !== user.id)
+      setUsers(others)
+      if (allUsers?.length > 0 && others.length === 0) {
+        setError('Sei l\'unico utente nell\'organizzazione. Aggiungi altri utenti dalla sezione Admin > Utenti.')
       }
+    } catch (err) {
+      console.warn('[NewConvModal] Errore caricamento utenti:', err)
+      setError('Errore nel caricamento degli utenti. Riprova.')
+    } finally {
+      setLoading(false)
     }
-    load()
-  }, [user.id])
+  }
+
+  useEffect(() => {
+    loadUsers()
+  }, [user.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = search.trim()
     ? users.filter(u => u.name?.toLowerCase().includes(search.toLowerCase()))
@@ -80,31 +89,48 @@ export default function NewConversationModal({ user, onSelect, onClose }) {
         </div>
 
         {/* Search */}
-        <div className="px-4 py-3">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-tertiary)' }} />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Cerca utente..."
-              autoFocus
-              className="w-full pl-9 pr-3 py-2 rounded-xl text-sm"
-              style={{
-                background: 'var(--color-surface-2)',
-                color: 'var(--color-text)',
-                border: '1px solid var(--color-border)',
-                outline: 'none',
-              }}
-            />
+        {!loading && !error && users.length > 0 && (
+          <div className="px-4 py-3">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-tertiary)' }} />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Cerca utente..."
+                autoFocus
+                className="w-full pl-9 pr-3 py-2 rounded-xl text-sm"
+                style={{
+                  background: 'var(--color-surface-2)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
+                  outline: 'none',
+                }}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Users list */}
         <div className="flex-1 overflow-y-auto px-3 pb-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader size={24} className="animate-spin" style={{ color: 'var(--color-text-tertiary)' }} />
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 px-4">
+              <AlertCircle size={28} style={{ color: 'var(--color-text-tertiary)' }} />
+              <p className="text-center text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                {error}
+              </p>
+              <button
+                onClick={loadUsers}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium press-scale"
+                style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-secondary)' }}
+              >
+                <RefreshCw size={14} />
+                Riprova
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-2">
