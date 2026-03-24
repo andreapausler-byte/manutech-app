@@ -190,6 +190,18 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
   UNIQUE(user_id)
 );
 
+-- ── GUEST TOKENS (accesso chat senza login) ──────────────────
+CREATE TABLE IF NOT EXISTS public.guest_tokens (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_id   UUID NOT NULL REFERENCES public.reports(id) ON DELETE CASCADE,
+  token       TEXT NOT NULL UNIQUE,
+  enabled     BOOLEAN DEFAULT true,
+  created_by  UUID REFERENCES public.users(id),
+  org_id      TEXT NOT NULL DEFAULT 'default',
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  expires_at  TIMESTAMPTZ DEFAULT (now() + INTERVAL '30 days')
+);
+
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- 2. INDICI
@@ -228,6 +240,9 @@ CREATE INDEX IF NOT EXISTS idx_activities_created ON public.activities(created_a
 CREATE INDEX IF NOT EXISTS idx_notif_target     ON public.notifications(target_user);
 CREATE INDEX IF NOT EXISTS idx_notif_unread     ON public.notifications(read) WHERE NOT read;
 CREATE INDEX IF NOT EXISTS idx_notif_created    ON public.notifications(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_guest_token      ON public.guest_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_guest_report     ON public.guest_tokens(report_id);
 
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -484,6 +499,29 @@ CREATE POLICY "notifpref_update" ON public.notification_preferences
 CREATE POLICY "notifpref_delete" ON public.notification_preferences
   FOR DELETE TO authenticated
   USING (org_id = public.get_my_org_id() AND (user_id = public.get_my_user_id() OR public.get_my_role() = 'admin'));
+
+
+-- ── GUEST TOKENS RLS ──────────────────────────────────────────
+ALTER TABLE public.guest_tokens ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "guest_tokens_select" ON public.guest_tokens
+  FOR SELECT TO authenticated
+  USING (org_id = public.get_my_org_id());
+
+CREATE POLICY "guest_tokens_insert" ON public.guest_tokens
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    org_id = public.get_my_org_id()
+    AND public.get_my_role() IN ('admin', 'tecnico')
+  );
+
+CREATE POLICY "guest_tokens_update" ON public.guest_tokens
+  FOR UPDATE TO authenticated
+  USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+
+CREATE POLICY "guest_tokens_delete" ON public.guest_tokens
+  FOR DELETE TO authenticated
+  USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
 
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -4,16 +4,22 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import LoginPage from './components/layout/LoginPage'
 import MobileLayout from './components/layout/MobileLayout'
 import AdminLayout from './components/layout/AdminLayout'
+import GuestChatPage from './components/guest/GuestChatPage'
 import { Spinner } from './components/ui'
 
-function getInitialReportId() {
-  const match = window.location.pathname.match(/^\/reports\/(.+)$/)
-  return match ? match[1] : null
+function getGuestParams() {
+  const match = window.location.pathname.match(/^\/guest\/([^/]+)\/([^/]+)$/)
+  return match ? { reportId: match[1], token: match[2] } : null
 }
 
-function AppContent() {
+const guestParams = getGuestParams()
+
+function AuthenticatedApp() {
   const { user, loading } = useAuth()
-  const initialReportId = useMemo(getInitialReportId, [])
+  const initialReportId = useMemo(() => {
+    const match = window.location.pathname.match(/^\/reports\/(.+)$/)
+    return match ? match[1] : null
+  }, [])
 
   if (loading) {
     return (
@@ -38,10 +44,19 @@ function AppContent() {
 }
 
 export default function App() {
+  // Guest route: render outside AuthProvider (no auth needed)
+  if (guestParams) {
+    return (
+      <ThemeProvider>
+        <GuestChatPage reportId={guestParams.reportId} token={guestParams.token} />
+      </ThemeProvider>
+    )
+  }
+
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppContent />
+        <AuthenticatedApp />
       </AuthProvider>
     </ThemeProvider>
   )

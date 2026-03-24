@@ -9,6 +9,7 @@ import AudioPlayer from '../media/AudioPlayer'
 import VideoPlayer from '../media/VideoPlayer'
 import ActivityTimeline from './ActivityTimeline'
 import ChatPanel from '../chat/ChatPanel'
+import ShareGuestLink from '../chat/ShareGuestLink'
 import {
   ArrowLeft, MessageCircle, Video, Mic, Expand, Image, Clock,
   ChevronDown, Check, User, Wrench, Factory
@@ -176,6 +177,10 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
               <span className="text-sm text-faint">{timeAgo(report.created_at)}</span>
             </div>
           </div>
+          {/* Share guest link (admin/tecnico only) */}
+          {(user.role === 'admin' || user.role === 'tecnico') && (
+            <ShareGuestLink reportId={report.id} reportTitle={report.title} />
+          )}
           {/* Status pill with pulse */}
           <span style={{
             fontSize: 12, padding: '6px 12px', borderRadius: 'var(--radius-full)',
