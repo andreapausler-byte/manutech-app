@@ -677,13 +677,17 @@ export default function ConversationView({ conversation, user, otherUser, onBack
             onKeyDown={handleKeyDown}
             placeholder="Messaggio..."
             rows={1}
-            className="flex-1 resize-none text-base py-3 px-4 rounded-2xl search-chat"
+            className="flex-1 resize-none rounded-2xl search-chat"
             style={{
               background: 'var(--color-surface-2)',
               color: 'var(--color-text)',
               border: '1px solid var(--color-border)',
               outline: 'none',
-              maxHeight: isMobile ? 120 : 150,
+              fontSize: 16,
+              lineHeight: '1.5',
+              padding: '12px 16px',
+              minHeight: 48,
+              maxHeight: isMobile ? 130 : 160,
             }}
           />
 
