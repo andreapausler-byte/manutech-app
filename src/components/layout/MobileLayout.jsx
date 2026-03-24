@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
-import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog } from 'lucide-react'
+import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import { useChatRealtime } from '../../hooks/useChatRealtime'
+import { useDirectMessageRealtime } from '../../hooks/useDirectMessageRealtime'
 import { useAutoNotifications } from '../../hooks/useAutoNotifications'
 import { usePWA } from '../../hooks/usePWA'
 import { InstallBanner, SafariInstallGuide, NotifPermissionBanner } from '../ui/PWABanners'
@@ -20,6 +21,8 @@ import MobileMachinesList from '../machines/MobileMachinesList'
 import MobileMachineDetail from '../machines/MobileMachineDetail'
 import ProfilePage from '../../pages/mobile/ProfilePage'
 import MobileDashboard from '../../pages/mobile/MobileDashboard'
+import ConversationList from '../messaging/ConversationList'
+import ConversationView from '../messaging/ConversationView'
 
 // ── FAB Menu — 2 azioni: Quick Report + Report Completo ──
 function FABMenu({ onNewReport, onQuickReport }) {
@@ -109,16 +112,19 @@ const TABS_BY_ROLE = {
     { id: 'home', icon: Home, label: 'Dashboard' },
     { id: 'reports', icon: ClipboardList, label: 'Ticket' },
     { id: 'machines', icon: Cog, label: 'Macchine' },
+    { id: 'messages', icon: MessageCircle, label: 'Messaggi' },
     { id: 'profile', icon: User, label: 'Profilo' },
   ],
   tecnico: [
     { id: 'reports', icon: ClipboardList, label: 'Assegnati' },
     { id: 'machines', icon: Cog, label: 'Macchine' },
+    { id: 'messages', icon: MessageCircle, label: 'Messaggi' },
     { id: 'profile', icon: User, label: 'Profilo' },
   ],
   operatore: [
     { id: 'home', icon: Home, label: 'Home' },
     { id: 'reports', icon: ClipboardList, label: 'I Miei Ticket' },
+    { id: 'messages', icon: MessageCircle, label: 'Messaggi' },
     { id: 'profile', icon: User, label: 'Profilo' },
   ],
 }
@@ -136,6 +142,10 @@ export default function MobileLayout({ initialReportId }) {
 
   // ── Chat Realtime ──
   const { unreadByReport, totalUnread, markAsRead, refreshUnread } = useChatRealtime(user?.id)
+
+  // ── DM Realtime ──
+  const { unreadByConversation, totalUnreadDM, markDMAsRead } = useDirectMessageRealtime(user?.id)
+  const [selectedConversation, setSelectedConversation] = useState(null)
 
   // ── Auto Notifications (scadenze manutenzione) ──
   useAutoNotifications(user?.id, user?.role)
@@ -192,6 +202,12 @@ export default function MobileLayout({ initialReportId }) {
 
   const openMachine = (machine) => navigateTo('machine-detail', machine)
 
+  const openConversation = (conv) => {
+    setSelectedConversation(conv)
+    markDMAsRead(conv.id)
+    navigateTo('conversation-detail')
+  }
+
   const handleCreated = () => {
     goBack()
     setTimeout(() => setTab('reports'), 100)
@@ -228,6 +244,20 @@ export default function MobileLayout({ initialReportId }) {
           report={selectedReport}
           user={user}
           onBack={() => { refreshUnread(); goBack() }}
+        />
+      </div>
+    )
+  }
+  if (screen === 'conversation-detail' && selectedConversation) {
+    return (
+      <div className={transitionClass} style={{ height: '100dvh' }}>
+        <ConversationView
+          conversation={selectedConversation}
+          user={user}
+          otherUser={selectedConversation.otherUser}
+          variant="mobile"
+          onBack={() => { goBack(); setSelectedConversation(null) }}
+          onMessageSent={() => markDMAsRead(selectedConversation.id)}
         />
       </div>
     )
@@ -328,6 +358,13 @@ export default function MobileLayout({ initialReportId }) {
           {tab === 'machines' && (
             <MobileMachinesList onSelectMachine={openMachine} />
           )}
+          {tab === 'messages' && (
+            <ConversationList
+              user={user}
+              onSelectConversation={openConversation}
+              unreadByConversation={unreadByConversation}
+            />
+          )}
           {tab === 'profile' && <ProfilePage />}
         </div>
       </main>
@@ -346,11 +383,12 @@ export default function MobileLayout({ initialReportId }) {
         <div className="flex items-center justify-around max-w-md mx-auto">
           {(TABS_BY_ROLE[user?.role] || TABS_BY_ROLE.operatore).map(({ id, icon: Icon, label }) => {
             const active = tab === id
-            const showBadge = id === 'reports' && totalUnread > 0
+            const showBadge = (id === 'reports' && totalUnread > 0) || (id === 'messages' && totalUnreadDM > 0)
+            const badgeCount = id === 'reports' ? totalUnread : id === 'messages' ? totalUnreadDM : 0
             return (
               <button key={id} onClick={() => switchTab(id)}
                 aria-current={active ? 'page' : undefined}
-                aria-label={showBadge ? `${label} (${totalUnread} non letti)` : label}
+                aria-label={showBadge ? `${label} (${badgeCount} non letti)` : label}
                 className="flex flex-col items-center justify-center gap-0.5 flex-1 press-scale"
                 style={{ minHeight: 48, background: 'transparent', border: 'none', cursor: 'pointer' }}
               >
@@ -360,7 +398,7 @@ export default function MobileLayout({ initialReportId }) {
                   {showBadge && (
                     <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-[16px] rounded-full text-[9px] font-bold text-white flex items-center justify-center px-1"
                       style={{ background: 'var(--color-danger)' }}>
-                      {totalUnread > 9 ? '9+' : totalUnread}
+                      {badgeCount > 9 ? '9+' : badgeCount}
                     </span>
                   )}
                 </div>

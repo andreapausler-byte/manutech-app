@@ -111,6 +111,13 @@ export const QUICK_TEMPLATES = [
   },
 ]
 
+// ── localStorage keys per chat diretta (demo mode) ──
+export const DM_KEYS = {
+  conversations: 'manutech_conversations',
+  directMessages: 'manutech_direct_messages',
+  dmReads: 'manutech_dm_reads',
+}
+
 export const formatDate = (dateStr) => {
   if (!dateStr) return ''
   const d = new Date(dateStr)
