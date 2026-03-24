@@ -92,9 +92,11 @@ export const db = {
   async getUsers() {
     if (supabase) {
       const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false })
+      console.log('[ManuTech] getUsers → supabase:', { count: data?.length, error: error?.message })
       if (error) throw error
       return data || []
     }
+    console.log('[ManuTech] getUsers → demo mode (localStorage)')
     return getStore(KEYS.users)
   },
 
