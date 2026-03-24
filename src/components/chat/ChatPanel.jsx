@@ -36,8 +36,8 @@ import {
 } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────
-const ROLE_COLORS = { admin: '#7c6aff', tecnico: '#10b981', operatore: '#f59e0b' }
-const ROLE_LABELS = { admin: 'Admin', tecnico: 'Tecnico', operatore: 'Operatore' }
+const ROLE_COLORS = { admin: '#7c6aff', tecnico: '#10b981', operatore: '#f59e0b', guest: '#94a3b8' }
+const ROLE_LABELS = { admin: 'Admin', tecnico: 'Tecnico', operatore: 'Operatore', guest: 'Ospite' }
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 const GROUP_THRESHOLD_MS = 5 * 60 * 1000 // 5 min — messages closer than this from same user are grouped
 
@@ -101,7 +101,7 @@ async function downloadFile(url, filename) {
   }
 }
 
-export default function ChatPanel({ reportId, user, variant = 'desktop', report, className = '' }) {
+export default function ChatPanel({ reportId, user, variant = 'desktop', report, className = '', guestMode }) {
   // State
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -140,11 +140,23 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
   useEffect(() => {
     if (!reportId) return
     setLoading(true)
-    db.getComments(reportId)
+    const loader = guestMode ? guestMode.getComments : () => db.getComments(reportId)
+    loader()
       .then(c => setComments(c || []))
       .catch(() => setComments([]))
       .finally(() => setLoading(false))
-  }, [reportId])
+  }, [reportId, guestMode])
+
+  // ── Guest mode polling (no Realtime available) ──────
+  useEffect(() => {
+    if (!guestMode || !reportId) return
+    const interval = setInterval(() => {
+      guestMode.getComments()
+        .then(c => setComments(c || []))
+        .catch(() => {})
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [guestMode, reportId])
 
   // ── Auto-scroll ────────────────────────────────────────
   useEffect(() => {
@@ -299,48 +311,59 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
     hapticRef.current.medium()
 
     try {
-      let autoLabel = ''
-      if (!hasText && hasMedia) {
-        if (pendingMedia.length === 1) {
-          const m = pendingMedia[0]
-          autoLabel = m.type === 'photo' ? '📷 Foto' : m.type === 'video' ? '🎥 Video' : '🎤 Audio'
-        } else {
-          autoLabel = `📎 ${pendingMedia.length} allegati`
+      let c
+      if (guestMode) {
+        // Guest mode: text only, via Edge Function
+        c = await guestMode.addComment(text.trim())
+        setComments(prev => [...prev, c])
+        setText('')
+        hapticRef.current.success()
+        if (inputRef.current) inputRef.current.style.height = 'auto'
+      } else {
+        // Normal mode: text + media, via db
+        let autoLabel = ''
+        if (!hasText && hasMedia) {
+          if (pendingMedia.length === 1) {
+            const m = pendingMedia[0]
+            autoLabel = m.type === 'photo' ? '📷 Foto' : m.type === 'video' ? '🎥 Video' : '🎤 Audio'
+          } else {
+            autoLabel = `📎 ${pendingMedia.length} allegati`
+          }
         }
-      }
 
-      const commentData = {
-        text: hasText ? text.trim() : autoLabel,
-        user_id: user?.id,
-        user_name: user?.name || 'Utente',
-        user_role: user?.role || 'operatore',
-        media: hasMedia ? pendingMedia.map(m => ({ type: m.type, url: m.url, name: m.name })) : null,
-      }
+        const commentData = {
+          text: hasText ? text.trim() : autoLabel,
+          user_id: user?.id,
+          user_name: user?.name || 'Utente',
+          user_role: user?.role || 'operatore',
+          media: hasMedia ? pendingMedia.map(m => ({ type: m.type, url: m.url, name: m.name })) : null,
+        }
 
-      const c = await db.addComment(reportId, commentData)
-      setComments(prev => [...prev, c])
-      setText('')
-      setPendingMedia([])
-      setShowMediaBar(false)
-      hapticRef.current.success()
-      if (inputRef.current) inputRef.current.style.height = 'auto'
+        c = await db.addComment(reportId, commentData)
+        setComments(prev => [...prev, c])
+        setText('')
+        setPendingMedia([])
+        setShowMediaBar(false)
+        hapticRef.current.success()
+        if (inputRef.current) inputRef.current.style.height = 'auto'
 
-      // Activity log + notifications (fire & forget)
-      db.addActivity(reportId, {
-        type: 'comment', detail: commentData.text.slice(0, 100),
-        user_id: user?.id, user_name: user?.name,
-      }).catch(e => console.warn('Side effect failed:', e.message))
+        // Activity log + notifications (fire & forget)
+        db.addActivity(reportId, {
+          type: 'comment', detail: commentData.text.slice(0, 100),
+          user_id: user?.id, user_name: user?.name,
+        }).catch(e => console.warn('Side effect failed:', e.message))
 
-      if (report) {
-        const targets = [...new Set([report.created_by, report.assigned_to].filter(id => id && id !== user?.id))]
-        targets.forEach(targetId => {
-          db.addNotification({
-            type: 'comment',
-            title: `Nuovo messaggio: ${report.title}`,
-            body: `${user?.name}: "${commentData.text.slice(0, 80)}"`,
-            report_id: reportId, from_user: user?.id, target_user: targetId,
-          }).catch(e => console.warn('Side effect failed:', e.message))
-        })
+        if (report) {
+          const targets = [...new Set([report.created_by, report.assigned_to].filter(id => id && id !== user?.id))]
+          targets.forEach(targetId => {
+            db.addNotification({
+              type: 'comment',
+              title: `Nuovo messaggio: ${report.title}`,
+              body: `${user?.name}: "${commentData.text.slice(0, 80)}"`,
+              report_id: reportId, from_user: user?.id, target_user: targetId,
+            }).catch(e => console.warn('Side effect failed:', e.message))
+          })
+        }
       }
     } catch {
       toastRef.current.error('Errore invio messaggio')
@@ -375,9 +398,9 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
   return (
     <div
       className={`flex flex-col relative ${className}`}
-      onDragOver={!isMobile ? handleDragOver : undefined}
-      onDragLeave={!isMobile ? handleDragLeave : undefined}
-      onDrop={!isMobile ? handleDrop : undefined}
+      onDragOver={!isMobile && !guestMode ? handleDragOver : undefined}
+      onDragLeave={!isMobile && !guestMode ? handleDragLeave : undefined}
+      onDrop={!isMobile && !guestMode ? handleDrop : undefined}
     >
       {/* Drag overlay (desktop) */}
       {dragOver && (
@@ -458,7 +481,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
       )}
 
       {/* ═══ Media action bar ═══ */}
-      {showMediaBar && !recording && (
+      {showMediaBar && !recording && !guestMode && (
         <div className={`shrink-0 border-t border-token bg-surface-1/40 ${isMobile ? 'px-[3vw] py-[2.5vw]' : 'px-3 py-2'}`}>
           <div className={`grid grid-cols-4 ${isMobile ? 'gap-[2vw]' : 'gap-2'}`}>
             {mediaActions.map(({ action, icon: Icon, label, color }, i) => (
@@ -497,6 +520,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
           isMobile ? 'px-[3vw] py-[3vw]' : 'p-3'
         }`} style={isMobile ? { paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 3vw)' } : {}}>
           <div className="flex items-end gap-2">
+            {!guestMode && (
             <button
               onClick={() => { setShowMediaBar(prev => !prev); hapticRef.current.light() }}
               disabled={uploading}
@@ -506,6 +530,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
             >
               {showMediaBar ? <X size={isMobile ? 22 : 18} /> : <Paperclip size={isMobile ? 22 : 18} />}
             </button>
+            )}
 
             <textarea
               ref={inputRef}
