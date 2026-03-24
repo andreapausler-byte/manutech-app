@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
-import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings, MessageCircle } from 'lucide-react'
 import { useAutoNotifications } from '../../hooks/useAutoNotifications'
 import { usePWA } from '../../hooks/usePWA'
 import SettingsPanel from '../ui/SettingsPanel'
@@ -12,6 +12,7 @@ import AdminMaintenance from '../../pages/admin/AdminMaintenance'
 import AdminUsers from '../../pages/admin/AdminUsers'
 import AdminTechnicians from '../../pages/admin/AdminTechnicians'
 import AdminNotifSettings from '../../pages/admin/AdminNotifSettings'
+import AdminMessaging from '../../pages/admin/AdminMessaging'
 
 const NAV = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', desc: 'Panoramica generale' },
@@ -20,6 +21,7 @@ const NAV = [
   { id: 'maintenance', icon: Shield, label: 'Manutenzione', desc: 'Piani e interventi programmati' },
   { id: 'technicians', icon: Wrench, label: 'Tecnici', desc: 'Carico e performance' },
   { id: 'users', icon: Users, label: 'Utenti', desc: 'Account e ruoli' },
+  { id: 'messages', icon: MessageCircle, label: 'Messaggi', desc: 'Chat diretta con il team' },
   { id: 'notifications', icon: Bell, label: 'Notifiche', desc: 'Preferenze notifiche per ruolo' },
 ]
 
@@ -54,6 +56,7 @@ export default function AdminLayout({ initialReportId }) {
       case 'maintenance': return <AdminMaintenance />
       case 'technicians': return <AdminTechnicians />
       case 'users': return <AdminUsers />
+      case 'messages': return <AdminMessaging />
       case 'notifications': return <AdminNotifSettings />
       default: return <AdminDashboard onNavigate={setTab} />
     }
