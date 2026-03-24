@@ -1,12 +1,14 @@
 /**
- * ConversationView — Chat view per conversazione diretta 1-a-1
+ * ConversationView — Premium chat view con bubble layout stile iMessage/WhatsApp
  *
  * Features:
- *  - Header con nome/ruolo dell'altro utente + bottone indietro
- *  - Lista messaggi stile Discord (raggruppati, separatori di data)
- *  - Input bar con testo + media (foto, video, audio)
- *  - Realtime subscription per nuovi messaggi
- *  - Auto-scroll, auto-resize textarea
+ *  - Chat bubbles: propri a destra (gradient), altri a sinistra (surface)
+ *  - Bubble tails con CSS clip-path
+ *  - Pill date separators con glass effect
+ *  - Glass input bar + send/mic toggle
+ *  - Message entrance animations
+ *  - Media support (foto, video, audio)
+ *  - Realtime subscription
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -19,8 +21,8 @@ import VideoPlayer from '../media/VideoPlayer'
 import MediaLightbox from '../media/MediaLightbox'
 import {
   Send, ArrowLeft, Camera, Video, Mic, Image,
-  Square, X, Paperclip, Play, Pause, Download,
-  Loader, MessageCircle
+  Square, X, Paperclip, Download,
+  Loader, MessageCircle, Sparkles, Check, CheckCheck
 } from 'lucide-react'
 
 const ROLE_COLORS = { admin: '#7c6aff', tecnico: '#10b981', operatore: '#f59e0b' }
@@ -59,7 +61,13 @@ function shouldShowDateSeparator(messages, index) {
   return new Date(messages[index - 1].created_at).toDateString() !== new Date(messages[index].created_at).toDateString()
 }
 
-// ── Download utility ──
+function isLastInGroup(messages, index) {
+  if (index === messages.length - 1) return true
+  const curr = messages[index], next = messages[index + 1]
+  if (curr.sender_id !== next.sender_id) return true
+  return new Date(next.created_at) - new Date(curr.created_at) > GROUP_THRESHOLD_MS
+}
+
 async function downloadFile(url, filename) {
   try {
     const response = await fetch(url)
@@ -88,6 +96,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
   const [lightboxData, setLightboxData] = useState(null)
   const [recording, setRecording] = useState(false)
   const [audioTime, setAudioTime] = useState(0)
+  const [sendAnimating, setSendAnimating] = useState(false)
 
   const chatEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -266,6 +275,8 @@ export default function ConversationView({ conversation, user, otherUser, onBack
     const hasMedia = pendingMedia.length > 0
     if ((!hasText && !hasMedia) || sending) return
     setSending(true)
+    setSendAnimating(true)
+    setTimeout(() => setSendAnimating(false), 350)
     hapticRef.current.medium()
     try {
       let msgText = text.trim()
@@ -309,103 +320,144 @@ export default function ConversationView({ conversation, user, otherUser, onBack
     }
   }
 
-  // ── Render message ──
+  const hasContent = text.trim().length > 0 || pendingMedia.length > 0
+
+  // ── Render message (bubble layout) ──
   const renderMessage = (msg, index) => {
     const isOwn = msg.sender_id === user.id
     const showDate = shouldShowDateSeparator(messages, index)
     const showHeader = shouldShowHeader(messages, index)
+    const isLast = isLastInGroup(messages, index)
     const senderRole = msg.sender_role || 'operatore'
     const senderColor = ROLE_COLORS[senderRole] || ROLE_COLORS.operatore
-    const senderLabel = ROLE_LABELS[senderRole] || 'Operatore'
 
     return (
-      <div key={msg.id}>
-        {/* Date separator */}
+      <div key={msg.id} className="msg-enter">
+        {/* Date separator — floating pill */}
         {showDate && (
-          <div className="flex items-center gap-3 my-4 px-2">
-            <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
-            <span className="text-[11px] font-semibold" style={{ color: 'var(--color-text-tertiary)' }}>
+          <div className="flex justify-center my-4">
+            <span
+              className="px-3.5 py-1 rounded-full text-[11px] font-semibold"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-tertiary)',
+              }}
+            >
               {formatDateSeparator(msg.created_at)}
             </span>
-            <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
           </div>
         )}
 
-        {/* Message */}
-        <div className={`flex gap-2.5 px-3 ${showHeader ? 'mt-3' : 'mt-0.5'}`}>
-          {/* Avatar */}
-          {showHeader ? (
+        {/* Bubble message */}
+        <div
+          className={`flex ${isOwn ? 'justify-end' : 'justify-start'} px-3 ${showHeader ? 'mt-3' : 'mt-0.5'}`}
+        >
+          {/* Avatar (only for other user, first in group) */}
+          {!isOwn && showHeader && (
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold shrink-0 mt-0.5"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shrink-0 mt-1 mr-2"
               style={{
-                background: `linear-gradient(135deg, ${senderColor}, ${senderColor}99)`,
-                fontSize: 12,
+                background: `linear-gradient(135deg, ${senderColor}, ${senderColor}bb)`,
+                fontSize: 11,
+                boxShadow: `0 2px 8px ${senderColor}33`,
               }}
             >
               {getInitials(msg.sender_name)}
             </div>
-          ) : (
-            <div className="w-9 shrink-0" />
           )}
+          {!isOwn && !showHeader && <div className="w-8 shrink-0 mr-2" />}
 
-          <div className="flex-1 min-w-0">
-            {/* Header (name + role + time) */}
-            {showHeader && (
-              <div className="flex items-baseline gap-2 mb-0.5">
-                <span className="font-semibold text-[13px]" style={{ color: senderColor }}>
-                  {msg.sender_name || 'Utente'}
-                </span>
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
-                  style={{ background: `${senderColor}22`, color: senderColor }}
-                >
-                  {senderLabel}
-                </span>
-                <span className="text-[11px]" style={{ color: 'var(--color-text-tertiary)' }}>
-                  {formatTimestamp(msg.created_at)}
-                </span>
-              </div>
+          {/* Bubble */}
+          <div
+            className={`relative max-w-[78%] ${isMobile ? 'max-w-[82%]' : ''} ${
+              isOwn
+                ? `${isLast ? 'bubble-tail-right' : ''}`
+                : `${isLast ? 'bubble-tail-left' : ''}`
+            }`}
+            style={{
+              background: isOwn
+                ? 'var(--gradient-primary)'
+                : 'var(--color-surface-2)',
+              borderRadius: isOwn
+                ? (isLast ? '18px 18px 4px 18px' : '18px 18px 18px 18px')
+                : (isLast ? '18px 18px 18px 4px' : '18px 18px 18px 18px'),
+              padding: '8px 12px',
+              boxShadow: isOwn
+                ? '0 2px 12px rgba(124, 106, 255, 0.2)'
+                : 'var(--shadow-xs)',
+            }}
+          >
+            {/* Sender name (only other, first in group) */}
+            {!isOwn && showHeader && (
+              <p
+                className="text-[12px] font-semibold mb-0.5"
+                style={{ color: senderColor }}
+              >
+                {msg.sender_name || 'Utente'}
+              </p>
             )}
-
-            {/* Text */}
-            <p className="text-[14px] leading-relaxed break-words whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>
-              {msg.text}
-            </p>
 
             {/* Media */}
             {msg.media && msg.media.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-1.5">
+              <div className="flex flex-wrap gap-1.5 mb-1">
                 {msg.media.map((m, mi) => (
                   <div key={mi} className="relative group">
                     {m.type === 'photo' ? (
                       <img
                         src={m.url}
                         alt=""
-                        className="rounded-lg cursor-pointer object-cover"
-                        style={{ maxWidth: isMobile ? '60vw' : 300, maxHeight: 250 }}
+                        className="rounded-xl cursor-pointer object-cover"
+                        style={{
+                          maxWidth: isMobile ? '55vw' : 280,
+                          maxHeight: 220,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        }}
                         onClick={() => setLightboxData({ url: m.url, type: 'photo', name: m.name })}
                       />
                     ) : m.type === 'video' ? (
-                      <div style={{ maxWidth: isMobile ? '70vw' : 350 }}>
+                      <div className="rounded-xl overflow-hidden" style={{ maxWidth: isMobile ? '65vw' : 320 }}>
                         <VideoPlayer src={m.url} />
                       </div>
                     ) : m.type === 'audio' ? (
-                      <audio controls src={m.url} className="max-w-[250px]" />
+                      <audio controls src={m.url} className="max-w-[230px]" style={{ filter: isOwn ? 'brightness(1.3) invert(0)' : 'none' }} />
                     ) : null}
-                    {/* Download overlay */}
                     {!isMobile && (
                       <button
                         onClick={() => downloadFile(m.url, m.name)}
                         className="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{ background: 'rgba(0,0,0,0.6)' }}
+                        style={{ background: 'rgba(0,0,0,0.55)' }}
                       >
-                        <Download size={14} className="text-white" />
+                        <Download size={13} className="text-white" />
                       </button>
                     )}
                   </div>
                 ))}
               </div>
             )}
+
+            {/* Text + timestamp row */}
+            <div className="flex items-end gap-2">
+              <p
+                className="text-[14px] leading-relaxed break-words whitespace-pre-wrap flex-1"
+                style={{ color: isOwn ? '#fff' : 'var(--color-text)' }}
+              >
+                {msg.text}
+              </p>
+              <span
+                className="text-[10px] shrink-0 flex items-center gap-0.5 translate-y-0.5"
+                style={{
+                  color: isOwn ? 'rgba(255,255,255,0.6)' : 'var(--color-text-tertiary)',
+                }}
+              >
+                {formatTimestamp(msg.created_at)}
+                {isOwn && (
+                  <CheckCheck size={12} style={{ opacity: 0.6, marginLeft: 1 }} />
+                )}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -414,49 +466,95 @@ export default function ConversationView({ conversation, user, otherUser, onBack
 
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--color-bg)' }}>
-      {/* Header */}
+      {/* Header — Glass effect */}
       <div
         className="flex items-center gap-3 px-3 py-3 shrink-0"
         style={{
-          background: 'var(--color-surface)',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(var(--glass-blur))',
+          WebkitBackdropFilter: 'blur(var(--glass-blur))',
           borderBottom: '1px solid var(--color-border)',
+          boxShadow: 'var(--shadow-sm)',
         }}
       >
         {onBack && (
-          <button onClick={onBack} className="p-1.5 rounded-lg press-scale" style={{ color: 'var(--color-text-secondary)' }}>
+          <button onClick={onBack} className="p-1.5 rounded-xl press-scale" style={{ color: 'var(--color-text-secondary)' }}>
             <ArrowLeft size={22} />
           </button>
         )}
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0"
-          style={{ background: `linear-gradient(135deg, ${roleColor}, ${roleColor}99)`, fontSize: 13 }}
-        >
-          {getInitials(other.name)}
+        {/* Avatar with online dot */}
+        <div className="relative">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0"
+            style={{
+              background: `linear-gradient(135deg, ${roleColor}, ${roleColor}bb)`,
+              fontSize: 13,
+              boxShadow: `0 2px 10px ${roleColor}30`,
+            }}
+          >
+            {getInitials(other.name)}
+          </div>
+          <div
+            className="online-dot absolute -bottom-0.5 -right-0.5"
+            style={{ borderColor: 'var(--glass-bg)' }}
+          />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm truncate" style={{ color: 'var(--color-text)' }}>
             {other.name || 'Utente'}
           </p>
-          <p className="text-[12px]" style={{ color: roleColor }}>
-            {roleLabel}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-[11px] px-1.5 py-0.5 rounded-md font-semibold"
+              style={{ background: `${roleColor}18`, color: roleColor }}
+            >
+              {roleLabel}
+            </span>
+            <span className="text-[11px]" style={{ color: '#3ddc84' }}>Online</span>
+          </div>
         </div>
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto py-3">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader size={24} className="animate-spin" style={{ color: 'var(--color-text-tertiary)' }} />
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
-              <MessageCircle size={28} style={{ color: 'var(--color-text-tertiary)' }} />
+          <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <div className="relative">
+              <div
+                className="w-20 h-20 rounded-3xl flex items-center justify-center animate-scale-in"
+                style={{
+                  background: 'var(--gradient-primary)',
+                  opacity: 0.12,
+                }}
+              >
+                <MessageCircle size={40} />
+              </div>
+              <div
+                className="absolute inset-0 flex items-center justify-center animate-scale-in"
+                style={{ animationDelay: '100ms' }}
+              >
+                <Sparkles size={28} style={{ color: 'var(--color-primary)' }} />
+              </div>
             </div>
-            <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-              Invia il primo messaggio a {other.name || 'questo utente'}
-            </p>
+            <div className="text-center">
+              <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                Inizia la conversazione con
+              </p>
+              <p
+                className="text-base font-bold mt-0.5"
+                style={{
+                  background: 'var(--gradient-primary)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                {other.name || 'questo utente'}
+              </p>
+            </div>
           </div>
         ) : (
           messages.map((msg, i) => renderMessage(msg, i))
@@ -466,22 +564,28 @@ export default function ConversationView({ conversation, user, otherUser, onBack
 
       {/* Pending media preview */}
       {pendingMedia.length > 0 && (
-        <div className="flex gap-2 px-3 py-2 overflow-x-auto" style={{ borderTop: '1px solid var(--color-border)' }}>
+        <div
+          className="flex gap-2 px-3 py-2.5 overflow-x-auto"
+          style={{
+            borderTop: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+          }}
+        >
           {pendingMedia.map(m => (
-            <div key={m.id} className="relative shrink-0">
+            <div key={m.id} className="relative shrink-0 animate-scale-in">
               {m.type === 'photo' ? (
-                <img src={m.url} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                <img src={m.url} alt="" className="w-16 h-16 rounded-xl object-cover" style={{ boxShadow: 'var(--shadow-sm)' }} />
               ) : (
-                <div className="w-16 h-16 rounded-lg flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
+                <div className="w-16 h-16 rounded-xl flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
                   {m.type === 'video' ? <Video size={20} style={{ color: 'var(--color-text-tertiary)' }} /> : <Mic size={20} style={{ color: 'var(--color-text-tertiary)' }} />}
                 </div>
               )}
               <button
                 onClick={() => removePending(m.id)}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center"
-                style={{ background: 'var(--color-error, #ef4444)' }}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-md"
+                style={{ background: '#ef4444' }}
               >
-                <X size={12} className="text-white" />
+                <X size={11} className="text-white" />
               </button>
             </div>
           ))}
@@ -491,16 +595,19 @@ export default function ConversationView({ conversation, user, otherUser, onBack
       {/* Recording bar */}
       {recording && (
         <div
-          className="flex items-center gap-3 px-4 py-2"
-          style={{ background: 'rgba(239,68,68,0.1)', borderTop: '1px solid var(--color-border)' }}
+          className="flex items-center gap-3 px-4 py-2.5 animate-fade-in"
+          style={{
+            background: 'rgba(239,68,68,0.08)',
+            borderTop: '1px solid var(--color-border)',
+          }}
         >
           <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-sm font-semibold" style={{ color: '#ef4444' }}>
+          <span className="text-sm font-bold tracking-wide" style={{ color: '#ef4444' }}>
             {Math.floor(audioTime / 60)}:{String(audioTime % 60).padStart(2, '0')}
           </span>
-          <span className="text-xs flex-1" style={{ color: 'var(--color-text-secondary)' }}>Registrazione in corso...</span>
-          <button onClick={stopAudio} className="p-2 rounded-lg press-scale" style={{ color: '#ef4444' }}>
-            <Square size={18} fill="#ef4444" />
+          <span className="text-xs flex-1" style={{ color: 'var(--color-text-secondary)' }}>Registrazione...</span>
+          <button onClick={stopAudio} className="p-2.5 rounded-xl press-scale" style={{ background: 'rgba(239,68,68,0.12)' }}>
+            <Square size={16} fill="#ef4444" style={{ color: '#ef4444' }} />
           </button>
         </div>
       )}
@@ -508,41 +615,57 @@ export default function ConversationView({ conversation, user, otherUser, onBack
       {/* Media bar */}
       {showMediaBar && !recording && (
         <div
-          className="flex items-center gap-1 px-3 py-2"
-          style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)' }}
+          className="flex items-center gap-1 px-3 py-2 animate-slide-up"
+          style={{
+            borderTop: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+          }}
         >
-          <button onClick={capturePhoto} className="flex flex-col items-center gap-1 p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-secondary)' }}>
-            <Camera size={20} />
-            <span className="text-[10px]">Foto</span>
-          </button>
-          <button onClick={captureVideo} className="flex flex-col items-center gap-1 p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-secondary)' }}>
-            <Video size={20} />
-            <span className="text-[10px]">Video</span>
-          </button>
-          <button onClick={pickGallery} className="flex flex-col items-center gap-1 p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-secondary)' }}>
-            <Image size={20} />
-            <span className="text-[10px]">Galleria</span>
-          </button>
-          <button onClick={startAudio} className="flex flex-col items-center gap-1 p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-secondary)' }}>
-            <Mic size={20} />
-            <span className="text-[10px]">Audio</span>
-          </button>
+          {[
+            { icon: Camera, label: 'Foto', action: capturePhoto },
+            { icon: Video, label: 'Video', action: captureVideo },
+            { icon: Image, label: 'Galleria', action: pickGallery },
+            { icon: Mic, label: 'Audio', action: startAudio },
+          ].map(({ icon: Icon, label, action }) => (
+            <button
+              key={label}
+              onClick={action}
+              className="flex flex-col items-center gap-1 p-2.5 rounded-xl press-scale transition-colors"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: 'var(--color-surface-2)' }}
+              >
+                <Icon size={18} />
+              </div>
+              <span className="text-[10px] font-medium">{label}</span>
+            </button>
+          ))}
           <button onClick={() => setShowMediaBar(false)} className="ml-auto p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-tertiary)' }}>
             <X size={18} />
           </button>
         </div>
       )}
 
-      {/* Input bar */}
+      {/* Input bar — Glass effect */}
       {!recording && (
         <div
-          className="flex items-end gap-2 px-3 py-2"
-          style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)' }}
+          className="flex items-end gap-2 px-3 py-2.5"
+          style={{
+            borderTop: '1px solid var(--color-border)',
+            background: 'var(--glass-bg)',
+            backdropFilter: 'blur(var(--glass-blur))',
+            WebkitBackdropFilter: 'blur(var(--glass-blur))',
+          }}
         >
           <button
             onClick={() => setShowMediaBar(v => !v)}
-            className="p-2 rounded-xl press-scale shrink-0 mb-0.5"
-            style={{ color: showMediaBar ? 'var(--color-primary)' : 'var(--color-text-tertiary)' }}
+            className="p-2 rounded-xl press-scale shrink-0 mb-0.5 transition-colors"
+            style={{
+              color: showMediaBar ? 'var(--color-primary)' : 'var(--color-text-tertiary)',
+              background: showMediaBar ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent',
+            }}
           >
             <Paperclip size={20} />
           </button>
@@ -552,9 +675,9 @@ export default function ConversationView({ conversation, user, otherUser, onBack
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Scrivi un messaggio..."
+            placeholder="Messaggio..."
             rows={1}
-            className="flex-1 resize-none text-sm py-2 px-3 rounded-xl"
+            className="flex-1 resize-none text-sm py-2.5 px-4 rounded-2xl search-chat"
             style={{
               background: 'var(--color-surface-2)',
               color: 'var(--color-text)',
@@ -564,14 +687,31 @@ export default function ConversationView({ conversation, user, otherUser, onBack
             }}
           />
 
-          <button
-            onClick={sendMessage}
-            disabled={sending || uploading || (!text.trim() && pendingMedia.length === 0)}
-            className="p-2.5 rounded-xl press-scale shrink-0 mb-0.5 text-white disabled:opacity-40"
-            style={{ background: 'var(--gradient-primary)' }}
-          >
-            {sending ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
-          </button>
+          {hasContent ? (
+            <button
+              onClick={sendMessage}
+              disabled={sending || uploading}
+              className={`p-2.5 rounded-2xl press-scale shrink-0 mb-0.5 text-white disabled:opacity-40 ${sendAnimating ? 'send-pop' : ''}`}
+              style={{
+                background: 'var(--gradient-primary)',
+                boxShadow: '0 2px 10px rgba(124, 106, 255, 0.3)',
+              }}
+            >
+              {sending ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
+            </button>
+          ) : (
+            <button
+              onClick={startAudio}
+              className="p-2.5 rounded-2xl press-scale shrink-0 mb-0.5"
+              style={{
+                background: 'var(--color-surface-2)',
+                color: 'var(--color-text-secondary)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <Mic size={18} />
+            </button>
+          )}
         </div>
       )}
 
@@ -579,7 +719,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
       {uploading && (
         <div className="flex items-center gap-2 px-4 py-1.5" style={{ background: 'var(--color-surface-2)' }}>
           <Loader size={14} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
-          <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Caricamento in corso...</span>
+          <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Caricamento...</span>
         </div>
       )}
 
