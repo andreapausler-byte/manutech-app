@@ -604,6 +604,7 @@ export const db = {
       const { data, error } = await supabase.storage.from(bucket).upload(uniquePath, file, {
         cacheControl: '3600',
         upsert: false,
+        contentType: file.type || 'application/octet-stream',
       })
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(uniquePath)
