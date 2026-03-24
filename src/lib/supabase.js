@@ -477,7 +477,9 @@ export const db = {
 
   async createMaintenancePlan(plan) {
     if (supabase) {
-      const { data, error } = await supabase.from('maintenance_plans').insert(plan).select().single()
+      const insertData = { ...plan }
+      if (!insertData.org_id) insertData.org_id = await getMyOrgId()
+      const { data, error } = await supabase.from('maintenance_plans').insert(insertData).select().single()
       if (error) throw error
       return data
     }
@@ -541,7 +543,9 @@ export const db = {
 
   async importMaintenancePlans(plans) {
     if (supabase) {
-      const { data, error } = await supabase.from('maintenance_plans').insert(plans).select()
+      const orgId = await getMyOrgId()
+      const rows = plans.map(p => ({ ...p, org_id: p.org_id || orgId }))
+      const { data, error } = await supabase.from('maintenance_plans').insert(rows).select()
       if (error) throw error
       return data || []
     }
