@@ -83,20 +83,20 @@ export default function ConversationList({ user, onSelectConversation, unreadByC
       {/* Header */}
       <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>Messaggi</h2>
+          <h2 className="text-xl font-bold" style={{ color: 'var(--color-text)' }}>Messaggi</h2>
           <p className="text-[12px] mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
             {conversations.length > 0 ? `${conversations.length} conversazion${conversations.length === 1 ? 'e' : 'i'}` : 'Chat con il team'}
           </p>
         </div>
         <button
           onClick={() => setShowNewModal(true)}
-          className="w-10 h-10 rounded-2xl flex items-center justify-center press-scale"
+          className="w-12 h-12 rounded-2xl flex items-center justify-center press-scale"
           style={{
             background: 'var(--gradient-primary)',
             boxShadow: '0 2px 12px rgba(124, 106, 255, 0.25)',
           }}
         >
-          <Plus size={20} className="text-white" />
+          <Plus size={24} className="text-white" />
         </button>
       </div>
 
@@ -109,7 +109,7 @@ export default function ConversationList({ user, onSelectConversation, unreadByC
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Cerca conversazione..."
-            className="w-full pl-9 pr-3 py-2.5 rounded-2xl text-sm search-chat"
+            className="w-full pl-9 pr-3 py-3 rounded-2xl text-base search-chat"
             style={{
               background: 'var(--color-surface-2)',
               color: 'var(--color-text)',
@@ -188,7 +188,7 @@ export default function ConversationList({ user, onSelectConversation, unreadByC
                 <button
                   key={conv.id}
                   onClick={() => onSelectConversation(conv)}
-                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-left press-scale conv-item ${isActive ? 'conv-item-active' : ''}`}
+                  className={`w-full flex items-center gap-3.5 px-3 py-3.5 rounded-2xl text-left press-scale conv-item ${isActive ? 'conv-item-active' : ''}`}
                   style={{
                     background: unread > 0 && !isActive
                       ? 'color-mix(in srgb, var(--color-primary) 6%, transparent)'
@@ -199,10 +199,11 @@ export default function ConversationList({ user, onSelectConversation, unreadByC
                   {/* Avatar with online dot */}
                   <div className="relative shrink-0">
                     <div
-                      className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
+                      className="rounded-full flex items-center justify-center text-white font-bold"
                       style={{
+                        width: 52, height: 52,
                         background: `linear-gradient(135deg, ${role.color}, ${role.color}bb)`,
-                        fontSize: 14,
+                        fontSize: 16,
                         boxShadow: `0 2px 10px ${role.color}25`,
                       }}
                     >
@@ -223,14 +224,14 @@ export default function ConversationList({ user, onSelectConversation, unreadByC
                           className="font-semibold truncate"
                           style={{
                             color: 'var(--color-text)',
-                            fontSize: 14,
+                            fontSize: 15,
                             fontWeight: unread > 0 ? 700 : 600,
                           }}
                         >
                           {other.name || 'Utente'}
                         </span>
                         <span
-                          className="text-[10px] px-1.5 py-0.5 rounded-md shrink-0 font-semibold"
+                          className="text-[11px] px-1.5 py-0.5 rounded-md shrink-0 font-semibold"
                           style={{
                             background: `${role.color}15`,
                             color: role.color,
@@ -253,7 +254,7 @@ export default function ConversationList({ user, onSelectConversation, unreadByC
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-0.5">
                       <p
-                        className="text-[13px] truncate"
+                        className="text-[14px] truncate"
                         style={{
                           color: unread > 0 ? 'var(--color-text)' : 'var(--color-text-tertiary)',
                           fontWeight: unread > 0 ? 500 : 400,
@@ -263,7 +264,7 @@ export default function ConversationList({ user, onSelectConversation, unreadByC
                       </p>
                       {unread > 0 && (
                         <span
-                          className="shrink-0 min-w-[20px] h-5 rounded-full flex items-center justify-center text-[11px] font-bold text-white px-1.5 count-bounce"
+                          className="shrink-0 min-w-[22px] h-[22px] rounded-full flex items-center justify-center text-[12px] font-bold text-white px-1.5 count-bounce"
                           style={{
                             background: 'var(--gradient-primary)',
                             boxShadow: '0 2px 8px rgba(124, 106, 255, 0.3)',

@@ -335,9 +335,9 @@ export default function ConversationView({ conversation, user, otherUser, onBack
       <div key={msg.id} className="msg-enter">
         {/* Date separator — floating pill */}
         {showDate && (
-          <div className="flex justify-center my-4">
+          <div className="flex justify-center my-5">
             <span
-              className="px-3.5 py-1 rounded-full text-[11px] font-semibold"
+              className="px-4 py-1.5 rounded-full text-[13px] font-semibold"
               style={{
                 background: 'var(--glass-bg)',
                 backdropFilter: 'blur(12px)',
@@ -353,22 +353,22 @@ export default function ConversationView({ conversation, user, otherUser, onBack
 
         {/* Bubble message */}
         <div
-          className={`flex ${isOwn ? 'justify-end' : 'justify-start'} px-3 ${showHeader ? 'mt-3' : 'mt-0.5'}`}
+          className={`flex ${isOwn ? 'justify-end' : 'justify-start'} px-4 ${showHeader ? 'mt-3' : 'mt-0.5'}`}
         >
           {/* Avatar (only for other user, first in group) */}
           {!isOwn && showHeader && (
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold shrink-0 mt-1 mr-2"
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0 mt-1 mr-2.5"
               style={{
                 background: `linear-gradient(135deg, ${senderColor}, ${senderColor}bb)`,
-                fontSize: 11,
+                fontSize: 13,
                 boxShadow: `0 2px 8px ${senderColor}33`,
               }}
             >
               {getInitials(msg.sender_name)}
             </div>
           )}
-          {!isOwn && !showHeader && <div className="w-8 shrink-0 mr-2" />}
+          {!isOwn && !showHeader && <div className="w-10 shrink-0 mr-2.5" />}
 
           {/* Bubble */}
           <div
@@ -384,7 +384,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
               borderRadius: isOwn
                 ? (isLast ? '18px 18px 4px 18px' : '18px 18px 18px 18px')
                 : (isLast ? '18px 18px 18px 4px' : '18px 18px 18px 18px'),
-              padding: '8px 12px',
+              padding: '10px 14px',
               boxShadow: isOwn
                 ? '0 2px 12px rgba(124, 106, 255, 0.2)'
                 : 'var(--shadow-xs)',
@@ -393,7 +393,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
             {/* Sender name (only other, first in group) */}
             {!isOwn && showHeader && (
               <p
-                className="text-[12px] font-semibold mb-0.5"
+                className="text-[13px] font-semibold mb-0.5"
                 style={{ color: senderColor }}
               >
                 {msg.sender_name || 'Utente'}
@@ -441,20 +441,20 @@ export default function ConversationView({ conversation, user, otherUser, onBack
             {/* Text + timestamp row */}
             <div className="flex items-end gap-2">
               <p
-                className="text-[14px] leading-relaxed break-words whitespace-pre-wrap flex-1"
+                className="text-[15px] leading-relaxed break-words whitespace-pre-wrap flex-1"
                 style={{ color: isOwn ? '#fff' : 'var(--color-text)' }}
               >
                 {msg.text}
               </p>
               <span
-                className="text-[10px] shrink-0 flex items-center gap-0.5 translate-y-0.5"
+                className="text-[11px] shrink-0 flex items-center gap-0.5 translate-y-0.5"
                 style={{
                   color: isOwn ? 'rgba(255,255,255,0.6)' : 'var(--color-text-tertiary)',
                 }}
               >
                 {formatTimestamp(msg.created_at)}
                 {isOwn && (
-                  <CheckCheck size={12} style={{ opacity: 0.6, marginLeft: 1 }} />
+                  <CheckCheck size={14} style={{ opacity: 0.6, marginLeft: 1 }} />
                 )}
               </span>
             </div>
@@ -468,7 +468,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
     <div className="flex flex-col h-full" style={{ background: 'var(--color-bg)' }}>
       {/* Header — Glass effect */}
       <div
-        className="flex items-center gap-3 px-3 py-3 shrink-0"
+        className="flex items-center gap-3.5 px-4 py-4 shrink-0"
         style={{
           background: 'var(--glass-bg)',
           backdropFilter: 'blur(var(--glass-blur))',
@@ -478,17 +478,17 @@ export default function ConversationView({ conversation, user, otherUser, onBack
         }}
       >
         {onBack && (
-          <button onClick={onBack} className="p-1.5 rounded-xl press-scale" style={{ color: 'var(--color-text-secondary)' }}>
-            <ArrowLeft size={22} />
+          <button onClick={onBack} className="p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-secondary)' }}>
+            <ArrowLeft size={26} />
           </button>
         )}
         {/* Avatar with online dot */}
         <div className="relative">
           <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shrink-0"
             style={{
               background: `linear-gradient(135deg, ${roleColor}, ${roleColor}bb)`,
-              fontSize: 13,
+              fontSize: 15,
               boxShadow: `0 2px 10px ${roleColor}30`,
             }}
           >
@@ -500,17 +500,17 @@ export default function ConversationView({ conversation, user, otherUser, onBack
           />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm truncate" style={{ color: 'var(--color-text)' }}>
+          <p className="font-bold text-base truncate" style={{ color: 'var(--color-text)' }}>
             {other.name || 'Utente'}
           </p>
           <div className="flex items-center gap-1.5">
             <span
-              className="text-[11px] px-1.5 py-0.5 rounded-md font-semibold"
+              className="text-[12px] px-2 py-0.5 rounded-md font-semibold"
               style={{ background: `${roleColor}18`, color: roleColor }}
             >
               {roleLabel}
             </span>
-            <span className="text-[11px]" style={{ color: '#3ddc84' }}>Online</span>
+            <span className="text-[12px] font-medium" style={{ color: '#3ddc84' }}>Online</span>
           </div>
         </div>
       </div>
@@ -630,16 +630,16 @@ export default function ConversationView({ conversation, user, otherUser, onBack
             <button
               key={label}
               onClick={action}
-              className="flex flex-col items-center gap-1 p-2.5 rounded-xl press-scale transition-colors"
+              className="flex flex-col items-center gap-1.5 p-3 rounded-xl press-scale transition-colors"
               style={{ color: 'var(--color-text-secondary)' }}
             >
               <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                className="w-12 h-12 rounded-xl flex items-center justify-center"
                 style={{ background: 'var(--color-surface-2)' }}
               >
-                <Icon size={18} />
+                <Icon size={22} />
               </div>
-              <span className="text-[10px] font-medium">{label}</span>
+              <span className="text-[11px] font-medium">{label}</span>
             </button>
           ))}
           <button onClick={() => setShowMediaBar(false)} className="ml-auto p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-tertiary)' }}>
@@ -651,7 +651,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
       {/* Input bar — Glass effect */}
       {!recording && (
         <div
-          className="flex items-end gap-2 px-3 py-2.5"
+          className="flex items-end gap-2.5 px-4 py-3"
           style={{
             borderTop: '1px solid var(--color-border)',
             background: 'var(--glass-bg)',
@@ -661,13 +661,13 @@ export default function ConversationView({ conversation, user, otherUser, onBack
         >
           <button
             onClick={() => setShowMediaBar(v => !v)}
-            className="p-2 rounded-xl press-scale shrink-0 mb-0.5 transition-colors"
+            className="p-2.5 rounded-xl press-scale shrink-0 mb-0.5 transition-colors"
             style={{
               color: showMediaBar ? 'var(--color-primary)' : 'var(--color-text-tertiary)',
               background: showMediaBar ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent',
             }}
           >
-            <Paperclip size={20} />
+            <Paperclip size={22} />
           </button>
 
           <textarea
@@ -677,7 +677,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
             onKeyDown={handleKeyDown}
             placeholder="Messaggio..."
             rows={1}
-            className="flex-1 resize-none text-sm py-2.5 px-4 rounded-2xl search-chat"
+            className="flex-1 resize-none text-base py-3 px-4 rounded-2xl search-chat"
             style={{
               background: 'var(--color-surface-2)',
               color: 'var(--color-text)',
@@ -691,25 +691,25 @@ export default function ConversationView({ conversation, user, otherUser, onBack
             <button
               onClick={sendMessage}
               disabled={sending || uploading}
-              className={`p-2.5 rounded-2xl press-scale shrink-0 mb-0.5 text-white disabled:opacity-40 ${sendAnimating ? 'send-pop' : ''}`}
+              className={`p-3 rounded-2xl press-scale shrink-0 mb-0.5 text-white disabled:opacity-40 ${sendAnimating ? 'send-pop' : ''}`}
               style={{
                 background: 'var(--gradient-primary)',
-                boxShadow: '0 2px 10px rgba(124, 106, 255, 0.3)',
+                boxShadow: '0 2px 12px rgba(124, 106, 255, 0.35)',
               }}
             >
-              {sending ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
+              {sending ? <Loader size={22} className="animate-spin" /> : <Send size={22} />}
             </button>
           ) : (
             <button
               onClick={startAudio}
-              className="p-2.5 rounded-2xl press-scale shrink-0 mb-0.5"
+              className="p-3 rounded-2xl press-scale shrink-0 mb-0.5"
               style={{
                 background: 'var(--color-surface-2)',
                 color: 'var(--color-text-secondary)',
                 border: '1px solid var(--color-border)',
               }}
             >
-              <Mic size={18} />
+              <Mic size={22} />
             </button>
           )}
         </div>
