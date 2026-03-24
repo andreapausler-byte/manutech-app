@@ -964,7 +964,7 @@ export const db = {
         .select('*, p1:users!conversations_participant_1_fkey(id, name, role, avatar_url), p2:users!conversations_participant_2_fkey(id, name, role, avatar_url)')
         .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
         .order('last_message_at', { ascending: false, nullsFirst: false })
-      if (error) throw error
+      if (error) { console.warn('[DM] getConversations error:', error.message); return [] }
       return (data || []).map(c => {
         const other = c.p1?.id === userId ? c.p2 : c.p1
         return { ...c, otherUser: other }
@@ -1003,7 +1003,10 @@ export const db = {
         .insert({ participant_1: p1, participant_2: p2, org_id: insertOrgId })
         .select()
         .single()
-      if (error) throw error
+      if (error) {
+        console.warn('[DM] getOrCreateConversation insert error:', error.message)
+        throw new Error('Impossibile creare la conversazione. Verifica che la migrazione DB sia stata eseguita.')
+      }
       return data
     }
     // Demo mode
@@ -1033,7 +1036,7 @@ export const db = {
         .select('*')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true })
-      if (error) throw error
+      if (error) { console.warn('[DM] getDirectMessages error:', error.message); return [] }
       return data || []
     }
     const msgs = JSON.parse(localStorage.getItem('manutech_direct_messages') || '[]')
