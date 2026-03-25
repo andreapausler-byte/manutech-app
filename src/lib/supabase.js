@@ -477,13 +477,20 @@ export const db = {
 
   async createMaintenancePlan(plan) {
     if (supabase) {
+      // Usa RPC SECURITY DEFINER per bypassare RLS e iniettare org_id server-side
+      const { data: rpcData, error: rpcError } = await supabase.rpc('create_maintenance_plan', {
+        _machine_id: plan.machine_id,
+        _name: plan.name,
+        _frequency_days: plan.frequency_days || 30,
+        _assigned_to: plan.assigned_to || null,
+        _assigned_to_name: plan.assigned_to_name || null,
+        _instructions: plan.instructions || null,
+      })
+      if (!rpcError && rpcData) return rpcData
+      // Fallback: insert diretto (se RPC non ancora deployata)
+      if (rpcError) console.warn('[ManuTech] RPC create_maintenance_plan non disponibile, fallback insert diretto:', rpcError.message)
       const insertData = { ...plan }
-      // Forza org_id dal server per garantire match con RLS policy
-      const orgId = await getMyOrgId()
-      insertData.org_id = orgId
-      // Debug: verifica valori inviati vs RLS
-      const { data: rpcRole } = await supabase.rpc('get_my_role')
-      console.log('[ManuTech] createMaintenancePlan →', { org_id: orgId, role: rpcRole, insertData })
+      insertData.org_id = await getMyOrgId()
       const { data, error } = await supabase.from('maintenance_plans').insert(insertData).select().single()
       if (error) throw error
       return data
