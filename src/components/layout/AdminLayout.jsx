@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
-import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings, MessageCircle, Trophy } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings, MessageCircle, Trophy, Gift } from 'lucide-react'
 import { useAutoNotifications } from '../../hooks/useAutoNotifications'
 import { usePWA } from '../../hooks/usePWA'
 import SettingsPanel from '../ui/SettingsPanel'
@@ -14,6 +14,7 @@ import AdminTechnicians from '../../pages/admin/AdminTechnicians'
 import AdminNotifSettings from '../../pages/admin/AdminNotifSettings'
 import AdminMessaging from '../../pages/admin/AdminMessaging'
 import AdminLeaderboard from '../../pages/admin/AdminLeaderboard'
+import AdminRewards from '../../pages/admin/AdminRewards'
 
 const NAV = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', desc: 'Panoramica generale' },
@@ -22,6 +23,7 @@ const NAV = [
   { id: 'maintenance', icon: Shield, label: 'Manutenzione', desc: 'Piani e interventi programmati' },
   { id: 'technicians', icon: Wrench, label: 'Tecnici', desc: 'Carico e performance' },
   { id: 'leaderboard', icon: Trophy, label: 'Classifica', desc: 'Punteggi e premi operatori' },
+  { id: 'rewards', icon: Gift, label: 'Premi', desc: 'Catalogo premi e ManuCoin' },
   { id: 'users', icon: Users, label: 'Utenti', desc: 'Account e ruoli' },
   { id: 'messages', icon: MessageCircle, label: 'Messaggi', desc: 'Chat diretta con il team' },
   { id: 'notifications', icon: Bell, label: 'Notifiche', desc: 'Preferenze notifiche per ruolo' },
@@ -58,6 +60,7 @@ export default function AdminLayout({ initialReportId }) {
       case 'maintenance': return <AdminMaintenance />
       case 'technicians': return <AdminTechnicians />
       case 'leaderboard': return <AdminLeaderboard />
+      case 'rewards': return <AdminRewards />
       case 'users': return <AdminUsers />
       case 'messages': return <AdminMessaging />
       case 'notifications': return <AdminNotifSettings />

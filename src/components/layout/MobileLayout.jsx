@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
-import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle } from 'lucide-react'
+import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import { useChatRealtime } from '../../hooks/useChatRealtime'
@@ -21,6 +21,7 @@ import MobileMachinesList from '../machines/MobileMachinesList'
 import MobileMachineDetail from '../machines/MobileMachineDetail'
 import ProfilePage from '../../pages/mobile/ProfilePage'
 import MobileDashboard from '../../pages/mobile/MobileDashboard'
+import WalletPage from '../../pages/mobile/WalletPage'
 import ConversationList from '../messaging/ConversationList'
 import ConversationView from '../messaging/ConversationView'
 
@@ -117,6 +118,7 @@ const TABS_BY_ROLE = {
   ],
   tecnico: [
     { id: 'reports', icon: ClipboardList, label: 'Assegnati' },
+    { id: 'wallet', icon: Wallet, label: 'Wallet' },
     { id: 'machines', icon: Cog, label: 'Macchine' },
     { id: 'messages', icon: MessageCircle, label: 'Messaggi' },
     { id: 'profile', icon: User, label: 'Profilo' },
@@ -124,6 +126,7 @@ const TABS_BY_ROLE = {
   operatore: [
     { id: 'home', icon: Home, label: 'Home' },
     { id: 'reports', icon: ClipboardList, label: 'I Miei Ticket' },
+    { id: 'wallet', icon: Wallet, label: 'Wallet' },
     { id: 'messages', icon: MessageCircle, label: 'Messaggi' },
     { id: 'profile', icon: User, label: 'Profilo' },
   ],
@@ -355,6 +358,7 @@ export default function MobileLayout({ initialReportId }) {
               unreadByReport={unreadByReport}
             />
           )}
+          {tab === 'wallet' && <WalletPage />}
           {tab === 'machines' && (
             <MobileMachinesList onSelectMachine={openMachine} />
           )}
