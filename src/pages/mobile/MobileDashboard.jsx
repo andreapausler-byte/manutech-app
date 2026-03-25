@@ -14,6 +14,7 @@ import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useKPIStats } from '../../hooks/useKPIStats'
 import { useOperatorScore, BADGES, BADGE_CATEGORIES } from '../../hooks/useOperatorScore'
+import { useAutoTokenReward } from '../../hooks/useWallet'
 import {
   AlertTriangle, CheckCircle, Wrench, ChevronRight,
   Zap, Timer, Shield, Cog, Clock, X, Camera,
@@ -106,6 +107,9 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
   const kpi = useKPIStats(reports)
   const { leaderboard } = useOperatorScore(reports, 'month')
   const myScore = leaderboard.find(op => op.id === user?.id)
+
+  // Auto-accredita ManuCoin per badge e livelli
+  useAutoTokenReward(user?.id, myScore?.badges, myScore?.level)
   useEffect(() => { loadData() }, [loadData])
 
   const handleTakeCharge = async (task) => {
