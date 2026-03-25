@@ -15,6 +15,8 @@
  *  - Oro:      250-499
  *  - Platino:  500-999
  *  - Diamante: 1000+
+ *
+ * Badge: traguardi sbloccabili basati su attività cumulativa
  */
 
 import { useMemo } from 'react'
@@ -48,6 +50,50 @@ export function getNextLevel(score) {
     if (score < lvl.min) return lvl
   }
   return null // max level
+}
+
+// ── Badge / Achievement ──────────────────────────────────
+export const BADGES = [
+  // Milestone report
+  { id: 'first_report', icon: '🎯', label: 'Prima Segnalazione', desc: 'Hai creato il tuo primo report', category: 'milestone', check: s => s.totalReports >= 1 },
+  { id: 'reports_10', icon: '📋', label: 'Segnalatore', desc: '10 report creati', category: 'milestone', check: s => s.totalReports >= 10 },
+  { id: 'reports_25', icon: '📊', label: 'Veterano', desc: '25 report creati', category: 'milestone', check: s => s.totalReports >= 25 },
+  { id: 'reports_50', icon: '🏅', label: 'Esperto', desc: '50 report creati', category: 'milestone', check: s => s.totalReports >= 50 },
+  { id: 'reports_100', icon: '🌟', label: 'Centurione', desc: '100 report creati', category: 'milestone', check: s => s.totalReports >= 100 },
+  // Quick report
+  { id: 'quick_5', icon: '⚡', label: 'Fulmine', desc: '5 quick report inviati', category: 'speed', check: s => s.quickReports >= 5 },
+  { id: 'quick_20', icon: '🚀', label: 'Razzo', desc: '20 quick report inviati', category: 'speed', check: s => s.quickReports >= 20 },
+  // Foto
+  { id: 'photos_5', icon: '📸', label: 'Fotografo', desc: '5 report con foto', category: 'quality', check: s => s.reportsWithPhotos >= 5 },
+  { id: 'photos_20', icon: '🎬', label: 'Regista', desc: '20 report con foto', category: 'quality', check: s => s.reportsWithPhotos >= 20 },
+  // Severità
+  { id: 'critical_3', icon: '🔴', label: 'Occhio di Falco', desc: '3 segnalazioni critiche', category: 'vigilance', check: s => s.criticalReports >= 3 },
+  { id: 'critical_10', icon: '🛡️', label: 'Guardiano', desc: '10 segnalazioni critiche', category: 'vigilance', check: s => s.criticalReports >= 10 },
+  // Streak
+  { id: 'streak_3', icon: '🔥', label: 'Tre di Fila', desc: '3 giorni consecutivi', category: 'streak', check: s => s.streak >= 3 },
+  { id: 'streak_7', icon: '💪', label: 'Settimana Perfetta', desc: '7 giorni consecutivi', category: 'streak', check: s => s.streak >= 7 },
+  { id: 'streak_30', icon: '🏆', label: 'Inarrestabile', desc: '30 giorni consecutivi', category: 'streak', check: s => s.streak >= 30 },
+  // Dettaglio
+  { id: 'detailed_10', icon: '📝', label: 'Scrupoloso', desc: '10 report dettagliati', category: 'quality', check: s => s.detailedReports >= 10 },
+]
+
+export const BADGE_CATEGORIES = {
+  milestone: { label: 'Traguardi', color: '#7c6aff' },
+  speed: { label: 'Velocità', color: '#f59e0b' },
+  quality: { label: 'Qualità', color: '#06b6d4' },
+  vigilance: { label: 'Vigilanza', color: '#ef4444' },
+  streak: { label: 'Costanza', color: '#22c55e' },
+}
+
+function computeBadgeStats(reports, streak) {
+  return {
+    totalReports: reports.length,
+    quickReports: reports.filter(r => r.is_quick).length,
+    reportsWithPhotos: reports.filter(r => Array.isArray(r.media) && r.media.length > 0).length,
+    criticalReports: reports.filter(r => r.severity === 'critica').length,
+    detailedReports: reports.filter(r => r.description && r.description.length > 50).length,
+    streak,
+  }
 }
 
 function computeStreak(reportDates) {
@@ -124,7 +170,12 @@ function computeOperatorScore(reports) {
   score += streakPts
   breakdown.streak = streakPts
 
-  return { score, breakdown, streak, reportCount: reports.length }
+  // Badge
+  const badgeStats = computeBadgeStats(reports, streak)
+  const badges = BADGES.filter(b => b.check(badgeStats))
+  const badgeProgress = BADGES.map(b => ({ ...b, unlocked: b.check(badgeStats) }))
+
+  return { score, breakdown, streak, reportCount: reports.length, badges, badgeProgress, badgeStats }
 }
 
 /**
@@ -161,7 +212,7 @@ export function useOperatorScore(allReports, period = 'all') {
 
     // Calcola punteggi
     const leaderboard = Object.values(byOperator).map(op => {
-      const { score, breakdown, streak, reportCount } = computeOperatorScore(op.reports)
+      const { score, breakdown, streak, reportCount, badges, badgeProgress, badgeStats } = computeOperatorScore(op.reports)
       const level = getLevel(score)
       const nextLevel = getNextLevel(score)
       const progress = nextLevel ? Math.round(((score - level.min) / (nextLevel.min - level.min)) * 100) : 100
@@ -175,7 +226,9 @@ export function useOperatorScore(allReports, period = 'all') {
         level,
         nextLevel,
         progress,
-        // Dati per trend mensile
+        badges,
+        badgeProgress,
+        badgeStats,
         reportsThisWeek: op.reports.filter(r => new Date(r.created_at).getTime() > now - 7 * DAY).length,
         reportsThisMonth: op.reports.filter(r => new Date(r.created_at).getTime() > now - 30 * DAY).length,
       }

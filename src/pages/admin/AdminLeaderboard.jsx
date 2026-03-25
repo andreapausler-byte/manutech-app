@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
-import { useOperatorScore, SCORE_RULES, LEVELS, getLevel, getNextLevel } from '../../hooks/useOperatorScore'
+import { useOperatorScore, SCORE_RULES, LEVELS, BADGES, BADGE_CATEGORIES } from '../../hooks/useOperatorScore'
 import { Trophy, Medal, TrendingUp, Flame, Camera, Zap, FileText, AlertTriangle, ChevronDown, Star, Award } from 'lucide-react'
 
 const PERIODS = [
@@ -12,6 +12,46 @@ const PERIODS = [
   { id: 'month', label: 'Questo mese' },
   { id: 'all', label: 'Sempre' },
 ]
+
+function BadgeGrid({ badges, badgeProgress, compact = false }) {
+  const items = compact ? (badges || []) : (badgeProgress || [])
+  if (compact && items.length === 0) return null
+
+  return (
+    <div style={{ marginTop: compact ? 0 : 12 }}>
+      {!compact && (
+        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Badge ({badges?.length || 0}/{BADGES.length})
+        </p>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: compact ? 4 : 6 }}>
+        {items.map(b => {
+          const unlocked = compact ? true : b.unlocked
+          const cat = BADGE_CATEGORIES[b.category]
+          return (
+            <div
+              key={b.id}
+              title={`${b.label}: ${b.desc}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: compact ? '3px 8px' : '4px 10px',
+                borderRadius: 8,
+                background: unlocked ? `${cat.color}15` : 'var(--color-surface-2)',
+                opacity: unlocked ? 1 : 0.35,
+                fontSize: compact ? 11 : 12,
+                cursor: 'default',
+                transition: 'opacity 0.2s',
+              }}
+            >
+              <span style={{ fontSize: compact ? 13 : 15 }}>{b.icon}</span>
+              {!compact && <span style={{ fontWeight: 600, color: unlocked ? cat.color : 'var(--color-text-muted)' }}>{b.label}</span>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function PodiumCard({ operator, rank, expanded, onToggle }) {
   if (!operator) return null
@@ -87,7 +127,19 @@ function PodiumCard({ operator, rank, expanded, onToggle }) {
         </div>
       )}
 
-      {/* Breakdown (expanded) */}
+      {/* Badge compatti */}
+      {!expanded && operator.badges?.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 3, marginTop: 8 }}>
+          {operator.badges.slice(0, 4).map(b => (
+            <span key={b.id} title={b.label} style={{ fontSize: 14 }}>{b.icon}</span>
+          ))}
+          {operator.badges.length > 4 && (
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>+{operator.badges.length - 4}</span>
+          )}
+        </div>
+      )}
+
+      {/* Breakdown + badge (expanded) */}
       {expanded && (
         <div style={{
           marginTop: 12, padding: '10px 0', borderTop: '1px solid var(--color-border)',
@@ -99,6 +151,7 @@ function PodiumCard({ operator, rank, expanded, onToggle }) {
               <span style={{ fontWeight: 700, color: 'var(--color-text)' }}>+{val}</span>
             </div>
           ))}
+          <BadgeGrid badgeProgress={operator.badgeProgress} badges={operator.badges} />
         </div>
       )}
     </div>
@@ -144,11 +197,21 @@ function LeaderboardRow({ operator, expanded, onToggle }) {
               {level.icon} {level.label}
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{operator.reportCount} report</span>
             {operator.streak > 0 && (
               <span style={{ fontSize: 12, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 3 }}>
                 <Flame size={12} /> {operator.streak}g
+              </span>
+            )}
+            {operator.badges?.length > 0 && (
+              <span style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                {operator.badges.slice(0, 5).map(b => (
+                  <span key={b.id} title={b.label} style={{ fontSize: 13 }}>{b.icon}</span>
+                ))}
+                {operator.badges.length > 5 && (
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>+{operator.badges.length - 5}</span>
+                )}
               </span>
             )}
           </div>
@@ -205,6 +268,9 @@ function LeaderboardRow({ operator, expanded, onToggle }) {
               <p style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600 }}>{label}</p>
             </div>
           ))}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <BadgeGrid badgeProgress={operator.badgeProgress} badges={operator.badges} />
+          </div>
         </div>
       )}
     </div>

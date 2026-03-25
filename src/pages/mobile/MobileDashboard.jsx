@@ -13,7 +13,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useKPIStats } from '../../hooks/useKPIStats'
-import { useOperatorScore, getLevel, getNextLevel } from '../../hooks/useOperatorScore'
+import { useOperatorScore, BADGES, BADGE_CATEGORIES } from '../../hooks/useOperatorScore'
 import {
   AlertTriangle, CheckCircle, Wrench, ChevronRight,
   Zap, Timer, Shield, Cog, Clock, X, Camera,
@@ -283,6 +283,40 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
               <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 10 }}>
                 Posizione <strong style={{ color: 'var(--color-primary)' }}>#{myScore.rank}</strong> su {leaderboard.length} operatori questo mese
               </p>
+
+              {/* Badge sbloccati */}
+              {myScore.badges?.length > 0 && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border)' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 8 }}>
+                    Badge sbloccati ({myScore.badges.length}/{BADGES.length})
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                    {myScore.badges.map(b => {
+                      const cat = BADGE_CATEGORIES[b.category]
+                      return (
+                        <div key={b.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          padding: '4px 10px', borderRadius: 8,
+                          background: `${cat.color}15`, fontSize: 12,
+                        }}>
+                          <span style={{ fontSize: 14 }}>{b.icon}</span>
+                          <span style={{ fontWeight: 600, color: cat.color }}>{b.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {/* Prossimo badge da sbloccare */}
+                  {myScore.badgeProgress && (() => {
+                    const nextBadge = myScore.badgeProgress.find(b => !b.unlocked)
+                    if (!nextBadge) return null
+                    return (
+                      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 8, fontStyle: 'italic' }}>
+                        Prossimo: {nextBadge.icon} <strong>{nextBadge.label}</strong> — {nextBadge.desc}
+                      </p>
+                    )
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </div>
