@@ -13,10 +13,11 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useKPIStats } from '../../hooks/useKPIStats'
+import { useOperatorScore, getLevel, getNextLevel } from '../../hooks/useOperatorScore'
 import {
   AlertTriangle, CheckCircle, Wrench, ChevronRight,
   Zap, Timer, Shield, Cog, Clock, X, Camera,
-  FileText, Paperclip, Play, User
+  FileText, Paperclip, Play, User, Trophy, Flame
 } from 'lucide-react'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
@@ -103,6 +104,8 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
 
   const { pullRef, refreshing, pullDistance, pullProgress, activated } = usePullToRefresh(handleRefresh)
   const kpi = useKPIStats(reports)
+  const { leaderboard } = useOperatorScore(reports, 'month')
+  const myScore = leaderboard.find(op => op.id === user?.id)
   useEffect(() => { loadData() }, [loadData])
 
   const handleTakeCharge = async (task) => {
@@ -224,6 +227,63 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
               }}>
               Segnala Problema
             </button>
+          )}
+
+          {/* ── Score Widget ── */}
+          {myScore && (
+            <div style={{
+              marginTop: 24, padding: '18px 20px', borderRadius: 20,
+              background: 'var(--color-card)', border: '1px solid var(--color-border)',
+              textAlign: 'center',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 12 }}>
+                <Trophy size={20} style={{ color: '#ffd700' }} />
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>Il tuo punteggio</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                <div>
+                  <p style={{ fontSize: 36, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {myScore.score}
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>punti</p>
+                </div>
+                <div style={{
+                  padding: '6px 14px', borderRadius: 12,
+                  background: `${myScore.level.color}18`,
+                }}>
+                  <span style={{ fontSize: 24 }}>{myScore.level.icon}</span>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: myScore.level.color }}>{myScore.level.label}</p>
+                </div>
+                {myScore.streak > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <Flame size={22} style={{ color: '#f59e0b' }} />
+                    <p style={{ fontSize: 16, fontWeight: 800, color: '#f59e0b' }}>{myScore.streak}g</p>
+                    <p style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>streak</p>
+                  </div>
+                )}
+              </div>
+              {/* Progress bar */}
+              {myScore.nextLevel && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                    <span>{myScore.level.icon} {myScore.level.label}</span>
+                    <span>{myScore.nextLevel.icon} {myScore.nextLevel.label} ({myScore.nextLevel.min} pt)</span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 4, background: 'var(--color-surface-2)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 4,
+                      background: `linear-gradient(90deg, ${myScore.level.color}, ${myScore.nextLevel.color})`,
+                      width: `${myScore.progress}%`,
+                      transition: 'width 0.6s ease',
+                    }} />
+                  </div>
+                </div>
+              )}
+              {/* Rank */}
+              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 10 }}>
+                Posizione <strong style={{ color: 'var(--color-primary)' }}>#{myScore.rank}</strong> su {leaderboard.length} operatori questo mese
+              </p>
+            </div>
           )}
         </div>
       )}
