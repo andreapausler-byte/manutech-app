@@ -683,10 +683,19 @@ h1, h2, h3, h4 {
 
 /* Page transition wrapper */
 .page-slide-in {
-  animation: slideInRight 0.3s var(--ease-out-expo);
+  animation: pageSlideIn 0.35s var(--ease-out-expo);
 }
 .page-slide-back {
-  animation: slideInLeft 0.25s var(--ease-out-expo);
+  animation: pageSlideBack 0.3s var(--ease-out-expo);
+}
+
+@keyframes pageSlideIn {
+  from { opacity: 0; transform: translateX(40px) scale(0.97); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes pageSlideBack {
+  from { opacity: 0; transform: translateX(-30px) scale(0.98); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 @keyframes slideInLeft {
@@ -869,4 +878,124 @@ h1, h2, h3, h4 {
   background: var(--color-primary);
   color: #fff;
   box-shadow: var(--shadow-sm);
+}
+
+/* ══════════════════════════════════════════════════════════
+   MOBILE PREMIUM — v5.8
+   Ripple, badge pulse, shimmer, swipe, transitions
+   ══════════════════════════════════════════════════════════ */
+
+/* ── 1. Ripple Effect al tap ──────────────────────────── */
+.ripple-container {
+  position: relative;
+  overflow: hidden;
+}
+.ripple-container .ripple-wave {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(0);
+  animation: rippleExpand 0.5s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes rippleExpand {
+  to { transform: scale(4); opacity: 0; }
+}
+
+/* ── 2. Badge severità pulsante (critica) ─────────────── */
+.badge-critical-pulse {
+  animation: criticalBadgePulse 2s ease-in-out infinite;
+}
+@keyframes criticalBadgePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 92, 92, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 92, 92, 0); }
+}
+.badge-alta-pulse {
+  animation: altaBadgePulse 3s ease-in-out infinite;
+}
+@keyframes altaBadgePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 170, 44, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(255, 170, 44, 0); }
+}
+
+/* ── 3. Shimmer skeleton premium ──────────────────────── */
+.skeleton-shimmer {
+  background: linear-gradient(
+    110deg,
+    var(--color-surface-2) 0%,
+    var(--color-surface-2) 40%,
+    var(--color-surface-3) 50%,
+    var(--color-surface-2) 60%,
+    var(--color-surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmerPremium 1.5s ease-in-out infinite;
+}
+@keyframes shimmerPremium {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* ── 4. Shake animation (errore form) ─────────────────── */
+.shake-error {
+  animation: shakeX 0.4s ease;
+}
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+
+/* ── 5. Swipe card ────────────────────────────────────── */
+.swipe-card {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  touch-action: pan-y;
+  will-change: transform;
+}
+.swipe-card-action {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 14px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.swipe-card-action.right {
+  right: 0;
+  background: linear-gradient(90deg, transparent, #22c55e);
+  color: #fff;
+}
+.swipe-card-action.left {
+  left: 0;
+  background: linear-gradient(-90deg, transparent, #6b7280);
+  color: #fff;
+}
+
+/* ── 6. Success burst ─────────────────────────────────── */
+.success-burst {
+  animation: successBurst 0.6s var(--ease-spring);
+}
+@keyframes successBurst {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Pull-to-refresh custom ──────────────────────────── */
+.ptr-gear {
+  transition: transform 0.2s ease;
+}
+.ptr-gear.spinning {
+  animation: gearSpin 1s linear infinite;
+}
+@keyframes gearSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
