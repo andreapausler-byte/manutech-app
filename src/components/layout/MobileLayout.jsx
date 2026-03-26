@@ -29,12 +29,12 @@ import ConversationView from '../messaging/ConversationView'
 const FAB_CONFIG = {
   home: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: 'var(--gradient-primary)', shadow: 'var(--shadow-glow-primary)' },
   reports: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: 'var(--gradient-primary)', shadow: 'var(--shadow-glow-primary)' },
-  machines: { icon: Plus, label: 'Nuova segnalazione', action: 'new_report', bg: 'linear-gradient(135deg, #f59e0b, #d97706)', shadow: '0 4px 20px rgba(245,158,11,0.35)' },
+  machines: { icon: Plus, label: 'Nuovo macchinario', action: 'new_machine', bg: 'linear-gradient(135deg, #22c55e, #16a34a)', shadow: '0 4px 20px rgba(34,197,94,0.35)' },
   messages: { icon: PenSquare, label: 'Nuova conversazione', action: 'new_conversation', bg: 'linear-gradient(135deg, #06b6d4, #0891b2)', shadow: '0 4px 20px rgba(6,182,212,0.35)' },
 }
 
 // ── FAB contestuale ──
-function ContextualFAB({ tab, onNewReport, onQuickReport, onNewConversation }) {
+function ContextualFAB({ tab, onNewReport, onQuickReport, onNewConversation, onNewMachine }) {
   const [open, setOpen] = useState(false)
   const haptic = useHaptic()
 
@@ -51,6 +51,8 @@ function ContextualFAB({ tab, onNewReport, onQuickReport, onNewConversation }) {
       onQuickReport()
     } else if (config.action === 'new_report') {
       onNewReport()
+    } else if (config.action === 'new_machine') {
+      onNewMachine()
     } else if (config.action === 'new_conversation') {
       onNewConversation()
     }
@@ -191,6 +193,7 @@ export default function MobileLayout({ initialReportId }) {
     haptic.light()
     setTab(id)
     setShowNewConversation(false)
+    setShowNewMachine(false)
   }
 
   // ── Navigazione con transizioni fluide ──
@@ -233,10 +236,16 @@ export default function MobileLayout({ initialReportId }) {
   }
 
   const [showNewConversation, setShowNewConversation] = useState(false)
+  const [showNewMachine, setShowNewMachine] = useState(false)
 
   const handleNewConversation = () => {
     haptic.medium()
     setShowNewConversation(true)
+  }
+
+  const handleNewMachine = () => {
+    haptic.medium()
+    setShowNewMachine(true)
   }
 
   const handleCreated = () => {
@@ -388,7 +397,7 @@ export default function MobileLayout({ initialReportId }) {
           )}
           {tab === 'wallet' && <WalletPage />}
           {tab === 'machines' && (
-            <MobileMachinesList onSelectMachine={openMachine} />
+            <MobileMachinesList onSelectMachine={openMachine} showNewMachine={showNewMachine} onCloseNewMachine={() => setShowNewMachine(false)} />
           )}
           {tab === 'messages' && (
             <ConversationList
@@ -407,6 +416,7 @@ export default function MobileLayout({ initialReportId }) {
         onNewReport={openNewReport}
         onQuickReport={() => openQuickReport()}
         onNewConversation={handleNewConversation}
+        onNewMachine={handleNewMachine}
       />
 
       {/* Settings Panel */}
