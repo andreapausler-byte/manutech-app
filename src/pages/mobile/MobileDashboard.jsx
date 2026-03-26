@@ -620,27 +620,33 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
       {completeTask && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setCompleteTask(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl animate-slide-up safe-area-bottom"
-            style={{ maxHeight: '75vh', padding: '20px 5vw 32px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
+          <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl animate-slide-up"
+            style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
             onClick={e => e.stopPropagation()}>
 
-            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)', margin: '0 auto 20px' }} />
+            {/* Handle + Header (fissi) */}
+            <div style={{ padding: '20px 5vw 0', flexShrink: 0 }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)', margin: '0 auto 20px' }} />
 
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 14,
-                background: '#22c55e18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                <CheckCircle size={22} style={{ color: '#22c55e' }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)' }}>Report Manutenzione</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {completeTask.plan.name}
-                </p>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 14,
+                  background: '#22c55e18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <CheckCircle size={22} style={{ color: '#22c55e' }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)' }}>Report Manutenzione</h3>
+                  <p style={{ fontSize: 13, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {completeTask.plan.name}
+                  </p>
+                </div>
               </div>
             </div>
+
+            {/* Contenuto scrollabile */}
+            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 5vw' }}>
 
             {/* Machine info */}
             <div style={{
@@ -752,31 +758,35 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
               </div>
             </div>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button onClick={handleComplete} disabled={completing}
-                className="press-scale"
-                style={{
-                  flex: 1, padding: '16px 0', borderRadius: 16,
-                  fontSize: 16, fontWeight: 700, color: '#fff',
-                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                  border: 'none', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: '0 4px 16px rgba(34,197,94,0.3)',
-                  opacity: completing ? 0.7 : 1,
-                }}>
-                {completing
-                  ? <div style={{ width: 22, height: 22, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                  : <><CheckCircle size={20} /> Completa e Invia</>}
-              </button>
-              <button onClick={() => setCompleteTask(null)}
-                style={{
-                  width: '30%', padding: '16px 0', borderRadius: 16,
-                  fontSize: 16, fontWeight: 700, background: 'var(--color-surface-2)',
-                  color: 'var(--color-text-muted)', border: 'none', cursor: 'pointer',
-                }}>
-                Annulla
-              </button>
+            </div>
+
+            {/* Bottoni (fissi in fondo) */}
+            <div style={{ padding: '16px 5vw', paddingBottom: 'max(16px, env(safe-area-inset-bottom))', flexShrink: 0, borderTop: '1px solid var(--color-border)' }}>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button onClick={handleComplete} disabled={completing}
+                  className="press-scale"
+                  style={{
+                    flex: 1, padding: '16px 0', borderRadius: 16,
+                    fontSize: 16, fontWeight: 700, color: '#fff',
+                    background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                    border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    boxShadow: '0 4px 16px rgba(34,197,94,0.3)',
+                    opacity: completing ? 0.7 : 1,
+                  }}>
+                  {completing
+                    ? <div style={{ width: 22, height: 22, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                    : <><CheckCircle size={20} /> Completa e Invia</>}
+                </button>
+                <button onClick={() => setCompleteTask(null)}
+                  style={{
+                    width: '30%', padding: '16px 0', borderRadius: 16,
+                    fontSize: 16, fontWeight: 700, background: 'var(--color-surface-2)',
+                    color: 'var(--color-text-muted)', border: 'none', cursor: 'pointer',
+                  }}>
+                  Annulla
+                </button>
+              </div>
             </div>
           </div>
         </div>
