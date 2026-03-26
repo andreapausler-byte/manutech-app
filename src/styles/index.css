@@ -479,21 +479,138 @@ h1, h2, h3, h4 {
 #manutech-qr-reader__scan_region { border: none !important; }
 #manutech-qr-reader__dashboard { display: none !important; }
 
-/* ── Ambient BG glow ───────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════
+   PREMIUM UI — v5.7
+   Ambient gradients, stagger animations, 3D hover, count-up
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Ambient Background — glow reattivo per sezione ──── */
 .ambient-glow {
   position: relative;
 }
 .ambient-glow::before {
   content: '';
   position: fixed;
-  top: -30%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80%;
-  height: 60%;
-  background: radial-gradient(ellipse, rgba(124, 106, 255, 0.03) 0%, transparent 70%);
+  top: -20%;
+  left: -10%;
+  width: 50%;
+  height: 50%;
+  background: radial-gradient(ellipse, var(--ambient-color, rgba(124, 106, 255, 0.04)) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
+  transition: background 1.5s ease;
+  filter: blur(60px);
+}
+.ambient-glow::after {
+  content: '';
+  position: fixed;
+  bottom: -20%;
+  right: -10%;
+  width: 40%;
+  height: 40%;
+  background: radial-gradient(ellipse, var(--ambient-color-2, rgba(0, 212, 255, 0.03)) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  transition: background 1.5s ease;
+  filter: blur(80px);
+}
+
+/* ── Stagger Animation — elementi appaiono in sequenza ── */
+.stagger-enter > * {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: staggerFadeUp 0.4s var(--ease-out-expo) forwards;
+}
+.stagger-enter > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-enter > *:nth-child(2) { animation-delay: 50ms; }
+.stagger-enter > *:nth-child(3) { animation-delay: 100ms; }
+.stagger-enter > *:nth-child(4) { animation-delay: 150ms; }
+.stagger-enter > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-enter > *:nth-child(6) { animation-delay: 250ms; }
+.stagger-enter > *:nth-child(7) { animation-delay: 300ms; }
+.stagger-enter > *:nth-child(8) { animation-delay: 350ms; }
+.stagger-enter > *:nth-child(9) { animation-delay: 400ms; }
+.stagger-enter > *:nth-child(10) { animation-delay: 450ms; }
+
+@keyframes staggerFadeUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Card Hover 3D — effetto tilt su desktop ─────────── */
+@media (hover: hover) and (min-width: 768px) {
+  .card-3d {
+    transition: transform 0.3s var(--ease-out-expo), box-shadow 0.3s ease;
+    transform-style: preserve-3d;
+    perspective: 800px;
+    will-change: transform;
+  }
+  .card-3d:hover {
+    transform: translateY(-4px) rotateX(2deg) rotateY(-1deg);
+    box-shadow:
+      0 12px 40px rgba(0, 0, 0, 0.25),
+      0 0 0 1px var(--color-primary-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  /* Bordo gradient al hover */
+  .card-3d::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, transparent, transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.3s ease, background 0.3s ease;
+    pointer-events: none;
+  }
+  .card-3d:hover::before {
+    opacity: 1;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  }
+
+  /* Sidebar icon bounce */
+  .sidebar-icon-hover {
+    transition: transform 0.2s var(--ease-spring);
+  }
+  .sidebar-icon-hover:hover {
+    transform: scale(1.15);
+  }
+}
+
+/* ── Count-up animation helper ──────────────────────── */
+.count-up {
+  display: inline-block;
+  animation: countBounce 0.6s var(--ease-spring);
+}
+
+/* ── Avatar gradient ring ───────────────────────────── */
+.avatar-gradient {
+  position: relative;
+  border-radius: 50%;
+}
+.avatar-gradient::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: var(--avatar-gradient, linear-gradient(135deg, #7c6aff, #00d4ff));
+  z-index: -1;
+  opacity: 0.8;
+}
+.avatar-gradient.online::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #3ddc84;
+  border: 2px solid var(--color-surface-1);
+  animation: onlinePulse 2s ease infinite;
 }
 
 /* ══════════════════════════════════════════════════════════

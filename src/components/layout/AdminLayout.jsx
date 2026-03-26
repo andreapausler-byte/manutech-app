@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings, MessageCircle, Trophy, Gift } from 'lucide-react'
 import { useAutoNotifications } from '../../hooks/useAutoNotifications'
+import { getAmbientColors } from '../../hooks/usePremiumUI'
 import { usePWA } from '../../hooks/usePWA'
 import SettingsPanel from '../ui/SettingsPanel'
 import AdminDashboard from '../../pages/admin/AdminDashboard'
@@ -71,7 +72,7 @@ export default function AdminLayout({ initialReportId }) {
   const current = NAV.find(n => n.id === tab)
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--color-bg)' }}>
+    <div className="min-h-screen flex ambient-glow" style={{ background: 'var(--color-bg)', '--ambient-color': getAmbientColors(tab).color, '--ambient-color-2': getAmbientColors(tab).color2 }}>
       {/* Sidebar — glass-heavy */}
       <aside
         aria-label="Navigazione principale"
@@ -125,7 +126,7 @@ export default function AdminLayout({ initialReportId }) {
                 title={collapsed ? label : undefined}
               >
                 <div
-                  className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
+                  className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors sidebar-icon-hover"
                   style={{ background: active ? 'var(--color-primary-glow)' : undefined }}
                 >
                   <Icon size={19} strokeWidth={active ? 2.2 : 1.8} />
@@ -203,7 +204,7 @@ export default function AdminLayout({ initialReportId }) {
           </div>
         </header>
 
-        <div className="p-8 animate-fade-in">
+        <div className="p-8 animate-fade-in stagger-enter">
           {renderPage()}
         </div>
       </main>

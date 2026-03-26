@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, SEVERITY, QUICK_TEMPLATES, timeAgo } from '../../lib/constants'
 import { Badge, SkeletonDashboard } from '../../components/ui'
+import { CountUp } from '../../hooks/usePremiumUI'
 import PullToRefreshIndicator from '../../components/ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { useToast } from '../../hooks/useToast'
@@ -345,7 +346,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
             borderTop: `3px solid ${color}`,
             borderRadius: 14, padding: '14px 8px', textAlign: 'center',
           }}>
-            <p style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1, fontFamily: "'JetBrains Mono', monospace" }}>{value}</p>
+            <p style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1, fontFamily: "'JetBrains Mono', monospace" }}><CountUp value={value} /></p>
             <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6, fontWeight: 600 }}>{label}</p>
           </div>
         ))}
