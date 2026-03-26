@@ -501,6 +501,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setConfirmPlan(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl p-[5vw] pb-[8vw] animate-slide-up safe-area-bottom"
+            style={{ maxHeight: '75vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
             onClick={e => e.stopPropagation()}>
 
             {/* Handle */}
@@ -560,6 +561,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setResolveReport(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl p-[5vw] pb-[8vw] animate-slide-up safe-area-bottom"
+            style={{ maxHeight: '75vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
             onClick={e => e.stopPropagation()}>
 
             <div className="w-10 h-1 bg-surface-3 rounded-full mx-auto mb-[4vw]" />

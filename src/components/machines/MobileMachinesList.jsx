@@ -184,8 +184,8 @@ export default function MobileMachinesList({ onSelectMachine, showNewMachine, on
       {showNewMachine && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onCloseNewMachine}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl animate-slide-up safe-area-bottom overflow-y-auto"
-            style={{ maxHeight: '85vh', padding: '20px 5vw 32px' }}
+          <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl animate-slide-up safe-area-bottom"
+            style={{ maxHeight: '75vh', padding: '20px 5vw 32px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
             onClick={e => e.stopPropagation()}>
 
             <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)', margin: '0 auto 20px' }} />
