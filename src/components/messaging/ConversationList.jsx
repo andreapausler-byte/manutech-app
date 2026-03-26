@@ -31,11 +31,16 @@ function isOnlineish(id) {
   return hash % 3 !== 0 // ~66% online
 }
 
-export default function ConversationList({ user, onSelectConversation, unreadByConversation = {}, activeConversationId }) {
+export default function ConversationList({ user, onSelectConversation, unreadByConversation = {}, activeConversationId, openNewChat }) {
   const [conversations, setConversations] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showNewModal, setShowNewModal] = useState(false)
+
+  // Apre modale nuova chat quando richiesto dal FAB esterno
+  useEffect(() => {
+    if (openNewChat) setShowNewModal(true)
+  }, [openNewChat])
 
   const loadConversations = async () => {
     try {
