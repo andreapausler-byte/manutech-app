@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
-import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save } from 'lucide-react'
+import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save, Camera, Paperclip, FileText } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useToast } from '../../hooks/useToast'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
@@ -158,9 +158,33 @@ const TABS_BY_ROLE = {
 // ── Schermata fullscreen nuovo macchinario ──
 function NewMachineScreen({ onBack, onCreated }) {
   const [form, setForm] = useState({ name: '', department: '', manufacturer: '', model: '', year: '', notes: '' })
+  const [media, setMedia] = useState([])
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const toast = useToast()
   const haptic = useHaptic()
+
+  const uploadMedia = (type) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = type === 'photo' ? 'image/*' : '.pdf,.doc,.docx,image/*'
+    if (type === 'photo') input.capture = 'environment'
+    input.onchange = async (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      setUploading(true)
+      try {
+        const url = await db.uploadFile('attachments', `machines/${Date.now()}-${file.name}`, file)
+        setMedia(prev => [...prev, {
+          type: file.type.startsWith('image/') ? 'photo' : 'document',
+          name: file.name, url,
+        }])
+        haptic.light()
+      } catch { toast.error('Errore upload') }
+      setUploading(false)
+    }
+    input.click()
+  }
 
   const handleSave = async () => {
     if (!form.name.trim()) return
@@ -173,6 +197,9 @@ function NewMachineScreen({ onBack, onCreated }) {
         model: form.model.trim() || null,
         year: form.year ? parseInt(form.year) : null,
         notes: form.notes.trim() || null,
+        photo_url: media.find(m => m.type === 'photo')?.url || null,
+        attachments: media.filter(m => m.type === 'document').length > 0
+          ? media.filter(m => m.type === 'document') : null,
         status: 'operativa',
       })
       haptic.success()
@@ -183,6 +210,8 @@ function NewMachineScreen({ onBack, onCreated }) {
     }
     setSaving(false)
   }
+
+  const labelStyle = { display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 8 }
 
   return (
     <div className="min-h-screen min-h-[100dvh]" style={{ background: 'var(--color-bg)' }}>
@@ -203,9 +232,9 @@ function NewMachineScreen({ onBack, onCreated }) {
 
       {/* Form — scroll nativo */}
       <div style={{ padding: '20px 5vw 120px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Nome macchinario *</label>
+            <label style={labelStyle}>Nome macchinario *</label>
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="es. Pressa idraulica #3" className="w-full input-field"
               style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
@@ -213,13 +242,13 @@ function NewMachineScreen({ onBack, onCreated }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Reparto</label>
+              <label style={labelStyle}>Reparto</label>
               <input value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
                 placeholder="es. Linea 1" className="w-full input-field"
                 style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Produttore</label>
+              <label style={labelStyle}>Produttore</label>
               <input value={form.manufacturer} onChange={e => setForm(f => ({ ...f, manufacturer: e.target.value }))}
                 placeholder="es. Siemens" className="w-full input-field"
                 style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
@@ -228,13 +257,13 @@ function NewMachineScreen({ onBack, onCreated }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Modello</label>
+              <label style={labelStyle}>Modello</label>
               <input value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
                 placeholder="es. XR-500" className="w-full input-field"
                 style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Anno</label>
+              <label style={labelStyle}>Anno</label>
               <input type="number" value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
                 placeholder="es. 2024" className="w-full input-field"
                 style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
@@ -242,10 +271,74 @@ function NewMachineScreen({ onBack, onCreated }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Note</label>
+            <label style={labelStyle}>Note</label>
             <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               placeholder="Note aggiuntive..." className="w-full input-field"
               style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16, resize: 'none' }} rows={3} />
+          </div>
+
+          {/* Foto e Allegati */}
+          <div>
+            <label style={labelStyle}>Foto e Documenti</label>
+            <div style={{ display: 'flex', gap: 10, marginBottom: media.length > 0 || uploading ? 12 : 0 }}>
+              <button onClick={() => uploadMedia('photo')} disabled={uploading}
+                className="press-scale"
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  padding: '14px 0', borderRadius: 14, fontSize: 15, fontWeight: 700,
+                  background: '#22c55e12', border: '1.5px solid #22c55e30', color: '#22c55e',
+                  cursor: 'pointer', opacity: uploading ? 0.4 : 1,
+                }}>
+                <Camera size={20} /> Foto
+              </button>
+              <button onClick={() => uploadMedia('file')} disabled={uploading}
+                className="press-scale"
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  padding: '14px 0', borderRadius: 14, fontSize: 15, fontWeight: 700,
+                  background: '#7c6aff12', border: '1.5px solid #7c6aff30', color: '#7c6aff',
+                  cursor: 'pointer', opacity: uploading ? 0.4 : 1,
+                }}>
+                <Paperclip size={20} /> File
+              </button>
+            </div>
+
+            {uploading && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '8px 0', fontSize: 13, color: 'var(--color-text-muted)' }}>
+                <div style={{ width: 16, height: 16, border: '2px solid #22c55e30', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                Caricamento...
+              </div>
+            )}
+
+            {media.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                {media.map((m, i) => (
+                  <div key={i} style={{ position: 'relative', flexShrink: 0 }}>
+                    <div style={{
+                      width: 72, height: 72, borderRadius: 12,
+                      background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+                      overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {m.type === 'photo'
+                        ? <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div style={{ textAlign: 'center' }}>
+                            <FileText size={20} style={{ color: '#7c6aff', margin: '0 auto' }} />
+                            <span style={{ fontSize: 8, color: 'var(--color-text-muted)', display: 'block', marginTop: 2, maxWidth: 56, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
+                          </div>}
+                    </div>
+                    <button onClick={() => setMedia(prev => prev.filter((_, j) => j !== i))}
+                      style={{
+                        position: 'absolute', top: -6, right: -6,
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: '#ef4444', border: 'none', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                      <X size={12} style={{ color: '#fff' }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -253,23 +346,23 @@ function NewMachineScreen({ onBack, onCreated }) {
       {/* Bottone fisso in fondo */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10,
-        padding: '16px 5vw', paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+        padding: '16px 5vw', paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
         background: 'var(--color-surface-1)', borderTop: '1px solid var(--color-border)',
       }}>
         <button onClick={handleSave} disabled={saving || !form.name.trim()}
           className="press-scale"
           style={{
-            width: '100%', padding: '16px 0', borderRadius: 16,
-            fontSize: 16, fontWeight: 700, color: '#fff',
-            background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+            width: '100%', padding: '18px 0', borderRadius: 16,
+            fontSize: 17, fontWeight: 700, color: '#fff',
+            background: !form.name.trim() ? 'var(--color-surface-3)' : 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
             border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            boxShadow: '0 4px 16px rgba(34,197,94,0.3)',
-            opacity: saving || !form.name.trim() ? 0.5 : 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            boxShadow: form.name.trim() ? '0 4px 20px rgba(34,197,94,0.35)' : 'none',
+            opacity: saving ? 0.7 : 1,
           }}>
           {saving
             ? <div style={{ width: 22, height: 22, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            : <><Save size={20} /> Aggiungi Macchinario</>}
+            : <><Save size={22} /> Aggiungi Macchinario</>}
         </button>
       </div>
     </div>
