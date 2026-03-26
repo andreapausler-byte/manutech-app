@@ -21,7 +21,7 @@ import {
   ArrowLeft, Cog, Factory, Hash, Calendar, Building,
   FileText, Video, Shield, Wrench, ClipboardList,
   AlertTriangle, ChevronDown, ChevronUp, ExternalLink,
-  CheckCircle, X, Send, Clock, Zap, Activity
+  CheckCircle, X, Send, Clock, Zap, Activity, Trash2
 } from 'lucide-react'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
@@ -35,7 +35,7 @@ function getTrafficLight(plan, lastLog) {
   return { label: `Tra ${daysLeft}g`, color: '#22c55e', urgent: false }
 }
 
-export default function MobileMachineDetail({ machine, onBack, onViewReport, onQuickReport, onNewReport }) {
+export default function MobileMachineDetail({ machine, onBack, onViewReport, onQuickReport, onNewReport, onDelete }) {
   const { user } = useAuth()
   const toast = useToast()
   const haptic = useHaptic()
@@ -206,6 +206,16 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
           <h1 className="text-lg font-bold text-themed truncate">{machine.name}</h1>
           {machine.department && <p className="text-sm text-faint">{machine.department}</p>}
         </div>
+        {onDelete && (
+          <button onClick={onDelete} className="press-scale"
+            style={{
+              width: 40, height: 40, borderRadius: 12,
+              background: '#ef444415', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+            <Trash2 size={18} style={{ color: '#ef4444' }} />
+          </button>
+        )}
       </header>
 
       <div className="px-[4vw] py-[4vw] space-y-[5vw] animate-fade-in">
