@@ -206,7 +206,7 @@ function NewMachineScreen({ onBack, onCreated }) {
         photo_url: media.find(m => m.type === 'photo')?.url || null,
         attachments: media.filter(m => m.type === 'document').length > 0
           ? media.filter(m => m.type === 'document') : null,
-        status: 'operativa',
+        status: 'attivo',
       })
       haptic.success()
       toast.success('Macchinario aggiunto!')
