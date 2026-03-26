@@ -174,13 +174,19 @@ function NewMachineScreen({ onBack, onCreated }) {
       if (!file) return
       setUploading(true)
       try {
-        const url = await db.uploadFile('attachments', `machines/${Date.now()}-${file.name}`, file)
+        let url
+        try {
+          url = await db.uploadFile('attachments', `machines/${Date.now()}-${file.name}`, file)
+        } catch {
+          // Fallback: prova bucket 'reports' se 'attachments' non esiste
+          url = await db.uploadFile('reports', `machines/${Date.now()}-${file.name}`, file)
+        }
         setMedia(prev => [...prev, {
           type: file.type.startsWith('image/') ? 'photo' : 'document',
           name: file.name, url,
         }])
         haptic.light()
-      } catch { toast.error('Errore upload') }
+      } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) }
       setUploading(false)
     }
     input.click()
