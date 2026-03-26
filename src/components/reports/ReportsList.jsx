@@ -3,6 +3,7 @@ import { db } from '../../lib/supabase'
 import { STATUS, SEVERITY, REPORT_TYPES } from '../../lib/constants'
 import { EmptyState, SkeletonReportsPage } from '../ui'
 import { avatarGradient } from '../../hooks/usePremiumUI'
+import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { Search, X, User, ChevronDown, ChevronRight, Clock, Layers, MessageCircle } from 'lucide-react'
@@ -39,6 +40,9 @@ function shortDate(dateStr) {
 function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
   const severity = SEVERITY[report.severity] || SEVERITY.media
   const reportType = REPORT_TYPES[report.type] || REPORT_TYPES.correttiva
+  const rippleRef = useRipple()
+  const isCritical = report.severity === 'critica'
+  const isAlta = report.severity === 'alta'
   const hasMsg = !!lastMessage
 
   // Build message preview text
@@ -50,8 +54,9 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
 
   return (
     <button
+      ref={rippleRef}
       onClick={() => onSelect(report)}
-      className="kanban-card-enter w-full text-left press-scale"
+      className="kanban-card-enter w-full text-left press-scale ripple-container"
       style={{
         background: 'var(--color-card)',
         border: '1px solid var(--color-border)',
@@ -95,7 +100,7 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
           }}>
             {report.title}
           </span>
-          <span style={{
+          <span className={isCritical ? 'badge-critical-pulse' : isAlta ? 'badge-alta-pulse' : ''} style={{
             fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
             background: severity.bg, color: severity.color,
             flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3,

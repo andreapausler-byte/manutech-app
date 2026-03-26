@@ -1,8 +1,8 @@
 /**
- * PullToRefreshIndicator — Indicatore visivo per il gesto pull-to-refresh
+ * PullToRefreshIndicator — Premium: ingranaggio ManuTech che ruota
  */
 
-import { RefreshCw } from 'lucide-react'
+import { Cog } from 'lucide-react'
 
 export default function PullToRefreshIndicator({ pullDistance, pullProgress, refreshing, activated }) {
   if (pullDistance === 0 && !refreshing) return null
@@ -10,26 +10,39 @@ export default function PullToRefreshIndicator({ pullDistance, pullProgress, ref
   return (
     <div
       className="flex items-center justify-center overflow-hidden transition-[height] duration-200"
-      style={{ height: refreshing ? 48 : pullDistance > 0 ? Math.min(pullDistance, 60) : 0 }}
+      style={{ height: refreshing ? 56 : pullDistance > 0 ? Math.min(pullDistance, 64) : 0 }}
     >
       <div
-        className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-200 ${
-          activated || refreshing
-            ? 'border-violet-500 bg-violet-500/15'
-            : 'border-gray-600 bg-surface-2/50'
-        }`}
         style={{
-          transform: refreshing ? 'none' : `rotate(${pullProgress * 180}deg)`,
-          opacity: refreshing ? 1 : Math.max(0.3, pullProgress),
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 44, height: 44, borderRadius: 14,
+          background: activated || refreshing
+            ? 'linear-gradient(135deg, var(--color-primary), #00d4ff)'
+            : 'var(--color-surface-2)',
+          border: activated || refreshing ? 'none' : '2px solid var(--color-border)',
+          transition: 'background 0.3s ease, border 0.3s ease',
+          transform: refreshing ? 'none' : `rotate(${pullProgress * 270}deg)`,
+          boxShadow: activated || refreshing ? '0 0 20px rgba(124,106,255,0.3)' : 'none',
         }}
       >
-        <RefreshCw
-          size={18}
-          className={`transition-colors ${
-            activated || refreshing ? 'text-violet-400' : 'text-faint'
-          } ${refreshing ? 'animate-spin' : ''}`}
+        <Cog
+          size={22}
+          style={{
+            color: activated || refreshing ? '#fff' : 'var(--color-text-muted)',
+            transition: 'color 0.2s',
+          }}
+          className={refreshing ? 'ptr-gear spinning' : 'ptr-gear'}
         />
       </div>
+      {refreshing && (
+        <span style={{
+          marginLeft: 10, fontSize: 13, fontWeight: 600,
+          color: 'var(--color-primary)',
+          animation: 'fadeIn 0.3s ease',
+        }}>
+          Aggiornamento...
+        </span>
+      )}
     </div>
   )
 }
