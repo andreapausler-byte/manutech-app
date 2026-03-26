@@ -386,8 +386,8 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
 
         {/* View toggle */}
         <div style={{
-          display: 'flex', borderRadius: 10, overflow: 'hidden',
-          background: 'var(--color-surface-2)', padding: 3,
+          display: 'flex', borderRadius: 14, overflow: 'hidden',
+          background: 'var(--color-surface-2)', padding: 4,
         }}>
           {[
             { id: 'chrono', label: 'Recenti', icon: Clock },
@@ -396,15 +396,15 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
             <button key={v.id} onClick={() => switchView(v.id)}
               className="press-scale"
               style={{
-                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                padding: '8px 0', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                padding: '14px 0', borderRadius: 10, fontSize: 17, fontWeight: 700,
                 background: viewMode === v.id ? 'var(--color-card)' : 'transparent',
                 color: viewMode === v.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
                 border: 'none', cursor: 'pointer',
                 boxShadow: viewMode === v.id ? 'var(--shadow-sm)' : 'none',
                 transition: 'all 0.2s',
               }}>
-              <v.icon size={14} /> {v.label}
+              <v.icon size={20} /> {v.label}
             </button>
           ))}
         </div>
