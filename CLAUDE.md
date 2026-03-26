@@ -1,98 +1,92 @@
-# ManuTech - Contesto Progetto
+# ManuTech — Claude Code Context
 
-## Cos'è ManuTech
-App web/PWA per la gestione della manutenzione industriale. Permette a operatori di segnalare guasti, a tecnici di gestire interventi, e agli admin di monitorare KPI e pianificare manutenzione preventiva.
+## Cos'è
+PWA gestione manutenzione industriale. Operatori segnalano guasti, tecnici gestiscono interventi, admin monitorano KPI e pianificano manutenzione preventiva.
 
-## Stack Tecnologico
-- **Frontend**: React 19 + Vite 7 + Tailwind CSS 4
+## Stack
+- **Frontend**: React 19 + Vite 7 + Tailwind CSS 4 (plugin `@tailwindcss/vite`)
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime + Storage)
-- **Deploy**: Vercel
-- **PWA**: Service Worker custom con cache strategy
-- **UI**: Mobile-first, icone Lucide React, toast con react-hot-toast
+- **Deploy**: Vercel — **PWA**: Service Worker custom (`public/sw.js`)
+- **UI**: Mobile-first, Lucide React icons, react-hot-toast, glass-morphism
+
+## Comandi
+```bash
+npm run dev      # Dev server (porta 5173, host=true)
+npm run build    # Build produzione — ESEGUI SEMPRE prima di push
+npm run lint     # ESLint — deve passare senza errori
+```
+Non ci sono test. Non c'è Prettier. Tailwind v4 senza config file.
 
 ## Architettura
-
-### Struttura cartelle
 ```
 src/
-├── components/       # Componenti riutilizzabili
-│   ├── chat/         # Chat integrata
-│   ├── layout/       # LoginPage, AdminLayout, MobileLayout
-│   ├── machines/     # Dettaglio macchine, QR
-│   ├── media/        # Upload foto con compressione
-│   ├── reports/      # Segnalazioni (NewReport, ReportDetail, QuickReport)
-│   └── ui/           # Componenti base (StatusBadge, ecc.)
-├── hooks/            # Custom hooks (useAutoNotifications, useAutosave, usePWA, ecc.)
-├── lib/              # Logica core
-│   ├── supabase.js   # Layer di astrazione DB (556 righe)
-│   ├── constants.js  # Ruoli, stati, severità, template quick report
-│   ├── theme.js      # Engine temi dark/light/auto + accent colors
-│   └── notifPreferences.js  # Preferenze notifiche per ruolo
+├── components/         # Componenti per area (chat, layout, machines, media, messaging, reports, ui)
+├── contexts/           # AuthContext, ThemeContext (React Context, NO Redux)
+├── hooks/              # 13 custom hooks (useWallet, useKPIStats, usePWA, ...)
+├── lib/
+│   ├── supabase.js     # Layer DB unico (1350+ righe) — pattern: if(supabase){...}else{localStorage}
+│   ├── constants.js    # ROLES, STATUS, SEVERITY, QUICK_TEMPLATES, formatDate, timeAgo
+│   ├── theme.js        # Engine temi: 6 accent presets, dark/light/auto, 50+ CSS vars
+│   └── notifPreferences.js  # Preferenze notifiche per ruolo con cache 60s
 ├── pages/
-│   ├── admin/        # Dashboard, Macchine, Report, Manutenzione, Tecnici, Utenti, Notifiche
-│   └── mobile/       # Dashboard mobile, Profilo
-└── App.jsx           # Routing (admin → AdminLayout, altri → MobileLayout)
+│   ├── admin/          # 10+ pagine (Dashboard, Reports, Machines, Leaderboard, Rewards...)
+│   └── mobile/         # MobileDashboard, ProfilePage, WalletPage
+├── styles/index.css    # Design system: CSS vars, animazioni, utility classes (750+ righe)
+└── App.jsx             # Routing: admin→AdminLayout, altri→MobileLayout, guest→GuestChatPage
 ```
 
-### Ruoli utente
-- **Operatore**: segnala guasti (report rapidi o completi), vede stato segnalazioni
-- **Tecnico**: riceve assegnazioni, aggiorna stato interventi, chat
-- **Admin**: dashboard KPI, gestione macchine/utenti/tecnici, manutenzione preventiva
+## Ruoli e flusso
+- **Operatore**: crea report (normali o quick) → `aperta`
+- **Admin**: assegna a tecnico → `assegnata`
+- **Tecnico**: lavora → `in_lavorazione` → completa → `risolta`
+- Stati: `aperta → assegnata → in_lavorazione → in_attesa_ricambi → risolta → chiuso`
 
-### Flusso segnalazione
-1. Operatore crea report (normale o quick con template predefiniti)
-2. Report nasce con stato "aperta"
-3. Admin assegna a tecnico → stato "assegnata"
-4. Tecnico lavora → stato "in_lavorazione"
-5. Tecnico completa → stato "risolta"
+## Convenzioni codice — SEGUILE SEMPRE
+- **Lingua UI**: italiano — **Lingua codice**: inglese
+- **Componenti**: funzioni React + hooks, MAI classi
+- **Stili**: Tailwind inline + CSS variables (`var(--color-*)`) — MAI file CSS per componente
+- **Stato**: React Context + useState — NO Redux/Zustand
+- **Date**: `formatDate()` e `timeAgo()` da `constants.js`
+- **Icone**: solo `lucide-react`
+- **Toast**: `react-hot-toast` via `useToast()`
+- **Import**: path relativi, no alias
+- **Commit**: `vX.Y: Sprint N - Descrizione feature`
 
-### Database (Supabase/PostgreSQL)
-Schema in `supabase/schema.sql`. Tabelle principali:
-- `profiles` (utenti con ruolo e org_id)
-- `machines` (macchinari con QR code)
-- `reports` (segnalazioni con severità, stato, foto)
-- `maintenance_plans` (piani preventivi con frequenza)
-- `maintenance_logs` (log esecuzioni manutenzione)
-- `activities` (feed attività)
-- `notifications` (notifiche con preferenze per ruolo)
+## Design System
+- **Font**: Outfit (UI) + JetBrains Mono (numeri/codice)
+- **Primary default**: `#7c6aff` — 6 preset accent configurabili via ThemeContext
+- **Modalità**: dark-first, supporta light e auto
+- **Pattern**: glass-morphism (`.glass`), card `border-radius: 16-24px`, `.press-scale` per tap
+- **Componenti base** in `ui/index.jsx`: Badge, Button, Input, Select, Modal, Spinner, Skeleton
+- **20+ animazioni** in `index.css` (fadeIn, slideUp, pulseRing, shimmer...)
 
-### Demo Mode
-Il progetto supporta una modalità demo senza Supabase, usando localStorage. Il pattern in `supabase.js` è: `if (supabase) { /* query reale */ } else { /* fallback localStorage */ }`.
+## Supabase — Pattern critici
+- **Demo mode**: OGNI funzione in `supabase.js` ha fallback localStorage. Rispetta sempre.
+- **RLS**: tabelle usano `get_my_org_id()` e `get_my_role()` — funzioni `SECURITY DEFINER`
+- **RPC**: per INSERT su tabelle RLS complesse, usa RPC (vedi `create_maintenance_plan`, `credit_tokens`)
+- **org_id**: SEMPRE incluso nelle insert. Usa `getMyOrgId()` (cached, reset al logout)
+- **Migration**: file numerati in `supabase/migrations/` — schema base in `supabase/schema.sql`
 
-## Convenzioni di Codice
-- Lingua UI: **italiano** (label, messaggi, placeholder)
-- Lingua codice: **inglese** (nomi variabili, funzioni, componenti)
-- Componenti React: funzioni con hooks, no classi
-- Stili: Tailwind utility classes inline, no CSS separato
-- Stato: React Context (AuthContext) + useState locale, no Redux
-- Date: `date-fns` + helper custom `formatDate`/`timeAgo` in constants.js
-- Commit message: `vX.Y: Sprint N - Descrizione feature`
+## Database — Tabelle
+`users`, `machines`, `reports`, `maintenance_plans`, `maintenance_logs`, `activities`, `notifications`, `comments`, `conversations`, `direct_messages`, `dm_reads`, `push_subscriptions`, `token_config`, `token_transactions`, `reward_catalog`, `reward_redemptions`
 
-## Cronologia Versioni
-- **v5.3** (Sprint 3.7): Preferenze notifiche per ruolo (mobile + admin)
-- **v5.2**: Notifiche realtime + suono + Web Notifications + PWA installabile + guida Safari
-- **v5.0**: Theme Engine - dark/light/auto + 6 accent colors + controlli admin
+## Gamification (v5.4-5.5)
+- **Punteggio**: `useOperatorScore` — punti per report, foto, severità, quick, streak
+- **Badge**: 16 achievement in 5 categorie — **Livelli**: Bronzo→Argento→Oro→Platino→Diamante
+- **ManuCoin**: wallet token interno con catalogo premi riscattabili (`useWallet`)
 
-## Problemi Noti / Debito Tecnico
-- **Performance**: Query N+1 in AdminDashboard e AdminMaintenance (loop sequenziali su macchine → piani → log)
-- **Test**: Nessun test presente, nessun framework di test configurato
-- **Componenti grandi**: AdminMachines (657 righe), AdminReports (611), AdminDashboard (567)
-- **Accessibilità**: Nessun attributo aria-*, mancano tag semantici HTML
-- **Error handling**: Inconsistente - alcuni .catch(() => {}) silenti in supabase.js
-- **supabase.js**: Pattern demo/produzione duplicato 20+ volte
+## Errori da evitare
+1. **NON dimenticare demo mode** — ogni funzione DB nuova DEVE avere fallback localStorage
+2. **NON usare insert diretto** su tabelle RLS complesse — usa RPC `SECURITY DEFINER`
+3. **NON aggiungere file CSS** — Tailwind inline + CSS vars esistenti
+4. **NON importare librerie UI esterne** — usa `ui/index.jsx`
+5. **NON usare Redux/Zustand** — Context + useState
+6. **NON scrivere inglese nell'UI** — tutto italiano
+7. **Build DEVE passare** prima di ogni push
 
-## Come Lavorare su Questo Progetto
-- `npm run dev` per avviare in locale
-- `npm run build` per verificare che il build funzioni
-- `npm run lint` per controllare errori ESLint
-- Le variabili Supabase sono in `.env` (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
-- Senza `.env` il progetto parte in modalità demo (localStorage)
-
----
-
-> **NOTA PER IL MAINTAINER**: Arricchisci questo file con:
-> - Decisioni architetturali prese e perché (es. "perché Supabase e non Firebase")
-> - Feature richieste dai clienti / roadmap
-> - Problemi ricorrenti in produzione
-> - Dettagli sull'ambiente di produzione (dominio, Supabase project ID, ecc.)
-> - Integrazioni esterne previste (ERP, sensori IoT, ecc.)
+## Debito tecnico
+- Query N+1 in AdminDashboard e AdminMaintenance
+- supabase.js: pattern demo/prod duplicato 20+ volte
+- Componenti grandi (600+ LOC): AdminMachines, AdminReports, AdminDashboard
+- Zero test, zero accessibilità (aria-*)
+- Error handling inconsistente (.catch silenti)
