@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
-import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet } from 'lucide-react'
+import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import { useChatRealtime } from '../../hooks/useChatRealtime'
@@ -25,14 +25,33 @@ import WalletPage from '../../pages/mobile/WalletPage'
 import ConversationList from '../messaging/ConversationList'
 import ConversationView from '../messaging/ConversationView'
 
-// ── FAB Menu — 2 azioni: Quick Report + Report Completo ──
-function FABMenu({ onNewReport, onQuickReport }) {
+// ── FAB Config per tab ──
+const FAB_CONFIG = {
+  home: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: 'var(--gradient-primary)', shadow: 'var(--shadow-glow-primary)' },
+  reports: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: 'var(--gradient-primary)', shadow: 'var(--shadow-glow-primary)' },
+  machines: { icon: Wrench, label: 'Segnala problema', action: 'quick_report', bg: 'linear-gradient(135deg, #f59e0b, #d97706)', shadow: '0 4px 20px rgba(245,158,11,0.35)' },
+  messages: { icon: PenSquare, label: 'Nuova conversazione', action: 'new_conversation', bg: 'linear-gradient(135deg, #06b6d4, #0891b2)', shadow: '0 4px 20px rgba(6,182,212,0.35)' },
+}
+
+// ── FAB contestuale ──
+function ContextualFAB({ tab, onNewReport, onQuickReport, onNewConversation }) {
   const [open, setOpen] = useState(false)
   const haptic = useHaptic()
 
-  const toggle = () => {
-    haptic.light()
-    setOpen(o => !o)
+  const config = FAB_CONFIG[tab]
+  if (!config) return null
+
+  const FabIcon = config.icon
+
+  const handleFABClick = () => {
+    haptic.medium()
+    if (config.action === 'report_menu') {
+      setOpen(o => !o)
+    } else if (config.action === 'quick_report') {
+      onQuickReport()
+    } else if (config.action === 'new_conversation') {
+      onNewConversation()
+    }
   }
 
   const handleAction = (fn) => {
@@ -42,65 +61,64 @@ function FABMenu({ onNewReport, onQuickReport }) {
 
   return (
     <>
-      {/* Overlay */}
-      {open && (
+      {/* Overlay — solo per report_menu */}
+      {open && config.action === 'report_menu' && (
         <div className="fixed inset-0 bg-black/60 z-[48] backdrop-blur-sm" aria-hidden="true" onClick={() => setOpen(false)}
           style={{ animation: 'fadeIn 0.2s ease' }}
         />
       )}
 
-      {/* Action buttons — full width, centered above FAB */}
-      <div className={`fixed left-0 right-0 bottom-[140px] z-[49] flex flex-col items-center gap-[14px] px-[6vw] transition-all duration-300 ${
-        open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
-      }`}>
-        <button
-          onClick={() => handleAction(onQuickReport)}
-          className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
-          style={{
-            padding: '18px 24px',
-            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-            boxShadow: '0 6px 28px rgba(245, 158, 11, 0.35)',
-            fontSize: 17,
-            fontWeight: 700,
-          }}
-        >
-          <Zap size={24} strokeWidth={2.5} />
-          Report Rapido
-        </button>
-        <button
-          onClick={() => handleAction(onNewReport)}
-          className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
-          style={{
-            padding: '18px 24px',
-            background: 'var(--gradient-primary)',
-            boxShadow: '0 6px 28px rgba(124, 106, 255, 0.35)',
-            fontSize: 17,
-            fontWeight: 700,
-          }}
-        >
-          <ClipboardList size={24} strokeWidth={2.5} />
-          Report Completo
-        </button>
-      </div>
+      {/* Menu report (solo per home/reports) */}
+      {config.action === 'report_menu' && (
+        <div className={`fixed left-0 right-0 bottom-[140px] z-[49] flex flex-col items-center gap-[14px] px-[6vw] transition-all duration-300 ${
+          open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
+        }`}>
+          <button
+            onClick={() => handleAction(onQuickReport)}
+            className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
+            style={{
+              padding: '18px 24px',
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              boxShadow: '0 6px 28px rgba(245, 158, 11, 0.35)',
+              fontSize: 17, fontWeight: 700,
+            }}
+          >
+            <Zap size={24} strokeWidth={2.5} />
+            Report Rapido
+          </button>
+          <button
+            onClick={() => handleAction(onNewReport)}
+            className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
+            style={{
+              padding: '18px 24px',
+              background: 'var(--gradient-primary)',
+              boxShadow: '0 6px 28px rgba(124, 106, 255, 0.35)',
+              fontSize: 17, fontWeight: 700,
+            }}
+          >
+            <ClipboardList size={24} strokeWidth={2.5} />
+            Report Completo
+          </button>
+        </div>
+      )}
 
-      {/* FAB + button */}
+      {/* FAB button */}
       <button
-        onClick={toggle}
-        aria-label={open ? 'Chiudi menu segnalazioni' : 'Nuova segnalazione'}
-        aria-expanded={open}
+        onClick={handleFABClick}
+        aria-label={open ? 'Chiudi menu' : config.label}
+        aria-expanded={config.action === 'report_menu' ? open : undefined}
         className={`fixed bottom-[76px] right-[16px] z-50 w-[56px] h-[56px] rounded-2xl flex items-center justify-center press-scale transition-all duration-200 ${
-          open ? 'rotate-45' : ''
+          open && config.action === 'report_menu' ? 'rotate-45' : ''
         }`}
         style={{
-          background: open ? 'var(--color-surface-2)' : 'var(--gradient-primary)',
-          boxShadow: open
-            ? 'var(--shadow-md)'
-            : 'var(--shadow-glow-primary)',
+          background: open && config.action === 'report_menu' ? 'var(--color-surface-2)' : config.bg,
+          boxShadow: open && config.action === 'report_menu' ? 'var(--shadow-md)' : config.shadow,
+          animation: 'scaleIn 0.2s var(--ease-spring)',
         }}
       >
-        {open
-          ? <X size={26} className="text-white" strokeWidth={2.5} style={{ color: 'var(--color-text-secondary)' }} />
-          : <Plus size={28} className="text-white" strokeWidth={2.5} />
+        {open && config.action === 'report_menu'
+          ? <X size={26} strokeWidth={2.5} style={{ color: 'var(--color-text-secondary)' }} />
+          : <FabIcon size={26} className="text-white" strokeWidth={2.5} />
         }
       </button>
     </>
@@ -170,6 +188,7 @@ export default function MobileLayout({ initialReportId }) {
   const switchTab = (id) => {
     haptic.light()
     setTab(id)
+    setShowNewConversation(false)
   }
 
   // ── Navigazione con transizioni fluide ──
@@ -209,6 +228,13 @@ export default function MobileLayout({ initialReportId }) {
     setSelectedConversation(conv)
     markDMAsRead(conv.id)
     navigateTo('conversation-detail')
+  }
+
+  const [showNewConversation, setShowNewConversation] = useState(false)
+
+  const handleNewConversation = () => {
+    haptic.medium()
+    setShowNewConversation(true)
   }
 
   const handleCreated = () => {
@@ -365,15 +391,21 @@ export default function MobileLayout({ initialReportId }) {
           {tab === 'messages' && (
             <ConversationList
               user={user}
-              onSelectConversation={openConversation}
+              onSelectConversation={(conv) => { setShowNewConversation(false); openConversation(conv) }}
               unreadByConversation={unreadByConversation}
+              openNewChat={showNewConversation}
             />
           )}
           {tab === 'profile' && <ProfilePage />}
         </div>
       </main>
 
-      <FABMenu onNewReport={openNewReport} onQuickReport={() => openQuickReport()} />
+      <ContextualFAB
+        tab={tab}
+        onNewReport={openNewReport}
+        onQuickReport={() => openQuickReport()}
+        onNewConversation={handleNewConversation}
+      />
 
       {/* Settings Panel */}
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user.id} userRole={user.role} />
