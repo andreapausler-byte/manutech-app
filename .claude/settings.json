@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx eslint --fix --no-error-on-unmatched-pattern \"$CLAUDE_FILE_PATH\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | grep -qiE '(rm\\s+-rf\\s+[/~]|drop\\s+table|drop\\s+database|truncate\\s+|git\\s+push\\s+.*--force\\s+.*(main|master)|git\\s+reset\\s+--hard)' && echo 'BLOCKED: Comando distruttivo rilevato. Chiedi conferma all\\'utente.' && exit 1 || exit 0"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "compaction",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '⚠️ CONTESTO POST-COMPACTION: Progetto ManuTech (React 19 + Supabase). Leggi CLAUDE.md alla root per il contesto completo. Verifica i file aperti e il task corrente prima di procedere.'"
+          }
+        ]
+      }
+    ]
+  }
+}

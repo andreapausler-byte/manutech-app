@@ -1,0 +1,48 @@
+# Dipendenze
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Git
+.git/
+
+# Coverage e test
+coverage/
+
+# Log
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.production
+.certs/
+
+# IDE
+.vscode/
+.idea/
+*.sw?
+.DS_Store
+
+# Supabase temp
+supabase/.temp/
+
+# Asset binari
+public/icons/
+public/screenshots/
+*.png
+*.jpg
+*.jpeg
+*.ico
+*.svg
+*.woff
+*.woff2
+*.ttf
+
+# Lock file (grande)
+package-lock.json
