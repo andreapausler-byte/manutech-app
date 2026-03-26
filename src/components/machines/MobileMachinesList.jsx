@@ -8,9 +8,7 @@ import { db } from '../../lib/supabase'
 import { SkeletonReportsPage, EmptyState } from '../ui'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, X, Save, Cog } from 'lucide-react'
-import { useToast } from '../../hooks/useToast'
-import { useHaptic } from '../../hooks/useHaptic'
+import { Search, X } from 'lucide-react'
 
 const MACHINE_STATUS = {
   operativa: { label: 'Operativa', color: 'var(--color-green)', bg: 'var(--color-green-bg)' },
@@ -31,17 +29,11 @@ function MachineStatusChip({ status }) {
   )
 }
 
-const emptyMachineForm = { name: '', department: '', manufacturer: '', model: '', year: '', notes: '' }
-
-export default function MobileMachinesList({ onSelectMachine, showNewMachine, onCloseNewMachine }) {
+export default function MobileMachinesList({ onSelectMachine }) {
   const [machines, setMachines] = useState([])
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [machineForm, setMachineForm] = useState(emptyMachineForm)
-  const [saving, setSaving] = useState(false)
-  const toast = useToast()
-  const haptic = useHaptic()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -70,31 +62,6 @@ export default function MobileMachinesList({ onSelectMachine, showNewMachine, on
   })
 
   const getActiveReports = (machineName) => reports.filter(r => r.machine === machineName && r.status !== 'risolta').length
-
-  const handleSaveMachine = async () => {
-    if (!machineForm.name.trim()) return
-    setSaving(true)
-    try {
-      await db.createMachine({
-        name: machineForm.name.trim(),
-        department: machineForm.department.trim() || null,
-        manufacturer: machineForm.manufacturer.trim() || null,
-        model: machineForm.model.trim() || null,
-        year: machineForm.year ? parseInt(machineForm.year) : null,
-        notes: machineForm.notes.trim() || null,
-        status: 'operativa',
-        sort_order: machines.length + 1,
-      })
-      haptic.success()
-      toast.success('Macchinario aggiunto!')
-      setMachineForm(emptyMachineForm)
-      onCloseNewMachine()
-      await load()
-    } catch (e) {
-      toast.error('Errore: ' + e.message)
-    }
-    setSaving(false)
-  }
 
   return (
     <div ref={pullRef} style={{ padding: '0 16px 16px' }}>
@@ -180,102 +147,6 @@ export default function MobileMachinesList({ onSelectMachine, showNewMachine, on
         </div>
       )}
 
-      {/* ═══ MODAL — Nuovo macchinario (fullscreen su mobile) ═══ */}
-      {showNewMachine && (
-        <div className="fixed inset-0 z-50" style={{ background: 'var(--color-bg)' }}>
-          <div style={{
-            height: '100%', display: 'flex', flexDirection: 'column',
-          }}>
-            {/* Header fisso */}
-            <div style={{ padding: '16px 5vw', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 44, height: 44, borderRadius: 14,
-                  background: '#22c55e18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <Cog size={22} style={{ color: '#22c55e' }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)' }}>Nuovo Macchinario</h3>
-                  <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Aggiungi un macchinario all'impianto</p>
-                </div>
-                <button onClick={() => { setMachineForm(emptyMachineForm); onCloseNewMachine() }}
-                  style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--color-surface-2)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <X size={18} style={{ color: 'var(--color-text-muted)' }} />
-                </button>
-              </div>
-            </div>
-
-            {/* Form scrollabile */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 5vw' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Nome macchinario *</label>
-                  <input value={machineForm.name} onChange={e => setMachineForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="es. Pressa idraulica #3" className="w-full input-field"
-                    style={{ borderRadius: 14, padding: '14px 16px', fontSize: 15 }} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Reparto</label>
-                    <input value={machineForm.department} onChange={e => setMachineForm(f => ({ ...f, department: e.target.value }))}
-                      placeholder="es. Linea 1" className="w-full input-field"
-                      style={{ borderRadius: 14, padding: '14px 16px', fontSize: 15 }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Produttore</label>
-                    <input value={machineForm.manufacturer} onChange={e => setMachineForm(f => ({ ...f, manufacturer: e.target.value }))}
-                      placeholder="es. Siemens" className="w-full input-field"
-                      style={{ borderRadius: 14, padding: '14px 16px', fontSize: 15 }} />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Modello</label>
-                    <input value={machineForm.model} onChange={e => setMachineForm(f => ({ ...f, model: e.target.value }))}
-                      placeholder="es. XR-500" className="w-full input-field"
-                      style={{ borderRadius: 14, padding: '14px 16px', fontSize: 15 }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Anno</label>
-                    <input type="number" value={machineForm.year} onChange={e => setMachineForm(f => ({ ...f, year: e.target.value }))}
-                      placeholder="es. 2024" className="w-full input-field"
-                      style={{ borderRadius: 14, padding: '14px 16px', fontSize: 15 }} />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Note</label>
-                  <textarea value={machineForm.notes} onChange={e => setMachineForm(f => ({ ...f, notes: e.target.value }))}
-                    placeholder="Note aggiuntive..." className="w-full input-field"
-                    style={{ borderRadius: 14, padding: '14px 16px', fontSize: 15, resize: 'none' }} rows={3} />
-                </div>
-              </div>
-            </div>
-
-            {/* Bottoni fissi in fondo */}
-            <div style={{ padding: '16px 5vw', paddingBottom: 'max(16px, env(safe-area-inset-bottom))', borderTop: '1px solid var(--color-border)', flexShrink: 0 }}>
-              <button onClick={handleSaveMachine} disabled={saving || !machineForm.name.trim()}
-                className="press-scale"
-                style={{
-                  width: '100%', padding: '16px 0', borderRadius: 16,
-                  fontSize: 16, fontWeight: 700, color: '#fff',
-                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                  border: 'none', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: '0 4px 16px rgba(34,197,94,0.3)',
-                  opacity: saving || !machineForm.name.trim() ? 0.5 : 1,
-                }}>
-                {saving
-                  ? <div style={{ width: 22, height: 22, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                  : <><Save size={20} /> Aggiungi Macchinario</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

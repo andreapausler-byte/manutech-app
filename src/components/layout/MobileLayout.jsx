@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
-import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare } from 'lucide-react'
+import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import { useChatRealtime } from '../../hooks/useChatRealtime'
@@ -154,6 +154,127 @@ const TABS_BY_ROLE = {
   ],
 }
 
+// ── Schermata fullscreen nuovo macchinario ──
+function NewMachineScreen({ onBack, onCreated }) {
+  const [form, setForm] = useState({ name: '', department: '', manufacturer: '', model: '', year: '', notes: '' })
+  const [saving, setSaving] = useState(false)
+  const toast = useToast()
+  const haptic = useHaptic()
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return
+    setSaving(true)
+    try {
+      await db.createMachine({
+        name: form.name.trim(),
+        department: form.department.trim() || null,
+        manufacturer: form.manufacturer.trim() || null,
+        model: form.model.trim() || null,
+        year: form.year ? parseInt(form.year) : null,
+        notes: form.notes.trim() || null,
+        status: 'operativa',
+      })
+      haptic.success()
+      toast.success('Macchinario aggiunto!')
+      onCreated()
+    } catch (e) {
+      toast.error('Errore: ' + e.message)
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="min-h-screen min-h-[100dvh]" style={{ background: 'var(--color-bg)' }}>
+      {/* Header */}
+      <header style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '14px 16px', borderBottom: '1px solid var(--color-border)',
+        background: 'var(--color-surface-1)', position: 'sticky', top: 0, zIndex: 10,
+      }}>
+        <button onClick={onBack} className="press-scale"
+          style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--color-surface-2)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <X size={18} style={{ color: 'var(--color-text-muted)' }} />
+        </button>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text)' }}>Nuovo Macchinario</h3>
+        </div>
+      </header>
+
+      {/* Form — scroll nativo */}
+      <div style={{ padding: '20px 5vw 120px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Nome macchinario *</label>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="es. Pressa idraulica #3" className="w-full input-field"
+              style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Reparto</label>
+              <input value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
+                placeholder="es. Linea 1" className="w-full input-field"
+                style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Produttore</label>
+              <input value={form.manufacturer} onChange={e => setForm(f => ({ ...f, manufacturer: e.target.value }))}
+                placeholder="es. Siemens" className="w-full input-field"
+                style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Modello</label>
+              <input value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+                placeholder="es. XR-500" className="w-full input-field"
+                style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Anno</label>
+              <input type="number" value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))}
+                placeholder="es. 2024" className="w-full input-field"
+                style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16 }} />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Note</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Note aggiuntive..." className="w-full input-field"
+              style={{ borderRadius: 14, padding: '14px 16px', fontSize: 16, resize: 'none' }} rows={3} />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottone fisso in fondo */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10,
+        padding: '16px 5vw', paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+        background: 'var(--color-surface-1)', borderTop: '1px solid var(--color-border)',
+      }}>
+        <button onClick={handleSave} disabled={saving || !form.name.trim()}
+          className="press-scale"
+          style={{
+            width: '100%', padding: '16px 0', borderRadius: 16,
+            fontSize: 16, fontWeight: 700, color: '#fff',
+            background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            boxShadow: '0 4px 16px rgba(34,197,94,0.3)',
+            opacity: saving || !form.name.trim() ? 0.5 : 1,
+          }}>
+          {saving
+            ? <div style={{ width: 22, height: 22, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            : <><Save size={20} /> Aggiungi Macchinario</>}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function MobileLayout({ initialReportId }) {
   const { user, logout } = useAuth()
   const { toggleMode, isDark } = useTheme()
@@ -193,7 +314,6 @@ export default function MobileLayout({ initialReportId }) {
     haptic.light()
     setTab(id)
     setShowNewConversation(false)
-    setShowNewMachine(false)
   }
 
   // ── Navigazione con transizioni fluide ──
@@ -236,7 +356,6 @@ export default function MobileLayout({ initialReportId }) {
   }
 
   const [showNewConversation, setShowNewConversation] = useState(false)
-  const [showNewMachine, setShowNewMachine] = useState(false)
 
   const handleNewConversation = () => {
     haptic.medium()
@@ -245,7 +364,7 @@ export default function MobileLayout({ initialReportId }) {
 
   const handleNewMachine = () => {
     haptic.medium()
-    setShowNewMachine(true)
+    navigateTo('new-machine')
   }
 
   const handleCreated = () => {
@@ -312,6 +431,13 @@ export default function MobileLayout({ initialReportId }) {
           onQuickReport={openQuickReport}
           onNewReport={(machineName) => navigateTo('new-report', machineName)}
         />
+      </div>
+    )
+  }
+  if (screen === 'new-machine') {
+    return (
+      <div className={transitionClass}>
+        <NewMachineScreen onBack={goBack} onCreated={() => { goBack(); setTab('machines') }} />
       </div>
     )
   }
@@ -397,7 +523,7 @@ export default function MobileLayout({ initialReportId }) {
           )}
           {tab === 'wallet' && <WalletPage />}
           {tab === 'machines' && (
-            <MobileMachinesList onSelectMachine={openMachine} showNewMachine={showNewMachine} onCloseNewMachine={() => setShowNewMachine(false)} />
+            <MobileMachinesList onSelectMachine={openMachine} />
           )}
           {tab === 'messages' && (
             <ConversationList
