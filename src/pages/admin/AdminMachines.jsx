@@ -294,7 +294,7 @@ export default function AdminMachines() {
           sel={sel} qrDataUrl={qrDataUrl} plans={plans} logs={logs}
           planLastLogs={planLastLogs} reports={reports}
           detailTab={detailTab} setDetailTab={setDetailTab}
-          onClose={() => setSel(null)} onEdit={openEdit} onDownloadQR={downloadQR}
+          onClose={() => setSel(null)} onEdit={openEdit} onDelete={(id) => { remove(id) }} onDownloadQR={downloadQR}
           onOpenReport={(report) => setSelectedReport(report)}
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
           onOpenLogForm={openLogForm} onHandleCSVFile={handleCSVFile}

@@ -38,7 +38,7 @@ const healthLabels = {
 export default function MachineDetailSheet({
   sel, qrDataUrl, plans, logs, planLastLogs, reports,
   detailTab, setDetailTab,
-  onClose, onEdit, onDownloadQR, onOpenReport,
+  onClose, onEdit, onDelete, onDownloadQR, onOpenReport,
   onOpenPlanForm, onDeletePlan, onOpenLogForm,
   onHandleCSVFile,
 }) {
@@ -137,6 +137,13 @@ export default function MachineDetailSheet({
             <button onClick={() => onEdit(sel)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-amber-400 hover:bg-amber-400/10 transition-all">
               <Edit size={14} /> Modifica
             </button>
+            {onDelete && (
+              <button onClick={() => { if (confirm(`Eliminare il macchinario "${sel.name}"? Questa azione è irreversibile.`)) onDelete(sel.id) }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-red-400 hover:bg-red-500/10 transition-all"
+                title="Elimina macchinario">
+                <Trash2 size={14} /> Elimina
+              </button>
+            )}
             <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-muted hover:text-white transition-all">
               <X size={22} />
             </button>
