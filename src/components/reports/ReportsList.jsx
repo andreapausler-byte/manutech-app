@@ -54,59 +54,59 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
       style={{
         background: 'var(--color-card)',
         border: '1px solid var(--color-border)',
-        borderLeft: `4px solid ${severity.color}`,
-        borderRadius: 10,
-        padding: '8px 10px 8px 12px',
+        borderLeft: `5px solid ${severity.color}`,
+        borderRadius: 14,
+        padding: '14px 14px 14px 16px',
         cursor: 'pointer',
         transition: 'border-color 0.15s, box-shadow 0.15s',
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
+        gap: 12,
       }}
     >
-      {/* Avatar — smaller */}
+      {/* Avatar */}
       {report.assigned_to_name ? (
         <div className="avatar-initials" style={{
           background: STATUS[report.status]?.color || 'var(--color-primary)',
-          width: 28, height: 28, fontSize: 10,
+          width: 38, height: 38, fontSize: 13,
         }}>
           {report.assigned_to_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
         </div>
       ) : (
         <div className="avatar-initials" style={{
           background: 'var(--color-surface-3)', border: '1.5px dashed var(--color-border)',
-          width: 28, height: 28,
+          width: 38, height: 38,
         }}>
-          <User size={12} style={{ color: 'var(--color-text-muted)' }} />
+          <User size={16} style={{ color: 'var(--color-text-muted)' }} />
         </div>
       )}
 
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Row 1: Title + severity */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{
-            fontSize: 13, fontWeight: 700, color: 'var(--color-text)',
+            fontSize: 16, fontWeight: 700, color: 'var(--color-text)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            flex: 1, minWidth: 0, lineHeight: 1.2,
+            flex: 1, minWidth: 0, lineHeight: 1.3,
           }}>
             {report.title}
           </span>
           <span style={{
-            fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
+            fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
             background: severity.bg, color: severity.color,
-            flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 2,
+            flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3,
           }}>
-            <span style={{ width: 4, height: 4, borderRadius: '50%', background: severity.color }} />
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: severity.color }} />
             {severity.label}
           </span>
         </div>
 
-        {/* Row 2: Machine + type + time — compact */}
+        {/* Row 2: Machine + type + time */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 5, marginTop: 2,
-          fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500,
+          display: 'flex', alignItems: 'center', gap: 6, marginTop: 4,
+          fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 500,
         }}>
           {report.machine && (
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '35%' }}>
@@ -114,12 +114,12 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
             </span>
           )}
           <span style={{
-            fontSize: 9, padding: '0px 4px', borderRadius: 3,
+            fontSize: 11, padding: '1px 6px', borderRadius: 4,
             background: reportType.bg, color: reportType.color, fontWeight: 600, flexShrink: 0,
           }}>
             {reportType.label}
           </span>
-          <span style={{ marginLeft: 'auto', fontSize: 10, flexShrink: 0, opacity: 0.7 }}>
+          <span style={{ marginLeft: 'auto', fontSize: 12, flexShrink: 0, opacity: 0.7 }}>
             {shortDate(report.updated_at || report.created_at)}
           </span>
         </div>
@@ -214,7 +214,7 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
       {/* Content */}
       <div
         className="accordion-content"
-        style={{ maxHeight: isExpanded ? `${count * 76 + 20}px` : '0' }}
+        style={{ maxHeight: isExpanded ? `${count * 95 + 20}px` : '0' }}
       >
         {count === 0 ? (
           <div style={{
@@ -226,7 +226,7 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
             Nessuna segnalazione
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 12 }}>
             {reports.map(report => (
               <AccordionReportCard
                 key={report.id}
@@ -417,7 +417,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
       ) : viewMode === 'chrono' ? (
         <div className="px-[4vw] pt-[2vw]">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {chronoSorted.map(report => {
               const st = STATUS[report.status]
               return (
