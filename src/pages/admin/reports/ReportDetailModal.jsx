@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useDraggable } from '../../../hooks/useDraggable'
 import { db } from '../../../lib/supabase'
 import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo } from '../../../lib/constants'
 import { Badge } from '../../../components/ui'
@@ -22,6 +23,7 @@ function InfoCard({ label, value, icon }) {
 
 export default function ReportDetailModal({ selected, user, users, machines, onClose, onUpdate }) {
   const toast = useToast()
+  const { position, dragProps } = useDraggable()
   const [detailTab, setDetailTab] = useState('chat')
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
@@ -171,10 +173,11 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={closeDetail}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div className="relative bg-surface-1 border border-token rounded-2xl w-full max-w-[95vw] animate-fade-in shadow-2xl overflow-hidden"
-        style={{ height: '82vh' }} onClick={e => e.stopPropagation()}>
+        style={{ height: '82vh', transform: `translate(${position.x}px, ${position.y}px)` }} onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-token shrink-0">
+        {/* Header — drag handle */}
+        <div {...dragProps} className="flex items-center justify-between px-6 py-4 border-b border-token shrink-0"
+          style={{ ...dragProps.style }}>
           <div className="flex items-center gap-3 min-w-0">
             {editing ? (
               <div className="flex items-center gap-2">
