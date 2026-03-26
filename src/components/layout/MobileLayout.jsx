@@ -29,7 +29,7 @@ import ConversationView from '../messaging/ConversationView'
 const FAB_CONFIG = {
   home: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: 'var(--gradient-primary)', shadow: 'var(--shadow-glow-primary)' },
   reports: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: 'var(--gradient-primary)', shadow: 'var(--shadow-glow-primary)' },
-  machines: { icon: Wrench, label: 'Segnala problema', action: 'quick_report', bg: 'linear-gradient(135deg, #f59e0b, #d97706)', shadow: '0 4px 20px rgba(245,158,11,0.35)' },
+  machines: { icon: Plus, label: 'Nuova segnalazione', action: 'new_report', bg: 'linear-gradient(135deg, #f59e0b, #d97706)', shadow: '0 4px 20px rgba(245,158,11,0.35)' },
   messages: { icon: PenSquare, label: 'Nuova conversazione', action: 'new_conversation', bg: 'linear-gradient(135deg, #06b6d4, #0891b2)', shadow: '0 4px 20px rgba(6,182,212,0.35)' },
 }
 
@@ -49,6 +49,8 @@ function ContextualFAB({ tab, onNewReport, onQuickReport, onNewConversation }) {
       setOpen(o => !o)
     } else if (config.action === 'quick_report') {
       onQuickReport()
+    } else if (config.action === 'new_report') {
+      onNewReport()
     } else if (config.action === 'new_conversation') {
       onNewConversation()
     }
