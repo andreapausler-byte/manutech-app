@@ -9,9 +9,9 @@ import QRScanner from '../media/QRScanner'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useAutosave } from '../../hooks/useAutosave'
-import { ArrowLeft, Send, QrCode, Camera, FileText, AlertTriangle, Wrench } from 'lucide-react'
+import { ArrowLeft, Send, QrCode, Camera, FileText, AlertTriangle, Wrench, UserCheck } from 'lucide-react'
 
-const DEFAULT_FORM = { title: '', machine: '', severity: 'media', type: 'correttiva', description: '' }
+const DEFAULT_FORM = { title: '', machine: '', severity: 'media', type: 'correttiva', description: '', assignMode: 'none', assignTo: '', assignName: '' }
 
 // ── Type Icons mapping ──
 const TYPE_ICONS = {
@@ -25,6 +25,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
   const [form, setForm] = useState({ ...DEFAULT_FORM, machine: preselectedMachine || '' })
   const [media, setMedia] = useState([])
   const [machines, setMachines] = useState([])
+  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [showQR, setShowQR] = useState(false)
@@ -33,7 +34,10 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
   const haptic = useHaptic()
   const { hasDraft, lastSaved, clearDraft, discardDraft } = useAutosave('new-report', form, setForm)
 
-  useEffect(() => { db.getMachines().then(setMachines) }, [])
+  useEffect(() => {
+    db.getMachines().then(setMachines)
+    db.getUsers().then(u => setUsers(u.filter(x => x.role === 'tecnico' || x.role === 'admin')))
+  }, [])
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
   const isValid = form.title.trim() && form.description.trim()
@@ -57,10 +61,21 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
 
     setLoading(true)
     try {
+      // Determina assegnazione
+      const assignee = form.assignMode === 'internal' && form.assignTo
+        ? users.find(u => u.id === form.assignTo) : null
+      const assignedTo = assignee ? assignee.id : null
+      const assignedName = form.assignMode === 'external' && form.assignName.trim()
+        ? form.assignName.trim()
+        : assignee ? assignee.name : null
+      const reportStatus = assignedTo || assignedName ? 'assegnata' : 'aperta'
+
       const created = await db.createReport({
         title: form.title.trim(), machine: form.machine || null,
         severity: form.severity, type: form.type, description: form.description.trim(),
-        media, created_by: user.id, created_by_name: user.name, status: 'aperta',
+        media, created_by: user.id, created_by_name: user.name,
+        assigned_to: assignedTo, assigned_to_name: assignedName,
+        status: reportStatus,
       })
       db.addActivity(created.id, {
         type: 'created', user_id: user.id, user_name: user.name,
@@ -257,6 +272,62 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
 
         {/* Description */}
         <Textarea label="Descrizione *" placeholder="Descrivi il problema..." value={form.description} onChange={e => set('description', e.target.value)} />
+
+        {/* Assegnazione */}
+        <div>
+          <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Assegna a (opzionale)
+          </label>
+          {/* Toggle: nessuno / interno / esterno */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: form.assignMode !== 'none' ? 12 : 0 }}>
+            {[
+              { id: 'none', label: 'Nessuno' },
+              { id: 'internal', label: 'Tecnico' },
+              { id: 'external', label: 'Fornitore' },
+            ].map(opt => {
+              const active = form.assignMode === opt.id
+              return (
+                <button key={opt.id} onClick={() => { haptic.light(); set('assignMode', opt.id); set('assignTo', ''); set('assignName', '') }}
+                  className="press-scale"
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: 12, fontSize: 13, fontWeight: 600,
+                    border: `2px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: active ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+                    color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}>
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Selezione tecnico interno */}
+          {form.assignMode === 'internal' && (
+            <Select
+              value={form.assignTo}
+              onChange={e => set('assignTo', e.target.value)}
+              options={[
+                { value: '', label: 'Seleziona tecnico...' },
+                ...users.map(u => ({ value: u.id, label: `${u.name} (${u.role})` }))
+              ]}
+            />
+          )}
+
+          {/* Input fornitore esterno */}
+          {form.assignMode === 'external' && (
+            <div>
+              <Input
+                placeholder="Nome fornitore o azienda esterna"
+                value={form.assignName}
+                onChange={e => set('assignName', e.target.value)}
+              />
+              <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4, fontStyle: 'italic' }}>
+                Il fornitore verrà notificato via email se configurato
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Media */}
         <MediaCapture media={media} onChange={setMedia} />

@@ -11,7 +11,7 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { QUICK_TEMPLATES, SEVERITY } from '../../lib/constants'
-import { Button } from '../ui'
+import { Button, Select, Input } from '../ui'
 import MediaCapture from '../media/MediaCapture'
 import QRScanner from '../media/QRScanner'
 import SuccessAnimation from '../ui/SuccessAnimation'
@@ -27,15 +27,22 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
   const [extraData, setExtraData] = useState({})
   const [media, setMedia] = useState([])
   const [machines, setMachines] = useState([])
+  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [showNote, setShowNote] = useState(false)
   const [showQR, setShowQR] = useState(false)
+  const [assignMode, setAssignMode] = useState('none')
+  const [assignTo, setAssignTo] = useState('')
+  const [assignName, setAssignName] = useState('')
 
   const toast = useToast()
   const haptic = useHaptic()
 
-  useEffect(() => { db.getMachines().then(setMachines) }, [])
+  useEffect(() => {
+    db.getMachines().then(setMachines)
+    db.getUsers().then(u => setUsers(u.filter(x => x.role === 'tecnico' || x.role === 'admin')))
+  }, [])
 
   const selectTemplate = (t) => {
     haptic.medium()
@@ -67,6 +74,15 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
         description += `\n\nNota operatore: ${note.trim()}`
       }
 
+      // Assegnazione
+      const assignee = assignMode === 'internal' && assignTo
+        ? users.find(u => u.id === assignTo) : null
+      const assignedToId = assignee ? assignee.id : null
+      const assignedToName = assignMode === 'external' && assignName.trim()
+        ? assignName.trim()
+        : assignee ? assignee.name : null
+      const reportStatus = assignedToId || assignedToName ? 'assegnata' : 'aperta'
+
       const created = await db.createReport({
         title: template.title,
         machine: machine || null,
@@ -75,7 +91,9 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
         media,
         created_by: user.id,
         created_by_name: user.name,
-        status: 'aperta',
+        assigned_to: assignedToId,
+        assigned_to_name: assignedToName,
+        status: reportStatus,
         is_quick: true,
         template_id: template.id,
         extra_data: Object.keys(extraData).length > 0 ? extraData : null,
@@ -396,6 +414,56 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
               />
             </div>
           )}
+
+          {/* Assegnazione rapida */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Assegna a (opzionale)
+            </label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[
+                { id: 'none', label: 'Nessuno' },
+                { id: 'internal', label: 'Tecnico' },
+                { id: 'external', label: 'Fornitore' },
+              ].map(opt => {
+                const active = assignMode === opt.id
+                return (
+                  <button key={opt.id} onClick={() => { haptic.light(); setAssignMode(opt.id); setAssignTo(''); setAssignName('') }}
+                    className="press-scale"
+                    style={{
+                      flex: 1, padding: '9px 0', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                      border: `2px solid ${active ? template.color : 'var(--color-border)'}`,
+                      background: active ? `${template.color}15` : 'var(--color-surface-2)',
+                      color: active ? template.color : 'var(--color-text-muted)',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}>
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+            {assignMode === 'internal' && (
+              <div style={{ marginTop: 10 }}>
+                <Select
+                  value={assignTo}
+                  onChange={e => setAssignTo(e.target.value)}
+                  options={[
+                    { value: '', label: 'Seleziona tecnico...' },
+                    ...users.map(u => ({ value: u.id, label: `${u.name} (${u.role})` }))
+                  ]}
+                />
+              </div>
+            )}
+            {assignMode === 'external' && (
+              <div style={{ marginTop: 10 }}>
+                <Input
+                  placeholder="Nome fornitore o azienda esterna"
+                  value={assignName}
+                  onChange={e => setAssignName(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
 
           {/* Quick photo */}
           <MediaCapture media={media} onChange={setMedia} />
