@@ -165,6 +165,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        {...(isDesktop ? dragProps : {})}
         onClick={e => e.stopPropagation()}
         style={{
           position: 'relative',
@@ -177,12 +178,12 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
           animation: isDesktop ? 'fadeIn 0.2s ease both' : 'slideUp 0.3s ease both',
           transform: isDesktop ? `translate(${position.x}px, ${position.y}px)` : undefined,
           border: isDesktop ? '1px solid var(--color-border)' : undefined,
+          ...(isDesktop ? dragProps.style : {}),
         }}
       >
-        {/* Drag handle / handle bar */}
+        {/* Title bar */}
         {isDesktop && title ? (
-          <div {...dragProps} style={{
-            ...dragProps.style,
+          <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--color-border)',
           }}>
