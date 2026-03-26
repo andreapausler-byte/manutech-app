@@ -4,7 +4,7 @@ import { STATUS, SEVERITY, REPORT_TYPES } from '../../lib/constants'
 import { EmptyState, SkeletonReportsPage } from '../ui'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, X, User, ChevronDown, ChevronRight } from 'lucide-react'
+import { Search, X, User, ChevronDown, ChevronRight, Clock, Layers } from 'lucide-react'
 
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
@@ -225,6 +225,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   const [search, setSearch] = useState('')
   const [expandedSections, setExpandedSections] = useState(new Set())
   const [initialized, setInitialized] = useState(false)
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('manutech_reports_view') || 'chrono')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -248,6 +249,11 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
     return r.title?.toLowerCase().includes(q) || r.machine?.toLowerCase().includes(q)
   })
 
+  // Chrono: flat list sorted by updated_at DESC
+  const chronoSorted = [...filtered].sort((a, b) =>
+    new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+  )
+
   // Group by status
   const grouped = {}
   for (const s of STATUSES) {
@@ -260,15 +266,18 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   const sortedStatuses = [...STATUSES].sort((a, b) => {
     const aReports = grouped[a]
     const bReports = grouped[b]
-    // Empty sections go to the bottom
     if (aReports.length === 0 && bReports.length > 0) return 1
     if (aReports.length > 0 && bReports.length === 0) return -1
     if (aReports.length === 0 && bReports.length === 0) return 0
-    // Compare most recent report in each group
     const aLatest = new Date(aReports[0].updated_at || aReports[0].created_at)
     const bLatest = new Date(bReports[0].updated_at || bReports[0].created_at)
     return bLatest - aLatest
   })
+
+  const switchView = (mode) => {
+    setViewMode(mode)
+    localStorage.setItem('manutech_reports_view', mode)
+  }
 
   // Auto-expand sections with reports on first load
   useEffect(() => {
@@ -336,13 +345,65 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
             </button>
           )}
         </div>
+
+        {/* View toggle */}
+        <div style={{
+          display: 'flex', borderRadius: 10, overflow: 'hidden',
+          background: 'var(--color-surface-2)', padding: 3,
+        }}>
+          {[
+            { id: 'chrono', label: 'Recenti', icon: Clock },
+            { id: 'grouped', label: 'Per stato', icon: Layers },
+          ].map(v => (
+            <button key={v.id} onClick={() => switchView(v.id)}
+              className="press-scale"
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                padding: '8px 0', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                background: viewMode === v.id ? 'var(--color-card)' : 'transparent',
+                color: viewMode === v.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                border: 'none', cursor: 'pointer',
+                boxShadow: viewMode === v.id ? 'var(--shadow-sm)' : 'none',
+                transition: 'all 0.2s',
+              }}>
+              <v.icon size={14} /> {v.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Accordion Sections */}
+      {/* Report list */}
       {loading ? (
         <div className="px-[4vw] pt-[3vw]"><SkeletonReportsPage /></div>
       ) : filtered.length === 0 ? (
         <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
+      ) : viewMode === 'chrono' ? (
+        <div className="px-[4vw] pt-[2vw]">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {chronoSorted.map(report => {
+              const st = STATUS[report.status]
+              return (
+                <div key={report.id} style={{ position: 'relative' }}>
+                  {/* Status indicator dot */}
+                  <div style={{
+                    position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: st?.color || 'var(--color-text-muted)',
+                    boxShadow: `0 0 4px ${st?.color || 'transparent'}60`,
+                    zIndex: 1,
+                  }} />
+                  <div style={{ paddingLeft: 4 }}>
+                    <AccordionReportCard
+                      report={report}
+                      onSelect={onSelectReport}
+                      unread={unreadByReport[report.id] || 0}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       ) : (
         <div className="px-[4vw] pt-[2vw]">
           {sortedStatuses.map(s => (
