@@ -620,8 +620,8 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
       {completeTask && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setCompleteTask(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl animate-slide-up"
-            style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+          <div className="relative w-full max-w-lg border-t border-token rounded-t-3xl animate-slide-up"
+            style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--color-surface-1)' }}
             onClick={e => e.stopPropagation()}>
 
             {/* Handle + Header (fissi) */}
@@ -646,7 +646,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
             </div>
 
             {/* Contenuto scrollabile */}
-            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 5vw' }}>
+            <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch', padding: '0 5vw', touchAction: 'pan-y' }}>
 
             {/* Machine info */}
             <div style={{

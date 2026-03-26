@@ -184,8 +184,8 @@ export default function MobileMachinesList({ onSelectMachine, showNewMachine, on
       {showNewMachine && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onCloseNewMachine}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl animate-slide-up"
-            style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+          <div className="relative w-full max-w-lg border-t border-token rounded-t-3xl animate-slide-up"
+            style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--color-surface-1)' }}
             onClick={e => e.stopPropagation()}>
 
             {/* Handle + Header (fissi) */}
@@ -207,7 +207,7 @@ export default function MobileMachinesList({ onSelectMachine, showNewMachine, on
             </div>
 
             {/* Form (scrollabile) */}
-            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 5vw' }}>
+            <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'scroll', WebkitOverflowScrolling: 'touch', padding: '0 5vw', touchAction: 'pan-y' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Nome macchinario *</label>
