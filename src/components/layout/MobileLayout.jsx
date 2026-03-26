@@ -531,6 +531,15 @@ export default function MobileLayout({ initialReportId }) {
           onViewReport={openReport}
           onQuickReport={openQuickReport}
           onNewReport={(machineName) => navigateTo('new-report', machineName)}
+          onDelete={async () => {
+            if (!confirm(`Eliminare il macchinario "${selectedReport.name}"?`)) return
+            try {
+              await db.deleteMachine(selectedReport.id)
+              haptic.success()
+              toast.success('Macchinario eliminato')
+              goBack()
+            } catch (e) { toast.error('Errore: ' + e.message) }
+          }}
         />
       </div>
     )
