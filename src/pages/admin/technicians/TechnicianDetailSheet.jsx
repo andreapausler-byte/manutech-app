@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useDraggable } from '../../../hooks/useDraggable'
 import { db } from '../../../lib/supabase'
 import { STATUS, SEVERITY, timeAgo } from '../../../lib/constants'
 import { Badge } from '../../../components/ui'
@@ -9,6 +10,7 @@ import {
 } from 'lucide-react'
 
 export default function TechnicianDetailSheet({ tech, reports, users, machines, user, onClose, onUpdate }) {
+  const { position, dragProps } = useDraggable()
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({ name: tech.name, email: tech.email, phone: tech.phone || '' })
   const [saving, setSaving] = useState(false)
@@ -136,11 +138,12 @@ export default function TechnicianDetailSheet({ tech, reports, users, machines, 
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
         <div
           className="relative bg-surface-1 border border-token rounded-2xl w-full max-w-[95vw] animate-fade-in shadow-2xl overflow-hidden"
-          style={{ height: '85vh' }}
+          style={{ height: '85vh', transform: `translate(${position.x}px, ${position.y}px)` }}
           onClick={e => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-token">
+          {/* Header — drag handle */}
+          <div {...dragProps} className="flex items-center justify-between px-6 py-4 border-b border-token"
+            style={{ ...dragProps.style }}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-emerald-500/15 rounded-xl flex items-center justify-center">
                 <Wrench size={20} className="text-emerald-400" />

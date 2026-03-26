@@ -1,4 +1,5 @@
-import { X } from 'lucide-react'
+import { X, GripHorizontal } from 'lucide-react'
+import { useDraggable } from '../../hooks/useDraggable'
 
 // ── Skeleton Components (re-export) ──────────────────────
 export { SkeletonBlock, SkeletonKPIGrid, SkeletonReportCard, SkeletonReportList, SkeletonDashboard, SkeletonReportsPage } from './Skeleton'
@@ -141,21 +142,25 @@ export function Textarea({ label, className = '', ...props }) {
   )
 }
 
-// ── Modal — glassmorphism ────────────────────────────────
+// ── Modal — glassmorphism + draggable su desktop ────────────────────────────────
 export function Modal({ open, onClose, title, children, size = 'md' }) {
   if (!open) return null
 
+  const isDesktop = window.innerWidth >= 768
+  const { position, dragProps } = useDraggable({ enabled: isDesktop })
   const titleId = title ? `modal-title-${title.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}` : undefined
+  const maxW = size === 'lg' ? 640 : size === 'sm' ? 380 : 500
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
-      {/* Overlay — Design System */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}
+      style={{ alignItems: isDesktop ? 'center' : 'flex-end' }}>
+      {/* Overlay */}
       <div style={{
         position: 'absolute', inset: 0,
         background: 'rgba(0,0,0,0.6)',
         animation: 'fadeIn 0.2s ease both',
       }} aria-hidden="true" />
-      {/* Bottom Sheet — Design System */}
+      {/* Dialog */}
       <div
         role="dialog"
         aria-modal="true"
@@ -164,24 +169,27 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
         style={{
           position: 'relative',
           background: 'var(--color-surface-1)',
-          borderRadius: '20px 20px 0 0',
-          width: '100%', maxWidth: 500,
-          maxHeight: '90vh', overflowY: 'auto',
+          borderRadius: isDesktop ? 20 : '20px 20px 0 0',
+          width: '100%', maxWidth: maxW,
+          maxHeight: isDesktop ? '80vh' : '90vh', overflowY: 'auto',
           padding: '20px 18px 30px',
           boxShadow: 'var(--shadow-xl)',
-          animation: 'slideUp 0.3s ease both',
+          animation: isDesktop ? 'fadeIn 0.2s ease both' : 'slideUp 0.3s ease both',
+          transform: isDesktop ? `translate(${position.x}px, ${position.y}px)` : undefined,
+          border: isDesktop ? '1px solid var(--color-border)' : undefined,
         }}
       >
-        {/* Handle bar */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
-        </div>
-        {title && (
-          <div style={{
+        {/* Drag handle / handle bar */}
+        {isDesktop && title ? (
+          <div {...dragProps} style={{
+            ...dragProps.style,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--color-border)',
           }}>
-            <h2 id={titleId} style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>{title}</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <GripHorizontal size={16} style={{ color: 'var(--color-text-muted)', opacity: 0.5 }} />
+              <h2 id={titleId} style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>{title}</h2>
+            </div>
             <button onClick={onClose} aria-label="Chiudi" style={{
               padding: 6, borderRadius: 8, border: 'none', cursor: 'pointer',
               background: 'var(--color-surface-3)', color: 'var(--color-text-muted)',
@@ -190,6 +198,27 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
               <X size={18} />
             </button>
           </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
+            </div>
+            {title && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--color-border)',
+              }}>
+                <h2 id={titleId} style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>{title}</h2>
+                <button onClick={onClose} aria-label="Chiudi" style={{
+                  padding: 6, borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: 'var(--color-surface-3)', color: 'var(--color-text-muted)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <X size={18} />
+                </button>
+              </div>
+            )}
+          </>
         )}
         <div>{children}</div>
       </div>
