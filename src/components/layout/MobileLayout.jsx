@@ -6,6 +6,7 @@ import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wa
 import { useHaptic } from '../../hooks/useHaptic'
 import { useToast } from '../../hooks/useToast'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
+import { getAmbientColors } from '../../hooks/usePremiumUI'
 import { useChatRealtime } from '../../hooks/useChatRealtime'
 import { useDirectMessageRealtime } from '../../hooks/useDirectMessageRealtime'
 import { useAutoNotifications } from '../../hooks/useAutoNotifications'
@@ -543,7 +544,8 @@ export default function MobileLayout({ initialReportId }) {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex flex-col ambient-glow bg-base">
+    <div className="min-h-screen min-h-[100dvh] flex flex-col ambient-glow bg-base"
+      style={{ '--ambient-color': getAmbientColors(tab).color, '--ambient-color-2': getAmbientColors(tab).color2 }}>
       {/* Top Bar — Design System */}
       <header className="sticky top-0 z-40" style={{
         background: 'var(--color-surface-1)',

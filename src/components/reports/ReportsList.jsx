@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, SEVERITY, REPORT_TYPES } from '../../lib/constants'
 import { EmptyState, SkeletonReportsPage } from '../ui'
+import { avatarGradient } from '../../hooks/usePremiumUI'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { Search, X, User, ChevronDown, ChevronRight, Clock, Layers, MessageCircle } from 'lucide-react'
@@ -67,8 +68,9 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
     >
       {/* Avatar */}
       {report.assigned_to_name ? (
-        <div className="avatar-initials" style={{
-          background: STATUS[report.status]?.color || 'var(--color-primary)',
+        <div className="avatar-initials avatar-gradient" style={{
+          background: avatarGradient(report.assigned_to_name),
+          '--avatar-gradient': avatarGradient(report.assigned_to_name),
           width: 38, height: 38, fontSize: 13,
         }}>
           {report.assigned_to_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
@@ -417,7 +419,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
       ) : viewMode === 'chrono' ? (
         <div className="px-[4vw] pt-[2vw]">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {chronoSorted.map(report => {
               const st = STATUS[report.status]
               return (

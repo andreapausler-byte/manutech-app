@@ -1,4 +1,5 @@
 import { AlertCircle, Loader, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { CountUp } from '../../../hooks/usePremiumUI'
 
 export default function HeroKPIs({ stats, resolveRate, urgenti, nonAssegnate }) {
   const cards = [
@@ -37,7 +38,8 @@ export default function HeroKPIs({ stats, resolveRate, urgenti, nonAssegnate }) 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
       {cards.map(({ label, value, subtitle, icon: Icon, color, pulse }) => (
-        <div key={label} style={{
+        <div key={label} className="card-3d" style={{
+          position: 'relative',
           background: 'var(--color-card)',
           border: '1px solid var(--color-border)',
           borderTop: `3px solid ${color}`,
@@ -58,7 +60,7 @@ export default function HeroKPIs({ stats, resolveRate, urgenti, nonAssegnate }) 
               fontFamily: "'JetBrains Mono', monospace",
               lineHeight: 1,
             }}>
-              {value}
+              <CountUp value={value} />
             </span>
           </div>
           <p style={{
