@@ -4,7 +4,7 @@ import { STATUS, SEVERITY, REPORT_TYPES } from '../../lib/constants'
 import { EmptyState, SkeletonReportsPage } from '../ui'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, X, User, ChevronDown, ChevronRight, Clock, Layers } from 'lucide-react'
+import { Search, X, User, ChevronDown, ChevronRight, Clock, Layers, MessageCircle } from 'lucide-react'
 
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
@@ -35,9 +35,17 @@ function shortDate(dateStr) {
   return `${d.getDate()} ${months[d.getMonth()]}`
 }
 
-function AccordionReportCard({ report, onSelect, unread }) {
+function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
   const severity = SEVERITY[report.severity] || SEVERITY.media
   const reportType = REPORT_TYPES[report.type] || REPORT_TYPES.correttiva
+  const hasMsg = !!lastMessage
+
+  // Build message preview text
+  const msgPreview = hasMsg
+    ? (lastMessage.text
+      ? `${lastMessage.user_name?.split(' ')[0] || 'Utente'}: ${lastMessage.text}`
+      : `${lastMessage.user_name?.split(' ')[0] || 'Utente'}: 📎 Media`)
+    : null
 
   return (
     <button
@@ -115,6 +123,23 @@ function AccordionReportCard({ report, onSelect, unread }) {
             {shortDate(report.updated_at || report.created_at)}
           </span>
         </div>
+
+        {/* Row 3: Last chat message preview */}
+        {msgPreview && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 4, marginTop: 3,
+            fontSize: 11, color: unread > 0 ? 'var(--color-text-secondary)' : 'var(--color-text-muted)',
+            fontWeight: unread > 0 ? 600 : 400,
+          }}>
+            <MessageCircle size={10} style={{ flexShrink: 0, opacity: 0.6 }} />
+            <span style={{
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              flex: 1, minWidth: 0,
+            }}>
+              {msgPreview}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Unread badge */}
@@ -139,7 +164,7 @@ function AccordionReportCard({ report, onSelect, unread }) {
 }
 
 // ── Collapsible accordion section ──
-function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, isExpanded, onToggle }) {
+function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, lastMessages = {}, isExpanded, onToggle }) {
   const st = STATUS[statusKey]
   const count = reports.length
 
@@ -189,7 +214,7 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
       {/* Content */}
       <div
         className="accordion-content"
-        style={{ maxHeight: isExpanded ? `${count * 60 + 20}px` : '0' }}
+        style={{ maxHeight: isExpanded ? `${count * 76 + 20}px` : '0' }}
       >
         {count === 0 ? (
           <div style={{
@@ -208,6 +233,7 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
                 report={report}
                 onSelect={onSelectReport}
                 unread={unreadByReport[report.id] || 0}
+                lastMessage={lastMessages[report.id]}
               />
             ))}
           </div>
@@ -226,16 +252,28 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   const [expandedSections, setExpandedSections] = useState(new Set())
   const [initialized, setInitialized] = useState(false)
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('manutech_reports_view') || 'chrono')
+  const [lastMessages, setLastMessages] = useState({})
 
   const load = useCallback(async () => {
     setLoading(true)
-    try { const data = await db.getReports({}); setReports(data) } catch {}
+    try {
+      const data = await db.getReports({})
+      setReports(data)
+      // Load last chat message for each report
+      if (data.length > 0) {
+        const ids = data.map(r => r.id)
+        db.getLastCommentsByReports(ids).then(map => setLastMessages(map)).catch(() => {})
+      }
+    } catch {} // eslint-disable-line no-empty
     setLoading(false)
   }, [])
 
   const handleRefresh = useCallback(async () => {
     const data = await db.getReports({})
     setReports(data)
+    if (data.length > 0) {
+      db.getLastCommentsByReports(data.map(r => r.id)).then(map => setLastMessages(map)).catch(() => {})
+    }
   }, [])
 
   const { pullRef, refreshing, pullDistance, pullProgress, activated } = usePullToRefresh(handleRefresh)
@@ -413,6 +451,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               reports={grouped[s]}
               onSelectReport={onSelectReport}
               unreadByReport={unreadByReport}
+              lastMessages={lastMessages}
               isExpanded={expandedSections.has(s)}
               onToggle={() => toggleSection(s)}
             />
