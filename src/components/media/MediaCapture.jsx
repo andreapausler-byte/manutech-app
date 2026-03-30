@@ -16,6 +16,15 @@ export default function MediaCapture({ media, onChange }) {
   const haptic = useHaptic()
   const { compress, formatSize } = useImageCompressor()
 
+  const uploadWithFallback = async (path, file) => {
+    try {
+      return await db.uploadFile('attachments', path, file)
+    } catch {
+      // Fallback: prova bucket 'reports' se 'attachments' non esiste
+      return await db.uploadFile('reports', path, file)
+    }
+  }
+
   const addFile = async (file, type) => {
     const loadingId = toast.loading('Caricamento allegato...')
     try {
@@ -30,7 +39,7 @@ export default function MediaCapture({ media, onChange }) {
           toast.info(`Foto compressa: ${formatSize(result.originalSize)} → ${formatSize(result.compressedSize)}`)
           // Riapri loading per upload
           const uploadId = toast.loading('Upload in corso...')
-          const url = await db.uploadFile('attachments', `${Date.now()}-${fileToUpload.name}`, fileToUpload)
+          const url = await uploadWithFallback(`${Date.now()}-${fileToUpload.name}`, fileToUpload)
           onChange([...media, { id: Date.now().toString(), type, name: fileToUpload.name, url, size: fileToUpload.size }])
           toast.dismiss(uploadId)
           toast.success('Foto aggiunta')
@@ -39,14 +48,14 @@ export default function MediaCapture({ media, onChange }) {
         }
       }
 
-      const url = await db.uploadFile('attachments', `${Date.now()}-${fileToUpload.name}`, fileToUpload)
+      const url = await uploadWithFallback(`${Date.now()}-${fileToUpload.name}`, fileToUpload)
       onChange([...media, { id: Date.now().toString(), type, name: fileToUpload.name, url, size: fileToUpload.size }])
       toast.dismiss(loadingId)
       toast.success(`${type === 'photo' ? 'Foto' : type === 'video' ? 'Video' : 'Audio'} aggiunto`)
       haptic.success()
     } catch (err) {
       toast.dismiss(loadingId)
-      toast.error('Errore caricamento file')
+      toast.error('Errore caricamento: ' + (err.message || 'riprova'))
     }
   }
 
