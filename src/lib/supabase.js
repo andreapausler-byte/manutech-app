@@ -597,7 +597,12 @@ export const db = {
 
   async createMaintenanceLog(log) {
     if (supabase) {
-      const { data, error } = await supabase.from('maintenance_logs').insert(log).select().single()
+      // Auto-inject org_id if not provided (required by RLS policy)
+      let insertData = { ...log }
+      if (!insertData.org_id || insertData.org_id === 'default') {
+        insertData.org_id = await getMyOrgId()
+      }
+      const { data, error } = await supabase.from('maintenance_logs').insert(insertData).select().single()
       if (error) throw error
       return data
     }

@@ -1,12 +1,13 @@
 /**
  * useAutoNotifications — Sprint 3.5 Notifiche Automatiche
- * 
+ *
  * Hook che controlla periodicamente le scadenze manutenzione
  * e genera notifiche automatiche per:
- *  - Manutenzioni scadute (notifica al tecnico assegnato)
- *  - Manutenzioni in scadenza entro 3 giorni (reminder)
- * 
- * Usa un flag localStorage per evitare duplicati nella stessa giornata.
+ *  - Manutenzioni in scadenza tra 5 giorni (reminder una tantum)
+ *  - Manutenzioni scadute (notifica una tantum alla scadenza)
+ *
+ * Usa un flag localStorage persistente per ciclo di manutenzione
+ * (si resetta solo quando viene registrato un nuovo intervento).
  */
 
 import { useEffect, useCallback, useRef } from 'react'
@@ -15,28 +16,25 @@ import { db } from '../lib/supabase'
 const SENT_KEY = 'manutech_auto_notifs_sent'
 const CHECK_INTERVAL = 5 * 60 * 1000 // Ogni 5 minuti
 
-function getSentToday() {
+function getSentMap() {
   try {
     const raw = localStorage.getItem(SENT_KEY)
     if (!raw) return {}
-    const { date, sent } = JSON.parse(raw)
-    // Resetta se è un nuovo giorno
-    if (date !== new Date().toISOString().slice(0, 10)) return {}
-    return sent || {}
+    return JSON.parse(raw) || {}
   } catch { return {} }
 }
 
-function markSent(planId, type) {
-  const sent = getSentToday()
-  sent[`${planId}_${type}`] = true
-  localStorage.setItem(SENT_KEY, JSON.stringify({
-    date: new Date().toISOString().slice(0, 10),
-    sent,
-  }))
+function markSent(planId, type, lastLogDate) {
+  const sent = getSentMap()
+  sent[`${planId}_${type}`] = lastLogDate || 'no_log'
+  localStorage.setItem(SENT_KEY, JSON.stringify(sent))
 }
 
-function wasSent(planId, type) {
-  return getSentToday()[`${planId}_${type}`] === true
+function wasSent(planId, type, lastLogDate) {
+  const sent = getSentMap()
+  const key = `${planId}_${type}`
+  // Se l'ultimo log è cambiato, la notifica va re-inviata nel prossimo ciclo
+  return sent[key] === (lastLogDate || 'no_log')
 }
 
 export function useAutoNotifications(userId, userRole) {
@@ -55,14 +53,15 @@ export function useAutoNotifications(userId, userRole) {
         for (const plan of plans) {
           const lastLog = await db.getLastLogForPlan(plan.id)
           const lastDate = lastLog?.performed_at || plan.created_at
+          const lastLogKey = lastLog?.performed_at || plan.created_at
           const daysSince = Math.floor((Date.now() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24))
           const daysLeft = plan.frequency_days - daysSince
 
           // Chi deve ricevere la notifica?
           const targetUser = plan.assigned_to || null
 
-          // ── Scaduta: notifica urgente ──
-          if (daysLeft <= 0 && !wasSent(plan.id, 'overdue')) {
+          // ── Scaduta (daysLeft <= 0): una sola notifica per ciclo ──
+          if (daysLeft <= 0 && !wasSent(plan.id, 'overdue', lastLogKey)) {
             await db.addNotification({
               type: 'maintenance_overdue',
               title: `⚠️ Manutenzione scaduta: ${plan.name}`,
@@ -72,11 +71,11 @@ export function useAutoNotifications(userId, userRole) {
               target_user: targetUser,
               org_id: plan.org_id || 'default',
             }).catch(e => console.warn('Side effect failed:', e.message))
-            markSent(plan.id, 'overdue')
+            markSent(plan.id, 'overdue', lastLogKey)
           }
 
-          // ── In scadenza (entro 3 giorni): reminder ──
-          if (daysLeft > 0 && daysLeft <= 3 && !wasSent(plan.id, 'reminder')) {
+          // ── In scadenza (entro 5 giorni): una sola notifica per ciclo ──
+          if (daysLeft > 0 && daysLeft <= 5 && !wasSent(plan.id, 'reminder', lastLogKey)) {
             await db.addNotification({
               type: 'maintenance_reminder',
               title: `🔔 Manutenzione in scadenza: ${plan.name}`,
@@ -86,7 +85,7 @@ export function useAutoNotifications(userId, userRole) {
               target_user: targetUser,
               org_id: plan.org_id || 'default',
             }).catch(e => console.warn('Side effect failed:', e.message))
-            markSent(plan.id, 'reminder')
+            markSent(plan.id, 'reminder', lastLogKey)
           }
         }
       }
