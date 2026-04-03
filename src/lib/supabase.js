@@ -597,7 +597,22 @@ export const db = {
 
   async createMaintenanceLog(log) {
     if (supabase) {
-      // Auto-inject org_id if not provided (required by RLS policy)
+      // Usa RPC SECURITY DEFINER per bypassare RLS e iniettare org_id server-side
+      const { data: rpcData, error: rpcError } = await supabase.rpc('create_maintenance_log', {
+        _machine_id: log.machine_id,
+        _title: log.title,
+        _plan_id: log.plan_id || null,
+        _report_id: log.report_id || null,
+        _type: log.type || 'programmata',
+        _description: log.description || null,
+        _performed_by_name: log.performed_by_name || null,
+        _duration_minutes: log.duration_minutes || null,
+        _parts_replaced: log.parts_replaced || null,
+        _performed_at: log.performed_at || new Date().toISOString(),
+      })
+      if (!rpcError && rpcData) return rpcData
+      // Fallback: insert diretto (se RPC non ancora deployata)
+      if (rpcError) console.warn('[ManuTech] RPC create_maintenance_log non disponibile, fallback insert diretto:', rpcError.message)
       let insertData = { ...log }
       if (!insertData.org_id || insertData.org_id === 'default') {
         insertData.org_id = await getMyOrgId()
