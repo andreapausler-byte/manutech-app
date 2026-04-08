@@ -13,6 +13,7 @@ import MachineFormModal from './machines/MachineFormModal'
 import PlanFormModal from './machines/PlanFormModal'
 import LogFormModal from './machines/LogFormModal'
 import CSVImportModal from './machines/CSVImportModal'
+import ComponentFormModal from './machines/ComponentFormModal'
 import QRCode from 'qrcode'
 import {
   Plus, Edit, FileText, Cog, Search,
@@ -59,6 +60,12 @@ export default function AdminMachines() {
   const [csvData, setCsvData] = useState([])
   const [csvDefaultUser, setCsvDefaultUser] = useState('')
 
+  // Components
+  const [components, setComponents] = useState([])
+  const [showComponentForm, setShowComponentForm] = useState(false)
+  const [editingComponent, setEditingComponent] = useState(null)
+  const [componentForm, setComponentForm] = useState({ name: '', type: '', manufacturer: '', model: '', serial_number: '', year: '', notes: '' })
+
   // Reorder
   const [reorderMode, setReorderMode] = useState(false)
   const [dragIndex, setDragIndex] = useState(null)
@@ -101,16 +108,16 @@ export default function AdminMachines() {
   // ── Detail ──
   const openDetail = async (machine) => {
     setSel(machine); setDetailTab('overview')
-    const [url, p, l] = await Promise.all([generateQR(machine), db.getMaintenancePlans(machine.id), db.getMaintenanceLogs(machine.id)])
-    setQrDataUrl(url); setPlans(p); setLogs(l)
+    const [url, p, l, comp] = await Promise.all([generateQR(machine), db.getMaintenancePlans(machine.id), db.getMaintenanceLogs(machine.id), db.getMachineComponents(machine.id)])
+    setQrDataUrl(url); setPlans(p); setLogs(l); setComponents(comp)
     const entries = await Promise.all(p.map(plan => db.getLastLogForPlan(plan.id).then(log => [plan.id, log])))
     setPlanLastLogs(Object.fromEntries(entries))
   }
 
   const refreshDetail = async () => {
     if (!sel) return
-    const [p, l] = await Promise.all([db.getMaintenancePlans(sel.id), db.getMaintenanceLogs(sel.id)])
-    setPlans(p); setLogs(l)
+    const [p, l, comp] = await Promise.all([db.getMaintenancePlans(sel.id), db.getMaintenanceLogs(sel.id), db.getMachineComponents(sel.id)])
+    setPlans(p); setLogs(l); setComponents(comp)
     const entries = await Promise.all(p.map(plan => db.getLastLogForPlan(plan.id).then(log => [plan.id, log])))
     setPlanLastLogs(Object.fromEntries(entries))
   }
@@ -204,6 +211,30 @@ export default function AdminMachines() {
     } catch (e) { toast.error('Errore: ' + e.message) }
   }
 
+  // ── Components ──
+  const openComponentForm = (comp = null) => {
+    setEditingComponent(comp)
+    setComponentForm(comp ? { name: comp.name, type: comp.type || '', manufacturer: comp.manufacturer || '', model: comp.model || '', serial_number: comp.serial_number || '', year: comp.year || '', notes: comp.notes || '' }
+      : { name: '', type: '', manufacturer: '', model: '', serial_number: '', year: '', notes: '' })
+    setShowComponentForm(true)
+  }
+
+  const saveComponent = async () => {
+    if (!componentForm.name.trim() || !sel) return
+    try {
+      const data = { ...componentForm, year: componentForm.year ? parseInt(componentForm.year) : null, machine_id: sel.id }
+      if (editingComponent) { await db.updateMachineComponent(editingComponent.id, data); toast.success('Componente aggiornato') }
+      else { await db.createMachineComponent(data); toast.success('Componente aggiunto') }
+      setShowComponentForm(false); await refreshDetail()
+    } catch (e) { toast.error('Errore: ' + e.message) }
+  }
+
+  const deleteComponent = async (id) => {
+    await db.deleteMachineComponent(id)
+    toast.success('Componente eliminato')
+    refreshDetail()
+  }
+
   // ── Drag ──
   const handleDragStart = useCallback((e, i) => { setDragIndex(i); e.dataTransfer.effectAllowed = 'move' }, [])
   const handleDragOver = useCallback((e, i) => { e.preventDefault(); setOverIndex(i) }, [])
@@ -293,11 +324,13 @@ export default function AdminMachines() {
         <MachineDetailSheet
           sel={sel} qrDataUrl={qrDataUrl} plans={plans} logs={logs}
           planLastLogs={planLastLogs} reports={reports}
+          components={components}
           detailTab={detailTab} setDetailTab={setDetailTab}
           onClose={() => setSel(null)} onEdit={openEdit} onDelete={(id) => { remove(id) }} onDownloadQR={downloadQR}
           onOpenReport={(report) => setSelectedReport(report)}
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
           onOpenLogForm={openLogForm} onHandleCSVFile={handleCSVFile}
+          onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
         />
       )}
 
@@ -334,6 +367,12 @@ export default function AdminMachines() {
         open={showCSVImport} onClose={() => setShowCSVImport(false)}
         csvData={csvData} users={users} defaultUser={csvDefaultUser}
         onDefaultUserChange={setCsvDefaultUser} onImport={importCSV}
+      />
+
+      <ComponentFormModal
+        open={showComponentForm} onClose={() => setShowComponentForm(false)}
+        editing={editingComponent} form={componentForm} setForm={setComponentForm}
+        onSave={saveComponent}
       />
     </div>
   )

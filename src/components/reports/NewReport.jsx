@@ -26,6 +26,8 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
   const [media, setMedia] = useState([])
   const [machines, setMachines] = useState([])
   const [users, setUsers] = useState([])
+  const [components, setComponents] = useState([])
+  const [selectedComponent, setSelectedComponent] = useState('')
   const [loading, setLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [showQR, setShowQR] = useState(false)
@@ -35,9 +37,24 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
   const { hasDraft, lastSaved, clearDraft, discardDraft } = useAutosave('new-report', form, setForm)
 
   useEffect(() => {
-    db.getMachines().then(setMachines)
+    db.getMachines().then(m => {
+      setMachines(m)
+      if (preselectedMachine) {
+        const machine = m.find(x => x.name === preselectedMachine)
+        if (machine) db.getMachineComponents(machine.id).then(setComponents).catch(() => {})
+      }
+    })
     db.getUsers().then(u => setUsers(u.filter(x => x.role === 'tecnico' || x.role === 'admin')))
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load components for selected machine
+  const loadComponents = (machineName) => {
+    if (!machineName) { setComponents([]); setSelectedComponent(''); return }
+    const machine = machines.find(m => m.name === machineName)
+    if (machine) {
+      db.getMachineComponents(machine.id).then(setComponents).catch(() => setComponents([]))
+    } else { setComponents([]); setSelectedComponent('') }
+  }
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
   const isValid = form.title.trim() && form.description.trim()
@@ -70,8 +87,10 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
         : assignee ? assignee.name : null
       const reportStatus = assignedTo || assignedName ? 'assegnata' : 'aperta'
 
+      const selComp = components.find(c => c.id === selectedComponent)
       const created = await db.createReport({
         title: form.title.trim(), machine: form.machine || null,
+        component_id: selComp?.id || null, component_name: selComp?.name || null,
         severity: form.severity, type: form.type, description: form.description.trim(),
         media, created_by: user.id, created_by_name: user.name,
         assigned_to: assignedTo, assigned_to_name: assignedName,
@@ -142,7 +161,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
             <div className="flex-1">
               <Select
                 value={form.machine}
-                onChange={e => set('machine', e.target.value)}
+                onChange={e => { set('machine', e.target.value); loadComponents(e.target.value) }}
                 options={[
                   { value: '', label: 'Seleziona (opzionale)' },
                   ...machines
@@ -175,11 +194,27 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
             machines={machines}
             onScan={(data) => {
               set('machine', data.name)
+              loadComponents(data.name)
               setShowQR(false)
               toast.success(`Macchinario: ${data.name}`)
             }}
             onClose={() => setShowQR(false)}
           />
+        )}
+
+        {/* Component selector (shown only when machine has components) */}
+        {form.machine && components.length > 0 && (
+          <div className="animate-fade-in">
+            <Select
+              label="Componente specifico"
+              value={selectedComponent}
+              onChange={e => setSelectedComponent(e.target.value)}
+              options={[
+                { value: '', label: 'Generico (intera macchina)' },
+                ...components.map(c => ({ value: c.id, label: c.type ? `${c.name} (${c.type})` : c.name }))
+              ]}
+            />
+          </div>
         )}
 
         {/* Report Type — 2x2 card grid */}
