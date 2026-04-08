@@ -257,6 +257,36 @@ export default function AdminMachines() {
 
   const toggleArea = (areaId) => setCollapsedAreas(prev => ({ ...prev, [areaId]: !prev[areaId] }))
 
+  // ── Drag & drop machines between areas ──
+  const [dragMachine, setDragMachine] = useState(null)
+  const [dropTargetArea, setDropTargetArea] = useState(null)
+
+  const handleMachineDragStart = (e, machine) => {
+    setDragMachine(machine)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const handleAreaDragOver = (e, areaId) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDropTargetArea(areaId)
+  }
+  const handleAreaDragLeave = () => setDropTargetArea(null)
+  const handleAreaDrop = async (e, targetAreaId) => {
+    e.preventDefault()
+    setDropTargetArea(null)
+    if (!dragMachine) return
+    const newAreaId = targetAreaId === '__unassigned' ? null : targetAreaId
+    if (dragMachine.area_id === newAreaId) { setDragMachine(null); return }
+    try {
+      await db.updateMachine(dragMachine.id, { area_id: newAreaId })
+      setMachines(prev => prev.map(m => m.id === dragMachine.id ? { ...m, area_id: newAreaId } : m))
+      const areaName = newAreaId ? areas.find(a => a.id === newAreaId)?.name : 'Non assegnate'
+      toast.success(`${dragMachine.name} spostato in ${areaName}`)
+    } catch { toast.error('Errore spostamento') }
+    setDragMachine(null)
+  }
+  const handleMachineDragEnd = () => { setDragMachine(null); setDropTargetArea(null) }
+
   // ── Grouped machines ──
   const groupedMachines = useMemo(() => {
     const f = machines.filter(m => !search || m.name?.toLowerCase().includes(search.toLowerCase()) || m.department?.toLowerCase().includes(search.toLowerCase()))
@@ -337,29 +367,45 @@ export default function AdminMachines() {
             const areaColor = area?.color || '#6b7280'
             return (
               <div key={areaId} className="animate-fade-in">
-                {/* Area header */}
-                <button onClick={() => toggleArea(areaId)}
-                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl bg-surface-1 border border-token/50 hover:border-token transition-all mb-3">
+                {/* Area header — drop target */}
+                <div
+                  onDragOver={e => handleAreaDragOver(e, areaId)}
+                  onDragLeave={handleAreaDragLeave}
+                  onDrop={e => handleAreaDrop(e, areaId)}
+                  onClick={() => toggleArea(areaId)}
+                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all mb-3 cursor-pointer ${dropTargetArea === areaId && dragMachine ? 'bg-violet-500/10 border-violet-500/50 ring-2 ring-violet-500/30 scale-[1.01]' : 'bg-surface-1 border-token/50 hover:border-token'}`}>
                   <div className="w-4 h-4 rounded-full shrink-0" style={{ background: areaColor, boxShadow: `0 0 8px ${areaColor}40` }} />
                   <span className="text-sm font-bold text-themed flex-1 text-left">
                     {area?.name || 'Non assegnate'}
                   </span>
-                  <span className="text-xs text-faint">{areaMachines.length} macchinar{areaMachines.length === 1 ? 'io' : 'i'}</span>
+                  {dropTargetArea === areaId && dragMachine
+                    ? <span className="text-xs text-violet-400 font-medium">Rilascia qui</span>
+                    : <span className="text-xs text-faint">{areaMachines.length} macchinar{areaMachines.length === 1 ? 'io' : 'i'}</span>
+                  }
                   <ChevronDown size={16} className={`text-faint transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                </button>
+                </div>
 
                 {/* Machines grid */}
                 {!isCollapsed && (
                   areaMachines.length === 0 ? (
-                    <p className="text-xs text-faint text-center py-4">Nessun macchinario in quest'area</p>
+                    <div onDragOver={e => handleAreaDragOver(e, areaId)} onDragLeave={handleAreaDragLeave} onDrop={e => handleAreaDrop(e, areaId)}
+                      className={`text-xs text-faint text-center py-6 rounded-xl border border-dashed transition-all ${dropTargetArea === areaId && dragMachine ? 'border-violet-500/50 bg-violet-500/5' : 'border-transparent'}`}>
+                      {dropTargetArea === areaId && dragMachine ? 'Rilascia qui per spostare' : 'Nessun macchinario in quest\'area'}
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pl-2" style={{ borderLeft: `3px solid ${areaColor}30` }}>
                       {areaMachines.map((m) => {
                         const active = getReportsForMachine(m.name).filter(r => r.status !== 'risolta').length
+                        const isDragging = dragMachine?.id === m.id
                         return (
-                          <div key={m.id} onClick={() => openDetail(m)} className="card-elevated rounded-2xl p-5 hover:border-violet-500/30 transition-all group cursor-pointer">
+                          <div key={m.id} draggable onDragStart={e => handleMachineDragStart(e, m)} onDragEnd={handleMachineDragEnd}
+                            onClick={() => { if (!dragMachine) openDetail(m) }}
+                            className={`card-elevated rounded-2xl p-5 hover:border-violet-500/30 transition-all group cursor-pointer ${isDragging ? 'opacity-30 scale-95' : ''}`}>
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-center gap-3">
+                                <div className="cursor-grab active:cursor-grabbing">
+                                  <GripVertical size={14} className="text-faint opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
                                 {m.photo_url ? <div className="w-11 h-11 rounded-xl overflow-hidden border border-token shrink-0"><img src={m.photo_url} alt="" className="w-full h-full object-cover" /></div>
                                   : <div className="w-11 h-11 bg-violet-600/15 rounded-xl flex items-center justify-center shrink-0"><Cog size={20} className="text-violet-400" /></div>}
                                 <div><h3 className="text-sm font-bold text-themed">{m.name}</h3>{m.department && <p className="text-xs text-faint">{m.department}</p>}</div>
