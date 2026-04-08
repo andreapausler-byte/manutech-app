@@ -27,6 +27,13 @@ export const SEVERITY = {
   critica: { label: 'Critica', color: '#ff5c5c', bg: 'rgba(255,92,92,0.10)' },
 }
 
+export const ORDER_STATUS = {
+  ordinato: { label: 'Ordinato', color: '#ffaa2c', bg: 'rgba(255,170,44,0.10)' },
+  spedito: { label: 'Spedito', color: '#7c6aff', bg: 'rgba(124,106,255,0.10)' },
+  ricevuto: { label: 'Ricevuto', color: '#3ddc84', bg: 'rgba(61,220,132,0.10)' },
+  installato: { label: 'Installato', color: '#22c55e', bg: 'rgba(34,197,94,0.10)' },
+}
+
 // ── Quick Report Templates ────────────────────────────────
 // Problemi comuni precompilati per report in 3 tap
 // extraFields: campi dinamici mostrati nel form rapido

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
-import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings, MessageCircle, Trophy, Gift } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings, MessageCircle, Trophy, Gift, Package } from 'lucide-react'
 import { useAutoNotifications } from '../../hooks/useAutoNotifications'
 import { getAmbientColors } from '../../hooks/usePremiumUI'
 import { usePWA } from '../../hooks/usePWA'
@@ -16,12 +16,14 @@ import AdminNotifSettings from '../../pages/admin/AdminNotifSettings'
 import AdminMessaging from '../../pages/admin/AdminMessaging'
 import AdminLeaderboard from '../../pages/admin/AdminLeaderboard'
 import AdminRewards from '../../pages/admin/AdminRewards'
+import AdminSpareParts from '../../pages/admin/AdminSpareParts'
 
 const NAV = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', desc: 'Panoramica generale' },
   { id: 'reports', icon: ClipboardList, label: 'Segnalazioni', desc: 'Gestisci interventi' },
   { id: 'machines', icon: Cog, label: 'Macchinari', desc: 'Anagrafica impianti' },
   { id: 'maintenance', icon: Shield, label: 'Manutenzione', desc: 'Piani e interventi programmati' },
+  { id: 'spare-parts', icon: Package, label: 'Ricambi', desc: 'Magazzino e ordini ricambi' },
   { id: 'technicians', icon: Wrench, label: 'Tecnici', desc: 'Carico e performance' },
   { id: 'leaderboard', icon: Trophy, label: 'Classifica', desc: 'Punteggi e premi operatori' },
   { id: 'rewards', icon: Gift, label: 'Premi', desc: 'Catalogo premi e ManuCoin' },
@@ -59,6 +61,7 @@ export default function AdminLayout({ initialReportId }) {
       case 'reports': return <AdminReports initialReportId={initialReportId} />
       case 'machines': return <AdminMachines />
       case 'maintenance': return <AdminMaintenance />
+      case 'spare-parts': return <AdminSpareParts />
       case 'technicians': return <AdminTechnicians />
       case 'leaderboard': return <AdminLeaderboard />
       case 'rewards': return <AdminRewards />

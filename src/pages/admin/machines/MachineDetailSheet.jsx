@@ -7,7 +7,7 @@ import {
   Edit, Trash2, FileText, Video, Cog, X, QrCode, Download, Camera,
   Calendar, Hash, Factory, Building, ClipboardList, ChevronRight,
   Wrench, Shield, Plus, Play, Upload, Activity, LayoutDashboard,
-  AlertTriangle, Clock, Filter
+  AlertTriangle, Clock, Filter, Package
 } from 'lucide-react'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
@@ -37,10 +37,12 @@ const healthLabels = {
 
 export default function MachineDetailSheet({
   sel, qrDataUrl, plans, logs, planLastLogs, reports,
+  components = [],
   detailTab, setDetailTab,
   onClose, onEdit, onDelete, onDownloadQR, onOpenReport,
   onOpenPlanForm, onDeletePlan, onOpenLogForm,
   onHandleCSVFile,
+  onOpenComponentForm, onDeleteComponent,
 }) {
   const machineReports = useMemo(() =>
     reports.filter(r => r.machine === sel.name).sort((a, b) => {
@@ -304,6 +306,11 @@ export default function MachineDetailSheet({
                 <Wrench size={16} /> Registro Interventi
                 {logs.length > 0 && <span className="text-xs bg-surface-2 rounded-full px-2 py-0.5">{logs.length}</span>}
               </button>
+              <button onClick={() => setDetailTab('components')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'components' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-400/5' : 'text-faint hover:text-secondary'}`}>
+                <Package size={16} /> Componenti
+                {components.length > 0 && <span className="text-xs bg-surface-2 rounded-full px-2 py-0.5">{components.length}</span>}
+              </button>
               <button onClick={() => setDetailTab('reports')}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'reports' ? 'text-amber-400 border-b-2 border-amber-400 bg-amber-400/5' : 'text-faint hover:text-secondary'}`}>
                 <ClipboardList size={16} /> Segnalazioni
@@ -554,6 +561,56 @@ export default function MachineDetailSheet({
                               <span>{timeAgo(log.performed_at)}</span>
                               {log.duration_minutes && <span>⏱ {log.duration_minutes} min</span>}
                               {log.parts_replaced && <span>🔩 {log.parts_replaced}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ═══ COMPONENTS TAB ═══ */}
+              {detailTab === 'components' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-muted">{components.length} componenti</p>
+                    <button onClick={() => onOpenComponentForm?.()} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-bold transition-all">
+                      <Plus size={14} /> Nuovo Componente
+                    </button>
+                  </div>
+
+                  {components.length === 0 ? (
+                    <div className="text-center py-16">
+                      <Package size={48} className="mx-auto text-faint opacity-15 mb-3" />
+                      <p className="text-sm text-faint">Nessun componente registrato</p>
+                      <p className="text-xs text-faint mt-1">Aggiungi sotto-macchine e componenti per tracciare guasti specifici</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      {components.map(comp => (
+                        <div key={comp.id} className="bg-surface-2 rounded-xl p-4 group hover:bg-surface-3 transition-all">
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center shrink-0">
+                              <Package size={18} className="text-cyan-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-themed truncate">{comp.name}</p>
+                              {comp.type && (
+                                <span className="text-[10px] font-medium text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded inline-block mt-0.5">{comp.type}</span>
+                              )}
+                              <div className="flex items-center gap-3 mt-2 text-xs text-faint flex-wrap">
+                                {comp.manufacturer && <span className="flex items-center gap-1"><Factory size={10} /> {comp.manufacturer}</span>}
+                                {comp.model && <span className="flex items-center gap-1"><Cog size={10} /> {comp.model}</span>}
+                                {comp.serial_number && <span className="flex items-center gap-1"><Hash size={10} /> {comp.serial_number}</span>}
+                                {comp.year && <span className="flex items-center gap-1"><Calendar size={10} /> {comp.year}</span>}
+                              </div>
+                              {comp.notes && <p className="text-[11px] text-faint mt-1.5 line-clamp-2">{comp.notes}</p>}
+                            </div>
+                            <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => onOpenComponentForm?.(comp)} className="p-1.5 rounded-lg hover:bg-white/10 text-faint hover:text-white"><Edit size={13} /></button>
+                              <button onClick={() => { if (confirm(`Eliminare "${comp.name}"?`)) onDeleteComponent?.(comp.id) }}
+                                className="p-1.5 rounded-lg hover:bg-red-500/20 text-faint hover:text-red-400"><Trash2 size={13} /></button>
                             </div>
                           </div>
                         </div>
