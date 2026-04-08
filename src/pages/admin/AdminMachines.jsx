@@ -2,7 +2,7 @@
  * AdminMachines v5.0 — Con aree impianto e componenti
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { db } from '../../lib/supabase'
 import { Button, EmptyState, Spinner } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
@@ -260,12 +260,14 @@ export default function AdminMachines() {
   // ── Drag & drop machines between areas ──
   const [dragMachine, setDragMachine] = useState(null)
   const [dropTargetArea, setDropTargetArea] = useState(null)
-  const dragCounterRef = { current: {} } // track enter/leave per area to handle bubbling
+  const dragCounterRef = useRef({})
+  const wasDraggingRef = useRef(false)
 
   const handleMachineDragStart = (e, machine) => {
+    wasDraggingRef.current = true
     setDragMachine(machine)
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', machine.id) // required for Firefox
+    e.dataTransfer.setData('text/plain', machine.id)
   }
   const handleAreaDragEnter = (e, areaId) => {
     e.preventDefault()
@@ -299,7 +301,15 @@ export default function AdminMachines() {
     } catch { toast.error('Errore spostamento') }
     setDragMachine(null)
   }
-  const handleMachineDragEnd = () => { setDragMachine(null); setDropTargetArea(null); dragCounterRef.current = {} }
+  const handleMachineDragEnd = () => {
+    setDragMachine(null); setDropTargetArea(null); dragCounterRef.current = {}
+    // Keep wasDraggingRef true briefly so onClick can check it
+    setTimeout(() => { wasDraggingRef.current = false }, 100)
+  }
+  const handleMachineClick = (m) => {
+    if (wasDraggingRef.current) return // skip click after drag
+    openDetail(m)
+  }
 
   // ── Grouped machines ──
   const groupedMachines = useMemo(() => {
@@ -413,7 +423,7 @@ export default function AdminMachines() {
                         const isDragging = dragMachine?.id === m.id
                         return (
                           <div key={m.id} draggable={true} onDragStart={e => handleMachineDragStart(e, m)} onDragEnd={handleMachineDragEnd}
-                            onClick={() => { if (!dragMachine) openDetail(m) }}
+                            onClick={() => handleMachineClick(m)}
                             className={`card-elevated rounded-2xl p-5 hover:border-violet-500/30 transition-all group cursor-pointer ${isDragging ? 'opacity-20 scale-95 ring-2 ring-violet-500/30' : ''}`}>
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-center gap-3">
