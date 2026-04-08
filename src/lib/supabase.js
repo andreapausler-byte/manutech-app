@@ -631,6 +631,56 @@ export const db = {
     }
   },
 
+  // ─── AREAS ───
+  async getAreas() {
+    if (supabase) {
+      const { data, error } = await supabase.from('areas')
+        .select('*').order('sort_order').order('name')
+      if (error) throw error
+      return data || []
+    }
+    return getStore('manutech_areas').sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  },
+
+  async createArea(area) {
+    if (supabase) {
+      const insertData = { ...area, org_id: await getMyOrgId() }
+      const { data, error } = await supabase.from('areas').insert(insertData).select().single()
+      if (error) throw error
+      return data
+    }
+    const items = getStore('manutech_areas')
+    const newItem = { ...area, id: `area-${Date.now()}`, created_at: new Date().toISOString() }
+    items.push(newItem)
+    setStore('manutech_areas', items)
+    return newItem
+  },
+
+  async updateArea(id, updates) {
+    if (supabase) {
+      const { data, error } = await supabase.from('areas')
+        .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+      if (error) throw error
+      return data
+    }
+    const items = getStore('manutech_areas')
+    const idx = items.findIndex(a => a.id === id)
+    if (idx === -1) throw new Error('Area non trovata')
+    items[idx] = { ...items[idx], ...updates, updated_at: new Date().toISOString() }
+    setStore('manutech_areas', items)
+    return items[idx]
+  },
+
+  async deleteArea(id) {
+    if (supabase) {
+      const { error } = await supabase.from('areas').delete().eq('id', id)
+      if (error) throw error
+      return
+    }
+    const items = getStore('manutech_areas').filter(a => a.id !== id)
+    setStore('manutech_areas', items)
+  },
+
   // ─── MACHINE COMPONENTS ───
   async getMachineComponents(machineId) {
     if (supabase) {
