@@ -339,129 +339,138 @@ export default function AdminMachines() {
     const isMoving = moveMenuId === m.id
 
     return (
-      <div className="card-elevated card-3d rounded-2xl overflow-hidden group cursor-pointer relative"
-        onClick={() => { if (!isMoving) openDetail(m) }}>
+      <div className="card-elevated card-3d rounded-2xl overflow-hidden relative"
+        style={{ minHeight: 220 }}>
 
         {/* ── Health bar top ── */}
-        <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${healthColor} ${healthPct}%, var(--color-surface-3) ${healthPct}%)` }} />
+        <div className="h-1.5 w-full" style={{ background: `linear-gradient(90deg, ${healthColor} ${healthPct}%, var(--color-surface-3) ${healthPct}%)` }} />
 
-        <div className="p-5">
-          {/* ── Header: photo + name + actions ── */}
-          <div className="flex items-start gap-3 mb-3">
+        {/* ── Main area — clickable ── */}
+        <div className="p-6 pb-3 cursor-pointer" onClick={() => { if (!isMoving) openDetail(m) }}>
+
+          {/* ── Header: photo + name + status dot ── */}
+          <div className="flex items-start gap-4 mb-4">
             {m.photo_url ? (
-              <div className="w-12 h-12 rounded-xl overflow-hidden border border-token shrink-0 shadow-md">
+              <div className="w-14 h-14 rounded-xl overflow-hidden border border-token shrink-0 shadow-md">
                 <img src={m.photo_url} alt="" className="w-full h-full object-cover" />
               </div>
             ) : (
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${healthColor}15` }}>
-                <Cog size={22} style={{ color: healthColor }} />
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${healthColor}12` }}>
+                <Cog size={26} style={{ color: healthColor }} />
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-themed truncate">{m.name}</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-themed truncate">{m.name}</h3>
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: healthColor, boxShadow: `0 0 10px ${healthColor}60` }} />
+              </div>
               {(m.manufacturer || m.model) && (
-                <p className="text-[11px] text-faint truncate">{[m.manufacturer, m.model].filter(Boolean).join(' — ')}</p>
+                <p className="text-xs text-muted mt-0.5 truncate">{[m.manufacturer, m.model].filter(Boolean).join(' — ')}</p>
               )}
-              {m.department && <p className="text-[10px] text-faint/60 mt-0.5">{m.department}</p>}
+              {m.department && <p className="text-[11px] text-faint mt-0.5">{m.department}</p>}
             </div>
-            {/* Status indicator */}
-            <div className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ background: healthColor, boxShadow: `0 0 8px ${healthColor}50` }} />
           </div>
 
-          {/* ── Components chips ── */}
-          {comps.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {comps.slice(0, 4).map(c => (
-                <span key={c.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-cyan-500/8 text-cyan-400/80 border border-cyan-500/10">
-                  <Package size={9} /> {c.name}
-                </span>
-              ))}
-              {comps.length > 4 && (
-                <span className="inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-medium bg-surface-2 text-faint">
-                  +{comps.length - 4}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* ── Status row ── */}
-          <div className="flex items-center gap-2 mb-3">
+          {/* ── Status badges ── */}
+          <div className="flex items-center gap-2 flex-wrap mb-4">
             {active === 0 ? (
-              <span className="text-[11px] font-medium text-emerald-400/80 bg-emerald-500/8 px-2 py-0.5 rounded-md flex items-center gap-1">
-                <Activity size={10} /> Operativo
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">
+                <Activity size={12} /> Operativo
               </span>
             ) : (
               <>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 flex items-center gap-1">
-                  <AlertTriangle size={10} /> {active} segnalaz.
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/15">
+                  <AlertTriangle size={12} /> {active} segnalazioni
                 </span>
                 {critical > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-400">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-red-500/10 text-red-400 border border-red-500/15">
                     {critical} critiche
                   </span>
                 )}
               </>
             )}
             {m.attachments?.length > 0 && (
-              <span className="text-[10px] text-faint flex items-center gap-0.5 ml-auto"><FileText size={9} /> {m.attachments.length}</span>
+              <span className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] text-faint bg-surface-2">
+                <FileText size={10} /> {m.attachments.length} doc
+              </span>
             )}
           </div>
 
-          {/* ── Quick Actions Bar (visible on hover) ── */}
-          <div className="flex items-center gap-1 pt-2.5 border-t border-token/20 opacity-0 group-hover:opacity-100 transition-all duration-200">
-            {/* Reorder */}
-            {hasAreas && totalInArea > 1 && (
-              <div className="flex gap-0.5 mr-1">
-                <button onClick={e => { e.stopPropagation(); reorderInArea(m, -1) }} disabled={idx === 0}
-                  className="p-1.5 rounded-lg text-faint hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all" title="Sposta su">
-                  <ArrowUp size={13} />
-                </button>
-                <button onClick={e => { e.stopPropagation(); reorderInArea(m, 1) }} disabled={idx === totalInArea - 1}
-                  className="p-1.5 rounded-lg text-faint hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all" title="Sposta giù">
-                  <ArrowDown size={13} />
-                </button>
-              </div>
-            )}
-            {/* Move to area */}
-            {hasAreas && (
-              <div className="relative">
-                <button onClick={e => { e.stopPropagation(); setMoveMenuId(isMoving ? null : m.id) }}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium text-faint hover:text-violet-400 hover:bg-violet-500/10 transition-all">
-                  <MoveRight size={12} /> Sposta
-                </button>
-                {isMoving && (
-                  <div className="absolute bottom-full left-0 mb-1 bg-surface-1 border border-token rounded-xl shadow-xl py-1.5 min-w-[160px] z-50 animate-fade-in"
-                    onClick={e => e.stopPropagation()}>
-                    {areas.filter(a => a.id !== m.area_id).map(a => (
-                      <button key={a.id} onClick={() => moveMachineToArea(m, a.id)}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-secondary hover:bg-surface-2 transition-colors text-left">
-                        <div className="w-3 h-3 rounded-full shrink-0" style={{ background: a.color }} />
-                        {a.name}
-                      </button>
-                    ))}
-                    {m.area_id && (
-                      <button onClick={() => moveMachineToArea(m, null)}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-faint hover:bg-surface-2 transition-colors text-left border-t border-token/30 mt-1 pt-2">
-                        <div className="w-3 h-3 rounded-full shrink-0 bg-gray-500" />
-                        Non assegnata
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            {/* Edit & QR */}
-            <div className="flex gap-0.5 ml-auto">
-              <button onClick={e => { e.stopPropagation(); openEdit(m) }} className="p-1.5 rounded-lg text-faint hover:text-white hover:bg-white/10 transition-all" title="Modifica">
-                <Edit size={13} />
+          {/* ── Components chips ── */}
+          {comps.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {comps.slice(0, 5).map(c => (
+                <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-cyan-500/8 text-cyan-400 border border-cyan-500/10">
+                  <Package size={10} /> {c.name}
+                </span>
+              ))}
+              {comps.length > 5 && (
+                <span className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-surface-2 text-faint border border-token/30">
+                  +{comps.length - 5} altri
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Action bar — ALWAYS VISIBLE ── */}
+        <div className="flex items-center gap-2 px-6 py-3 border-t border-token/20 bg-surface-0/30">
+          {/* Reorder arrows */}
+          {hasAreas && totalInArea > 1 && (
+            <div className="flex gap-1 mr-1">
+              <button onClick={e => { e.stopPropagation(); reorderInArea(m, -1) }} disabled={idx === 0}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-faint hover:text-white hover:bg-white/10 disabled:opacity-15 disabled:cursor-not-allowed transition-all" title="Sposta su">
+                <ArrowUp size={15} />
               </button>
-              <button onClick={e => { e.stopPropagation(); downloadQR(m) }} className="p-1.5 rounded-lg text-faint hover:text-violet-400 hover:bg-violet-500/10 transition-all" title="QR Code">
-                <QrCode size={13} />
-              </button>
-              <button onClick={e => { e.stopPropagation(); openDetail(m) }} className="p-1.5 rounded-lg text-faint hover:text-violet-400 hover:bg-violet-500/10 transition-all" title="Apri scheda">
-                <ChevronRight size={13} />
+              <button onClick={e => { e.stopPropagation(); reorderInArea(m, 1) }} disabled={idx === totalInArea - 1}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-faint hover:text-white hover:bg-white/10 disabled:opacity-15 disabled:cursor-not-allowed transition-all" title="Sposta giù">
+                <ArrowDown size={15} />
               </button>
             </div>
+          )}
+          {/* Move to area */}
+          {hasAreas && (
+            <div className="relative">
+              <button onClick={e => { e.stopPropagation(); setMoveMenuId(isMoving ? null : m.id) }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${isMoving ? 'bg-violet-500/15 text-violet-400' : 'text-muted hover:text-violet-400 hover:bg-violet-500/10'}`}>
+                <MoveRight size={14} /> Sposta
+              </button>
+              {isMoving && (
+                <div className="absolute bottom-full left-0 mb-2 bg-surface-1 border border-token rounded-xl shadow-2xl py-2 min-w-[180px] z-50 animate-fade-in"
+                  onClick={e => e.stopPropagation()}>
+                  <p className="px-3 py-1 text-[10px] text-faint uppercase tracking-wider font-semibold">Sposta in...</p>
+                  {areas.filter(a => a.id !== m.area_id).map(a => (
+                    <button key={a.id} onClick={() => moveMachineToArea(m, a.id)}
+                      className="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm text-secondary hover:bg-violet-500/10 hover:text-violet-400 transition-colors text-left">
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ background: a.color }} />
+                      {a.name}
+                    </button>
+                  ))}
+                  {m.area_id && (
+                    <button onClick={() => moveMachineToArea(m, null)}
+                      className="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm text-faint hover:bg-surface-2 transition-colors text-left border-t border-token/30 mt-1">
+                      <div className="w-3 h-3 rounded-full shrink-0 bg-gray-500/50" />
+                      Non assegnata
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Right actions */}
+          <div className="flex gap-1 ml-auto">
+            <button onClick={e => { e.stopPropagation(); openEdit(m) }}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-all" title="Modifica">
+              <Edit size={15} />
+            </button>
+            <button onClick={e => { e.stopPropagation(); downloadQR(m) }}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:text-violet-400 hover:bg-violet-500/10 transition-all" title="QR Code">
+              <QrCode size={15} />
+            </button>
+            <button onClick={e => { e.stopPropagation(); openDetail(m) }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-violet-400 hover:bg-violet-500/10 transition-all" title="Apri scheda">
+              Scheda <ChevronRight size={14} />
+            </button>
           </div>
         </div>
       </div>
@@ -523,7 +532,7 @@ export default function AdminMachines() {
                       <p className="text-xs text-faint">Nessun macchinario in quest'area</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger-enter"
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5 stagger-enter"
                       style={{ paddingLeft: 8, borderLeft: `3px solid ${areaColor}20` }}>
                       {areaMachines.map((m, idx) => (
                         <MachineCard key={m.id} m={m} idx={idx} totalInArea={areaMachines.length}  />
@@ -537,7 +546,7 @@ export default function AdminMachines() {
         </div>
       ) : (
         /* ═══ FLAT VIEW (no areas) ═══ */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 stagger-enter">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5 stagger-enter">
           {filtered.map((m, i) => (
             <MachineCard key={m.id} m={m} idx={i} totalInArea={filtered.length} areaId={null} />
           ))}
