@@ -260,23 +260,37 @@ export default function AdminMachines() {
   // ── Drag & drop machines between areas ──
   const [dragMachine, setDragMachine] = useState(null)
   const [dropTargetArea, setDropTargetArea] = useState(null)
+  const dragCounterRef = { current: {} } // track enter/leave per area to handle bubbling
 
   const handleMachineDragStart = (e, machine) => {
     setDragMachine(machine)
     e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', machine.id) // required for Firefox
   }
-  const handleAreaDragOver = (e, areaId) => {
+  const handleAreaDragEnter = (e, areaId) => {
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    dragCounterRef.current[areaId] = (dragCounterRef.current[areaId] || 0) + 1
     setDropTargetArea(areaId)
   }
-  const handleAreaDragLeave = () => setDropTargetArea(null)
+  const handleAreaDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+  const handleAreaDragLeave = (areaId) => {
+    dragCounterRef.current[areaId] = (dragCounterRef.current[areaId] || 0) - 1
+    if (dragCounterRef.current[areaId] <= 0) {
+      dragCounterRef.current[areaId] = 0
+      setDropTargetArea(prev => prev === areaId ? null : prev)
+    }
+  }
   const handleAreaDrop = async (e, targetAreaId) => {
     e.preventDefault()
+    e.stopPropagation()
+    dragCounterRef.current = {}
     setDropTargetArea(null)
     if (!dragMachine) return
     const newAreaId = targetAreaId === '__unassigned' ? null : targetAreaId
-    if (dragMachine.area_id === newAreaId) { setDragMachine(null); return }
+    if ((dragMachine.area_id || null) === newAreaId) { setDragMachine(null); return }
     try {
       await db.updateMachine(dragMachine.id, { area_id: newAreaId })
       setMachines(prev => prev.map(m => m.id === dragMachine.id ? { ...m, area_id: newAreaId } : m))
@@ -285,7 +299,7 @@ export default function AdminMachines() {
     } catch { toast.error('Errore spostamento') }
     setDragMachine(null)
   }
-  const handleMachineDragEnd = () => { setDragMachine(null); setDropTargetArea(null) }
+  const handleMachineDragEnd = () => { setDragMachine(null); setDropTargetArea(null); dragCounterRef.current = {} }
 
   // ── Grouped machines ──
   const groupedMachines = useMemo(() => {
@@ -366,20 +380,21 @@ export default function AdminMachines() {
             const isCollapsed = collapsedAreas[areaId]
             const areaColor = area?.color || '#6b7280'
             return (
-              <div key={areaId} className="animate-fade-in">
-                {/* Area header — drop target */}
+              <div key={areaId} className="animate-fade-in"
+                onDragEnter={e => handleAreaDragEnter(e, areaId)}
+                onDragOver={handleAreaDragOver}
+                onDragLeave={() => handleAreaDragLeave(areaId)}
+                onDrop={e => handleAreaDrop(e, areaId)}>
+                {/* Area header */}
                 <div
-                  onDragOver={e => handleAreaDragOver(e, areaId)}
-                  onDragLeave={handleAreaDragLeave}
-                  onDrop={e => handleAreaDrop(e, areaId)}
-                  onClick={() => toggleArea(areaId)}
-                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all mb-3 cursor-pointer ${dropTargetArea === areaId && dragMachine ? 'bg-violet-500/10 border-violet-500/50 ring-2 ring-violet-500/30 scale-[1.01]' : 'bg-surface-1 border-token/50 hover:border-token'}`}>
+                  onClick={() => { if (!dragMachine) toggleArea(areaId) }}
+                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all duration-200 mb-3 cursor-pointer ${dropTargetArea === areaId && dragMachine ? 'bg-violet-500/15 border-violet-500/50 ring-2 ring-violet-500/30 shadow-lg shadow-violet-500/10' : 'bg-surface-1 border-token/50 hover:border-token'}`}>
                   <div className="w-4 h-4 rounded-full shrink-0" style={{ background: areaColor, boxShadow: `0 0 8px ${areaColor}40` }} />
                   <span className="text-sm font-bold text-themed flex-1 text-left">
                     {area?.name || 'Non assegnate'}
                   </span>
                   {dropTargetArea === areaId && dragMachine
-                    ? <span className="text-xs text-violet-400 font-medium">Rilascia qui</span>
+                    ? <span className="text-xs text-violet-400 font-bold animate-pulse">Rilascia qui</span>
                     : <span className="text-xs text-faint">{areaMachines.length} macchinar{areaMachines.length === 1 ? 'io' : 'i'}</span>
                   }
                   <ChevronDown size={16} className={`text-faint transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
@@ -388,9 +403,8 @@ export default function AdminMachines() {
                 {/* Machines grid */}
                 {!isCollapsed && (
                   areaMachines.length === 0 ? (
-                    <div onDragOver={e => handleAreaDragOver(e, areaId)} onDragLeave={handleAreaDragLeave} onDrop={e => handleAreaDrop(e, areaId)}
-                      className={`text-xs text-faint text-center py-6 rounded-xl border border-dashed transition-all ${dropTargetArea === areaId && dragMachine ? 'border-violet-500/50 bg-violet-500/5' : 'border-transparent'}`}>
-                      {dropTargetArea === areaId && dragMachine ? 'Rilascia qui per spostare' : 'Nessun macchinario in quest\'area'}
+                    <div className={`text-xs text-faint text-center py-8 rounded-xl border border-dashed transition-all duration-200 ${dropTargetArea === areaId && dragMachine ? 'border-violet-500/50 bg-violet-500/5 text-violet-400' : 'border-token/30'}`}>
+                      {dropTargetArea === areaId && dragMachine ? 'Rilascia qui per spostare' : 'Nessun macchinario in quest\'area — trascina qui'}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pl-2" style={{ borderLeft: `3px solid ${areaColor}30` }}>
@@ -398,13 +412,13 @@ export default function AdminMachines() {
                         const active = getReportsForMachine(m.name).filter(r => r.status !== 'risolta').length
                         const isDragging = dragMachine?.id === m.id
                         return (
-                          <div key={m.id} draggable onDragStart={e => handleMachineDragStart(e, m)} onDragEnd={handleMachineDragEnd}
+                          <div key={m.id} draggable={true} onDragStart={e => handleMachineDragStart(e, m)} onDragEnd={handleMachineDragEnd}
                             onClick={() => { if (!dragMachine) openDetail(m) }}
-                            className={`card-elevated rounded-2xl p-5 hover:border-violet-500/30 transition-all group cursor-pointer ${isDragging ? 'opacity-30 scale-95' : ''}`}>
+                            className={`card-elevated rounded-2xl p-5 hover:border-violet-500/30 transition-all group cursor-pointer ${isDragging ? 'opacity-20 scale-95 ring-2 ring-violet-500/30' : ''}`}>
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-center gap-3">
-                                <div className="cursor-grab active:cursor-grabbing">
-                                  <GripVertical size={14} className="text-faint opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="cursor-grab active:cursor-grabbing shrink-0">
+                                  <GripVertical size={16} className="text-faint/50 group-hover:text-faint transition-opacity" />
                                 </div>
                                 {m.photo_url ? <div className="w-11 h-11 rounded-xl overflow-hidden border border-token shrink-0"><img src={m.photo_url} alt="" className="w-full h-full object-cover" /></div>
                                   : <div className="w-11 h-11 bg-violet-600/15 rounded-xl flex items-center justify-center shrink-0"><Cog size={20} className="text-violet-400" /></div>}
