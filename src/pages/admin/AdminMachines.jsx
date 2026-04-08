@@ -258,56 +258,54 @@ export default function AdminMachines() {
   const toggleArea = (areaId) => setCollapsedAreas(prev => ({ ...prev, [areaId]: !prev[areaId] }))
 
   // ── Drag & drop machines between areas ──
-  const [dragMachine, setDragMachine] = useState(null)
+  const dragRef = useRef({ machine: null, didDrop: false })
   const [dropTargetArea, setDropTargetArea] = useState(null)
-  const dragCounterRef = useRef({})
-  const wasDraggingRef = useRef(false)
+  const [draggingId, setDraggingId] = useState(null)
 
-  const handleMachineDragStart = (e, machine) => {
-    wasDraggingRef.current = true
-    setDragMachine(machine)
+  const onCardDragStart = (e, machine) => {
+    dragRef.current = { machine, didDrop: false }
+    setDraggingId(machine.id)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', machine.id)
+    e.stopPropagation()
   }
-  const handleAreaDragEnter = (e, areaId) => {
-    e.preventDefault()
-    dragCounterRef.current[areaId] = (dragCounterRef.current[areaId] || 0) + 1
-    setDropTargetArea(areaId)
+  const onCardDragEnd = () => {
+    setDraggingId(null)
+    setDropTargetArea(null)
+    // Block click for 300ms after drag
+    const ref = dragRef.current
+    setTimeout(() => { ref.machine = null; ref.didDrop = false }, 300)
   }
-  const handleAreaDragOver = (e) => {
+  const onHeaderDragOver = (e, areaId) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
+    if (dropTargetArea !== areaId) setDropTargetArea(areaId)
   }
-  const handleAreaDragLeave = (areaId) => {
-    dragCounterRef.current[areaId] = (dragCounterRef.current[areaId] || 0) - 1
-    if (dragCounterRef.current[areaId] <= 0) {
-      dragCounterRef.current[areaId] = 0
+  const onHeaderDragLeave = (e, areaId) => {
+    // Only clear if actually leaving the header (not entering a child)
+    if (!e.currentTarget.contains(e.relatedTarget)) {
       setDropTargetArea(prev => prev === areaId ? null : prev)
     }
   }
-  const handleAreaDrop = async (e, targetAreaId) => {
+  const onHeaderDrop = async (e, targetAreaId) => {
     e.preventDefault()
     e.stopPropagation()
-    dragCounterRef.current = {}
     setDropTargetArea(null)
-    if (!dragMachine) return
+    const machine = dragRef.current.machine
+    if (!machine) return
+    dragRef.current.didDrop = true
     const newAreaId = targetAreaId === '__unassigned' ? null : targetAreaId
-    if ((dragMachine.area_id || null) === newAreaId) { setDragMachine(null); return }
+    if ((machine.area_id || null) === newAreaId) return
     try {
-      await db.updateMachine(dragMachine.id, { area_id: newAreaId })
-      setMachines(prev => prev.map(m => m.id === dragMachine.id ? { ...m, area_id: newAreaId } : m))
+      await db.updateMachine(machine.id, { area_id: newAreaId })
+      setMachines(prev => prev.map(m => m.id === machine.id ? { ...m, area_id: newAreaId } : m))
       const areaName = newAreaId ? areas.find(a => a.id === newAreaId)?.name : 'Non assegnate'
-      toast.success(`${dragMachine.name} spostato in ${areaName}`)
+      toast.success(`${machine.name} spostato in ${areaName}`)
     } catch { toast.error('Errore spostamento') }
-    setDragMachine(null)
   }
-  const handleMachineDragEnd = () => {
-    setDragMachine(null); setDropTargetArea(null); dragCounterRef.current = {}
-    // Keep wasDraggingRef true briefly so onClick can check it
-    setTimeout(() => { wasDraggingRef.current = false }, 100)
-  }
-  const handleMachineClick = (m) => {
-    if (wasDraggingRef.current) return // skip click after drag
+  const onCardClick = (m) => {
+    // Skip if just finished dragging
+    if (dragRef.current.machine || dragRef.current.didDrop) return
     openDetail(m)
   }
 
@@ -390,20 +388,19 @@ export default function AdminMachines() {
             const isCollapsed = collapsedAreas[areaId]
             const areaColor = area?.color || '#6b7280'
             return (
-              <div key={areaId} className="animate-fade-in"
-                onDragEnter={e => handleAreaDragEnter(e, areaId)}
-                onDragOver={handleAreaDragOver}
-                onDragLeave={() => handleAreaDragLeave(areaId)}
-                onDrop={e => handleAreaDrop(e, areaId)}>
-                {/* Area header */}
+              <div key={areaId} className="animate-fade-in">
+                {/* Area header — DROP TARGET */}
                 <div
-                  onClick={() => { if (!dragMachine) toggleArea(areaId) }}
-                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all duration-200 mb-3 cursor-pointer ${dropTargetArea === areaId && dragMachine ? 'bg-violet-500/15 border-violet-500/50 ring-2 ring-violet-500/30 shadow-lg shadow-violet-500/10' : 'bg-surface-1 border-token/50 hover:border-token'}`}>
+                  onDragOver={e => onHeaderDragOver(e, areaId)}
+                  onDragLeave={e => onHeaderDragLeave(e, areaId)}
+                  onDrop={e => onHeaderDrop(e, areaId)}
+                  onClick={() => { if (!draggingId) toggleArea(areaId) }}
+                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all duration-200 mb-3 cursor-pointer ${dropTargetArea === areaId ? 'bg-violet-500/15 border-violet-500/50 ring-2 ring-violet-500/30 shadow-lg shadow-violet-500/10' : 'bg-surface-1 border-token/50 hover:border-token'}`}>
                   <div className="w-4 h-4 rounded-full shrink-0" style={{ background: areaColor, boxShadow: `0 0 8px ${areaColor}40` }} />
                   <span className="text-sm font-bold text-themed flex-1 text-left">
                     {area?.name || 'Non assegnate'}
                   </span>
-                  {dropTargetArea === areaId && dragMachine
+                  {dropTargetArea === areaId
                     ? <span className="text-xs text-violet-400 font-bold animate-pulse">Rilascia qui</span>
                     : <span className="text-xs text-faint">{areaMachines.length} macchinar{areaMachines.length === 1 ? 'io' : 'i'}</span>
                   }
@@ -413,22 +410,23 @@ export default function AdminMachines() {
                 {/* Machines grid */}
                 {!isCollapsed && (
                   areaMachines.length === 0 ? (
-                    <div className={`text-xs text-faint text-center py-8 rounded-xl border border-dashed transition-all duration-200 ${dropTargetArea === areaId && dragMachine ? 'border-violet-500/50 bg-violet-500/5 text-violet-400' : 'border-token/30'}`}>
-                      {dropTargetArea === areaId && dragMachine ? 'Rilascia qui per spostare' : 'Nessun macchinario in quest\'area — trascina qui'}
+                    <div onDragOver={e => onHeaderDragOver(e, areaId)} onDragLeave={e => onHeaderDragLeave(e, areaId)} onDrop={e => onHeaderDrop(e, areaId)}
+                      className={`text-xs text-faint text-center py-8 rounded-xl border border-dashed transition-all duration-200 ${dropTargetArea === areaId ? 'border-violet-500/50 bg-violet-500/5 text-violet-400' : 'border-token/30'}`}>
+                      {dropTargetArea === areaId ? 'Rilascia qui per spostare' : 'Nessun macchinario in quest\'area'}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pl-2" style={{ borderLeft: `3px solid ${areaColor}30` }}>
                       {areaMachines.map((m) => {
                         const active = getReportsForMachine(m.name).filter(r => r.status !== 'risolta').length
-                        const isDragging = dragMachine?.id === m.id
+                        const isDragging = draggingId === m.id
                         return (
-                          <div key={m.id} draggable={true} onDragStart={e => handleMachineDragStart(e, m)} onDragEnd={handleMachineDragEnd}
-                            onClick={() => handleMachineClick(m)}
-                            className={`card-elevated rounded-2xl p-5 hover:border-violet-500/30 transition-all group cursor-pointer ${isDragging ? 'opacity-20 scale-95 ring-2 ring-violet-500/30' : ''}`}>
+                          <div key={m.id} draggable onDragStart={e => onCardDragStart(e, m)} onDragEnd={onCardDragEnd}
+                            onClick={() => onCardClick(m)}
+                            className={`card-elevated rounded-2xl p-5 hover:border-violet-500/30 transition-all group ${isDragging ? 'opacity-20 scale-95' : 'cursor-pointer'}`}>
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-center gap-3">
                                 <div className="cursor-grab active:cursor-grabbing shrink-0">
-                                  <GripVertical size={16} className="text-faint/50 group-hover:text-faint transition-opacity" />
+                                  <GripVertical size={16} className="text-faint/40 group-hover:text-faint transition-opacity" />
                                 </div>
                                 {m.photo_url ? <div className="w-11 h-11 rounded-xl overflow-hidden border border-token shrink-0"><img src={m.photo_url} alt="" className="w-full h-full object-cover" /></div>
                                   : <div className="w-11 h-11 bg-violet-600/15 rounded-xl flex items-center justify-center shrink-0"><Cog size={20} className="text-violet-400" /></div>}
