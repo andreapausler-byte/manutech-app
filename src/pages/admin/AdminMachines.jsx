@@ -1,8 +1,8 @@
 /**
- * AdminMachines v4.3 — Refactored with extracted modals
+ * AdminMachines v5.0 — Con aree impianto e componenti
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { db } from '../../lib/supabase'
 import { Button, EmptyState, Spinner } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
@@ -14,11 +14,12 @@ import PlanFormModal from './machines/PlanFormModal'
 import LogFormModal from './machines/LogFormModal'
 import CSVImportModal from './machines/CSVImportModal'
 import ComponentFormModal from './machines/ComponentFormModal'
+import AreaManagerModal from './machines/AreaManagerModal'
 import QRCode from 'qrcode'
 import {
   Plus, Edit, FileText, Cog, Search,
   GripVertical, ArrowUpDown, Check, ArrowUp, ArrowDown,
-  QrCode, ChevronRight
+  QrCode, ChevronRight, MapPin, ChevronDown
 } from 'lucide-react'
 
 export default function AdminMachines() {
@@ -28,10 +29,13 @@ export default function AdminMachines() {
   const [reports, setReports] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [areas, setAreas] = useState([])
+  const [showAreaManager, setShowAreaManager] = useState(false)
+  const [collapsedAreas, setCollapsedAreas] = useState({})
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ name: '', department: '', description: '', notes: '', model: '', serial_number: '', manufacturer: '', year: '' })
+  const [form, setForm] = useState({ name: '', department: '', description: '', notes: '', model: '', serial_number: '', manufacturer: '', year: '', area_id: '' })
   const [attachments, setAttachments] = useState([])
   const [photoUrl, setPhotoUrl] = useState('')
 
@@ -74,8 +78,8 @@ export default function AdminMachines() {
 
   const load = async () => {
     setLoading(true)
-    const [m, r, u] = await Promise.all([db.getMachines(), db.getReports(), db.getUsers()])
-    setMachines(m); setReports(r); setUsers(u); setLoading(false)
+    const [m, r, u, a] = await Promise.all([db.getMachines(), db.getReports(), db.getUsers(), db.getAreas()])
+    setMachines(m); setReports(r); setUsers(u); setAreas(a); setLoading(false)
   }
   useEffect(() => { load() }, [])
 
@@ -123,8 +127,8 @@ export default function AdminMachines() {
   }
 
   // ── Machine CRUD ──
-  const openNew = () => { setEditing(null); setForm({ name: '', department: '', description: '', notes: '', model: '', serial_number: '', manufacturer: '', year: '' }); setAttachments([]); setPhotoUrl(''); setShowForm(true) }
-  const openEdit = (m) => { setEditing(m); setForm({ name: m.name, department: m.department||'', description: m.description||'', notes: m.notes||'', model: m.model||'', serial_number: m.serial_number||'', manufacturer: m.manufacturer||'', year: m.year||'' }); setAttachments(m.attachments||[]); setPhotoUrl(m.photo_url||''); setShowForm(true); setSel(null) }
+  const openNew = () => { setEditing(null); setForm({ name: '', department: '', description: '', notes: '', model: '', serial_number: '', manufacturer: '', year: '', area_id: '' }); setAttachments([]); setPhotoUrl(''); setShowForm(true) }
+  const openEdit = (m) => { setEditing(m); setForm({ name: m.name, department: m.department||'', description: m.description||'', notes: m.notes||'', model: m.model||'', serial_number: m.serial_number||'', manufacturer: m.manufacturer||'', year: m.year||'', area_id: m.area_id||'' }); setAttachments(m.attachments||[]); setPhotoUrl(m.photo_url||''); setShowForm(true); setSel(null) }
 
   const uploadPhoto = () => {
     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'
@@ -140,7 +144,7 @@ export default function AdminMachines() {
   const saveMachine = async () => {
     if (!form.name.trim()) return
     try {
-      const data = { ...form, year: form.year ? parseInt(form.year) : null, attachments, photo_url: photoUrl || null }
+      const data = { ...form, year: form.year ? parseInt(form.year) : null, area_id: form.area_id || null, attachments, photo_url: photoUrl || null }
       if (editing) { const updated = await db.updateMachine(editing.id, data); toast.success('Aggiornato'); if (sel?.id === editing.id) setSel(prev => ({ ...prev, ...updated })) }
       else { await db.createMachine({ ...data, sort_order: machines.length + 1 }); toast.success('Creato') }
       setShowForm(false); load()
@@ -235,6 +239,39 @@ export default function AdminMachines() {
     refreshDetail()
   }
 
+  // ── Areas ──
+  const saveArea = async (id, data) => {
+    try {
+      if (id) { await db.updateArea(id, data); toast.success('Area aggiornata') }
+      else { await db.createArea(data); toast.success('Area creata') }
+      const a = await db.getAreas(); setAreas(a)
+    } catch (e) { toast.error('Errore: ' + e.message) }
+  }
+
+  const deleteArea = async (id) => {
+    try {
+      await db.deleteArea(id); toast.success('Area eliminata')
+      const a = await db.getAreas(); setAreas(a)
+    } catch (e) { toast.error('Errore: ' + e.message) }
+  }
+
+  const toggleArea = (areaId) => setCollapsedAreas(prev => ({ ...prev, [areaId]: !prev[areaId] }))
+
+  // ── Grouped machines ──
+  const groupedMachines = useMemo(() => {
+    const f = machines.filter(m => !search || m.name?.toLowerCase().includes(search.toLowerCase()) || m.department?.toLowerCase().includes(search.toLowerCase()))
+    const groups = []
+    for (const area of areas) {
+      const areaMs = f.filter(m => m.area_id === area.id)
+      if (areaMs.length > 0 || !search) groups.push({ area, machines: areaMs })
+    }
+    const unassigned = f.filter(m => !m.area_id || !areas.find(a => a.id === m.area_id))
+    if (unassigned.length > 0 || (!search && areas.length > 0)) {
+      groups.push({ area: null, machines: unassigned })
+    }
+    return groups
+  }, [machines, areas, search])
+
   // ── Drag ──
   const handleDragStart = useCallback((e, i) => { setDragIndex(i); e.dataTransfer.effectAllowed = 'move' }, [])
   const handleDragOver = useCallback((e, i) => { e.preventDefault(); setOverIndex(i) }, [])
@@ -246,6 +283,7 @@ export default function AdminMachines() {
 
   const filtered = machines.filter(m => !search || m.name?.toLowerCase().includes(search.toLowerCase()) || m.department?.toLowerCase().includes(search.toLowerCase()))
   const getReportsForMachine = (name) => reports.filter(r => r.machine === name)
+  const hasAreas = areas.length > 0
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -259,7 +297,8 @@ export default function AdminMachines() {
                 className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50" />
             </div>
             <p className="text-sm text-faint shrink-0">{filtered.length} macchinari</p>
-            {machines.length >= 2 && <Button variant="outline" onClick={() => { setReorderMode(true); setSearch('') }}><ArrowUpDown size={16} /> Ordina</Button>}
+            <Button variant="outline" onClick={() => setShowAreaManager(true)}><MapPin size={16} /> Aree</Button>
+            {machines.length >= 2 && !hasAreas && <Button variant="outline" onClick={() => { setReorderMode(true); setSearch('') }}><ArrowUpDown size={16} /> Ordina</Button>}
             <Button onClick={openNew}><Plus size={18} /> Nuovo</Button>
           </>
         ) : (
@@ -289,10 +328,68 @@ export default function AdminMachines() {
             </div>
           ))}
         </div>
+      ) : hasAreas ? (
+        /* ═══ GROUPED BY AREA ═══ */
+        <div className="space-y-6">
+          {groupedMachines.map(({ area, machines: areaMachines }) => {
+            const areaId = area?.id || '__unassigned'
+            const isCollapsed = collapsedAreas[areaId]
+            const areaColor = area?.color || '#6b7280'
+            return (
+              <div key={areaId} className="animate-fade-in">
+                {/* Area header */}
+                <button onClick={() => toggleArea(areaId)}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl bg-surface-1 border border-token/50 hover:border-token transition-all mb-3">
+                  <div className="w-4 h-4 rounded-full shrink-0" style={{ background: areaColor, boxShadow: `0 0 8px ${areaColor}40` }} />
+                  <span className="text-sm font-bold text-themed flex-1 text-left">
+                    {area?.name || 'Non assegnate'}
+                  </span>
+                  <span className="text-xs text-faint">{areaMachines.length} macchinar{areaMachines.length === 1 ? 'io' : 'i'}</span>
+                  <ChevronDown size={16} className={`text-faint transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                </button>
+
+                {/* Machines grid */}
+                {!isCollapsed && (
+                  areaMachines.length === 0 ? (
+                    <p className="text-xs text-faint text-center py-4">Nessun macchinario in quest'area</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pl-2" style={{ borderLeft: `3px solid ${areaColor}30` }}>
+                      {areaMachines.map((m) => {
+                        const active = getReportsForMachine(m.name).filter(r => r.status !== 'risolta').length
+                        return (
+                          <div key={m.id} onClick={() => openDetail(m)} className="card-elevated rounded-2xl p-5 hover:border-violet-500/30 transition-all group cursor-pointer">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                {m.photo_url ? <div className="w-11 h-11 rounded-xl overflow-hidden border border-token shrink-0"><img src={m.photo_url} alt="" className="w-full h-full object-cover" /></div>
+                                  : <div className="w-11 h-11 bg-violet-600/15 rounded-xl flex items-center justify-center shrink-0"><Cog size={20} className="text-violet-400" /></div>}
+                                <div><h3 className="text-sm font-bold text-themed">{m.name}</h3>{m.department && <p className="text-xs text-faint">{m.department}</p>}</div>
+                              </div>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={e => { e.stopPropagation(); openEdit(m) }} className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-white"><Edit size={14} /></button>
+                                <button onClick={e => { e.stopPropagation(); downloadQR(m) }} className="p-1.5 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400"><QrCode size={14} /></button>
+                              </div>
+                            </div>
+                            {(m.manufacturer || m.model) && <p className="text-xs text-muted mb-2">{[m.manufacturer, m.model].filter(Boolean).join(' — ')}</p>}
+                            <div className="flex items-center gap-3 pt-2.5 border-t border-token/30">
+                              {m.attachments?.length > 0 && <span className="text-xs text-faint flex items-center gap-1"><FileText size={11} /> {m.attachments.length}</span>}
+                              {active > 0 && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">{active} segnalaz.</span>}
+                              <span className="ml-auto text-xs text-violet-400 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">Scheda <ChevronRight size={12} /></span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                )}
+              </div>
+            )
+          })}
+        </div>
       ) : (
+        /* ═══ FLAT VIEW (no areas) ═══ */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {filtered.map((m, i) => {
-            const mr = getReportsForMachine(m.name); const active = mr.filter(r => r.status !== 'risolta').length
+            const active = getReportsForMachine(m.name).filter(r => r.status !== 'risolta').length
             return (
               <div key={m.id} onClick={() => openDetail(m)} className="card-elevated rounded-2xl p-6 hover:border-violet-500/30 transition-all group relative cursor-pointer">
                 <div className="absolute top-3 left-3 w-6 h-6 rounded-md bg-amber-500/15 flex items-center justify-center"><span className="text-[11px] font-bold text-amber-400">{m.sort_order || i + 1}</span></div>
@@ -350,7 +447,13 @@ export default function AdminMachines() {
         open={showForm} onClose={() => setShowForm(false)} editing={editing}
         form={form} setForm={setForm} photoUrl={photoUrl} setPhotoUrl={setPhotoUrl}
         attachments={attachments} setAttachments={setAttachments}
+        areas={areas}
         onSave={saveMachine} onUploadPhoto={uploadPhoto} onAddAttachment={addAttachment}
+      />
+
+      <AreaManagerModal
+        open={showAreaManager} onClose={() => setShowAreaManager(false)}
+        areas={areas} onSave={saveArea} onDelete={deleteArea}
       />
 
       <PlanFormModal

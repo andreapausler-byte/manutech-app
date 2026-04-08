@@ -1,13 +1,30 @@
 import { Modal, Input, Textarea, Button } from '../../../components/ui'
-import { Camera, FileText, Video, Trash2, X } from 'lucide-react'
+import { Camera, FileText, Video, Trash2, X, MapPin } from 'lucide-react'
 
-export default function MachineFormModal({ open, onClose, editing, form, setForm, photoUrl, setPhotoUrl, attachments, setAttachments, onSave, onUploadPhoto, onAddAttachment }) {
+export default function MachineFormModal({ open, onClose, editing, form, setForm, photoUrl, setPhotoUrl, attachments, setAttachments, areas = [], onSave, onUploadPhoto, onAddAttachment }) {
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   return (
     <Modal open={open} onClose={onClose} title={editing ? 'Modifica Macchinario' : 'Nuovo Macchinario'} size="lg">
       <div className="space-y-4">
         <Input label="Nome *" placeholder="Es. Pressa idraulica #3" value={form.name} onChange={e => set('name', e.target.value)} />
+
+        {/* Area selector */}
+        {areas.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-secondary mb-1.5 flex items-center gap-1.5">
+              <MapPin size={12} /> Area Impianto
+            </label>
+            <select className="w-full bg-surface-2 border border-token rounded-xl px-3 py-2.5 text-sm text-themed focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 outline-none"
+              value={form.area_id || ''} onChange={e => set('area_id', e.target.value)}>
+              <option value="">Nessuna area</option>
+              {areas.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
           <Input label="Costruttore" placeholder="Siemens" value={form.manufacturer} onChange={e => set('manufacturer', e.target.value)} />
           <Input label="Modello" placeholder="XR-500" value={form.model} onChange={e => set('model', e.target.value)} />
@@ -15,7 +32,7 @@ export default function MachineFormModal({ open, onClose, editing, form, setForm
         <div className="grid grid-cols-3 gap-4">
           <Input label="Matricola" placeholder="SN-2024-0042" value={form.serial_number} onChange={e => set('serial_number', e.target.value)} />
           <Input label="Anno" placeholder="2022" type="number" value={form.year} onChange={e => set('year', e.target.value)} />
-          <Input label="Reparto" placeholder="Linea 1" value={form.department} onChange={e => set('department', e.target.value)} />
+          <Input label="Reparto / Linea" placeholder="Linea 1" value={form.department} onChange={e => set('department', e.target.value)} />
         </div>
         <Textarea label="Descrizione" placeholder="Note..." value={form.description} onChange={e => set('description', e.target.value)} />
         <div>
