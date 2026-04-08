@@ -1,8 +1,8 @@
 /**
- * AdminMachines v5.0 — Con aree impianto e componenti
+ * AdminMachines v6.0 — Premium area view con quick actions
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { db } from '../../lib/supabase'
 import { Button, EmptyState, Spinner } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
@@ -17,9 +17,9 @@ import ComponentFormModal from './machines/ComponentFormModal'
 import AreaManagerModal from './machines/AreaManagerModal'
 import QRCode from 'qrcode'
 import {
-  Plus, Edit, FileText, Cog, Search,
-  GripVertical, ArrowUpDown, Check, ArrowUp, ArrowDown,
-  QrCode, ChevronRight, MapPin, ChevronDown
+  Plus, Edit, FileText, Cog, Search, Package,
+  ArrowUp, ArrowDown, ChevronRight, MapPin, ChevronDown,
+  QrCode, AlertTriangle, Activity, MoveRight
 } from 'lucide-react'
 
 export default function AdminMachines() {
@@ -70,16 +70,21 @@ export default function AdminMachines() {
   const [editingComponent, setEditingComponent] = useState(null)
   const [componentForm, setComponentForm] = useState({ name: '', type: '', manufacturer: '', model: '', serial_number: '', year: '', notes: '' })
 
-  // Reorder
-  const [reorderMode, setReorderMode] = useState(false)
-  const [dragIndex, setDragIndex] = useState(null)
-  const [overIndex, setOverIndex] = useState(null)
-  const [saving, setSaving] = useState(false)
+  // Components cache per machine (for card preview)
+  const [machineComponents, setMachineComponents] = useState({})
+  const [moveMenuId, setMoveMenuId] = useState(null)
 
   const load = async () => {
     setLoading(true)
     const [m, r, u, a] = await Promise.all([db.getMachines(), db.getReports(), db.getUsers(), db.getAreas()])
-    setMachines(m); setReports(r); setUsers(u); setAreas(a); setLoading(false)
+    setMachines(m); setReports(r); setUsers(u); setAreas(a)
+    // Preload components for all machines (for card preview)
+    const comps = {}
+    await Promise.all(m.map(async (machine) => {
+      try { comps[machine.id] = await db.getMachineComponents(machine.id) } catch { comps[machine.id] = [] }
+    }))
+    setMachineComponents(comps)
+    setLoading(false)
   }
   useEffect(() => { load() }, [])
 
@@ -257,195 +262,272 @@ export default function AdminMachines() {
 
   const toggleArea = (areaId) => setCollapsedAreas(prev => ({ ...prev, [areaId]: !prev[areaId] }))
 
-  // ── Drag & drop machines between areas ──
-  const dragRef = useRef({ machine: null, didDrop: false })
-  const [dropTargetArea, setDropTargetArea] = useState(null)
-  const [draggingId, setDraggingId] = useState(null)
-
-  const onCardDragStart = (e, machine) => {
-    dragRef.current = { machine, didDrop: false }
-    setDraggingId(machine.id)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', machine.id)
-    e.stopPropagation()
-  }
-  const onCardDragEnd = () => {
-    setDraggingId(null)
-    setDropTargetArea(null)
-    // Block click for 300ms after drag
-    const ref = dragRef.current
-    setTimeout(() => { ref.machine = null; ref.didDrop = false }, 300)
-  }
-  const onHeaderDragOver = (e, areaId) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    if (dropTargetArea !== areaId) setDropTargetArea(areaId)
-  }
-  const onHeaderDragLeave = (e, areaId) => {
-    // Only clear if actually leaving the header (not entering a child)
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-      setDropTargetArea(prev => prev === areaId ? null : prev)
-    }
-  }
-  const onHeaderDrop = async (e, targetAreaId) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDropTargetArea(null)
-    const machine = dragRef.current.machine
-    if (!machine) return
-    dragRef.current.didDrop = true
-    const newAreaId = targetAreaId === '__unassigned' ? null : targetAreaId
+  // ── Quick actions: move to area ──
+  const moveMachineToArea = async (machine, targetAreaId) => {
+    setMoveMenuId(null)
+    const newAreaId = targetAreaId || null
     if ((machine.area_id || null) === newAreaId) return
     try {
       await db.updateMachine(machine.id, { area_id: newAreaId })
       setMachines(prev => prev.map(m => m.id === machine.id ? { ...m, area_id: newAreaId } : m))
       const areaName = newAreaId ? areas.find(a => a.id === newAreaId)?.name : 'Non assegnate'
-      toast.success(`${machine.name} spostato in ${areaName}`)
+      toast.success(`${machine.name} → ${areaName}`)
     } catch { toast.error('Errore spostamento') }
   }
-  const onCardClick = (m) => {
-    // Skip if just finished dragging
-    if (dragRef.current.machine || dragRef.current.didDrop) return
-    openDetail(m)
+
+  // ── Quick actions: reorder within area ──
+  const reorderInArea = async (machine, direction) => {
+    const areaId = machine.area_id || null
+    const areaMachines = machines.filter(m => (m.area_id || null) === areaId).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    const idx = areaMachines.findIndex(m => m.id === machine.id)
+    const targetIdx = idx + direction
+    if (targetIdx < 0 || targetIdx >= areaMachines.length) return
+    // Swap sort_order
+    const a = areaMachines[idx]
+    const b = areaMachines[targetIdx]
+    const orderA = a.sort_order ?? idx
+    const orderB = b.sort_order ?? targetIdx
+    try {
+      await Promise.all([
+        db.updateMachine(a.id, { sort_order: orderB }),
+        db.updateMachine(b.id, { sort_order: orderA }),
+      ])
+      setMachines(prev => prev.map(m => {
+        if (m.id === a.id) return { ...m, sort_order: orderB }
+        if (m.id === b.id) return { ...m, sort_order: orderA }
+        return m
+      }))
+    } catch { toast.error('Errore riordino') }
   }
 
   // ── Grouped machines ──
-  const groupedMachines = useMemo(() => {
-    const f = machines.filter(m => !search || m.name?.toLowerCase().includes(search.toLowerCase()) || m.department?.toLowerCase().includes(search.toLowerCase()))
-    const groups = []
-    for (const area of areas) {
-      const areaMs = f.filter(m => m.area_id === area.id)
-      if (areaMs.length > 0 || !search) groups.push({ area, machines: areaMs })
-    }
-    const unassigned = f.filter(m => !m.area_id || !areas.find(a => a.id === m.area_id))
-    if (unassigned.length > 0 || (!search && areas.length > 0)) {
-      groups.push({ area: null, machines: unassigned })
-    }
-    return groups
-  }, [machines, areas, search])
-
-  // ── Drag ──
-  const handleDragStart = useCallback((e, i) => { setDragIndex(i); e.dataTransfer.effectAllowed = 'move' }, [])
-  const handleDragOver = useCallback((e, i) => { e.preventDefault(); setOverIndex(i) }, [])
-  const handleDragLeave = useCallback(() => setOverIndex(null), [])
-  const handleDrop = useCallback((e, di) => { e.preventDefault(); setOverIndex(null); if (dragIndex === null || dragIndex === di) { setDragIndex(null); return }; setMachines(p => { const u = [...p]; const [m] = u.splice(dragIndex, 1); u.splice(di, 0, m); return u }); setDragIndex(null) }, [dragIndex])
-  const handleDragEnd = useCallback(() => { setDragIndex(null); setOverIndex(null) }, [])
-  const moveItem = useCallback((i, d) => { const n = i + d; if (n < 0 || n >= machines.length) return; setMachines(p => { const u = [...p]; const [m] = u.splice(i, 1); u.splice(n, 0, m); return u }) }, [machines.length])
-  const saveOrder = async () => { setSaving(true); try { await db.reorderMachines(machines.map(m => m.id)); toast.success('Ordine salvato!'); setReorderMode(false) } catch { toast.error('Errore') }; setSaving(false) }
-
   const filtered = machines.filter(m => !search || m.name?.toLowerCase().includes(search.toLowerCase()) || m.department?.toLowerCase().includes(search.toLowerCase()))
   const getReportsForMachine = (name) => reports.filter(r => r.machine === name)
   const hasAreas = areas.length > 0
 
-  return (
-    <div className="space-y-5 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {!reorderMode ? (
-          <>
-            <div className="relative flex-1 min-w-[200px]">
-              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
-              <input type="text" placeholder="Cerca macchinari..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50" />
+  const groupedMachines = useMemo(() => {
+    const f = filtered
+    const groups = []
+    for (const area of areas) {
+      const areaMs = f.filter(m => m.area_id === area.id).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      if (areaMs.length > 0 || !search) groups.push({ area, machines: areaMs })
+    }
+    const unassigned = f.filter(m => !m.area_id || !areas.find(a => a.id === m.area_id)).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    if (unassigned.length > 0 || (!search && areas.length > 0)) {
+      groups.push({ area: null, machines: unassigned })
+    }
+    return groups
+  }, [filtered, areas, search])
+
+  // ── Health score helper ──
+  const getHealthColor = (activeCount, criticalCount) => {
+    if (criticalCount > 0) return '#ef4444'
+    if (activeCount > 2) return '#f59e0b'
+    if (activeCount > 0) return '#ffaa2c'
+    return '#22c55e'
+  }
+  const getHealthPercent = (activeCount) => Math.max(0, 100 - activeCount * 20)
+
+  // ── Premium Machine Card ──
+  const MachineCard = ({ m, idx, totalInArea }) => {
+    const activeReports = getReportsForMachine(m.name).filter(r => r.status !== 'risolta')
+    const active = activeReports.length
+    const critical = activeReports.filter(r => r.severity === 'critica' || r.severity === 'alta').length
+    const healthColor = getHealthColor(active, critical)
+    const healthPct = getHealthPercent(active)
+    const comps = machineComponents[m.id] || []
+    const isMoving = moveMenuId === m.id
+
+    return (
+      <div className="card-elevated card-3d rounded-2xl overflow-hidden group cursor-pointer relative"
+        onClick={() => { if (!isMoving) openDetail(m) }}>
+
+        {/* ── Health bar top ── */}
+        <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${healthColor} ${healthPct}%, var(--color-surface-3) ${healthPct}%)` }} />
+
+        <div className="p-5">
+          {/* ── Header: photo + name + actions ── */}
+          <div className="flex items-start gap-3 mb-3">
+            {m.photo_url ? (
+              <div className="w-12 h-12 rounded-xl overflow-hidden border border-token shrink-0 shadow-md">
+                <img src={m.photo_url} alt="" className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${healthColor}15` }}>
+                <Cog size={22} style={{ color: healthColor }} />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-themed truncate">{m.name}</h3>
+              {(m.manufacturer || m.model) && (
+                <p className="text-[11px] text-faint truncate">{[m.manufacturer, m.model].filter(Boolean).join(' — ')}</p>
+              )}
+              {m.department && <p className="text-[10px] text-faint/60 mt-0.5">{m.department}</p>}
             </div>
-            <p className="text-sm text-faint shrink-0">{filtered.length} macchinari</p>
-            <Button variant="outline" onClick={() => setShowAreaManager(true)}><MapPin size={16} /> Aree</Button>
-            {machines.length >= 2 && !hasAreas && <Button variant="outline" onClick={() => { setReorderMode(true); setSearch('') }}><ArrowUpDown size={16} /> Ordina</Button>}
-            <Button onClick={openNew}><Plus size={18} /> Nuovo</Button>
-          </>
-        ) : (
-          <>
-            <div className="flex-1"><h3 className="text-base font-bold text-themed">Ordina Catena</h3><p className="text-sm text-faint">Trascina o usa frecce</p></div>
-            <Button variant="outline" onClick={() => { setReorderMode(false); load() }}>Annulla</Button>
-            <Button onClick={saveOrder} disabled={saving}><Check size={18} /> Salva</Button>
-          </>
-        )}
+            {/* Status indicator */}
+            <div className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ background: healthColor, boxShadow: `0 0 8px ${healthColor}50` }} />
+          </div>
+
+          {/* ── Components chips ── */}
+          {comps.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {comps.slice(0, 4).map(c => (
+                <span key={c.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-cyan-500/8 text-cyan-400/80 border border-cyan-500/10">
+                  <Package size={9} /> {c.name}
+                </span>
+              ))}
+              {comps.length > 4 && (
+                <span className="inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-medium bg-surface-2 text-faint">
+                  +{comps.length - 4}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* ── Status row ── */}
+          <div className="flex items-center gap-2 mb-3">
+            {active === 0 ? (
+              <span className="text-[11px] font-medium text-emerald-400/80 bg-emerald-500/8 px-2 py-0.5 rounded-md flex items-center gap-1">
+                <Activity size={10} /> Operativo
+              </span>
+            ) : (
+              <>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 flex items-center gap-1">
+                  <AlertTriangle size={10} /> {active} segnalaz.
+                </span>
+                {critical > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-400">
+                    {critical} critiche
+                  </span>
+                )}
+              </>
+            )}
+            {m.attachments?.length > 0 && (
+              <span className="text-[10px] text-faint flex items-center gap-0.5 ml-auto"><FileText size={9} /> {m.attachments.length}</span>
+            )}
+          </div>
+
+          {/* ── Quick Actions Bar (visible on hover) ── */}
+          <div className="flex items-center gap-1 pt-2.5 border-t border-token/20 opacity-0 group-hover:opacity-100 transition-all duration-200">
+            {/* Reorder */}
+            {hasAreas && totalInArea > 1 && (
+              <div className="flex gap-0.5 mr-1">
+                <button onClick={e => { e.stopPropagation(); reorderInArea(m, -1) }} disabled={idx === 0}
+                  className="p-1.5 rounded-lg text-faint hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all" title="Sposta su">
+                  <ArrowUp size={13} />
+                </button>
+                <button onClick={e => { e.stopPropagation(); reorderInArea(m, 1) }} disabled={idx === totalInArea - 1}
+                  className="p-1.5 rounded-lg text-faint hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all" title="Sposta giù">
+                  <ArrowDown size={13} />
+                </button>
+              </div>
+            )}
+            {/* Move to area */}
+            {hasAreas && (
+              <div className="relative">
+                <button onClick={e => { e.stopPropagation(); setMoveMenuId(isMoving ? null : m.id) }}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium text-faint hover:text-violet-400 hover:bg-violet-500/10 transition-all">
+                  <MoveRight size={12} /> Sposta
+                </button>
+                {isMoving && (
+                  <div className="absolute bottom-full left-0 mb-1 bg-surface-1 border border-token rounded-xl shadow-xl py-1.5 min-w-[160px] z-50 animate-fade-in"
+                    onClick={e => e.stopPropagation()}>
+                    {areas.filter(a => a.id !== m.area_id).map(a => (
+                      <button key={a.id} onClick={() => moveMachineToArea(m, a.id)}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-secondary hover:bg-surface-2 transition-colors text-left">
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ background: a.color }} />
+                        {a.name}
+                      </button>
+                    ))}
+                    {m.area_id && (
+                      <button onClick={() => moveMachineToArea(m, null)}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-faint hover:bg-surface-2 transition-colors text-left border-t border-token/30 mt-1 pt-2">
+                        <div className="w-3 h-3 rounded-full shrink-0 bg-gray-500" />
+                        Non assegnata
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Edit & QR */}
+            <div className="flex gap-0.5 ml-auto">
+              <button onClick={e => { e.stopPropagation(); openEdit(m) }} className="p-1.5 rounded-lg text-faint hover:text-white hover:bg-white/10 transition-all" title="Modifica">
+                <Edit size={13} />
+              </button>
+              <button onClick={e => { e.stopPropagation(); downloadQR(m) }} className="p-1.5 rounded-lg text-faint hover:text-violet-400 hover:bg-violet-500/10 transition-all" title="QR Code">
+                <QrCode size={13} />
+              </button>
+              <button onClick={e => { e.stopPropagation(); openDetail(m) }} className="p-1.5 rounded-lg text-faint hover:text-violet-400 hover:bg-violet-500/10 transition-all" title="Apri scheda">
+                <ChevronRight size={13} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5 animate-fade-in" onClick={() => setMoveMenuId(null)}>
+      {/* ═══ Header ═══ */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
+          <input type="text" placeholder="Cerca macchinari..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50" />
+        </div>
+        <p className="text-sm text-faint shrink-0">{filtered.length} macchinari</p>
+        <Button variant="outline" onClick={() => setShowAreaManager(true)}><MapPin size={16} /> Aree</Button>
+        <Button onClick={openNew}><Plus size={18} /> Nuovo</Button>
       </div>
 
       {loading ? <Spinner /> : machines.length === 0 ? (
         <EmptyState icon="⚙️" title="Nessun macchinario" subtitle="Aggiungi i macchinari" />
-      ) : reorderMode ? (
-        <div className="space-y-1">
-          {machines.map((m, i) => (
-            <div key={m.id} draggable onDragStart={e => handleDragStart(e, i)} onDragOver={e => handleDragOver(e, i)} onDragLeave={handleDragLeave} onDrop={e => handleDrop(e, i)} onDragEnd={handleDragEnd}
-              className={`flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all select-none cursor-grab ${dragIndex === i ? 'opacity-30' : overIndex === i ? 'border-amber-400/60 bg-amber-500/10' : 'bg-surface-1/80 border-token'}`}>
-              <GripVertical size={20} className="text-faint" />
-              <span className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-sm font-bold text-amber-400">{i + 1}</span>
-              <Cog size={18} className="text-violet-400" />
-              <div className="flex-1 min-w-0"><h3 className="text-sm font-bold text-white truncate">{m.name}</h3></div>
-              <div className="flex flex-col gap-0.5">
-                <button onClick={e => { e.stopPropagation(); moveItem(i, -1) }} disabled={i === 0} className="p-1.5 rounded-lg text-faint hover:text-white disabled:cursor-not-allowed"><ArrowUp size={14} /></button>
-                <button onClick={e => { e.stopPropagation(); moveItem(i, 1) }} disabled={i === machines.length - 1} className="p-1.5 rounded-lg text-faint hover:text-white disabled:cursor-not-allowed"><ArrowDown size={14} /></button>
-              </div>
-            </div>
-          ))}
-        </div>
       ) : hasAreas ? (
-        /* ═══ GROUPED BY AREA ═══ */
-        <div className="space-y-6">
+        /* ═══ GROUPED BY AREA — PREMIUM ═══ */
+        <div className="space-y-8">
           {groupedMachines.map(({ area, machines: areaMachines }) => {
             const areaId = area?.id || '__unassigned'
             const isCollapsed = collapsedAreas[areaId]
             const areaColor = area?.color || '#6b7280'
+            const areaActive = areaMachines.reduce((sum, m) => sum + getReportsForMachine(m.name).filter(r => r.status !== 'risolta').length, 0)
             return (
-              <div key={areaId} className="animate-fade-in">
-                {/* Area header — DROP TARGET */}
-                <div
-                  onDragOver={e => onHeaderDragOver(e, areaId)}
-                  onDragLeave={e => onHeaderDragLeave(e, areaId)}
-                  onDrop={e => onHeaderDrop(e, areaId)}
-                  onClick={() => { if (!draggingId) toggleArea(areaId) }}
-                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all duration-200 mb-3 cursor-pointer ${dropTargetArea === areaId ? 'bg-violet-500/15 border-violet-500/50 ring-2 ring-violet-500/30 shadow-lg shadow-violet-500/10' : 'bg-surface-1 border-token/50 hover:border-token'}`}>
-                  <div className="w-4 h-4 rounded-full shrink-0" style={{ background: areaColor, boxShadow: `0 0 8px ${areaColor}40` }} />
-                  <span className="text-sm font-bold text-themed flex-1 text-left">
-                    {area?.name || 'Non assegnate'}
-                  </span>
-                  {dropTargetArea === areaId
-                    ? <span className="text-xs text-violet-400 font-bold animate-pulse">Rilascia qui</span>
-                    : <span className="text-xs text-faint">{areaMachines.length} macchinar{areaMachines.length === 1 ? 'io' : 'i'}</span>
-                  }
-                  <ChevronDown size={16} className={`text-faint transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                </div>
+              <div key={areaId}>
+                {/* ── Area Header Premium ── */}
+                <button onClick={() => toggleArea(areaId)}
+                  className="flex items-center gap-4 w-full px-5 py-4 rounded-2xl border border-token/30 hover:border-token/60 transition-all duration-300 mb-4 group/area"
+                  style={{ background: `linear-gradient(135deg, ${areaColor}08, transparent 60%)` }}>
+                  <div className="w-5 h-5 rounded-full shrink-0 ring-2 ring-white/10" style={{ background: areaColor, boxShadow: `0 0 16px ${areaColor}40` }} />
+                  <div className="flex-1 text-left">
+                    <span className="text-base font-bold text-themed">{area?.name || 'Non assegnate'}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-medium text-faint bg-surface-2 px-2.5 py-1 rounded-lg">
+                      {areaMachines.length} macchinar{areaMachines.length === 1 ? 'io' : 'i'}
+                    </span>
+                    {areaActive > 0 && (
+                      <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-amber-500/10 text-amber-400">
+                        {areaActive} segnalaz.
+                      </span>
+                    )}
+                    <ChevronDown size={18} className={`text-faint transition-transform duration-300 ${isCollapsed ? '-rotate-90' : ''}`} />
+                  </div>
+                </button>
 
-                {/* Machines grid */}
+                {/* ── Machines Grid ── */}
                 {!isCollapsed && (
                   areaMachines.length === 0 ? (
-                    <div onDragOver={e => onHeaderDragOver(e, areaId)} onDragLeave={e => onHeaderDragLeave(e, areaId)} onDrop={e => onHeaderDrop(e, areaId)}
-                      className={`text-xs text-faint text-center py-8 rounded-xl border border-dashed transition-all duration-200 ${dropTargetArea === areaId ? 'border-violet-500/50 bg-violet-500/5 text-violet-400' : 'border-token/30'}`}>
-                      {dropTargetArea === areaId ? 'Rilascia qui per spostare' : 'Nessun macchinario in quest\'area'}
+                    <div className="text-center py-10 rounded-xl border border-dashed border-token/20">
+                      <Cog size={32} className="mx-auto text-faint/20 mb-2" />
+                      <p className="text-xs text-faint">Nessun macchinario in quest'area</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pl-2" style={{ borderLeft: `3px solid ${areaColor}30` }}>
-                      {areaMachines.map((m) => {
-                        const active = getReportsForMachine(m.name).filter(r => r.status !== 'risolta').length
-                        const isDragging = draggingId === m.id
-                        return (
-                          <div key={m.id} draggable onDragStart={e => onCardDragStart(e, m)} onDragEnd={onCardDragEnd}
-                            onClick={() => onCardClick(m)}
-                            className={`card-elevated rounded-2xl p-5 hover:border-violet-500/30 transition-all group ${isDragging ? 'opacity-20 scale-95' : 'cursor-pointer'}`}>
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-3">
-                                <div className="cursor-grab active:cursor-grabbing shrink-0">
-                                  <GripVertical size={16} className="text-faint/40 group-hover:text-faint transition-opacity" />
-                                </div>
-                                {m.photo_url ? <div className="w-11 h-11 rounded-xl overflow-hidden border border-token shrink-0"><img src={m.photo_url} alt="" className="w-full h-full object-cover" /></div>
-                                  : <div className="w-11 h-11 bg-violet-600/15 rounded-xl flex items-center justify-center shrink-0"><Cog size={20} className="text-violet-400" /></div>}
-                                <div><h3 className="text-sm font-bold text-themed">{m.name}</h3>{m.department && <p className="text-xs text-faint">{m.department}</p>}</div>
-                              </div>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={e => { e.stopPropagation(); openEdit(m) }} className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-white"><Edit size={14} /></button>
-                                <button onClick={e => { e.stopPropagation(); downloadQR(m) }} className="p-1.5 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400"><QrCode size={14} /></button>
-                              </div>
-                            </div>
-                            {(m.manufacturer || m.model) && <p className="text-xs text-muted mb-2">{[m.manufacturer, m.model].filter(Boolean).join(' — ')}</p>}
-                            <div className="flex items-center gap-3 pt-2.5 border-t border-token/30">
-                              {m.attachments?.length > 0 && <span className="text-xs text-faint flex items-center gap-1"><FileText size={11} /> {m.attachments.length}</span>}
-                              {active > 0 && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">{active} segnalaz.</span>}
-                              <span className="ml-auto text-xs text-violet-400 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">Scheda <ChevronRight size={12} /></span>
-                            </div>
-                          </div>
-                        )
-                      })}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger-enter"
+                      style={{ paddingLeft: 8, borderLeft: `3px solid ${areaColor}20` }}>
+                      {areaMachines.map((m, idx) => (
+                        <MachineCard key={m.id} m={m} idx={idx} totalInArea={areaMachines.length}  />
+                      ))}
                     </div>
                   )
                 )}
@@ -455,32 +537,10 @@ export default function AdminMachines() {
         </div>
       ) : (
         /* ═══ FLAT VIEW (no areas) ═══ */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {filtered.map((m, i) => {
-            const active = getReportsForMachine(m.name).filter(r => r.status !== 'risolta').length
-            return (
-              <div key={m.id} onClick={() => openDetail(m)} className="card-elevated rounded-2xl p-6 hover:border-violet-500/30 transition-all group relative cursor-pointer">
-                <div className="absolute top-3 left-3 w-6 h-6 rounded-md bg-amber-500/15 flex items-center justify-center"><span className="text-[11px] font-bold text-amber-400">{m.sort_order || i + 1}</span></div>
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3 pl-6">
-                    {m.photo_url ? <div className="w-12 h-12 rounded-xl overflow-hidden border border-token shrink-0"><img src={m.photo_url} alt="" className="w-full h-full object-cover" /></div>
-                      : <div className="w-12 h-12 bg-violet-600/15 rounded-xl flex items-center justify-center shrink-0"><Cog size={22} className="text-violet-400" /></div>}
-                    <div><h3 className="text-base font-bold text-themed">{m.name}</h3>{m.department && <p className="text-sm text-faint">{m.department}</p>}</div>
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={e => { e.stopPropagation(); openEdit(m) }} className="p-2 rounded-lg hover:bg-white/10 text-muted hover:text-white"><Edit size={15} /></button>
-                    <button onClick={e => { e.stopPropagation(); downloadQR(m) }} className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400"><QrCode size={15} /></button>
-                  </div>
-                </div>
-                {(m.manufacturer || m.model) && <p className="text-sm text-muted mb-2 pl-6">{[m.manufacturer, m.model].filter(Boolean).join(' — ')}</p>}
-                <div className="flex items-center gap-3 pt-3 border-t border-token/30">
-                  {m.attachments?.length > 0 && <span className="text-xs text-faint flex items-center gap-1"><FileText size={12} /> {m.attachments.length}</span>}
-                  {active > 0 && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">{active} segnalaz.</span>}
-                  <span className="ml-auto text-xs text-violet-400 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">Scheda <ChevronRight size={12} /></span>
-                </div>
-              </div>
-            )
-          })}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 stagger-enter">
+          {filtered.map((m, i) => (
+            <MachineCard key={m.id} m={m} idx={i} totalInArea={filtered.length} areaId={null} />
+          ))}
         </div>
       )}
 
