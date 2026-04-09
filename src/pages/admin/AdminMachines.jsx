@@ -132,18 +132,54 @@ export default function AdminMachines() {
   }
 
   // ── Machine CRUD ──
-  const openNew = () => { setEditing(null); setForm({ name: '', department: '', description: '', notes: '', model: '', serial_number: '', manufacturer: '', year: '', area_id: '' }); setAttachments([]); setPhotoUrl(''); setShowForm(true) }
-  const openEdit = (m) => { setEditing(m); setForm({ name: m.name, department: m.department||'', description: m.description||'', notes: m.notes||'', model: m.model||'', serial_number: m.serial_number||'', manufacturer: m.manufacturer||'', year: m.year||'', area_id: m.area_id||'' }); setAttachments(m.attachments||[]); setPhotoUrl(m.photo_url||''); setShowForm(true); setSel(null) }
+  const openNew = () => { setEditing(null); setForm({ name: '', department: '', description: '', notes: '', model: '', serial_number: '', manufacturer: '', year: '', area_id: '', usage_instructions: '', maintenance_instructions: '' }); setAttachments([]); setPhotoUrl(''); setShowForm(true) }
+  const openEdit = (m) => { setEditing(m); setForm({ name: m.name, department: m.department||'', description: m.description||'', notes: m.notes||'', model: m.model||'', serial_number: m.serial_number||'', manufacturer: m.manufacturer||'', year: m.year||'', area_id: m.area_id||'', usage_instructions: m.usage_instructions||'', maintenance_instructions: m.maintenance_instructions||'' }); setAttachments(m.attachments||[]); setPhotoUrl(m.photo_url||''); setShowForm(true); setSel(null) }
 
   const uploadPhoto = () => {
     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'
-    input.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { const url = await db.uploadFile('machines', `photo-${Date.now()}-${f.name}`, f); setPhotoUrl(url); toast.success('Foto caricata') } catch { toast.error('Errore upload') } }
+    input.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { const url = await db.uploadFile('attachments', `photo-${Date.now()}`, f); setPhotoUrl(url); toast.success('Foto caricata') } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) } }
     input.click()
   }
-  const addAttachment = (type) => {
-    const input = document.createElement('input'); input.type = 'file'; input.accept = type === 'pdf' ? '.pdf' : 'video/*'
-    input.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; const url = await db.uploadFile('machines', `${Date.now()}-${f.name}`, f); setAttachments(a => [...a, { type, name: f.name, url }]) }
+  const addAttachment = (type, category = null) => {
+    const accept = type === 'pdf' ? '.pdf' : type === 'image' ? 'image/*' : 'video/*'
+    const input = document.createElement('input'); input.type = 'file'; input.accept = accept
+    input.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { const url = await db.uploadFile('attachments', `${Date.now()}`, f); setAttachments(a => [...a, { type, category: category || type, name: f.name, url }]); toast.success('File caricato') } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) } }
     input.click()
+  }
+
+  // ── Inline doc updates from detail sheet ──
+  const updateMachineField = async (field, value) => {
+    if (!sel) return
+    try {
+      const updated = await db.updateMachine(sel.id, { [field]: value })
+      setSel(prev => ({ ...prev, ...updated }))
+      toast.success('Salvato')
+    } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
+  }
+
+  const uploadToMachine = (type, category) => {
+    const accept = type === 'image' ? 'image/*' : '.pdf'
+    const input = document.createElement('input'); input.type = 'file'; input.accept = accept
+    input.onchange = async (e) => {
+      const f = e.target.files[0]; if (!f || !sel) return
+      try {
+        const url = await db.uploadFile('attachments', `${sel.id}/${category}-${Date.now()}`, f)
+        const newAttachments = [...(sel.attachments || []), { type, category, name: f.name, url }]
+        const updated = await db.updateMachine(sel.id, { attachments: newAttachments })
+        setSel(prev => ({ ...prev, ...updated }))
+        toast.success('File caricato')
+      } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) }
+    }
+    input.click()
+  }
+
+  const removeAttachment = async (index) => {
+    if (!sel) return
+    const newAttachments = (sel.attachments || []).filter((_, i) => i !== index)
+    try {
+      const updated = await db.updateMachine(sel.id, { attachments: newAttachments })
+      setSel(prev => ({ ...prev, ...updated }))
+    } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
   }
 
   const saveMachine = async () => {
@@ -565,6 +601,7 @@ export default function AdminMachines() {
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
           onOpenLogForm={openLogForm} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
+          onUploadToMachine={uploadToMachine} onRemoveAttachment={removeAttachment} onSaveField={updateMachineField}
         />
       )}
 
