@@ -196,61 +196,52 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   const okPlans = plans.filter(p => !getTrafficLight(p, planLastLogs[p.id]).urgent)
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-base pb-[22vw]">
+    <div className="min-h-screen min-h-[100dvh] bg-base pb-[25vw]">
       {/* ═══ Header ═══ */}
-      <header className="header-page flex items-center gap-[2vw] px-[3vw] py-[2.5vw]">
-        <button onClick={onBack} className="w-[12vw] h-[12vw] max-w-12 max-h-12 rounded-xl flex items-center justify-center active:bg-white/10 text-muted press-scale">
-          <ArrowLeft size={24} />
+      <header className="header-page flex items-center gap-[3vw] px-[4vw] py-[3vw]">
+        <button onClick={onBack} className="w-[14vw] h-[14vw] max-w-14 max-h-14 rounded-2xl flex items-center justify-center bg-surface-2 active:bg-white/10 text-muted press-scale">
+          <ArrowLeft size={26} />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-themed truncate">{machine.name}</h1>
-          {machine.department && <p className="text-sm text-faint">{machine.department}</p>}
+          <h1 className="text-xl font-bold text-themed truncate">{machine.name}</h1>
+          {machine.department && <p className="text-base text-faint mt-0.5">{machine.department}</p>}
         </div>
         {onDelete && (
-          <button onClick={onDelete} className="press-scale"
-            style={{
-              width: 40, height: 40, borderRadius: 12,
-              background: '#ef444415', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-            <Trash2 size={18} style={{ color: '#ef4444' }} />
+          <button onClick={onDelete} className="w-[14vw] h-[14vw] max-w-14 max-h-14 rounded-2xl bg-red-500/10 flex items-center justify-center press-scale">
+            <Trash2 size={22} style={{ color: '#ef4444' }} />
           </button>
         )}
       </header>
 
-      <div className="px-[4vw] py-[4vw] space-y-[5vw] animate-fade-in">
+      <div className="px-[4vw] py-[3vw] space-y-[5vw] animate-fade-in">
 
-        {/* ═══ HERO — Photo + Quick Data ═══ */}
+        {/* ═══ HERO — Photo ═══ */}
         {machine.photo_url && (
-          <div className="rounded-2xl overflow-hidden border border-token aspect-video shadow-lg">
+          <div className="rounded-3xl overflow-hidden border border-token aspect-video shadow-lg">
             <img src={machine.photo_url} alt={machine.name} className="w-full h-full object-cover" />
           </div>
         )}
 
-        {/* Technical data cards */}
+        {/* ═══ SCHEDA TECNICA — Full-width cards ═══ */}
         {(machine.manufacturer || machine.model || machine.serial_number || machine.year) && (
-          <div className="grid grid-cols-2 gap-[2.5vw]">
+          <div className="grid grid-cols-2 gap-[3vw]">
             {[
               { icon: Factory, label: 'Costruttore', value: machine.manufacturer, color: '#7c6aff' },
               { icon: Cog, label: 'Modello', value: machine.model, color: '#8b5cf6' },
               { icon: Hash, label: 'Matricola', value: machine.serial_number, color: '#06b6d4' },
               { icon: Calendar, label: 'Anno', value: machine.year, color: '#f59e0b' },
-            ].filter(f => f.value).map(({ icon: Icon, label, value, color }) => (
-              <div key={label} className="card-elevated rounded-2xl p-[3.5vw]">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: color + '15' }}>
-                    <Icon size={14} style={{ color }} />
+            ].filter(f => f.value).map(({ icon: Ic, label, value, color }) => (
+              <div key={label} className="card-elevated rounded-2xl p-[4vw]">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: color + '15' }}>
+                    <Ic size={18} style={{ color }} />
                   </div>
-                  <span className="text-xs text-faint uppercase tracking-wider">{label}</span>
+                  <span className="text-sm text-faint uppercase tracking-wider font-semibold">{label}</span>
                 </div>
-                <p className="text-base font-bold text-themed pl-9">{value}</p>
+                <p className="text-lg font-bold text-themed pl-[46px]">{value}</p>
               </div>
             ))}
           </div>
-        )}
-
-        {machine.description && (
-          <p className="text-base text-secondary leading-relaxed card-elevated rounded-2xl p-[4vw]">{machine.description}</p>
         )}
 
         {/* ═══ HEALTH SCORE ═══ */}
@@ -258,23 +249,23 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
           const colors = { ottimo: '#22c55e', buono: '#7c6aff', attenzione: '#f59e0b', critico: '#ef4444' }
           const color = colors[assessment.status] || '#6b7280'
           return (
-            <div className="card-elevated rounded-2xl p-[4vw]">
-              <div className="flex items-center gap-[4vw]">
-                <div className="relative w-[16vw] h-[16vw] max-w-16 max-h-16 shrink-0">
+            <div className="card-elevated rounded-3xl p-[5vw]">
+              <div className="flex items-center gap-[5vw]">
+                <div className="relative w-[20vw] h-[20vw] max-w-20 max-h-20 shrink-0">
                   <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="3" />
-                    <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: color }} />
+                    <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3.5" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: color, filter: `drop-shadow(0 0 6px ${color}50)` }} />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold text-themed">{assessment.health_score}</span>
+                  <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-themed">{assessment.health_score}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Activity size={16} style={{ color }} />
-                    <span className="text-sm font-bold text-themed">Stato Salute</span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-lg capitalize" style={{ background: color + '18', color }}>{assessment.status}</span>
+                  <div className="flex items-center gap-2.5 mb-1.5">
+                    <Activity size={20} style={{ color }} />
+                    <span className="text-base font-bold text-themed">Stato Salute</span>
                   </div>
+                  <span className="text-sm font-bold px-3 py-1.5 rounded-xl capitalize inline-block" style={{ background: color + '18', color }}>{assessment.status}</span>
                   {assessment.factors?.slice(0, 2).map((f, i) => (
-                    <p key={i} className="text-sm text-faint truncate">{f}</p>
+                    <p key={i} className="text-sm text-faint mt-1 truncate">{f}</p>
                   ))}
                 </div>
               </div>
@@ -282,37 +273,42 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
           )
         })()}
 
+        {/* ═══ Descrizione ═══ */}
+        {machine.description && (
+          <p className="text-base text-secondary leading-relaxed card-elevated rounded-2xl p-[5vw]">{machine.description}</p>
+        )}
+
         {/* ═══ ALERT BANNER — Manutenzioni scadute ═══ */}
         {urgentPlans.length > 0 && (
-          <div className="bg-red-500/10 border-2 border-red-500/20 rounded-2xl p-[4vw]">
-            <div className="flex items-center gap-3 mb-[3vw]">
-              <div className="w-[10vw] h-[10vw] max-w-10 max-h-10 bg-red-500/20 rounded-xl flex items-center justify-center">
-                <AlertTriangle size={20} className="text-red-400" />
+          <div className="rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #ef444415 0%, #dc262615 100%)', border: '2px solid #ef444430' }}>
+            <div className="flex items-center gap-4 px-[5vw] pt-[5vw] pb-[3vw]">
+              <div className="w-14 h-14 bg-red-500/20 rounded-2xl flex items-center justify-center shrink-0">
+                <AlertTriangle size={28} className="text-red-400" />
               </div>
               <div>
-                <p className="text-base font-bold text-red-400">{urgentPlans.length} manutenzioni da fare</p>
-                <p className="text-sm text-red-400/70">Completa gli interventi in scadenza</p>
+                <p className="text-lg font-bold text-red-400">{urgentPlans.length} manutenzioni da fare</p>
+                <p className="text-sm text-red-400/60">Intervieni il prima possibile</p>
               </div>
             </div>
-            <div className="space-y-[2.5vw]">
+            <div className="px-[4vw] pb-[4vw] space-y-[3vw]">
               {urgentPlans.map(plan => {
                 const light = getTrafficLight(plan, planLastLogs[plan.id])
                 return (
-                  <div key={plan.id} className="bg-black/20 rounded-2xl p-[3.5vw]">
-                    <div className="flex items-center gap-[3vw] mb-[2.5vw]">
-                      <div className="w-4 h-4 rounded-full shrink-0" style={{ background: light.color, boxShadow: `0 0 12px ${light.color}50` }} />
+                  <div key={plan.id} className="bg-black/20 rounded-2xl p-[4vw]">
+                    <div className="flex items-center gap-[3.5vw] mb-[3vw]">
+                      <div className="w-5 h-5 rounded-full shrink-0" style={{ background: light.color, boxShadow: `0 0 14px ${light.color}60` }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-base font-bold text-themed">{plan.name}</p>
+                        <p className="text-lg font-bold text-themed">{plan.name}</p>
                         <p className="text-sm text-faint">Ogni {plan.frequency_days}g · <span style={{ color: light.color }}>{light.label}</span></p>
                       </div>
                     </div>
-                    {plan.instructions && <p className="text-sm text-muted mb-[2.5vw] leading-relaxed">{plan.instructions}</p>}
+                    {plan.instructions && <p className="text-sm text-muted mb-[3vw] leading-relaxed">{plan.instructions}</p>}
                     <button
                       onClick={() => { haptic.medium(); setConfirmPlan(plan) }}
-                      className="w-full py-[3.5vw] rounded-2xl text-base font-bold text-themed flex items-center justify-center gap-2 press-scale active:scale-[0.97] transition-all"
-                      style={{ background: '#22c55e', boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}
+                      className="w-full py-[4.5vw] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
+                      style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', boxShadow: '0 6px 20px rgba(34,197,94,0.35)' }}
                     >
-                      <CheckCircle size={20} /> Fatto — Registra Intervento
+                      <CheckCircle size={24} /> Fatto — Registra
                     </button>
                   </div>
                 )
@@ -324,33 +320,31 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         {/* ═══ ACTIVE REPORTS — con "Risolvi e Registra" ═══ */}
         {activeReports.length > 0 && (
           <div>
-            <p className="text-sm text-muted font-bold uppercase tracking-wider mb-[2.5vw] flex items-center gap-1.5">
-              <ClipboardList size={15} /> Segnalazioni Attive ({activeReports.length})
+            <p className="text-sm text-muted font-bold uppercase tracking-wider mb-[3vw] flex items-center gap-2 px-1">
+              <ClipboardList size={17} /> Segnalazioni Attive ({activeReports.length})
             </p>
-            <div className="space-y-[2.5vw]">
+            <div className="space-y-[3vw]">
               {activeReports.map(r => {
                 const sts = STATUS[r.status] || STATUS.aperta
                 const sev = SEVERITY[r.severity] || SEVERITY.media
                 return (
                   <div key={r.id} className="card-elevated rounded-2xl overflow-hidden">
-                    {/* Report info — tappabile per aprire il dettaglio */}
                     <button
                       onClick={() => onViewReport?.(r)}
-                      className="w-full text-left flex items-center gap-[3.5vw] px-[4vw] py-[3.5vw] active:bg-white/[0.03] press-scale"
+                      className="w-full text-left flex items-center gap-[4vw] px-[5vw] py-[4vw] active:bg-white/[0.03] press-scale"
                     >
-                      <div className="w-4 h-4 rounded-full shrink-0" style={{ background: sts.color, boxShadow: `0 0 8px ${sts.color}40` }} />
+                      <div className="w-5 h-5 rounded-full shrink-0" style={{ background: sts.color, boxShadow: `0 0 10px ${sts.color}40` }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-base font-bold text-themed truncate">{r.title}</p>
-                        <p className="text-sm text-faint">{r.created_by_name} · {timeAgo(r.created_at)}</p>
+                        <p className="text-lg font-bold text-themed truncate">{r.title}</p>
+                        <p className="text-sm text-faint mt-0.5">{r.created_by_name} · {timeAgo(r.created_at)}</p>
                       </div>
                       <Badge {...sev} />
                     </button>
-                    {/* Resolve action */}
                     <button
                       onClick={() => { haptic.medium(); setResolveReport(r) }}
-                      className="w-full flex items-center justify-center gap-2 py-[3vw] border-t border-token text-emerald-400 font-bold text-base active:bg-emerald-500/10 press-scale transition-all"
+                      className="w-full flex items-center justify-center gap-2.5 py-[4vw] border-t border-token text-emerald-400 font-bold text-lg active:bg-emerald-500/10 press-scale transition-all"
                     >
-                      <Wrench size={18} /> Risolvi e Registra Intervento
+                      <Wrench size={22} /> Risolvi e Registra
                     </button>
                   </div>
                 )
@@ -362,21 +356,21 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         {/* ═══ MAINTENANCE PLANS — quelli OK ═══ */}
         {okPlans.length > 0 && (
           <div>
-            <p className="text-sm text-muted font-bold uppercase tracking-wider mb-[2.5vw] flex items-center gap-1.5">
-              <Shield size={15} /> Manutenzioni in regola ({okPlans.length})
+            <p className="text-sm text-muted font-bold uppercase tracking-wider mb-[3vw] flex items-center gap-2 px-1">
+              <Shield size={17} /> Manutenzioni in regola ({okPlans.length})
             </p>
-            <div className="space-y-[2.5vw]">
+            <div className="space-y-[3vw]">
               {okPlans.map(plan => {
                 const light = getTrafficLight(plan, planLastLogs[plan.id])
                 return (
-                  <div key={plan.id} className="card-elevated rounded-2xl p-[4vw]">
-                    <div className="flex items-center gap-[3vw]">
-                      <div className="w-4 h-4 rounded-full shrink-0" style={{ background: light.color }} />
+                  <div key={plan.id} className="card-elevated rounded-2xl p-[5vw]">
+                    <div className="flex items-center gap-[4vw]">
+                      <div className="w-5 h-5 rounded-full shrink-0" style={{ background: light.color, boxShadow: `0 0 8px ${light.color}40` }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-base font-bold text-themed">{plan.name}</p>
-                        <p className="text-sm text-faint">Ogni {plan.frequency_days}g · {plan.assigned_to_name || 'Non assegnato'}</p>
+                        <p className="text-lg font-bold text-themed">{plan.name}</p>
+                        <p className="text-sm text-faint mt-0.5">Ogni {plan.frequency_days}g · {plan.assigned_to_name || 'Non assegnato'}</p>
                       </div>
-                      <span className="text-sm font-bold px-3 py-1.5 rounded-xl shrink-0" style={{ background: light.color + '18', color: light.color }}>
+                      <span className="text-sm font-bold px-3.5 py-2 rounded-xl shrink-0" style={{ background: light.color + '18', color: light.color }}>
                         {light.label}
                       </span>
                     </div>
@@ -390,22 +384,22 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         {/* ═══ DOCUMENTS — collapsible ═══ */}
         {machine.attachments?.length > 0 && (
           <div>
-            <button onClick={() => toggle(setShowDocs)} className="w-full flex items-center justify-between py-[2vw] press-scale">
-              <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <FileText size={15} /> Documenti ({machine.attachments.length})
+            <button onClick={() => toggle(setShowDocs)} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
+              <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
+                <FileText size={17} /> Documenti ({machine.attachments.length})
               </p>
-              {showDocs ? <ChevronUp size={20} className="text-faint" /> : <ChevronDown size={20} className="text-faint" />}
+              {showDocs ? <ChevronUp size={24} className="text-faint" /> : <ChevronDown size={24} className="text-faint" />}
             </button>
             {showDocs && (
-              <div className="space-y-[2vw] animate-fade-in">
+              <div className="space-y-[3vw] animate-fade-in">
                 {machine.attachments.map((a, i) => (
                   <a key={i} href={a.url} target="_blank" rel="noopener"
-                    className="flex items-center gap-[3.5vw] card-interactive rounded-2xl px-[4vw] py-[4vw] active:bg-surface-2 press-scale">
-                    <div className={`w-[11vw] h-[11vw] max-w-11 max-h-11 rounded-xl flex items-center justify-center ${a.type === 'pdf' ? 'bg-red-500/15' : 'bg-emerald-500/15'}`}>
-                      {a.type === 'pdf' ? <FileText size={20} className="text-red-400" /> : <Video size={20} className="text-emerald-400" />}
+                    className="flex items-center gap-[4vw] card-interactive rounded-2xl px-[5vw] py-[4.5vw] active:bg-surface-2 press-scale">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${a.type === 'pdf' ? 'bg-red-500/15' : a.type === 'image' ? 'bg-violet-500/15' : 'bg-emerald-500/15'}`}>
+                      {a.type === 'pdf' ? <FileText size={24} className="text-red-400" /> : <Video size={24} className="text-emerald-400" />}
                     </div>
                     <span className="text-base font-medium text-themed flex-1 truncate">{a.name}</span>
-                    <ExternalLink size={18} className="text-faint shrink-0" />
+                    <ExternalLink size={22} className="text-faint shrink-0" />
                   </a>
                 ))}
               </div>
@@ -415,26 +409,26 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
         {/* ═══ LOGS — collapsible ═══ */}
         <div>
-          <button onClick={() => toggle(setShowLogs)} className="w-full flex items-center justify-between py-[2vw] press-scale">
-            <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <Wrench size={15} /> Ultimi Interventi ({logs.length})
+          <button onClick={() => toggle(setShowLogs)} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
+            <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
+              <Wrench size={17} /> Ultimi Interventi ({logs.length})
             </p>
-            {showLogs ? <ChevronUp size={20} className="text-faint" /> : <ChevronDown size={20} className="text-faint" />}
+            {showLogs ? <ChevronUp size={24} className="text-faint" /> : <ChevronDown size={24} className="text-faint" />}
           </button>
           {showLogs && (
-            <div className="space-y-[2.5vw] animate-fade-in">
+            <div className="space-y-[3vw] animate-fade-in">
               {logs.length === 0 ? (
-                <p className="text-sm text-faint text-center py-6">Nessun intervento registrato</p>
+                <p className="text-base text-faint text-center py-8">Nessun intervento registrato</p>
               ) : logs.slice(0, 8).map(log => (
-                <div key={log.id} className="card-elevated rounded-2xl p-[4vw]">
-                  <div className="flex items-start gap-[3vw]">
-                    <div className={`w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center shrink-0 ${log.type === 'programmata' ? 'bg-violet-500/15' : 'bg-amber-500/15'}`}>
-                      {log.type === 'programmata' ? <Shield size={18} className="text-violet-400" /> : <AlertTriangle size={18} className="text-amber-400" />}
+                <div key={log.id} className="card-elevated rounded-2xl p-[5vw]">
+                  <div className="flex items-start gap-[4vw]">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${log.type === 'programmata' ? 'bg-violet-500/15' : 'bg-amber-500/15'}`}>
+                      {log.type === 'programmata' ? <Shield size={22} className="text-violet-400" /> : <AlertTriangle size={22} className="text-amber-400" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-base font-bold text-themed">{log.title}</p>
-                      {log.description && <p className="text-sm text-muted mt-0.5">{log.description}</p>}
-                      <div className="flex items-center gap-3 mt-1 text-sm text-faint flex-wrap">
+                      <p className="text-lg font-bold text-themed">{log.title}</p>
+                      {log.description && <p className="text-sm text-muted mt-1">{log.description}</p>}
+                      <div className="flex items-center gap-3 mt-2 text-sm text-faint flex-wrap">
                         <span>{log.performed_by_name}</span>
                         <span>{timeAgo(log.performed_at)}</span>
                         {log.duration_minutes && <span>⏱ {log.duration_minutes}min</span>}
@@ -451,20 +445,20 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         {/* ═══ RESOLVED REPORTS — collapsible ═══ */}
         {resolvedReports.length > 0 && (
           <div>
-            <button onClick={() => toggle(setShowResolved)} className="w-full flex items-center justify-between py-[2vw] press-scale">
-              <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <CheckCircle size={15} /> Risolte ({resolvedReports.length})
+            <button onClick={() => toggle(setShowResolved)} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
+              <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
+                <CheckCircle size={17} /> Risolte ({resolvedReports.length})
               </p>
-              {showResolved ? <ChevronUp size={20} className="text-faint" /> : <ChevronDown size={20} className="text-faint" />}
+              {showResolved ? <ChevronUp size={24} className="text-faint" /> : <ChevronDown size={24} className="text-faint" />}
             </button>
             {showResolved && (
-              <div className="space-y-[2vw] animate-fade-in">
+              <div className="space-y-[3vw] animate-fade-in">
                 {resolvedReports.slice(0, 5).map(r => (
-                  <div key={r.id} className="flex items-center gap-[3vw] card-elevated rounded-2xl px-[4vw] py-[3vw]">
-                    <CheckCircle size={16} className="text-emerald-400 shrink-0" />
+                  <div key={r.id} className="flex items-center gap-[4vw] card-elevated rounded-2xl px-[5vw] py-[4vw]">
+                    <CheckCircle size={22} className="text-emerald-400 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-secondary truncate">{r.title}</p>
-                      <p className="text-xs text-faint">{timeAgo(r.created_at)}</p>
+                      <p className="text-base font-medium text-secondary truncate">{r.title}</p>
+                      <p className="text-sm text-faint mt-0.5">{timeAgo(r.created_at)}</p>
                     </div>
                   </div>
                 ))}
@@ -475,35 +469,32 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
       </div>
 
       {/* ═══ FAB — Segnala Problema (doppia scelta) ═══ */}
-      <div className="fixed bottom-[4vw] left-[4vw] right-[4vw] z-40 safe-area-bottom flex gap-[3vw]">
-        <button
-          onClick={() => {
-            haptic.medium()
-            if (onQuickReport) onQuickReport(machine.name)
-          }}
-          className="flex-1 py-[3.5vw] rounded-2xl text-base font-bold text-themed flex items-center justify-center gap-2 press-scale active:scale-[0.97] transition-all"
-          style={{
-            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-            boxShadow: '0 4px 20px rgba(245,158,11,0.3)',
-          }}
-        >
-          <Zap size={20} strokeWidth={2.5} />
-          Rapido
-        </button>
-        <button
-          onClick={() => {
-            haptic.medium()
-            if (onNewReport) onNewReport(machine.name)
-          }}
-          className="flex-1 py-[3.5vw] rounded-2xl text-base font-bold text-themed flex items-center justify-center gap-2 press-scale active:scale-[0.97] transition-all"
-          style={{
-            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-            boxShadow: '0 4px 20px rgba(239,68,68,0.3)',
-          }}
-        >
-          <AlertTriangle size={20} strokeWidth={2.5} />
-          Completo
-        </button>
+      <div className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom px-[4vw] pb-[4vw] pt-[3vw]"
+        style={{ background: 'linear-gradient(to top, var(--color-bg) 60%, transparent)' }}>
+        <div className="flex gap-[3.5vw]">
+          <button
+            onClick={() => { haptic.medium(); if (onQuickReport) onQuickReport(machine.name) }}
+            className="flex-1 py-[5vw] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              boxShadow: '0 6px 24px rgba(245,158,11,0.35)',
+            }}
+          >
+            <Zap size={24} strokeWidth={2.5} />
+            Rapido
+          </button>
+          <button
+            onClick={() => { haptic.medium(); if (onNewReport) onNewReport(machine.name) }}
+            className="flex-1 py-[5vw] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
+            style={{
+              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              boxShadow: '0 6px 24px rgba(239,68,68,0.35)',
+            }}
+          >
+            <AlertTriangle size={24} strokeWidth={2.5} />
+            Completo
+          </button>
+        </div>
       </div>
 
       {/* ═══ MODAL — Conferma Manutenzione Programmata ═══ */}
