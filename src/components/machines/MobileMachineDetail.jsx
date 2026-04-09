@@ -213,7 +213,29 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         )}
       </header>
 
-      <div className="px-[4vw] py-[3vw] space-y-[5vw] animate-fade-in">
+      <div className="px-[4vw] py-[3vw] space-y-[4vw] animate-fade-in">
+
+        {/* ═══ IDENTITY STRIP — Always visible, compact ═══ */}
+        {(machine.manufacturer || machine.model || machine.serial_number || machine.year) && (
+          <div className="card-elevated rounded-2xl px-[4vw] py-[3.5vw]">
+            <div className="flex items-center gap-[2.5vw] flex-wrap">
+              {[
+                { icon: Factory, value: machine.manufacturer, color: '#7c6aff' },
+                { icon: Cog, value: machine.model, color: '#8b5cf6' },
+                { icon: Hash, value: machine.serial_number, color: '#06b6d4' },
+                { icon: Calendar, value: machine.year, color: '#f59e0b' },
+              ].filter(f => f.value).map(({ icon: Ic, value, color }, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <Ic size={14} style={{ color }} />
+                  <span className="text-sm font-bold text-themed">{value}</span>
+                  {i < [machine.manufacturer, machine.model, machine.serial_number, machine.year].filter(Boolean).length - 1 && (
+                    <span className="text-faint mx-0.5">·</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ═══ HERO — Photo ═══ */}
         {machine.photo_url && (
@@ -222,51 +244,27 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
           </div>
         )}
 
-        {/* ═══ SCHEDA TECNICA — Full-width cards ═══ */}
-        {(machine.manufacturer || machine.model || machine.serial_number || machine.year) && (
-          <div className="grid grid-cols-2 gap-[3vw]">
-            {[
-              { icon: Factory, label: 'Costruttore', value: machine.manufacturer, color: '#7c6aff' },
-              { icon: Cog, label: 'Modello', value: machine.model, color: '#8b5cf6' },
-              { icon: Hash, label: 'Matricola', value: machine.serial_number, color: '#06b6d4' },
-              { icon: Calendar, label: 'Anno', value: machine.year, color: '#f59e0b' },
-            ].filter(f => f.value).map(({ icon: Ic, label, value, color }) => (
-              <div key={label} className="card-elevated rounded-2xl p-[4vw]">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: color + '15' }}>
-                    <Ic size={18} style={{ color }} />
-                  </div>
-                  <span className="text-sm text-faint uppercase tracking-wider font-semibold">{label}</span>
-                </div>
-                <p className="text-lg font-bold text-themed pl-[46px]">{value}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ═══ HEALTH SCORE ═══ */}
+        {/* ═══ HEALTH SCORE — compact inline ═══ */}
         {assessment && (() => {
           const colors = { ottimo: '#22c55e', buono: '#7c6aff', attenzione: '#f59e0b', critico: '#ef4444' }
           const color = colors[assessment.status] || '#6b7280'
           return (
-            <div className="card-elevated rounded-3xl p-[5vw]">
-              <div className="flex items-center gap-[5vw]">
-                <div className="relative w-[20vw] h-[20vw] max-w-20 max-h-20 shrink-0">
+            <div className="card-elevated rounded-2xl px-[4vw] py-[3.5vw]">
+              <div className="flex items-center gap-[4vw]">
+                <div className="relative w-14 h-14 shrink-0">
                   <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="3" />
-                    <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3.5" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: color, filter: `drop-shadow(0 0 6px ${color}50)` }} />
+                    <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3.5" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: color, filter: `drop-shadow(0 0 4px ${color}50)` }} />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-themed">{assessment.health_score}</span>
+                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold text-themed">{assessment.health_score}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2.5 mb-1.5">
-                    <Activity size={20} style={{ color }} />
-                    <span className="text-base font-bold text-themed">Stato Salute</span>
+                  <div className="flex items-center gap-2">
+                    <Activity size={16} style={{ color }} />
+                    <span className="text-sm font-bold text-themed">Stato Salute</span>
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg capitalize" style={{ background: color + '18', color }}>{assessment.status}</span>
                   </div>
-                  <span className="text-sm font-bold px-3 py-1.5 rounded-xl capitalize inline-block" style={{ background: color + '18', color }}>{assessment.status}</span>
-                  {assessment.factors?.slice(0, 2).map((f, i) => (
-                    <p key={i} className="text-sm text-faint mt-1 truncate">{f}</p>
-                  ))}
+                  {assessment.factors?.[0] && <p className="text-xs text-faint mt-1 truncate">{assessment.factors[0]}</p>}
                 </div>
               </div>
             </div>
@@ -275,40 +273,60 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
         {/* ═══ Descrizione ═══ */}
         {machine.description && (
-          <p className="text-base text-secondary leading-relaxed card-elevated rounded-2xl p-[5vw]">{machine.description}</p>
+          <p className="text-sm text-secondary leading-relaxed card-elevated rounded-2xl px-[4vw] py-[3.5vw]">{machine.description}</p>
+        )}
+
+        {/* ═══ STATUS SUMMARY — Visual overview ═══ */}
+        {(activeReports.length > 0 || urgentPlans.length > 0) && (
+          <div className="flex gap-[2.5vw]">
+            {urgentPlans.length > 0 && (
+              <div className="flex-1 rounded-2xl p-[3.5vw] text-center" style={{ background: '#ef444412', border: '1px solid #ef444425' }}>
+                <p className="text-2xl font-bold text-red-400">{urgentPlans.length}</p>
+                <p className="text-xs text-red-400/70 font-semibold mt-0.5">Manutenzioni scadute</p>
+              </div>
+            )}
+            {activeReports.length > 0 && (
+              <div className="flex-1 rounded-2xl p-[3.5vw] text-center" style={{ background: '#f59e0b12', border: '1px solid #f59e0b25' }}>
+                <p className="text-2xl font-bold text-amber-400">{activeReports.length}</p>
+                <p className="text-xs text-amber-400/70 font-semibold mt-0.5">Segnalazioni attive</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ "Tutto OK" quando nessun problema ═══ */}
+        {activeReports.length === 0 && urgentPlans.length === 0 && !loading && (
+          <div className="rounded-2xl p-[5vw] text-center" style={{ background: '#22c55e10', border: '1px solid #22c55e20' }}>
+            <CheckCircle size={36} className="mx-auto text-emerald-400 mb-2" />
+            <p className="text-lg font-bold text-emerald-400">Tutto in ordine</p>
+            <p className="text-sm text-emerald-400/60 mt-1">Nessuna segnalazione o manutenzione scaduta</p>
+          </div>
         )}
 
         {/* ═══ ALERT BANNER — Manutenzioni scadute ═══ */}
         {urgentPlans.length > 0 && (
-          <div className="rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #ef444415 0%, #dc262615 100%)', border: '2px solid #ef444430' }}>
-            <div className="flex items-center gap-4 px-[5vw] pt-[5vw] pb-[3vw]">
-              <div className="w-14 h-14 bg-red-500/20 rounded-2xl flex items-center justify-center shrink-0">
-                <AlertTriangle size={28} className="text-red-400" />
-              </div>
-              <div>
-                <p className="text-lg font-bold text-red-400">{urgentPlans.length} manutenzioni da fare</p>
-                <p className="text-sm text-red-400/60">Intervieni il prima possibile</p>
-              </div>
-            </div>
-            <div className="px-[4vw] pb-[4vw] space-y-[3vw]">
+          <div>
+            <p className="text-sm text-red-400 font-bold uppercase tracking-wider mb-[2.5vw] flex items-center gap-2 px-1">
+              <AlertTriangle size={15} /> Manutenzioni da fare
+            </p>
+            <div className="space-y-[2.5vw]">
               {urgentPlans.map(plan => {
                 const light = getTrafficLight(plan, planLastLogs[plan.id])
                 return (
-                  <div key={plan.id} className="bg-black/20 rounded-2xl p-[4vw]">
-                    <div className="flex items-center gap-[3.5vw] mb-[3vw]">
-                      <div className="w-5 h-5 rounded-full shrink-0" style={{ background: light.color, boxShadow: `0 0 14px ${light.color}60` }} />
+                  <div key={plan.id} className="rounded-2xl overflow-hidden" style={{ background: '#ef444410', border: '1px solid #ef444420' }}>
+                    <div className="flex items-center gap-[3.5vw] px-[4vw] py-[3.5vw]">
+                      <div className="w-4 h-4 rounded-full shrink-0" style={{ background: light.color, boxShadow: `0 0 12px ${light.color}60` }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-lg font-bold text-themed">{plan.name}</p>
-                        <p className="text-sm text-faint">Ogni {plan.frequency_days}g · <span style={{ color: light.color }}>{light.label}</span></p>
+                        <p className="text-base font-bold text-themed truncate">{plan.name}</p>
+                        <p className="text-xs text-faint">Ogni {plan.frequency_days}g · <span style={{ color: light.color }}>{light.label}</span></p>
                       </div>
                     </div>
-                    {plan.instructions && <p className="text-sm text-muted mb-[3vw] leading-relaxed">{plan.instructions}</p>}
                     <button
                       onClick={() => { haptic.medium(); setConfirmPlan(plan) }}
-                      className="w-full py-[4.5vw] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
-                      style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', boxShadow: '0 6px 20px rgba(34,197,94,0.35)' }}
+                      className="w-full py-[4vw] text-base font-bold text-white flex items-center justify-center gap-2.5 press-scale active:scale-[0.97] transition-all"
+                      style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
                     >
-                      <CheckCircle size={24} /> Fatto — Registra
+                      <CheckCircle size={22} /> Fatto — Registra
                     </button>
                   </div>
                 )
@@ -317,34 +335,47 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
           </div>
         )}
 
-        {/* ═══ ACTIVE REPORTS — con "Risolvi e Registra" ═══ */}
+        {/* ═══ ACTIVE REPORTS — Compact with inline resolve ═══ */}
         {activeReports.length > 0 && (
           <div>
-            <p className="text-sm text-muted font-bold uppercase tracking-wider mb-[3vw] flex items-center gap-2 px-1">
-              <ClipboardList size={17} /> Segnalazioni Attive ({activeReports.length})
-            </p>
-            <div className="space-y-[3vw]">
+            <div className="flex items-center justify-between mb-[2.5vw] px-1">
+              <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
+                <ClipboardList size={15} /> Segnalazioni ({activeReports.length})
+              </p>
+              {/* Severity breakdown chips */}
+              <div className="flex gap-1.5">
+                {['critica', 'alta', 'media', 'bassa'].map(sev => {
+                  const count = activeReports.filter(r => r.severity === sev).length
+                  if (!count) return null
+                  const sv = SEVERITY[sev]
+                  return <span key={sev} className="text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: sv.bg || (sv.color + '18'), color: sv.color }}>{count}</span>
+                })}
+              </div>
+            </div>
+            <div className="space-y-[2vw]">
               {activeReports.map(r => {
                 const sts = STATUS[r.status] || STATUS.aperta
                 const sev = SEVERITY[r.severity] || SEVERITY.media
                 return (
-                  <div key={r.id} className="card-elevated rounded-2xl overflow-hidden">
+                  <div key={r.id} className="card-elevated rounded-2xl flex items-center overflow-hidden">
+                    {/* Report info — tappabile */}
                     <button
                       onClick={() => onViewReport?.(r)}
-                      className="w-full text-left flex items-center gap-[4vw] px-[5vw] py-[4vw] active:bg-white/[0.03] press-scale"
+                      className="flex-1 flex items-center gap-[3vw] px-[4vw] py-[3.5vw] min-w-0 active:bg-white/[0.03] press-scale"
                     >
-                      <div className="w-5 h-5 rounded-full shrink-0" style={{ background: sts.color, boxShadow: `0 0 10px ${sts.color}40` }} />
+                      <div className="w-3.5 h-3.5 rounded-full shrink-0" style={{ background: sts.color, boxShadow: `0 0 8px ${sts.color}40` }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-lg font-bold text-themed truncate">{r.title}</p>
-                        <p className="text-sm text-faint mt-0.5">{r.created_by_name} · {timeAgo(r.created_at)}</p>
+                        <p className="text-base font-bold text-themed truncate">{r.title}</p>
+                        <p className="text-xs text-faint mt-0.5">{r.created_by_name} · {timeAgo(r.created_at)}</p>
                       </div>
                       <Badge {...sev} />
                     </button>
+                    {/* Resolve button — compact inline */}
                     <button
                       onClick={() => { haptic.medium(); setResolveReport(r) }}
-                      className="w-full flex items-center justify-center gap-2.5 py-[4vw] border-t border-token text-emerald-400 font-bold text-lg active:bg-emerald-500/10 press-scale transition-all"
+                      className="w-16 h-full flex items-center justify-center border-l border-token text-emerald-400 active:bg-emerald-500/10 press-scale shrink-0 self-stretch"
                     >
-                      <Wrench size={22} /> Risolvi e Registra
+                      <Wrench size={22} />
                     </button>
                   </div>
                 )
