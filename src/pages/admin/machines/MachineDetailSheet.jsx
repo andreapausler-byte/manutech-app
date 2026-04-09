@@ -7,8 +7,9 @@ import {
   Edit, Trash2, FileText, Video, Cog, X, QrCode, Download, Camera,
   Calendar, Hash, Factory, Building, ClipboardList, ChevronRight,
   Wrench, Shield, Plus, Play, Upload, Activity, LayoutDashboard,
-  AlertTriangle, Clock, Filter, Package
+  AlertTriangle, Clock, Filter, Package, FolderOpen
 } from 'lucide-react'
+import MachineDocumentationTab from './MachineDocumentationTab'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
 
@@ -43,6 +44,7 @@ export default function MachineDetailSheet({
   onOpenPlanForm, onDeletePlan, onOpenLogForm,
   onHandleCSVFile,
   onOpenComponentForm, onDeleteComponent,
+  onUploadToMachine, onRemoveAttachment, onSaveField,
 }) {
   const machineReports = useMemo(() =>
     reports.filter(r => r.machine === sel.name).sort((a, b) => {
@@ -273,18 +275,16 @@ export default function MachineDetailSheet({
               </div>
             )}
 
-            {/* Documents */}
-            {sel.attachments?.length > 0 && (
-              <div>
-                <p className="text-[10px] text-faint uppercase tracking-wider mb-1.5 font-semibold">Documenti ({sel.attachments.length})</p>
-                {sel.attachments.map((a, i) => (
-                  <a key={i} href={a.url} target="_blank" rel="noopener" className="flex items-center gap-2 p-2 bg-surface-2 rounded-lg text-xs hover:bg-surface-3 transition-colors mb-1">
-                    {a.type === 'pdf' ? <FileText size={13} className="text-red-400" /> : <Video size={13} className="text-emerald-400" />}
-                    <span className="text-secondary flex-1 truncate">{a.name}</span>
-                  </a>
-                ))}
+            {/* Quick link to documentation */}
+            <button onClick={() => setDetailTab('docs')}
+              className="w-full flex items-center gap-2.5 p-3 bg-surface-2 rounded-xl text-left hover:bg-surface-3 transition-all group">
+              <FolderOpen size={15} className="text-amber-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-themed">Documentazione</p>
+                <p className="text-[10px] text-faint">{sel.attachments?.length || 0} documenti</p>
               </div>
-            )}
+              <ChevronRight size={14} className="text-faint opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
           </div>
 
           {/* ═══ RIGHT: TABS ═══ */}
@@ -311,8 +311,13 @@ export default function MachineDetailSheet({
                 <Package size={16} /> Componenti
                 {components.length > 0 && <span className="text-xs bg-surface-2 rounded-full px-2 py-0.5">{components.length}</span>}
               </button>
+              <button onClick={() => setDetailTab('docs')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'docs' ? 'text-amber-400 border-b-2 border-amber-400 bg-amber-400/5' : 'text-faint hover:text-secondary'}`}>
+                <FolderOpen size={16} /> Documentazione
+                {(sel.attachments?.length > 0) && <span className="text-xs bg-surface-2 rounded-full px-2 py-0.5">{sel.attachments.length}</span>}
+              </button>
               <button onClick={() => setDetailTab('reports')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'reports' ? 'text-amber-400 border-b-2 border-amber-400 bg-amber-400/5' : 'text-faint hover:text-secondary'}`}>
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'reports' ? 'text-red-400 border-b-2 border-red-400 bg-red-400/5' : 'text-faint hover:text-secondary'}`}>
                 <ClipboardList size={16} /> Segnalazioni
                 {activeReports.length > 0 && (
                   <span className={`text-xs rounded-full px-2 py-0.5 font-bold ${criticalReports.length > 0 ? 'bg-red-500/15 text-red-400' : 'bg-amber-500/15 text-amber-400'}`}>
@@ -618,6 +623,16 @@ export default function MachineDetailSheet({
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* ═══ DOCUMENTATION TAB ═══ */}
+              {detailTab === 'docs' && (
+                <MachineDocumentationTab
+                  sel={sel}
+                  onUpload={onUploadToMachine}
+                  onRemoveAttachment={onRemoveAttachment}
+                  onSaveField={onSaveField}
+                />
               )}
 
               {/* ═══ REPORTS TAB ═══ */}

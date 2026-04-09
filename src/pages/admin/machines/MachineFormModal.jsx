@@ -34,7 +34,9 @@ export default function MachineFormModal({ open, onClose, editing, form, setForm
           <Input label="Anno" placeholder="2022" type="number" value={form.year} onChange={e => set('year', e.target.value)} />
           <Input label="Reparto / Linea" placeholder="Linea 1" value={form.department} onChange={e => set('department', e.target.value)} />
         </div>
-        <Textarea label="Descrizione" placeholder="Note..." value={form.description} onChange={e => set('description', e.target.value)} />
+        <Textarea label="Descrizione" placeholder="Note generali..." value={form.description} onChange={e => set('description', e.target.value)} />
+        <Textarea label="Istruzioni d'uso" placeholder="Istruzioni operative per l'utilizzo del macchinario..." value={form.usage_instructions} onChange={e => set('usage_instructions', e.target.value)} />
+        <Textarea label="Istruzioni di manutenzione" placeholder="Procedure e frequenze di manutenzione..." value={form.maintenance_instructions} onChange={e => set('maintenance_instructions', e.target.value)} />
         <div>
           <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Foto</label>
           {photoUrl ? <div className="relative w-32 h-24 rounded-xl overflow-hidden border border-token"><img src={photoUrl} alt="" className="w-full h-full object-cover" /><button onClick={() => setPhotoUrl('')} className="absolute top-1 right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center"><X size={12} className="text-white" /></button></div>
