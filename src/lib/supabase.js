@@ -466,7 +466,7 @@ export const db = {
   async getMaintenanceLogsPaginated(limit = 50, offset = 0) {
     if (supabase) {
       const { data, error } = await supabase.from('maintenance_logs')
-        .select('*, machine:machines(id, name)')
+        .select('*, machine:machines(id, name), component:machine_components(id, name)')
         .order('performed_at', { ascending: false })
         .range(offset, offset + limit - 1)
       if (error) throw error
@@ -598,7 +598,7 @@ export const db = {
   async createMaintenanceLog(log) {
     if (supabase) {
       // Usa RPC SECURITY DEFINER per bypassare RLS e iniettare org_id server-side
-      const { data: rpcData, error: rpcError } = await supabase.rpc('create_maintenance_log', {
+      const rpcParams = {
         _machine_id: log.machine_id,
         _title: log.title,
         _plan_id: log.plan_id || null,
@@ -609,7 +609,9 @@ export const db = {
         _duration_minutes: log.duration_minutes || null,
         _parts_replaced: log.parts_replaced || null,
         _performed_at: log.performed_at || new Date().toISOString(),
-      })
+      }
+      if (log.component_id) rpcParams._component_id = log.component_id
+      const { data: rpcData, error: rpcError } = await supabase.rpc('create_maintenance_log', rpcParams)
       if (!rpcError && rpcData) return rpcData
       // Fallback: insert diretto (se RPC non ancora deployata)
       if (rpcError) console.warn('[ManuTech] RPC create_maintenance_log non disponibile, fallback insert diretto:', rpcError.message)

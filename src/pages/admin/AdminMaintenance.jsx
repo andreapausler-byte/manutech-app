@@ -55,7 +55,8 @@ export default function AdminMaintenance() {
 
   // Log form
   const [showLogForm, setShowLogForm] = useState(false)
-  const [logForm, setLogForm] = useState({ title: '', description: '', duration_minutes: '', parts_replaced: '', plan_id: '', machine_id: '' })
+  const [logForm, setLogForm] = useState({ title: '', description: '', duration_minutes: '', parts_replaced: '', plan_id: '', machine_id: '', component_id: '' })
+  const [logComponents, setLogComponents] = useState([])
 
   // CSV
   const [showCSV, setShowCSV] = useState(false)
@@ -143,11 +144,15 @@ export default function AdminMaintenance() {
   }
 
   // ── Log ──
-  const openLogForm = (task = null) => {
+  const openLogForm = async (task = null) => {
+    const machineId = task?.machine?.id || machines[0]?.id || ''
     setLogForm({
       title: task?.plan?.name || '', description: '', duration_minutes: '', parts_replaced: '',
-      plan_id: task?.plan?.id || '', machine_id: task?.machine?.id || machines[0]?.id || '',
+      plan_id: task?.plan?.id || '', machine_id: machineId, component_id: '',
     })
+    if (machineId) {
+      try { setLogComponents(await db.getMachineComponents(machineId)) } catch { setLogComponents([]) }
+    } else { setLogComponents([]) }
     setShowLogForm(true)
   }
 
@@ -156,6 +161,7 @@ export default function AdminMaintenance() {
     try {
       await db.createMaintenanceLog({
         machine_id: logForm.machine_id, plan_id: logForm.plan_id || null,
+        component_id: logForm.component_id || null,
         type: logForm.plan_id ? 'programmata' : 'straordinaria',
         title: logForm.title.trim(), description: logForm.description || null,
         performed_by: user?.id, performed_by_name: user?.name,
@@ -463,11 +469,27 @@ export default function AdminMaintenance() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Macchinario *</label>
-            <select value={logForm.machine_id} onChange={e => setLogForm(f => ({ ...f, machine_id: e.target.value }))} className="w-full input-field rounded-xl px-3 py-2.5 text-sm">
+            <select value={logForm.machine_id} onChange={async e => {
+              const mid = e.target.value
+              setLogForm(f => ({ ...f, machine_id: mid, component_id: '' }))
+              if (mid) {
+                try { setLogComponents(await db.getMachineComponents(mid)) } catch { setLogComponents([]) }
+              } else { setLogComponents([]) }
+            }} className="w-full input-field rounded-xl px-3 py-2.5 text-sm">
               <option value="">Seleziona</option>
               {machines.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
+          {logComponents.length > 0 && (
+            <div>
+              <label className="block text-[11px] text-faint uppercase tracking-wider mb-1.5">Componente</label>
+              <select value={logForm.component_id || ''} onChange={e => setLogForm(f => ({ ...f, component_id: e.target.value || '' }))}
+                className="w-full input-field rounded-xl px-3 py-2.5 text-sm">
+                <option value="">Intero macchinario</option>
+                {logComponents.map(c => <option key={c.id} value={c.id}>{c.name}{c.type ? ` (${c.type})` : ''}</option>)}
+              </select>
+            </div>
+          )}
           <Input label="Titolo *" placeholder="Lubrificazione completata" value={logForm.title} onChange={e => setLogForm(f => ({ ...f, title: e.target.value }))} />
           <Textarea label="Descrizione" placeholder="Cosa è stato fatto..." value={logForm.description} onChange={e => setLogForm(f => ({ ...f, description: e.target.value }))} />
           <div className="grid grid-cols-2 gap-4">

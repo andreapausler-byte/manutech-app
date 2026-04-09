@@ -1,11 +1,21 @@
 import { Modal, Input, Textarea, Button } from '../../../components/ui'
 
-export default function LogFormModal({ open, onClose, form, setForm, plans, onSave }) {
+export default function LogFormModal({ open, onClose, form, setForm, plans, components, onSave }) {
   return (
     <Modal open={open} onClose={onClose} title="Registra Intervento" size="md">
       <div className="space-y-4">
         <Input label="Titolo *" placeholder="Lubrificazione completata" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
         <Textarea label="Descrizione" placeholder="Cosa è stato fatto..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+        {components?.length > 0 && (
+          <div>
+            <label className="block text-[11px] text-faint uppercase tracking-wider mb-1.5">Componente</label>
+            <select value={form.component_id || ''} onChange={e => setForm(f => ({ ...f, component_id: e.target.value || '' }))}
+              className="w-full input-field rounded-xl px-3 py-2.5 text-sm">
+              <option value="">Intero macchinario</option>
+              {components.map(c => <option key={c.id} value={c.id}>{c.name}{c.type ? ` (${c.type})` : ''}</option>)}
+            </select>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <Input label="Durata (minuti)" placeholder="60" type="number" value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: e.target.value }))} />
           <Input label="Ricambi" placeholder="Filtro XF-420" value={form.parts_replaced} onChange={e => setForm(f => ({ ...f, parts_replaced: e.target.value }))} />
