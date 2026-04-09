@@ -576,7 +576,7 @@ export default function AdminMachines() {
           users={users}
           machines={machines}
           onClose={() => { setSelectedReport(null); load() }}
-          onUpdate={(updated) => { setSelectedReport(updated); load() }}
+          onUpdate={(updates) => { setSelectedReport(s => s ? { ...s, ...updates } : null); load() }}
         />
       )}
 
