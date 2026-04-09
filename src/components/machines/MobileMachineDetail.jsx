@@ -196,111 +196,114 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   const okPlans = plans.filter(p => !getTrafficLight(p, planLastLogs[p.id]).urgent)
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-base pb-[25vw]">
-      {/* ═══ Header ═══ */}
-      <header className="header-page flex items-center gap-[3vw] px-[4vw] py-[3vw]">
-        <button onClick={onBack} className="w-[14vw] h-[14vw] max-w-14 max-h-14 rounded-2xl flex items-center justify-center bg-surface-2 active:bg-white/10 text-muted press-scale">
-          <ArrowLeft size={26} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-themed truncate">{machine.name}</h1>
-          {machine.department && <p className="text-base text-faint mt-0.5">{machine.department}</p>}
-        </div>
-        {onDelete && (
-          <button onClick={onDelete} className="w-[14vw] h-[14vw] max-w-14 max-h-14 rounded-2xl bg-red-500/10 flex items-center justify-center press-scale">
-            <Trash2 size={22} style={{ color: '#ef4444' }} />
+    <div className="h-screen h-[100dvh] bg-base flex flex-col overflow-hidden">
+
+      {/* ═══ FIXED TOP — Header + Machine Info (never scrolls) ═══ */}
+      <div className="shrink-0">
+        {/* Header */}
+        <header className="header-page flex items-center gap-[3vw] px-[4vw] py-[2.5vw]">
+          <button onClick={onBack} className="w-[13vw] h-[13vw] max-w-[52px] max-h-[52px] rounded-2xl flex items-center justify-center bg-surface-2 active:bg-white/10 text-muted press-scale">
+            <ArrowLeft size={24} />
           </button>
-        )}
-      </header>
-
-      <div className="px-[4vw] py-[3vw] space-y-[4vw] animate-fade-in">
-
-        {/* ═══ IDENTITY STRIP — Always visible, compact ═══ */}
-        {(machine.manufacturer || machine.model || machine.serial_number || machine.year) && (
-          <div className="card-elevated rounded-2xl px-[4vw] py-[3.5vw]">
-            <div className="flex items-center gap-[2.5vw] flex-wrap">
-              {[
-                { icon: Factory, value: machine.manufacturer, color: '#7c6aff' },
-                { icon: Cog, value: machine.model, color: '#8b5cf6' },
-                { icon: Hash, value: machine.serial_number, color: '#06b6d4' },
-                { icon: Calendar, value: machine.year, color: '#f59e0b' },
-              ].filter(f => f.value).map(({ icon: Ic, value, color }, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <Ic size={14} style={{ color }} />
-                  <span className="text-sm font-bold text-themed">{value}</span>
-                  {i < [machine.manufacturer, machine.model, machine.serial_number, machine.year].filter(Boolean).length - 1 && (
-                    <span className="text-faint mx-0.5">·</span>
-                  )}
-                </div>
-              ))}
-            </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-themed truncate">{machine.name}</h1>
+            {machine.department && <p className="text-sm text-faint">{machine.department}</p>}
           </div>
-        )}
+          {onDelete && (
+            <button onClick={onDelete} className="w-[13vw] h-[13vw] max-w-[52px] max-h-[52px] rounded-2xl bg-red-500/10 flex items-center justify-center press-scale">
+              <Trash2 size={20} style={{ color: '#ef4444' }} />
+            </button>
+          )}
+        </header>
 
-        {/* ═══ HERO — Photo ═══ */}
+        {/* Machine identity — always visible */}
+        <div className="px-[4vw] pb-[3vw] space-y-[2.5vw]">
+          {/* Tech specs strip */}
+          {(machine.manufacturer || machine.model || machine.serial_number || machine.year) && (
+            <div className="card-elevated rounded-2xl px-[4vw] py-[3vw]">
+              <div className="flex items-center gap-[2vw] flex-wrap">
+                {[
+                  { icon: Factory, value: machine.manufacturer, color: '#7c6aff' },
+                  { icon: Cog, value: machine.model, color: '#8b5cf6' },
+                  { icon: Hash, value: machine.serial_number, color: '#06b6d4' },
+                  { icon: Calendar, value: machine.year, color: '#f59e0b' },
+                ].filter(f => f.value).map(({ icon: Ic, value, color }, i, arr) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <Ic size={14} style={{ color }} />
+                    <span className="text-sm font-bold text-themed">{value}</span>
+                    {i < arr.length - 1 && <span className="text-faint mx-0.5">·</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Status summary counters */}
+          {(activeReports.length > 0 || urgentPlans.length > 0) ? (
+            <div className="flex gap-[2.5vw]">
+              {urgentPlans.length > 0 && (
+                <div className="flex-1 rounded-2xl py-[2.5vw] px-[3vw] flex items-center justify-center gap-2.5" style={{ background: '#ef444412', border: '1px solid #ef444425' }}>
+                  <AlertTriangle size={18} className="text-red-400 shrink-0" />
+                  <span className="text-base font-bold text-red-400">{urgentPlans.length} manutenzioni</span>
+                </div>
+              )}
+              {activeReports.length > 0 && (
+                <div className="flex-1 rounded-2xl py-[2.5vw] px-[3vw] flex items-center justify-center gap-2.5" style={{ background: '#f59e0b12', border: '1px solid #f59e0b25' }}>
+                  <ClipboardList size={18} className="text-amber-400 shrink-0" />
+                  <span className="text-base font-bold text-amber-400">{activeReports.length} segnalazioni</span>
+                </div>
+              )}
+            </div>
+          ) : !loading && (
+            <div className="rounded-2xl py-[2.5vw] flex items-center justify-center gap-2.5" style={{ background: '#22c55e10', border: '1px solid #22c55e20' }}>
+              <CheckCircle size={18} className="text-emerald-400" />
+              <span className="text-base font-bold text-emerald-400">Tutto in ordine</span>
+            </div>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-token" />
+      </div>
+
+      {/* ═══ SCROLLABLE CONTENT ═══ */}
+      <div className="flex-1 overflow-y-auto pb-[25vw]">
+        <div className="px-[4vw] py-[3vw] space-y-[4vw] animate-fade-in">
+
+        {/* Photo */}
         {machine.photo_url && (
-          <div className="rounded-3xl overflow-hidden border border-token aspect-video shadow-lg">
+          <div className="rounded-2xl overflow-hidden border border-token aspect-video shadow-lg">
             <img src={machine.photo_url} alt={machine.name} className="w-full h-full object-cover" />
           </div>
         )}
 
-        {/* ═══ HEALTH SCORE — compact inline ═══ */}
+        {/* Health score */}
         {assessment && (() => {
           const colors = { ottimo: '#22c55e', buono: '#7c6aff', attenzione: '#f59e0b', critico: '#ef4444' }
           const color = colors[assessment.status] || '#6b7280'
           return (
-            <div className="card-elevated rounded-2xl px-[4vw] py-[3.5vw]">
-              <div className="flex items-center gap-[4vw]">
-                <div className="relative w-14 h-14 shrink-0">
+            <div className="card-elevated rounded-2xl px-[4vw] py-[3vw]">
+              <div className="flex items-center gap-[3.5vw]">
+                <div className="relative w-12 h-12 shrink-0">
                   <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="3" />
-                    <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3.5" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: color, filter: `drop-shadow(0 0 4px ${color}50)` }} />
+                    <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3.5" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: color }} />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold text-themed">{assessment.health_score}</span>
+                  <span className="absolute inset-0 flex items-center justify-center text-base font-bold text-themed">{assessment.health_score}</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Activity size={16} style={{ color }} />
-                    <span className="text-sm font-bold text-themed">Stato Salute</span>
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg capitalize" style={{ background: color + '18', color }}>{assessment.status}</span>
-                  </div>
-                  {assessment.factors?.[0] && <p className="text-xs text-faint mt-1 truncate">{assessment.factors[0]}</p>}
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <Activity size={15} style={{ color }} />
+                  <span className="text-sm font-bold text-themed">Salute</span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-lg capitalize" style={{ background: color + '18', color }}>{assessment.status}</span>
                 </div>
               </div>
             </div>
           )
         })()}
 
-        {/* ═══ Descrizione ═══ */}
+        {/* Description */}
         {machine.description && (
-          <p className="text-sm text-secondary leading-relaxed card-elevated rounded-2xl px-[4vw] py-[3.5vw]">{machine.description}</p>
-        )}
-
-        {/* ═══ STATUS SUMMARY — Visual overview ═══ */}
-        {(activeReports.length > 0 || urgentPlans.length > 0) && (
-          <div className="flex gap-[2.5vw]">
-            {urgentPlans.length > 0 && (
-              <div className="flex-1 rounded-2xl p-[3.5vw] text-center" style={{ background: '#ef444412', border: '1px solid #ef444425' }}>
-                <p className="text-2xl font-bold text-red-400">{urgentPlans.length}</p>
-                <p className="text-xs text-red-400/70 font-semibold mt-0.5">Manutenzioni scadute</p>
-              </div>
-            )}
-            {activeReports.length > 0 && (
-              <div className="flex-1 rounded-2xl p-[3.5vw] text-center" style={{ background: '#f59e0b12', border: '1px solid #f59e0b25' }}>
-                <p className="text-2xl font-bold text-amber-400">{activeReports.length}</p>
-                <p className="text-xs text-amber-400/70 font-semibold mt-0.5">Segnalazioni attive</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ═══ "Tutto OK" quando nessun problema ═══ */}
-        {activeReports.length === 0 && urgentPlans.length === 0 && !loading && (
-          <div className="rounded-2xl p-[5vw] text-center" style={{ background: '#22c55e10', border: '1px solid #22c55e20' }}>
-            <CheckCircle size={36} className="mx-auto text-emerald-400 mb-2" />
-            <p className="text-lg font-bold text-emerald-400">Tutto in ordine</p>
-            <p className="text-sm text-emerald-400/60 mt-1">Nessuna segnalazione o manutenzione scaduta</p>
-          </div>
+          <p className="text-sm text-secondary leading-relaxed card-elevated rounded-2xl px-[4vw] py-[3vw]">{machine.description}</p>
         )}
 
         {/* ═══ ALERT BANNER — Manutenzioni scadute ═══ */}
@@ -498,6 +501,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
           </div>
         )}
       </div>
+      </div>{/* end scrollable content */}
 
       {/* ═══ FAB — Segnala Problema (doppia scelta) ═══ */}
       <div className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom px-[4vw] pb-[4vw] pt-[3vw]"
