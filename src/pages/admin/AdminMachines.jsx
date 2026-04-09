@@ -137,13 +137,13 @@ export default function AdminMachines() {
 
   const uploadPhoto = () => {
     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'
-    input.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { const url = await db.uploadFile('machines', `photo-${Date.now()}`, f); setPhotoUrl(url); toast.success('Foto caricata') } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) } }
+    input.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { const url = await db.uploadFile('attachments', `photo-${Date.now()}`, f); setPhotoUrl(url); toast.success('Foto caricata') } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) } }
     input.click()
   }
   const addAttachment = (type, category = null) => {
     const accept = type === 'pdf' ? '.pdf' : type === 'image' ? 'image/*' : 'video/*'
     const input = document.createElement('input'); input.type = 'file'; input.accept = accept
-    input.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { const url = await db.uploadFile('machines', `${Date.now()}`, f); setAttachments(a => [...a, { type, category: category || type, name: f.name, url }]); toast.success('File caricato') } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) } }
+    input.onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { const url = await db.uploadFile('attachments', `${Date.now()}`, f); setAttachments(a => [...a, { type, category: category || type, name: f.name, url }]); toast.success('File caricato') } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) } }
     input.click()
   }
 
@@ -163,7 +163,7 @@ export default function AdminMachines() {
     input.onchange = async (e) => {
       const f = e.target.files[0]; if (!f || !sel) return
       try {
-        const url = await db.uploadFile('machines', `${sel.id}/${category}-${Date.now()}`, f)
+        const url = await db.uploadFile('attachments', `${sel.id}/${category}-${Date.now()}`, f)
         const newAttachments = [...(sel.attachments || []), { type, category, name: f.name, url }]
         const updated = await db.updateMachine(sel.id, { attachments: newAttachments })
         setSel(prev => ({ ...prev, ...updated }))
