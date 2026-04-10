@@ -15,7 +15,7 @@ import { useHaptic } from '../../hooks/useHaptic'
 import {
   ArrowLeft, Cog, Factory, Hash, Calendar, Building,
   FileText, Video, Shield, Wrench, ClipboardList,
-  AlertTriangle, ChevronDown, ChevronUp, ExternalLink,
+  AlertTriangle, ChevronDown, ExternalLink,
   CheckCircle, X, Send, Clock, Zap, Activity, Trash2
 } from 'lucide-react'
 
@@ -294,34 +294,65 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
         {/* ═══ ACTIVE REPORTS ═══ */}
         {activeReports.length > 0 && (
-          <div className="space-y-[3vw]">
+          <div className="space-y-2.5">
             <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2 px-1">
               <ClipboardList size={16} /> Segnalazioni attive
             </p>
-            {activeReports.map(r => {
+            {activeReports.map((r, i) => {
               const sev = SEVERITY[r.severity] || SEVERITY.media
               return (
-                <div key={r.id} className="card-elevated rounded-2xl flex items-stretch overflow-hidden">
-                  {/* Severity accent bar */}
-                  <div className="w-1.5 shrink-0" style={{ background: sev.color }} />
-                  {/* Report info */}
+                <div
+                  key={r.id}
+                  className="rounded-2xl flex items-stretch gap-2.5 p-3 press-scale"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    animation: 'fadeIn 0.3s var(--ease-out-expo) backwards',
+                    animationDelay: `${i * 50}ms`,
+                  }}
+                >
+                  {/* Dot priorità con glow */}
+                  <div className="flex items-start pt-1 shrink-0">
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: sev.color,
+                        boxShadow: `0 0 12px ${sev.color}, 0 0 4px ${sev.color}`,
+                      }}
+                    />
+                  </div>
+
+                  {/* Contenuto cliccabile */}
                   <button
                     onClick={() => onViewReport?.(r)}
-                    className="flex-1 flex items-center gap-[3vw] px-[4vw] py-[4vw] min-w-0 active:bg-white/[0.03] press-scale"
+                    className="flex-1 min-w-0 text-left"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-lg font-bold text-themed truncate text-left">{r.title}</p>
-                      <p className="text-sm text-faint mt-0.5 text-left">{r.created_by_name} · {timeAgo(r.created_at)}</p>
-                    </div>
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg shrink-0" style={{ background: sev.color + '18', color: sev.color }}>{sev.label}</span>
+                    <p className="text-sm font-medium text-themed truncate">{r.title}</p>
+                    <p className="text-xs truncate" style={{ opacity: 0.38 }}>
+                      {r.created_by_name} · {timeAgo(r.created_at)}
+                    </p>
                   </button>
-                  {/* Resolve button */}
-                  <button
-                    onClick={() => { haptic.medium(); setResolveReport(r) }}
-                    className="w-16 flex items-center justify-center border-l border-token text-emerald-400 active:bg-emerald-500/10 press-scale shrink-0"
-                  >
-                    <Wrench size={24} />
-                  </button>
+
+                  {/* Badge + wrench in flex-col a destra */}
+                  <div className="flex flex-col items-end justify-between gap-2 shrink-0">
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+                      style={{ background: sev.color + '18', color: sev.color }}
+                    >
+                      {sev.label}
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); haptic.medium(); setResolveReport(r) }}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-emerald-400 active:bg-emerald-500/10 press-scale"
+                      aria-label="Risolvi segnalazione"
+                    >
+                      <Wrench size={18} />
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -361,7 +392,14 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
               <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
                 <FileText size={17} /> Documenti ({machine.attachments.length})
               </p>
-              {showDocs ? <ChevronUp size={24} className="text-faint" /> : <ChevronDown size={24} className="text-faint" />}
+              <ChevronDown
+                size={22}
+                className="text-faint"
+                style={{
+                  transform: showDocs ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.25s var(--ease-out-expo)',
+                }}
+              />
             </button>
             {showDocs && (
               <div className="space-y-[3vw] animate-fade-in">
@@ -386,7 +424,14 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
             <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
               <Wrench size={17} /> Ultimi Interventi ({logs.length})
             </p>
-            {showLogs ? <ChevronUp size={24} className="text-faint" /> : <ChevronDown size={24} className="text-faint" />}
+            <ChevronDown
+              size={22}
+              className="text-faint"
+              style={{
+                transform: showLogs ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.25s var(--ease-out-expo)',
+              }}
+            />
           </button>
           {showLogs && (
             <div className="space-y-[3vw] animate-fade-in">
@@ -422,17 +467,47 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
               <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
                 <CheckCircle size={17} /> Risolte ({resolvedReports.length})
               </p>
-              {showResolved ? <ChevronUp size={24} className="text-faint" /> : <ChevronDown size={24} className="text-faint" />}
+              <ChevronDown
+                size={22}
+                className="text-faint"
+                style={{
+                  transform: showResolved ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.25s var(--ease-out-expo)',
+                }}
+              />
             </button>
             {showResolved && (
-              <div className="space-y-[3vw] animate-fade-in">
-                {resolvedReports.slice(0, 5).map(r => (
-                  <div key={r.id} className="flex items-center gap-[4vw] card-elevated rounded-2xl px-[5vw] py-[4vw]">
-                    <CheckCircle size={22} className="text-emerald-400 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-lg font-medium text-secondary truncate">{r.title}</p>
-                      <p className="text-sm text-faint mt-0.5">{timeAgo(r.created_at)}</p>
+              <div className="space-y-2.5">
+                {resolvedReports.slice(0, 5).map((r, i) => (
+                  <div
+                    key={r.id}
+                    className="rounded-2xl flex items-center gap-2.5 p-3"
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      backdropFilter: 'blur(16px)',
+                      WebkitBackdropFilter: 'blur(16px)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      animation: 'fadeIn 0.3s var(--ease-out-expo) backwards',
+                      animationDelay: `${i * 50}ms`,
+                    }}
+                  >
+                    <div className="shrink-0">
+                      <span
+                        style={{
+                          display: 'block',
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          background: '#3ddc84',
+                          boxShadow: '0 0 12px #3ddc84, 0 0 4px #3ddc84',
+                        }}
+                      />
                     </div>
+                    <div className="flex-1 min-w-0" style={{ opacity: 0.6 }}>
+                      <p className="text-sm font-medium text-themed truncate">{r.title}</p>
+                      <p className="text-xs truncate" style={{ opacity: 0.38 }}>{timeAgo(r.created_at)}</p>
+                    </div>
+                    <CheckCircle size={18} className="text-emerald-400 shrink-0 opacity-70" />
                   </div>
                 ))}
               </div>
@@ -448,14 +523,14 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         <div className="flex gap-[3.5vw]">
           <button
             onClick={() => { haptic.medium(); if (onQuickReport) onQuickReport(machine.name) }}
-            className="flex-1 py-[5vw] rounded-2xl text-xl font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
+            className="flex-1 py-[5vw] rounded-xl text-xl font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
             style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', boxShadow: '0 6px 24px rgba(245,158,11,0.35)' }}
           >
             <Zap size={26} strokeWidth={2.5} /> Rapido
           </button>
           <button
             onClick={() => { haptic.medium(); if (onNewReport) onNewReport(machine.name) }}
-            className="flex-1 py-[5vw] rounded-2xl text-xl font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
+            className="flex-1 py-[5vw] rounded-xl text-xl font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
             style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', boxShadow: '0 6px 24px rgba(239,68,68,0.3)' }}
           >
             <AlertTriangle size={26} strokeWidth={2.5} /> Segnala
