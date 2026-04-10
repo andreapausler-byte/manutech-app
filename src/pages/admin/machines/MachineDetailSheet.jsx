@@ -102,8 +102,6 @@ export default function MachineDetailSheet({
     return closest
   }, [plans, planLastLogs])
 
-  const lastLog = useMemo(() => logs.length > 0 ? logs[0] : null, [logs])
-
   const healthColor = assessment ? (healthColors[assessment.status]?.bg || '#6b7280') : '#6b7280'
   const { position, dragProps } = useDraggable()
 
@@ -159,136 +157,129 @@ export default function MachineDetailSheet({
           {/* ═══ SIDEBAR LEFT ═══ */}
           <div className="col-span-3 border-r border-token overflow-y-auto p-4 space-y-3">
 
-            {/* Photo */}
-            {sel.photo_url ? (
-              <div className="rounded-xl overflow-hidden border border-token aspect-video">
+            {/* Photo with Live badge */}
+            <div className="relative rounded-2xl overflow-hidden border border-violet-500/30 aspect-[4/3] shadow-lg">
+              {sel.photo_url ? (
                 <img src={sel.photo_url} alt="" className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <button onClick={() => onEdit(sel)} className="rounded-xl border border-dashed border-token/50 bg-surface-2/30 aspect-video flex flex-col items-center justify-center text-faint hover:border-violet-500/30 hover:text-violet-400 transition-all cursor-pointer">
-                <Camera size={24} className="mb-1 opacity-40" />
-                <span className="text-xs">Aggiungi foto</span>
-              </button>
-            )}
-
-            {/* Health Score - Prominent */}
-            <div className="bg-surface-2 rounded-xl p-4">
-              <p className="text-[10px] text-faint uppercase tracking-wider mb-3 flex items-center gap-1.5 font-semibold">
-                <Activity size={11} /> Stato Salute
-              </p>
-              {assessmentLoading ? (
-                <div className="flex items-center justify-center py-4">
-                  <div className="w-6 h-6 border-2 border-violet-400/30 border-t-blue-400 rounded-full animate-spin" />
-                </div>
-              ) : assessment ? (
-                <div className="flex flex-col items-center">
-                  <div className="relative w-20 h-20 mb-2">
-                    <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                      <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="2.5" />
-                      <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="2.5"
-                        strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`}
-                        strokeLinecap="round" style={{ stroke: healthColor, filter: `drop-shadow(0 0 4px ${healthColor}40)` }} />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-base font-bold text-themed">
-                      {assessment.health_score}
-                    </span>
-                  </div>
-                  <span className="text-xs font-bold px-3 py-1 rounded-lg capitalize"
-                    style={{ background: healthColor + '18', color: healthColor }}>
-                    {healthLabels[assessment.status] || assessment.status}
-                  </span>
-                  {assessment.factors?.length > 0 && (
-                    <div className="mt-2 w-full space-y-0.5">
-                      {assessment.factors.slice(0, 3).map((f, i) => (
-                        <p key={i} className="text-[10px] text-faint text-center truncate">{f}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
               ) : (
-                <p className="text-xs text-faint text-center py-3">Non disponibile</p>
+                <button onClick={() => onEdit(sel)} className="w-full h-full bg-surface-2/30 flex flex-col items-center justify-center text-faint hover:text-violet-400 transition-all">
+                  <Camera size={28} className="mb-1 opacity-40" />
+                  <span className="text-xs">Aggiungi foto</span>
+                </button>
               )}
-            </div>
-
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setDetailTab('reports')} className="bg-surface-2 rounded-xl p-3 text-center hover:bg-surface-3 transition-all cursor-pointer group">
-                <p className={`text-xl font-bold ${activeReports.length > 0 ? (criticalReports.length > 0 ? 'text-red-400' : 'text-amber-400') : 'text-emerald-400'}`}>
-                  {activeReports.length}
-                </p>
-                <p className="text-[9px] text-faint uppercase tracking-wider group-hover:text-secondary transition-colors">Segnalazioni</p>
-              </button>
-              <button onClick={() => setDetailTab('plans')} className="bg-surface-2 rounded-xl p-3 text-center hover:bg-surface-3 transition-all cursor-pointer group">
-                <p className="text-xl font-bold text-violet-400">{plans.length}</p>
-                <p className="text-[9px] text-faint uppercase tracking-wider group-hover:text-secondary transition-colors">Piani</p>
-              </button>
-              <div className="bg-surface-2 rounded-xl p-3 text-center">
-                <p className="text-sm font-bold text-themed truncate">
-                  {lastLog ? timeAgo(lastLog.performed_at) : '—'}
-                </p>
-                <p className="text-[9px] text-faint uppercase tracking-wider">Ultimo Interv.</p>
-              </div>
-              <div className="bg-surface-2 rounded-xl p-3 text-center">
-                {nextMaintenance ? (
-                  <>
-                    <p className="text-sm font-bold truncate" style={{ color: nextMaintenance.color }}>
-                      {nextMaintenance.label}
-                    </p>
-                    <p className="text-[9px] text-faint uppercase tracking-wider truncate">Prossima Scad.</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm font-bold text-faint">—</p>
-                    <p className="text-[9px] text-faint uppercase tracking-wider">Prossima Scad.</p>
-                  </>
-                )}
+              <div className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-500/20 backdrop-blur-md border border-emerald-400/40">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Live</span>
               </div>
             </div>
 
-            {/* Tech Specs */}
-            <div className="space-y-1.5">
-              <p className="text-[10px] text-faint uppercase tracking-wider font-semibold px-1">Scheda Tecnica</p>
-              {[
-                { icon: Factory, label: 'Costruttore', value: sel.manufacturer },
-                { icon: Cog, label: 'Modello', value: sel.model },
-                { icon: Hash, label: 'Matricola', value: sel.serial_number },
-                { icon: Calendar, label: 'Anno', value: sel.year },
-                { icon: Building, label: 'Reparto', value: sel.department },
-              ].filter(f => f.value).map(({ icon: Icon, label, value }) => (
-                <div key={label} className="flex items-center gap-2.5 p-2 bg-surface-2 rounded-lg">
-                  <Icon size={13} className="text-faint shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-[9px] text-faint uppercase tracking-wider">{label}</p>
-                    <p className="text-xs text-themed font-medium truncate">{value}</p>
+            {/* STATO SALUTE — 2 mini circular charts */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px #10b98180' }} />
+                <p className="text-[10px] text-faint uppercase tracking-wider font-semibold">Stato Salute</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Segnalazioni mini chart */}
+                <button
+                  onClick={() => setDetailTab('reports')}
+                  className="bg-surface-2/50 rounded-2xl p-3 flex flex-col items-center hover:bg-surface-3 transition-all border border-token press-scale"
+                >
+                  <div className="relative w-16 h-16 mb-1">
+                    <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                      <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="3" />
+                      <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3" strokeLinecap="round"
+                        strokeDasharray={`${Math.min(activeReports.length * 25, 100)} 100`}
+                        style={{
+                          stroke: criticalReports.length > 0 ? '#ef4444' : activeReports.length > 0 ? '#f59e0b' : '#10b981',
+                          filter: `drop-shadow(0 0 6px ${criticalReports.length > 0 ? '#ef4444' : activeReports.length > 0 ? '#f59e0b' : '#10b981'}60)`,
+                        }}
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-themed">{activeReports.length}</span>
                   </div>
-                </div>
-              ))}
-              {![sel.manufacturer, sel.model, sel.serial_number, sel.year].some(Boolean) && (
-                <p className="text-xs text-faint text-center py-2">Nessun dato tecnico. <button onClick={() => onEdit(sel)} className="text-violet-400 underline">Compila scheda</button></p>
-              )}
+                  <p className="text-[9px] text-faint uppercase tracking-wider font-semibold">Segnalazioni</p>
+                  <p className="text-[9px] text-faint uppercase tracking-wider mt-1 opacity-60">Ultimo Interv.</p>
+                </button>
+
+                {/* Piani mini chart */}
+                <button
+                  onClick={() => setDetailTab('plans')}
+                  className="bg-surface-2/50 rounded-2xl p-3 flex flex-col items-center hover:bg-surface-3 transition-all border border-token press-scale"
+                >
+                  <div className="relative w-16 h-16 mb-1">
+                    <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                      <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="3" />
+                      <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3" strokeLinecap="round"
+                        strokeDasharray={`${plans.length > 0 ? 75 : 0} 100`}
+                        style={{
+                          stroke: nextMaintenance?.color || '#ef4444',
+                          filter: `drop-shadow(0 0 6px ${nextMaintenance?.color || '#ef4444'}60)`,
+                        }}
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-themed">{plans.length}</span>
+                  </div>
+                  <p className="text-[9px] text-faint uppercase tracking-wider font-semibold">Piani</p>
+                  <p className="text-[9px] text-faint uppercase tracking-wider mt-1 opacity-60">Prossima Scad.</p>
+                </button>
+              </div>
             </div>
 
-            {sel.description && (
-              <div>
-                <p className="text-[10px] text-faint uppercase tracking-wider mb-1 font-semibold">Descrizione</p>
-                <p className="text-xs text-secondary leading-relaxed">{sel.description}</p>
+            {/* Scheda Tecnica */}
+            <div className="space-y-2">
+              <p className="text-[10px] text-faint uppercase tracking-wider font-semibold px-1">Scheda Tecnica</p>
+              <div className="bg-surface-2/50 rounded-2xl border border-token overflow-hidden">
+                {(() => {
+                  const rows = [
+                    { icon: Factory, label: 'Costruttore', value: sel.manufacturer },
+                    { icon: Cog, label: 'Modello', value: sel.model },
+                    { icon: Hash, label: 'Serial', value: sel.serial_number },
+                    { icon: Calendar, label: 'Anno', value: sel.year },
+                    { icon: Building, label: 'Reparto', value: sel.department },
+                  ].filter(f => f.value)
+                  if (rows.length === 0) {
+                    return <p className="text-xs text-faint text-center py-3">Nessun dato tecnico. <button onClick={() => onEdit(sel)} className="text-violet-400 underline">Compila</button></p>
+                  }
+                  return rows.map(({ icon: Icon, label, value }, i) => (
+                    <div key={label} className={`flex items-center justify-between px-3 py-2.5 ${i < rows.length - 1 ? 'border-b border-token' : ''}`}>
+                      <div className="flex items-center gap-2 text-faint">
+                        <Icon size={13} />
+                        <span className="text-xs">{label}</span>
+                      </div>
+                      <span className="text-xs text-themed font-semibold truncate ml-2" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{value}</span>
+                    </div>
+                  ))
+                })()}
               </div>
-            )}
+            </div>
 
-            {/* Quick link to documentation */}
-            <button onClick={() => setDetailTab('docs')}
-              className="w-full flex items-center gap-2.5 p-3 bg-surface-2 rounded-xl text-left hover:bg-surface-3 transition-all group">
-              <FolderOpen size={15} className="text-amber-400 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-themed">Documentazione</p>
-                <p className="text-[10px] text-faint">{sel.attachments?.length || 0} documenti</p>
-              </div>
-              <ChevronRight size={14} className="text-faint opacity-0 group-hover:opacity-100 transition-opacity" />
-            </button>
+            {/* Documentazione */}
+            <div className="space-y-2">
+              <p className="text-[10px] text-faint uppercase tracking-wider font-semibold px-1">Documentazione</p>
+              <button
+                onClick={() => setDetailTab('docs')}
+                className="w-full flex items-center gap-2.5 p-3 bg-surface-2/50 rounded-2xl border border-token text-left hover:bg-surface-3 transition-all group"
+              >
+                <FolderOpen size={16} className="text-amber-400 shrink-0" />
+                <span className="text-xs font-bold text-themed flex-1">Documentazione</span>
+                <span className="text-[10px] text-faint">{sel.attachments?.length || 0}</span>
+              </button>
+            </div>
           </div>
 
           {/* ═══ RIGHT: TABS ═══ */}
           <div className="col-span-9 flex flex-col overflow-hidden">
+
+            {/* Title block */}
+            <div className="px-5 pt-4 pb-2 shrink-0">
+              <h1 className="text-2xl font-bold text-themed">{sel.name}</h1>
+              <p className="text-xs text-faint mt-0.5">
+                {[sel.manufacturer, sel.model].filter(Boolean).join(' ')}
+                {sel.serial_number && <> · Serial <span className="text-secondary font-medium">{sel.serial_number}</span></>}
+                {sel.year && <> · Year <span className="text-secondary font-medium">{sel.year}</span></>}
+              </p>
+            </div>
 
             {/* Tab Bar */}
             <div className="flex border-b border-token shrink-0">
@@ -332,91 +323,62 @@ export default function MachineDetailSheet({
               {/* ═══ OVERVIEW TAB ═══ */}
               {detailTab === 'overview' && (
                 <div className="space-y-5 animate-fade-in">
-                  {/* Top row: Health + Stats */}
+                  {/* Top row: 3 KPI cards */}
                   <div className="grid grid-cols-3 gap-4">
-                    {/* Health Score Card */}
-                    <div className="bg-surface-2 rounded-xl p-5 flex flex-col items-center justify-center">
-                      <p className="text-[10px] text-faint uppercase tracking-wider mb-3 font-semibold">Stato Salute</p>
+                    {/* STATO SALUTE */}
+                    <div className="relative bg-surface-2 rounded-2xl p-5 border border-token overflow-hidden">
+                      <div className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                        <Activity size={18} className="text-cyan-400" />
+                      </div>
+                      <p className="text-[10px] text-faint uppercase tracking-wider font-semibold mb-2">Stato Salute</p>
                       {assessmentLoading ? (
-                        <div className="w-6 h-6 border-2 border-violet-400/30 border-t-blue-400 rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin mt-1" />
                       ) : assessment ? (
                         <>
-                          <div className="relative w-24 h-24 mb-2">
-                            <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="2" />
-                              <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="2.5"
-                                strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`}
-                                strokeLinecap="round" style={{ stroke: healthColor, filter: `drop-shadow(0 0 6px ${healthColor}50)` }} />
-                            </svg>
-                            <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-themed">{assessment.health_score}</span>
-                          </div>
-                          <span className="text-sm font-bold px-3 py-1 rounded-lg capitalize"
-                            style={{ background: healthColor + '18', color: healthColor }}>
-                            {healthLabels[assessment.status] || assessment.status}
-                          </span>
+                          <p className="text-3xl font-bold text-themed">{assessment.health_score}</p>
+                          <p className="text-xs text-faint mt-1 capitalize">{healthLabels[assessment.status] || assessment.status}</p>
                         </>
                       ) : (
-                        <p className="text-sm text-faint">Non disponibile</p>
+                        <>
+                          <p className="text-xl font-bold text-faint">Non Disponibile</p>
+                          <p className="text-xs text-faint mt-1 opacity-60">Nessun assessment</p>
+                        </>
                       )}
                     </div>
 
-                    {/* Active Reports Summary */}
-                    <div className="bg-surface-2 rounded-xl p-5">
-                      <p className="text-[10px] text-faint uppercase tracking-wider mb-3 font-semibold flex items-center gap-1.5">
-                        <AlertTriangle size={11} /> Segnalazioni Attive
-                      </p>
-                      {activeReports.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-4">
-                          <p className="text-2xl font-bold text-emerald-400">0</p>
-                          <p className="text-xs text-faint mt-1">Nessun problema</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {/* Severity breakdown */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {['critica', 'alta', 'media', 'bassa'].map(sev => {
-                              const count = activeReports.filter(r => r.severity === sev).length
-                              if (count === 0) return null
-                              const sv = SEVERITY[sev]
-                              return (
-                                <span key={sev} className="text-xs font-bold px-2 py-0.5 rounded-lg"
-                                  style={{ background: sv.bg, color: sv.color }}>
-                                  {count} {sv.label}
-                                </span>
-                              )
-                            })}
-                          </div>
-                          <p className="text-2xl font-bold text-amber-400">{activeReports.length}</p>
-                          <p className="text-xs text-faint">segnalazioni da gestire</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Maintenance Status */}
-                    <div className="bg-surface-2 rounded-xl p-5">
-                      <p className="text-[10px] text-faint uppercase tracking-wider mb-3 font-semibold flex items-center gap-1.5">
-                        <Shield size={11} /> Manutenzione
-                      </p>
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-[10px] text-faint">Piani attivi</p>
-                          <p className="text-xl font-bold text-violet-400">{plans.length}</p>
-                        </div>
-                        {nextMaintenance && (
-                          <div>
-                            <p className="text-[10px] text-faint">Prossima scadenza</p>
-                            <p className="text-sm font-bold" style={{ color: nextMaintenance.color }}>{nextMaintenance.label}</p>
-                            <p className="text-[10px] text-faint truncate">{nextMaintenance.name}</p>
-                          </div>
-                        )}
-                        {lastLog && (
-                          <div>
-                            <p className="text-[10px] text-faint">Ultimo intervento</p>
-                            <p className="text-sm font-medium text-themed truncate">{lastLog.title}</p>
-                            <p className="text-[10px] text-faint">{timeAgo(lastLog.performed_at)}</p>
-                          </div>
-                        )}
+                    {/* SEGNALAZIONI ATTIVE */}
+                    <div
+                      className={`relative bg-surface-2 rounded-2xl p-5 border overflow-hidden transition-all ${
+                        criticalReports.length > 0
+                          ? 'border-red-500/40'
+                          : activeReports.length > 0
+                            ? 'border-amber-500/40'
+                            : 'border-token'
+                      }`}
+                      style={criticalReports.length > 0 ? { boxShadow: '0 0 24px rgba(239,68,68,0.15), inset 0 0 24px rgba(239,68,68,0.05)' } : {}}
+                    >
+                      <div className={`absolute top-4 right-4 w-10 h-10 rounded-xl flex items-center justify-center ${
+                        criticalReports.length > 0 ? 'bg-red-500/15' : activeReports.length > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10'
+                      }`}>
+                        <AlertTriangle size={18} className={criticalReports.length > 0 ? 'text-red-400' : activeReports.length > 0 ? 'text-amber-400' : 'text-emerald-400'} />
                       </div>
+                      <p className="text-[10px] text-faint uppercase tracking-wider font-semibold mb-2">Segnalazioni Attive</p>
+                      <p className={`text-4xl font-bold ${criticalReports.length > 0 ? 'text-red-400' : activeReports.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {activeReports.length}
+                      </p>
+                      <p className="text-xs text-faint mt-1">
+                        {activeReports.length === 0 ? 'tutto ok' : 'segnalazioni da gestire'}
+                      </p>
+                    </div>
+
+                    {/* MANUTENZIONE */}
+                    <div className="relative bg-surface-2 rounded-2xl p-5 border border-token overflow-hidden">
+                      <div className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                        <Wrench size={18} className="text-violet-400" />
+                      </div>
+                      <p className="text-[10px] text-faint uppercase tracking-wider font-semibold mb-2">Manutenzione</p>
+                      <p className="text-4xl font-bold text-violet-400">{plans.length}</p>
+                      <p className="text-xs text-faint mt-1">Piani attivi</p>
                     </div>
                   </div>
 
@@ -440,17 +402,19 @@ export default function MachineDetailSheet({
                           const isCritical = r.severity === 'critica'
                           return (
                             <div key={r.id} onClick={() => onOpenReport?.(r)}
-                              className={`flex items-center gap-3 p-3 bg-surface-2 rounded-xl cursor-pointer hover:bg-surface-3 transition-all group ${isCritical ? 'ring-1 ring-red-500/30' : ''}`}>
-                              <div className="w-1 self-stretch rounded-full shrink-0" style={{ background: sv.color }} />
+                              className={`flex items-start gap-4 p-4 bg-surface-2 rounded-2xl cursor-pointer hover:bg-surface-3 transition-all border ${isCritical ? 'border-red-500/30' : 'border-token'}`}>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm text-themed font-medium truncate">{r.title}</p>
-                                {r.description && <p className="text-[11px] text-faint mt-0.5 line-clamp-1">{r.description}</p>}
-                                <p className="text-[10px] text-faint mt-0.5">{r.created_by_name} · {timeAgo(r.created_at)}</p>
+                                <p className="text-sm text-themed font-bold mb-1">{r.title}</p>
+                                {r.description && <p className="text-xs text-faint line-clamp-2 leading-relaxed mb-2">{r.description}</p>}
+                                <p className="text-[11px] text-faint">{r.created_by_name} · {timeAgo(r.created_at)}</p>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                <Badge {...s} />
-                                <Badge {...sv} />
-                                <ChevronRight size={14} className="text-faint opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: s.color + '18', color: s.color }}>
+                                  {s.icon} {s.label}
+                                </span>
+                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: sv.color + '18', color: sv.color }}>
+                                  {sv.label}
+                                </span>
                               </div>
                             </div>
                           )
