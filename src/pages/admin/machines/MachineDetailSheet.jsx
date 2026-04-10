@@ -198,8 +198,8 @@ export default function MachineDetailSheet({
                     </svg>
                     <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-themed">{activeReports.length}</span>
                   </div>
-                  <p className="text-[9px] text-faint uppercase tracking-wider font-semibold">Segnalazioni</p>
-                  <p className="text-[9px] text-faint uppercase tracking-wider mt-1 opacity-60">Ultimo Interv.</p>
+                  <p className="text-[9px] text-faint uppercase tracking-wider font-semibold truncate w-full text-center">Segnalazioni</p>
+                  <p className="text-[9px] text-faint uppercase tracking-wider mt-1 opacity-60 truncate w-full text-center">Ultimo Interv.</p>
                 </button>
 
                 {/* Piani mini chart */}
@@ -220,8 +220,8 @@ export default function MachineDetailSheet({
                     </svg>
                     <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-themed">{plans.length}</span>
                   </div>
-                  <p className="text-[9px] text-faint uppercase tracking-wider font-semibold">Piani</p>
-                  <p className="text-[9px] text-faint uppercase tracking-wider mt-1 opacity-60">Prossima Scad.</p>
+                  <p className="text-[9px] text-faint uppercase tracking-wider font-semibold truncate w-full text-center">Piani</p>
+                  <p className="text-[9px] text-faint uppercase tracking-wider mt-1 opacity-60 truncate w-full text-center">Prossima Scad.</p>
                 </button>
               </div>
             </div>
@@ -272,9 +272,9 @@ export default function MachineDetailSheet({
           <div className="col-span-9 flex flex-col overflow-hidden">
 
             {/* Title block */}
-            <div className="px-5 pt-4 pb-2 shrink-0">
-              <h1 className="text-2xl font-bold text-themed">{sel.name}</h1>
-              <p className="text-xs text-faint mt-0.5">
+            <div className="px-5 pt-4 pb-2 shrink-0 min-w-0">
+              <h1 className="text-xl font-bold text-themed truncate">{sel.name}</h1>
+              <p className="text-xs text-faint mt-0.5 truncate">
                 {[sel.manufacturer, sel.model].filter(Boolean).join(' ')}
                 {sel.serial_number && <> · Serial <span className="text-secondary font-medium">{sel.serial_number}</span></>}
                 {sel.year && <> · Year <span className="text-secondary font-medium">{sel.year}</span></>}
@@ -326,29 +326,31 @@ export default function MachineDetailSheet({
                   {/* Top row: 3 KPI cards */}
                   <div className="grid grid-cols-3 gap-4">
                     {/* STATO SALUTE */}
-                    <div className="relative bg-surface-2 rounded-2xl p-5 border border-token overflow-hidden">
-                      <div className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
-                        <Activity size={18} className="text-cyan-400" />
+                    <div className="bg-surface-2 rounded-2xl p-4 border border-token">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <p className="text-[10px] text-faint uppercase tracking-wider font-semibold leading-tight pt-1.5 min-w-0">Stato Salute</p>
+                        <div className="w-9 h-9 rounded-xl bg-cyan-500/10 flex items-center justify-center shrink-0">
+                          <Activity size={16} className="text-cyan-400" />
+                        </div>
                       </div>
-                      <p className="text-[10px] text-faint uppercase tracking-wider font-semibold mb-2">Stato Salute</p>
                       {assessmentLoading ? (
-                        <div className="w-6 h-6 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin mt-1" />
+                        <div className="w-6 h-6 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
                       ) : assessment ? (
                         <>
-                          <p className="text-3xl font-bold text-themed">{assessment.health_score}</p>
-                          <p className="text-xs text-faint mt-1 capitalize">{healthLabels[assessment.status] || assessment.status}</p>
+                          <p className="text-3xl font-bold text-themed leading-none">{assessment.health_score}</p>
+                          <p className="text-xs text-faint mt-1.5 capitalize truncate">{healthLabels[assessment.status] || assessment.status}</p>
                         </>
                       ) : (
                         <>
-                          <p className="text-xl font-bold text-faint">Non Disponibile</p>
-                          <p className="text-xs text-faint mt-1 opacity-60">Nessun assessment</p>
+                          <p className="text-lg font-bold text-faint leading-tight">Non Disponibile</p>
+                          <p className="text-xs text-faint mt-1 opacity-60 truncate">Nessun assessment</p>
                         </>
                       )}
                     </div>
 
                     {/* SEGNALAZIONI ATTIVE */}
                     <div
-                      className={`relative bg-surface-2 rounded-2xl p-5 border overflow-hidden transition-all ${
+                      className={`bg-surface-2 rounded-2xl p-4 border transition-all ${
                         criticalReports.length > 0
                           ? 'border-red-500/40'
                           : activeReports.length > 0
@@ -357,28 +359,32 @@ export default function MachineDetailSheet({
                       }`}
                       style={criticalReports.length > 0 ? { boxShadow: '0 0 24px rgba(239,68,68,0.15), inset 0 0 24px rgba(239,68,68,0.05)' } : {}}
                     >
-                      <div className={`absolute top-4 right-4 w-10 h-10 rounded-xl flex items-center justify-center ${
-                        criticalReports.length > 0 ? 'bg-red-500/15' : activeReports.length > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10'
-                      }`}>
-                        <AlertTriangle size={18} className={criticalReports.length > 0 ? 'text-red-400' : activeReports.length > 0 ? 'text-amber-400' : 'text-emerald-400'} />
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <p className="text-[10px] text-faint uppercase tracking-wider font-semibold leading-tight pt-1.5 min-w-0">Segnalazioni Attive</p>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                          criticalReports.length > 0 ? 'bg-red-500/15' : activeReports.length > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10'
+                        }`}>
+                          <AlertTriangle size={16} className={criticalReports.length > 0 ? 'text-red-400' : activeReports.length > 0 ? 'text-amber-400' : 'text-emerald-400'} />
+                        </div>
                       </div>
-                      <p className="text-[10px] text-faint uppercase tracking-wider font-semibold mb-2">Segnalazioni Attive</p>
-                      <p className={`text-4xl font-bold ${criticalReports.length > 0 ? 'text-red-400' : activeReports.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                      <p className={`text-3xl font-bold leading-none ${criticalReports.length > 0 ? 'text-red-400' : activeReports.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
                         {activeReports.length}
                       </p>
-                      <p className="text-xs text-faint mt-1">
+                      <p className="text-xs text-faint mt-1.5 truncate">
                         {activeReports.length === 0 ? 'tutto ok' : 'segnalazioni da gestire'}
                       </p>
                     </div>
 
                     {/* MANUTENZIONE */}
-                    <div className="relative bg-surface-2 rounded-2xl p-5 border border-token overflow-hidden">
-                      <div className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
-                        <Wrench size={18} className="text-violet-400" />
+                    <div className="bg-surface-2 rounded-2xl p-4 border border-token">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <p className="text-[10px] text-faint uppercase tracking-wider font-semibold leading-tight pt-1.5 min-w-0">Manutenzione</p>
+                        <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+                          <Wrench size={16} className="text-violet-400" />
+                        </div>
                       </div>
-                      <p className="text-[10px] text-faint uppercase tracking-wider font-semibold mb-2">Manutenzione</p>
-                      <p className="text-4xl font-bold text-violet-400">{plans.length}</p>
-                      <p className="text-xs text-faint mt-1">Piani attivi</p>
+                      <p className="text-3xl font-bold text-violet-400 leading-none">{plans.length}</p>
+                      <p className="text-xs text-faint mt-1.5 truncate">Piani attivi</p>
                     </div>
                   </div>
 
