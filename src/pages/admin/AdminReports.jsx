@@ -2,15 +2,32 @@ import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
-import { Badge, Button, Modal, Input, Textarea, Select, EmptyState, Spinner } from '../../components/ui'
+import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
 import { useToast } from '../../hooks/useToast'
 import ReportDetailModal from './reports/ReportDetailModal'
 import PageHeader from '../../components/layout/PageHeader'
 import { findNavItem } from '../../lib/adminNav'
-import { Plus, Search, Eye, X, ChevronUp, ChevronDown } from 'lucide-react'
+import { avatarGradient } from '../../hooks/usePremiumUI'
+import { Plus, Search, X, ChevronUp, ChevronDown, MoreVertical } from 'lucide-react'
 
 const NAV_ITEM = findNavItem('reports')
+
+// ── StatusPill: badge bordato stile mockup (bg tint + border colored + text colored) ──
+function StatusPill({ color, label }) {
+  return (
+    <span
+      className="inline-block px-3 py-1 rounded-full text-[11px] font-medium border whitespace-nowrap"
+      style={{
+        background: `${color}1f`,
+        borderColor: `${color}66`,
+        color,
+      }}
+    >
+      {label}
+    </span>
+  )
+}
 
 export default function AdminReports({ initialReportId }) {
   const { user } = useAuth()
@@ -116,78 +133,153 @@ export default function AdminReports({ initialReportId }) {
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
 
-      {/* Status filter bar */}
+      {/* Status filter pills — sempre visibili, colorate, con count */}
       <div className="flex gap-2 flex-wrap">
         {Object.entries(STATUS).map(([key, { label, color }]) => {
           const count = reports.filter(r => r.status === key).length
+          const active = filterStatus === key
           return (
-            <button key={key} onClick={() => setFilterStatus(filterStatus === key ? '' : key)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                filterStatus === key ? 'text-white shadow-lg' : 'card-elevated text-muted hover:text-white hover:border-token'
-              }`}
-              style={filterStatus === key ? { background: color, boxShadow: `0 4px 14px ${color}33` } : {}}>
-              <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+            <button
+              key={key}
+              onClick={() => setFilterStatus(active ? '' : key)}
+              aria-pressed={active}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all press-scale"
+              style={{
+                background: active ? `${color}22` : `${color}0d`,
+                border: `1px solid ${active ? color : `${color}40`}`,
+                color: active ? '#ffffff' : color,
+                boxShadow: active ? `0 0 16px ${color}33` : 'none',
+              }}
+            >
               {label}
-              <span className="font-bold text-white">{count}</span>
+              <span
+                className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                style={{
+                  background: active ? 'rgba(255,255,255,0.15)' : `${color}1a`,
+                  color: active ? '#ffffff' : color,
+                }}
+              >
+                {count}
+              </span>
             </button>
           )
         })}
       </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
-          <input type="text" placeholder="Cerca per titolo, macchinario o autore..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 transition-colors" />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-white">
-              <X size={16} />
+      {/* Toolbar: severity filter sinistra, search + nuova destra */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <select
+            value={filterSeverity}
+            onChange={(e) => setFilterSeverity(e.target.value)}
+            className="rounded-lg px-4 py-2 text-sm focus:outline-none transition-colors"
+            style={{
+              background: 'var(--color-sidebar-bg)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text)',
+            }}
+          >
+            <option value="">Tutte le gravità</option>
+            {Object.entries(SEVERITY).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </select>
+          {activeFilters > 0 && (
+            <button
+              onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
+              className="text-sm px-3 py-2 rounded-lg transition-colors hover:bg-white/5"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Rimuovi filtri
             </button>
           )}
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            {filtered.length} {filtered.length === 1 ? 'segnalazione' : 'segnalazioni'}
+            {activeFilters > 0 && ' (filtrate)'}
+          </span>
         </div>
-        <select value={filterSeverity} onChange={e => setFilterSeverity(e.target.value)}
-          className="card-elevated rounded-xl px-4 py-3 text-sm text-themed focus:outline-none focus:border-violet-500/50">
-          <option value="">Tutte le gravità</option>
-          {Object.entries(SEVERITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        {activeFilters > 0 && (
-          <button onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
-            className="text-sm text-muted hover:text-white px-3 py-2 rounded-lg hover:bg-white/5">
-            Rimuovi filtri
-          </button>
-        )}
-        <Button onClick={() => setShowNew(true)}><Plus size={18} /> Nuova</Button>
+
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--color-text-muted)' }}
+            />
+            <input
+              type="text"
+              placeholder="Cerca"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-64 pl-9 pr-9 py-2 text-sm rounded-lg focus:outline-none transition-colors"
+              style={{
+                background: 'var(--color-sidebar-bg)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                aria-label="Cancella ricerca"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 hover:text-white"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <Button onClick={() => setShowNew(true)}>
+            <Plus size={16} /> Nuova
+          </Button>
+        </div>
       </div>
 
-      <p className="text-sm text-faint">{filtered.length} segnalazioni {activeFilters > 0 ? '(filtrate)' : ''}</p>
-
-      {/* Table */}
-      {loading ? <Spinner /> : filtered.length === 0 ? (
-        <EmptyState icon="📋" title="Nessuna segnalazione trovata"
-          subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined} />
+      {/* Data table */}
+      {loading ? (
+        <Spinner />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon="📋"
+          title="Nessuna segnalazione trovata"
+          subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined}
+        />
       ) : (
-        <div className="bg-surface-1/60 border border-token rounded-2xl overflow-hidden">
-          <table className="w-full">
+        <div
+          className="rounded-xl overflow-hidden shadow-lg"
+          style={{
+            background: 'var(--color-surface-1)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-token">
+              <tr
+                className="text-[11px] uppercase tracking-wider"
+                style={{
+                  color: 'var(--color-text-muted)',
+                  background: 'rgba(0,0,0,0.2)',
+                  borderBottom: '1px solid var(--color-border)',
+                }}
+              >
                 {[
-                  { label: 'Segnalazione', field: null },
-                  { label: 'Macchinario', field: 'machine', hide: 'hidden lg:table-cell' },
-                  { label: 'Gravità', field: null, hide: 'hidden md:table-cell' },
-                  { label: 'Tipo', field: null, hide: 'hidden lg:table-cell' },
-                  { label: 'Stato', field: 'status' },
-                  { label: 'Assegnato a', field: 'assigned_to_name', hide: 'hidden lg:table-cell' },
-                  { label: 'Data', field: 'created_at', hide: 'hidden lg:table-cell' },
-                  { label: '', field: null },
+                  { label: 'Segnalazione', field: null,               w: 'w-[24%]' },
+                  { label: 'Macchinario',  field: 'machine',          w: 'w-[14%]', hide: 'hidden lg:table-cell' },
+                  { label: 'Gravità',      field: null,               w: 'w-[11%]', hide: 'hidden md:table-cell' },
+                  { label: 'Tipo',         field: null,               w: 'w-[12%]', hide: 'hidden lg:table-cell' },
+                  { label: 'Stato',        field: 'status',           w: 'w-[12%]' },
+                  { label: 'Assegnato',    field: 'assigned_to_name', w: 'w-[16%]', hide: 'hidden lg:table-cell' },
+                  { label: 'Data',         field: 'created_at',       w: 'w-[10%]', hide: 'hidden lg:table-cell' },
+                  { label: '',             field: null,               w: 'w-10' },
                 ].map((col, i) => (
-                  <th key={i} className={`text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider ${col.hide || ''}
-                    ${col.field ? 'cursor-pointer select-none hover:text-white text-faint' : 'text-faint'}`}
-                    onClick={col.field ? () => toggleSort(col.field) : undefined}>
+                  <th
+                    key={i}
+                    className={`px-6 py-4 font-medium ${col.w} ${col.hide || ''} ${col.field ? 'cursor-pointer select-none hover:text-white' : ''}`}
+                    onClick={col.field ? () => toggleSort(col.field) : undefined}
+                  >
                     <span className="inline-flex items-center gap-1">
                       {col.label}
                       {col.field && sortBy === col.field && (
@@ -198,32 +290,91 @@ export default function AdminReports({ initialReportId }) {
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-[13px]">
               {sorted.map(r => {
                 const sts = STATUS[r.status] || STATUS.aperta
                 const sev = SEVERITY[r.severity] || SEVERITY.media
+                const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
                 return (
-                  <tr key={r.id} onClick={() => setSelected(r)}
-                    className="border-b border-token/30 hover:bg-white/[0.02] transition-colors cursor-pointer group">
-                    <td className="px-5 py-4" style={{ borderLeft: `3px solid ${sev.color}` }}>
-                      <p className="text-[15px] text-white font-medium group-hover:text-purple-300 transition-colors">{r.title}</p>
-                      <p className="text-xs text-faint mt-0.5">{r.created_by_name || 'Sconosciuto'}</p>
+                  <tr
+                    key={r.id}
+                    onClick={() => setSelected(r)}
+                    className="hover:bg-white/[0.03] transition-colors cursor-pointer group"
+                    style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
+                  >
+                    {/* Segnalazione: titolo + autore */}
+                    <td className="px-6 py-4">
+                      <p
+                        className="font-medium group-hover:text-white transition-colors line-clamp-1"
+                        style={{ color: 'var(--color-text)' }}
+                      >
+                        {r.title}
+                      </p>
+                      <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                        {r.created_by_name || 'Sconosciuto'}
+                      </p>
                     </td>
-                    <td className="px-5 py-4 hidden lg:table-cell"><span className="text-sm text-muted">{r.machine || '—'}</span></td>
-                    <td className="px-5 py-4 hidden md:table-cell"><Badge {...sev} /></td>
-                    <td className="px-5 py-4 hidden lg:table-cell">
-                      {r.type && REPORT_TYPES[r.type] ? <Badge {...REPORT_TYPES[r.type]} /> : <span className="text-xs text-faint">—</span>}
+
+                    {/* Macchinario */}
+                    <td className="px-6 py-4 hidden lg:table-cell" style={{ color: 'var(--color-text-muted)' }}>
+                      {r.machine || '—'}
                     </td>
-                    <td className="px-5 py-4"><Badge {...sts} /></td>
-                    <td className="px-5 py-4 hidden lg:table-cell">
-                      {r.assigned_to_name
-                        ? <span className="text-sm text-secondary">🔧 {r.assigned_to_name}</span>
-                        : <span className="text-xs text-amber-400 bg-amber-400/10 px-2 py-1 rounded-md font-medium">Da assegnare</span>}
+
+                    {/* Gravità pill */}
+                    <td className="px-6 py-4 hidden md:table-cell">
+                      <StatusPill color={sev.color} label={sev.label} />
                     </td>
-                    <td className="px-5 py-4 hidden lg:table-cell"><span className="text-sm text-faint">{timeAgo(r.created_at)}</span></td>
-                    <td className="px-5 py-4">
-                      <button className="p-2 rounded-lg hover:bg-white/10 text-muted hover:text-white opacity-0 group-hover:opacity-100 transition-all">
-                        <Eye size={16} />
+
+                    {/* Tipo pill */}
+                    <td className="px-6 py-4 hidden lg:table-cell">
+                      {typ ? (
+                        <StatusPill color={typ.color} label={typ.label} />
+                      ) : (
+                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
+                      )}
+                    </td>
+
+                    {/* Stato pill */}
+                    <td className="px-6 py-4">
+                      <StatusPill color={sts.color} label={sts.label} />
+                    </td>
+
+                    {/* Assegnato: avatar + nome */}
+                    <td className="px-6 py-4 hidden lg:table-cell">
+                      {r.assigned_to_name ? (
+                        <div className="flex items-center gap-2" style={{ color: 'var(--color-text-secondary)' }}>
+                          <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                            style={{ background: avatarGradient(r.assigned_to_name) }}
+                          >
+                            {r.assigned_to_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className="truncate">{r.assigned_to_name}</span>
+                        </div>
+                      ) : (
+                        <span
+                          className="text-[11px] font-medium px-2 py-1 rounded-md inline-block"
+                          style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)' }}
+                        >
+                          Da assegnare
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Data */}
+                    <td className="px-6 py-4 hidden lg:table-cell" style={{ color: 'var(--color-text-muted)' }}>
+                      {timeAgo(r.created_at)}
+                    </td>
+
+                    {/* Kebab menu (placeholder → apre detail) */}
+                    <td className="px-4 py-4 text-right">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelected(r) }}
+                        aria-label="Azioni"
+                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-white/10"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        <MoreVertical size={16} />
                       </button>
                     </td>
                   </tr>
