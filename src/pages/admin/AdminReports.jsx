@@ -6,27 +6,29 @@ import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner } from '../
 import MediaCapture from '../../components/media/MediaCapture'
 import { useToast } from '../../hooks/useToast'
 import ReportDetailModal from './reports/ReportDetailModal'
-import PageHeader from '../../components/layout/PageHeader'
-import { findNavItem } from '../../lib/adminNav'
 import { avatarGradient } from '../../hooks/usePremiumUI'
-import { Plus, Search, X, ChevronUp, ChevronDown, MoreVertical } from 'lucide-react'
+import { Plus, Search, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 
-const NAV_ITEM = findNavItem('reports')
+const PER_PAGE = 15
 
-// ── StatusPill: badge bordato stile mockup (bg tint + border colored + text colored) ──
-function StatusPill({ color, label }) {
+// ── CellBadge: piccolo badge bordato per celle tabella (gravità/tipo/stato) ──
+function CellBadge({ color, label }) {
   return (
     <span
-      className="inline-block px-3 py-1 rounded-full text-[11px] font-medium border whitespace-nowrap"
-      style={{
-        background: `${color}1f`,
-        borderColor: `${color}66`,
-        color,
-      }}
+      className="inline-flex text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border whitespace-nowrap"
+      style={{ background: `${color}15`, color, borderColor: `${color}30` }}
     >
       {label}
     </span>
   )
+}
+
+// ── Glass panel style condiviso (header + tabella) ──
+const glassPanelStyle = {
+  background: 'rgba(255, 255, 255, 0.03)',
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  border: '1px solid rgba(255, 255, 255, 0.06)',
 }
 
 export default function AdminReports({ initialReportId }) {
@@ -45,6 +47,12 @@ export default function AdminReports({ initialReportId }) {
   const [machines, setMachines] = useState([])
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState('desc')
+  const [page, setPage] = useState(1)
+
+  // Wrapper setters: reset pagina quando cambia un filtro
+  const updateSearch = (v) => { setSearch(v); setPage(1) }
+  const updateFilterStatus = (v) => { setFilterStatus(v); setPage(1) }
+  const updateFilterSeverity = (v) => { setFilterSeverity(v); setPage(1) }
 
   const load = async () => {
     setLoading(true)
@@ -96,6 +104,13 @@ export default function AdminReports({ initialReportId }) {
     return 0
   })
 
+  // Pagination derived
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
+  const safePage = Math.min(page, totalPages)
+  const startIdx = (safePage - 1) * PER_PAGE
+  const endIdx = Math.min(startIdx + PER_PAGE, sorted.length)
+  const paginated = sorted.slice(startIdx, endIdx)
+
   const createReport = async () => {
     if (!form.title.trim() || !form.description.trim()) return
     const created = await db.createReport({
@@ -133,255 +148,283 @@ export default function AdminReports({ initialReportId }) {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
+    <div className="space-y-8 animate-fade-in">
 
-      {/* Status filter pills — sempre visibili, colorate, con count */}
-      <div className="flex gap-2 flex-wrap">
-        {Object.entries(STATUS).map(([key, { label, color }]) => {
-          const count = reports.filter(r => r.status === key).length
-          const active = filterStatus === key
-          return (
-            <button
-              key={key}
-              onClick={() => setFilterStatus(active ? '' : key)}
-              aria-pressed={active}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all press-scale"
+      {/* ═══ PREMIUM HEADER ═══ */}
+      <header>
+        {/* Breadcrumb */}
+        <nav className="flex text-[11px] font-medium uppercase tracking-widest mb-2 gap-2" style={{ color: 'var(--color-text-muted)' }}>
+          <span>Gestione</span>
+          <span>/</span>
+          <span style={{ color: 'var(--color-primary, #7c6aff)' }}>Segnalazioni</span>
+        </nav>
+
+        {/* Title row */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+          <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight flex items-center" style={{ color: 'var(--color-text)' }}>
+            Segnalazioni
+            <span
+              className="ml-4 px-2.5 py-0.5 text-sm font-medium rounded-md border"
               style={{
-                background: active ? `${color}22` : `${color}0d`,
-                border: `1px solid ${active ? color : `${color}40`}`,
-                color: active ? '#ffffff' : color,
-                boxShadow: active ? `0 0 16px ${color}33` : 'none',
+                background: 'var(--color-surface-2)',
+                color: 'var(--color-text-muted)',
+                borderColor: 'var(--color-border)',
               }}
             >
-              {label}
-              <span
-                className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-                style={{
-                  background: active ? 'rgba(255,255,255,0.15)' : `${color}1a`,
-                  color: active ? '#ffffff' : color,
-                }}
-              >
-                {count}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+              {reports.length}
+            </span>
+          </h1>
 
-      {/* Toolbar: severity filter sinistra, search + nuova destra */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Search */}
+            <div className="relative group">
+              <Search
+                size={16}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors pointer-events-none"
+                style={{ color: 'var(--color-text-muted)' }}
+              />
+              <input
+                type="text"
+                placeholder="Cerca per titolo, macchinario o autore..."
+                value={search}
+                onChange={e => updateSearch(e.target.value)}
+                className="w-72 text-sm rounded-xl pl-10 pr-9 py-2.5 focus:outline-none transition-all"
+                style={{
+                  background: 'var(--color-sidebar-bg)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
+                aria-label="Cerca segnalazioni"
+              />
+              {search && (
+                <button
+                  onClick={() => updateSearch('')}
+                  aria-label="Cancella ricerca"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 hover:text-white"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <Button onClick={() => setShowNew(true)}><Plus size={16} /> Nuova</Button>
+          </div>
+        </div>
+
+        {/* Glass filter chips */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tutte */}
+          <button
+            onClick={() => updateFilterStatus('')}
+            aria-pressed={filterStatus === ''}
+            className="text-sm px-4 py-2 rounded-full border flex items-center transition-all press-scale"
+            style={filterStatus === ''
+              ? { ...glassPanelStyle, background: 'rgba(124,106,255,0.10)', borderColor: 'rgba(124,106,255,0.6)', color: '#a594ff' }
+              : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
+          >
+            Tutte <span className="ml-2 opacity-60 font-normal">{reports.length}</span>
+          </button>
+
+          <div className="h-4 w-px mx-1" style={{ background: 'var(--color-border)' }} />
+
+          {Object.entries(STATUS).map(([key, { label, color }]) => {
+            const count = reports.filter(r => r.status === key).length
+            const isActive = filterStatus === key
+            return (
+              <button
+                key={key}
+                onClick={() => updateFilterStatus(filterStatus === key ? '' : key)}
+                aria-pressed={isActive}
+                className="text-sm px-4 py-2 rounded-full border flex items-center transition-all press-scale"
+                style={isActive
+                  ? { ...glassPanelStyle, background: `${color}15`, borderColor: `${color}99`, color }
+                  : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
+              >
+                <span className="h-2 w-2 rounded-full mr-2.5" style={{ background: color }} />
+                {label}
+                <span className="ml-2 text-xs opacity-60">{count}</span>
+              </button>
+            )
+          })}
+
+          {/* Severity filter (compact, right-aligned) */}
           <select
             value={filterSeverity}
-            onChange={(e) => setFilterSeverity(e.target.value)}
-            className="rounded-lg px-4 py-2 text-sm focus:outline-none transition-colors"
+            onChange={e => updateFilterSeverity(e.target.value)}
+            className="ml-auto text-xs rounded-full px-4 py-2 focus:outline-none"
             style={{
               background: 'var(--color-sidebar-bg)',
               border: '1px solid var(--color-border)',
               color: 'var(--color-text)',
             }}
+            aria-label="Filtra per gravità"
           >
             <option value="">Tutte le gravità</option>
-            {Object.entries(SEVERITY).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
+            {Object.entries(SEVERITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
+
           {activeFilters > 0 && (
             <button
-              onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
-              className="text-sm px-3 py-2 rounded-lg transition-colors hover:bg-white/5"
+              onClick={() => { updateFilterStatus(''); updateFilterSeverity('') }}
+              className="text-xs px-3 py-2 rounded-full transition-colors hover:bg-white/5"
               style={{ color: 'var(--color-text-muted)' }}
             >
               Rimuovi filtri
             </button>
           )}
-          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {filtered.length} {filtered.length === 1 ? 'segnalazione' : 'segnalazioni'}
-            {activeFilters > 0 && ' (filtrate)'}
-          </span>
         </div>
+      </header>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--color-text-muted)' }}
-            />
-            <input
-              type="text"
-              placeholder="Cerca"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-64 pl-9 pr-9 py-2 text-sm rounded-lg focus:outline-none transition-colors"
-              style={{
-                background: 'var(--color-sidebar-bg)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text)',
-              }}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                aria-label="Cancella ricerca"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 hover:text-white"
-                style={{ color: 'var(--color-text-muted)' }}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          <Button onClick={() => setShowNew(true)}>
-            <Plus size={16} /> Nuova
-          </Button>
-        </div>
-      </div>
-
-      {/* Data table */}
-      {loading ? (
-        <Spinner />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon="📋"
-          title="Nessuna segnalazione trovata"
-          subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined}
-        />
+      {/* ═══ MAIN DATA AREA ═══ */}
+      {loading ? <Spinner /> : filtered.length === 0 ? (
+        <EmptyState icon="📋" title="Nessuna segnalazione trovata"
+          subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined} />
       ) : (
-        <div
-          className="rounded-xl overflow-hidden shadow-lg"
-          style={{
-            background: 'var(--color-surface-1)',
-            border: '1px solid var(--color-border)',
-          }}
-        >
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr
-                className="text-[11px] uppercase tracking-wider"
-                style={{
-                  color: 'var(--color-text-muted)',
-                  background: 'rgba(0,0,0,0.2)',
-                  borderBottom: '1px solid var(--color-border)',
-                }}
-              >
-                {[
-                  { label: 'Segnalazione', field: null,               w: 'w-[24%]' },
-                  { label: 'Macchinario',  field: 'machine',          w: 'w-[14%]', hide: 'hidden lg:table-cell' },
-                  { label: 'Gravità',      field: null,               w: 'w-[11%]', hide: 'hidden md:table-cell' },
-                  { label: 'Tipo',         field: null,               w: 'w-[12%]', hide: 'hidden lg:table-cell' },
-                  { label: 'Stato',        field: 'status',           w: 'w-[12%]' },
-                  { label: 'Assegnato',    field: 'assigned_to_name', w: 'w-[16%]', hide: 'hidden lg:table-cell' },
-                  { label: 'Data',         field: 'created_at',       w: 'w-[10%]', hide: 'hidden lg:table-cell' },
-                  { label: '',             field: null,               w: 'w-10' },
-                ].map((col, i) => (
-                  <th
-                    key={i}
-                    className={`px-6 py-4 font-medium ${col.w} ${col.hide || ''} ${col.field ? 'cursor-pointer select-none hover:text-white' : ''}`}
-                    onClick={col.field ? () => toggleSort(col.field) : undefined}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {col.label}
-                      {col.field && sortBy === col.field && (
-                        sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
-                      )}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="text-[13px]">
-              {sorted.map(r => {
-                const sts = STATUS[r.status] || STATUS.aperta
-                const sev = SEVERITY[r.severity] || SEVERITY.media
-                const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
-                return (
-                  <tr
-                    key={r.id}
-                    onClick={() => setSelected(r)}
-                    className="hover:bg-white/[0.03] transition-colors cursor-pointer group"
-                    style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
-                  >
-                    {/* Segnalazione: titolo + autore */}
-                    <td className="px-6 py-4">
-                      <p
-                        className="font-medium group-hover:text-white transition-colors line-clamp-1"
-                        style={{ color: 'var(--color-text)' }}
-                      >
-                        {r.title}
-                      </p>
-                      <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                        {r.created_by_name || 'Sconosciuto'}
-                      </p>
-                    </td>
-
-                    {/* Macchinario */}
-                    <td className="px-6 py-4 hidden lg:table-cell" style={{ color: 'var(--color-text-muted)' }}>
-                      {r.machine || '—'}
-                    </td>
-
-                    {/* Gravità pill */}
-                    <td className="px-6 py-4 hidden md:table-cell">
-                      <StatusPill color={sev.color} label={sev.label} />
-                    </td>
-
-                    {/* Tipo pill */}
-                    <td className="px-6 py-4 hidden lg:table-cell">
-                      {typ ? (
-                        <StatusPill color={typ.color} label={typ.label} />
-                      ) : (
-                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
-                      )}
-                    </td>
-
-                    {/* Stato pill */}
-                    <td className="px-6 py-4">
-                      <StatusPill color={sts.color} label={sts.label} />
-                    </td>
-
-                    {/* Assegnato: avatar + nome */}
-                    <td className="px-6 py-4 hidden lg:table-cell">
-                      {r.assigned_to_name ? (
-                        <div className="flex items-center gap-2" style={{ color: 'var(--color-text-secondary)' }}>
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                            style={{ background: avatarGradient(r.assigned_to_name) }}
-                          >
-                            {r.assigned_to_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                          </div>
-                          <span className="truncate">{r.assigned_to_name}</span>
-                        </div>
-                      ) : (
-                        <span
-                          className="text-[11px] font-medium px-2 py-1 rounded-md inline-block"
-                          style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)' }}
+        <div className="rounded-2xl overflow-hidden shadow-2xl" style={glassPanelStyle}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[1000px]">
+              <thead>
+                <tr
+                  className="text-[11px] uppercase"
+                  style={{
+                    color: 'var(--color-text-muted)',
+                    borderBottom: '1px solid var(--color-border)',
+                    background: 'rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {[
+                    { label: 'Segnalazione', field: null, className: 'px-8 py-5 w-[28%]' },
+                    { label: 'Macchinario', field: 'machine', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
+                    { label: 'Gravità', field: null, className: 'px-6 py-5 w-[10%] text-center hidden md:table-cell' },
+                    { label: 'Tipo', field: null, className: 'px-6 py-5 w-[10%] text-center hidden lg:table-cell' },
+                    { label: 'Stato', field: 'status', className: 'px-6 py-5 w-[12%] text-center' },
+                    { label: 'Assegnato', field: 'assigned_to_name', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
+                    { label: 'Data', field: 'created_at', className: 'px-8 py-5 text-right' },
+                  ].map((col, i) => (
+                    <th
+                      key={i}
+                      className={`font-bold tracking-widest ${col.className} ${col.field ? 'cursor-pointer select-none hover:text-white' : ''}`}
+                      onClick={col.field ? () => toggleSort(col.field) : undefined}
+                    >
+                      <span className={`inline-flex items-center gap-1 ${col.className.includes('text-center') ? 'justify-center w-full' : ''} ${col.className.includes('text-right') ? 'justify-end w-full' : ''}`}>
+                        {col.label}
+                        {col.field && sortBy === col.field && (
+                          sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                        )}
+                      </span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="text-[13px]">
+                {paginated.map(r => {
+                  const sts = STATUS[r.status] || STATUS.aperta
+                  const sev = SEVERITY[r.severity] || SEVERITY.media
+                  const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
+                  return (
+                    <tr
+                      key={r.id}
+                      onClick={() => setSelected(r)}
+                      className="hover:bg-violet-500/[0.03] transition-colors group cursor-pointer"
+                      style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
+                    >
+                      <td className="px-8 py-5">
+                        <div
+                          className="font-semibold mb-0.5 group-hover:text-violet-300 transition-colors truncate"
+                          style={{ color: 'var(--color-text)' }}
                         >
-                          Da assegnare
+                          {r.title}
+                        </div>
+                        <div className="text-[11px] font-medium truncate" style={{ color: 'var(--color-text-muted)' }}>
+                          {r.created_by_name || 'Sconosciuto'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 hidden lg:table-cell">
+                        <span className="italic font-medium truncate block" style={{ color: 'var(--color-text-muted)' }}>
+                          {r.machine || '—'}
                         </span>
-                      )}
-                    </td>
+                      </td>
+                      <td className="px-6 py-5 text-center hidden md:table-cell">
+                        <CellBadge color={sev.color} label={sev.label} />
+                      </td>
+                      <td className="px-6 py-5 text-center hidden lg:table-cell">
+                        {typ ? (
+                          <CellBadge color={typ.color} label={typ.label} />
+                        ) : (
+                          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <CellBadge color={sts.color} label={sts.label} />
+                      </td>
+                      <td className="px-6 py-5 hidden lg:table-cell">
+                        {r.assigned_to_name ? (
+                          <div className="flex items-center min-w-0" style={{ color: 'var(--color-text-secondary)' }}>
+                            <div
+                              className="h-7 w-7 rounded-full mr-3 flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
+                              style={{ background: avatarGradient(r.assigned_to_name) }}
+                            >
+                              {r.assigned_to_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </div>
+                            <span className="font-medium truncate">{r.assigned_to_name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#f59e0b' }}>
+                            Da assegnare
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-8 py-5 text-right font-medium whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>
+                        {timeAgo(r.created_at)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
 
-                    {/* Data */}
-                    <td className="px-6 py-4 hidden lg:table-cell" style={{ color: 'var(--color-text-muted)' }}>
-                      {timeAgo(r.created_at)}
-                    </td>
-
-                    {/* Kebab menu (placeholder → apre detail) */}
-                    <td className="px-4 py-4 text-right">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setSelected(r) }}
-                        aria-label="Azioni"
-                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-white/10"
-                        style={{ color: 'var(--color-text-muted)' }}
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          {/* Pagination footer */}
+          <div
+            className="px-8 py-5 flex items-center justify-between flex-wrap gap-3"
+            style={{
+              background: 'rgba(0,0,0,0.2)',
+              borderTop: '1px solid var(--color-border)',
+            }}
+          >
+            <p className="text-[11px] font-medium uppercase tracking-widest" style={{ color: 'var(--color-text-muted)' }}>
+              Mostrando {sorted.length === 0 ? 0 : startIdx + 1}-{endIdx} di {sorted.length} segnalazioni
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-medium mr-2" style={{ color: 'var(--color-text-muted)' }}>
+                Pagina {safePage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                className="p-2 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text-muted)',
+                }}
+                aria-label="Pagina precedente"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+                className="p-2 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text-muted)',
+                }}
+                aria-label="Pagina successiva"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
