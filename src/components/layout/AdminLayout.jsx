@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
-import { LogOut, ChevronLeft, ChevronRight, Shield, Sun, Moon, Settings, Search, Layers } from 'lucide-react'
+import { LogOut, ChevronLeft, ChevronRight, Shield, Sun, Moon, Settings, Layers } from 'lucide-react'
 import { useAutoNotifications } from '../../hooks/useAutoNotifications'
-import { getAmbientColors } from '../../hooks/usePremiumUI'
+import { getAmbientColors, avatarGradient } from '../../hooks/usePremiumUI'
 import { usePWA } from '../../hooks/usePWA'
 import SettingsPanel from '../ui/SettingsPanel'
+import NotificationCenter from '../ui/NotificationCenter'
+import StatusBar from './StatusBar'
 import { NAV } from '../../lib/adminNav'
 import AdminDashboard from '../../pages/admin/AdminDashboard'
 import AdminReports from '../../pages/admin/AdminReports'
@@ -69,7 +71,7 @@ export default function AdminLayout({ initialReportId }) {
 
   return (
     <div
-      className="min-h-screen flex ambient-glow"
+      className="h-screen flex ambient-glow overflow-hidden"
       style={{
         background: 'var(--color-app-bg)',
         '--ambient-color': getAmbientColors(tab).color,
@@ -197,50 +199,71 @@ export default function AdminLayout({ initialReportId }) {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto scroll-smooth">
-        {/* Top bar — minimale, solo azioni */}
-        <header
-          className="glass flex items-center justify-end gap-3 px-10 py-4 sticky top-0 z-30"
-          style={{ borderBottom: '1px solid var(--color-sidebar-border)' }}
-        >
-          <button
-            aria-label="Cerca"
-            className="press-scale flex items-center justify-center border-0 cursor-pointer"
-            style={iconBtnStyle}
-            onClick={() => { /* placeholder — apertura search futura */ }}
+      {/* Content column: main scrollable + status bar */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <main className="flex-1 overflow-y-auto scroll-smooth">
+          {/* Top bar — minimale, solo azioni */}
+          <header
+            className="glass flex items-center justify-end gap-3 px-10 py-4 sticky top-0 z-30"
+            style={{ borderBottom: '1px solid var(--color-sidebar-border)' }}
           >
-            <Search size={17} />
-          </button>
-          <button
-            onClick={toggleMode}
-            aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
-            className="press-scale flex items-center justify-center border-0 cursor-pointer"
-            style={iconBtnStyle}
-          >
-            {isDark ? <Sun size={17} /> : <Moon size={17} />}
-          </button>
-          <button
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Personalizza tema"
-            className="press-scale flex items-center justify-center border-0 cursor-pointer"
-            style={iconBtnStyle}
-          >
-            <Settings size={17} />
-          </button>
-        </header>
+            <button
+              onClick={toggleMode}
+              aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
+              className="press-scale flex items-center justify-center border-0 cursor-pointer"
+              style={iconBtnStyle}
+            >
+              {isDark ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
 
-        {/* Messaging usa full-width e altezza viewport; le altre pagine sono centrate con max-width */}
-        {tab === 'messages' ? (
-          <div className="p-8 animate-fade-in">
-            {renderPage()}
-          </div>
-        ) : (
-          <div className="px-10 pb-10 pt-8 max-w-7xl mx-auto animate-fade-in stagger-enter">
-            {renderPage()}
-          </div>
-        )}
-      </main>
+            {/* NotificationCenter (bell + badge + panel) */}
+            <NotificationCenter
+              userId={user.id}
+              userRole={user.role}
+              onOpenReport={() => setTab('reports')}
+            />
+
+            <button
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Personalizza tema"
+              className="press-scale flex items-center justify-center border-0 cursor-pointer"
+              style={iconBtnStyle}
+            >
+              <Settings size={17} />
+            </button>
+
+            {/* User avatar — apre settings panel */}
+            <button
+              onClick={() => setSettingsOpen(true)}
+              aria-label={`Profilo ${user.name}`}
+              title={user.name}
+              className="press-scale flex items-center justify-center cursor-pointer font-semibold text-white text-[13px] shrink-0"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                background: avatarGradient(user.name),
+                border: '2px solid var(--color-sidebar-border)',
+              }}
+            >
+              {(user.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+            </button>
+          </header>
+
+          {/* Messaging usa full-width; le altre pagine sono centrate con max-width */}
+          {tab === 'messages' ? (
+            <div className="p-8 animate-fade-in">
+              {renderPage()}
+            </div>
+          ) : (
+            <div className="px-10 pb-10 pt-8 max-w-7xl mx-auto animate-fade-in stagger-enter">
+              {renderPage()}
+            </div>
+          )}
+        </main>
+
+        <StatusBar userName={user.name} userRole={user.role} />
+      </div>
 
       {/* Settings Panel */}
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user.id} userRole={user.role} />
