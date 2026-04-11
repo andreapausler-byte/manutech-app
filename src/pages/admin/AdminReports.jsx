@@ -6,12 +6,19 @@ import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner } from '../
 import MediaCapture from '../../components/media/MediaCapture'
 import { useToast } from '../../hooks/useToast'
 import ReportDetailModal from './reports/ReportDetailModal'
-import PageHeader from '../../components/layout/PageHeader'
 import { findNavItem } from '../../lib/adminNav'
 import { avatarGradient } from '../../hooks/usePremiumUI'
-import { Plus, Search, X, ChevronUp, ChevronDown, MoreVertical } from 'lucide-react'
+import { Plus, Search, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react'
 
 const NAV_ITEM = findNavItem('reports')
+const PER_PAGE = 15
+
+const glassPanelStyle = {
+  background: 'rgba(255, 255, 255, 0.03)',
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  border: '1px solid rgba(255, 255, 255, 0.06)',
+}
 
 // ── StatusPill: badge bordato stile mockup (bg tint + border colored + text colored) ──
 function StatusPill({ color, label }) {
@@ -45,6 +52,12 @@ export default function AdminReports({ initialReportId }) {
   const [machines, setMachines] = useState([])
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState('desc')
+  const [page, setPage] = useState(1)
+
+  // Wrappers che resettano la paginazione quando cambia un filtro
+  const updateSearch = (v) => { setSearch(v); setPage(1) }
+  const updateFilterStatus = (v) => { setFilterStatus(v); setPage(1) }
+  const updateFilterSeverity = (v) => { setFilterSeverity(v); setPage(1) }
 
   const load = async () => {
     setLoading(true)
@@ -96,6 +109,12 @@ export default function AdminReports({ initialReportId }) {
     return 0
   })
 
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
+  const safePage = Math.min(page, totalPages)
+  const startIdx = (safePage - 1) * PER_PAGE
+  const endIdx = Math.min(startIdx + PER_PAGE, sorted.length)
+  const paginated = sorted.slice(startIdx, endIdx)
+
   const createReport = async () => {
     if (!form.title.trim() || !form.description.trim()) return
     const created = await db.createReport({
@@ -134,25 +153,69 @@ export default function AdminReports({ initialReportId }) {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
+      {/* ═══ PREMIUM HEADER: breadcrumb + title + count badge ═══ */}
+      <header>
+        <nav className="flex text-[11px] font-medium uppercase tracking-widest mb-2 gap-2" style={{ color: 'var(--color-text-muted)' }}>
+          <span>Gestione</span>
+          <span>/</span>
+          <span style={{ color: 'var(--color-primary, #7c6aff)' }}>{NAV_ITEM.label}</span>
+        </nav>
+        <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight flex items-center" style={{ color: 'var(--color-text)' }}>
+          {NAV_ITEM.label}
+          <span
+            className="ml-4 px-2.5 py-0.5 text-sm font-medium rounded-md border"
+            style={{
+              background: 'var(--color-surface-2)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            {reports.length}
+          </span>
+        </h1>
+        {NAV_ITEM.desc && (
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
+            {NAV_ITEM.desc}
+          </p>
+        )}
+      </header>
 
-      {/* Status filter pills — sempre visibili, colorate, con count */}
-      <div className="flex gap-2 flex-wrap">
+      {/* ═══ STATUS FILTER CHIPS: glass panel ═══ */}
+      <div className="flex gap-2 flex-wrap items-center">
+        {/* Tutte */}
+        <button
+          onClick={() => updateFilterStatus('')}
+          aria-pressed={filterStatus === ''}
+          className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all press-scale"
+          style={filterStatus === ''
+            ? { ...glassPanelStyle, background: 'rgba(124,106,255,0.15)', borderColor: 'rgba(124,106,255,0.6)', color: '#a594ff', boxShadow: '0 0 16px rgba(124,106,255,0.2)' }
+            : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
+        >
+          Tutte
+          <span
+            className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+            style={filterStatus === ''
+              ? { background: 'rgba(255,255,255,0.15)', color: '#ffffff' }
+              : { background: 'rgba(124,106,255,0.15)', color: '#a594ff' }}
+          >
+            {reports.length}
+          </span>
+        </button>
+
+        <div className="h-4 w-[1px] mx-1" style={{ background: 'var(--color-border)' }} />
+
         {Object.entries(STATUS).map(([key, { label, color }]) => {
           const count = reports.filter(r => r.status === key).length
           const active = filterStatus === key
           return (
             <button
               key={key}
-              onClick={() => setFilterStatus(active ? '' : key)}
+              onClick={() => updateFilterStatus(active ? '' : key)}
               aria-pressed={active}
               className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all press-scale"
-              style={{
-                background: active ? `${color}22` : `${color}0d`,
-                border: `1px solid ${active ? color : `${color}40`}`,
-                color: active ? '#ffffff' : color,
-                boxShadow: active ? `0 0 16px ${color}33` : 'none',
-              }}
+              style={active
+                ? { ...glassPanelStyle, background: `${color}22`, borderColor: color, color: '#ffffff', boxShadow: `0 0 16px ${color}33` }
+                : { ...glassPanelStyle, color }}
             >
               {label}
               <span
@@ -174,7 +237,7 @@ export default function AdminReports({ initialReportId }) {
         <div className="flex items-center gap-3">
           <select
             value={filterSeverity}
-            onChange={(e) => setFilterSeverity(e.target.value)}
+            onChange={(e) => updateFilterSeverity(e.target.value)}
             className="rounded-lg px-4 py-2 text-sm focus:outline-none transition-colors"
             style={{
               background: 'var(--color-sidebar-bg)',
@@ -189,7 +252,7 @@ export default function AdminReports({ initialReportId }) {
           </select>
           {activeFilters > 0 && (
             <button
-              onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
+              onClick={() => { updateFilterStatus(''); updateFilterSeverity('') }}
               className="text-sm px-3 py-2 rounded-lg transition-colors hover:bg-white/5"
               style={{ color: 'var(--color-text-muted)' }}
             >
@@ -213,7 +276,7 @@ export default function AdminReports({ initialReportId }) {
               type="text"
               placeholder="Cerca"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => updateSearch(e.target.value)}
               className="w-64 pl-9 pr-9 py-2 text-sm rounded-lg focus:outline-none transition-colors"
               style={{
                 background: 'var(--color-sidebar-bg)',
@@ -223,7 +286,7 @@ export default function AdminReports({ initialReportId }) {
             />
             {search && (
               <button
-                onClick={() => setSearch('')}
+                onClick={() => updateSearch('')}
                 aria-label="Cancella ricerca"
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 hover:text-white"
                 style={{ color: 'var(--color-text-muted)' }}
@@ -249,11 +312,8 @@ export default function AdminReports({ initialReportId }) {
         />
       ) : (
         <div
-          className="rounded-xl overflow-hidden shadow-lg"
-          style={{
-            background: 'var(--color-surface-1)',
-            border: '1px solid var(--color-border)',
-          }}
+          className="rounded-2xl overflow-hidden shadow-2xl"
+          style={glassPanelStyle}
         >
           <table className="w-full text-left border-collapse">
             <thead>
@@ -291,7 +351,7 @@ export default function AdminReports({ initialReportId }) {
               </tr>
             </thead>
             <tbody className="text-[13px]">
-              {sorted.map(r => {
+              {paginated.map(r => {
                 const sts = STATUS[r.status] || STATUS.aperta
                 const sev = SEVERITY[r.severity] || SEVERITY.media
                 const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
@@ -382,6 +442,42 @@ export default function AdminReports({ initialReportId }) {
               })}
             </tbody>
           </table>
+
+          {/* Pagination footer */}
+          <div
+            className="px-8 py-5 flex items-center justify-between"
+            style={{
+              background: 'rgba(0,0,0,0.2)',
+              borderTop: '1px solid var(--color-border)',
+            }}
+          >
+            <p className="text-[11px] font-medium uppercase tracking-widest" style={{ color: 'var(--color-text-muted)' }}>
+              Mostrando {sorted.length === 0 ? 0 : startIdx + 1}-{endIdx} di {sorted.length} segnalazioni
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-medium mr-2" style={{ color: 'var(--color-text-muted)' }}>
+                Pagina {safePage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                aria-label="Pagina precedente"
+                className="p-2 rounded-lg transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ border: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+                aria-label="Pagina successiva"
+                className="p-2 rounded-lg transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ border: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
