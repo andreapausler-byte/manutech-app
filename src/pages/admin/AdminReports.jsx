@@ -6,7 +6,11 @@ import { Badge, Button, Modal, Input, Textarea, Select, EmptyState, Spinner } fr
 import MediaCapture from '../../components/media/MediaCapture'
 import { useToast } from '../../hooks/useToast'
 import ReportDetailModal from './reports/ReportDetailModal'
+import PageHeader from '../../components/layout/PageHeader'
+import { findNavItem } from '../../lib/adminNav'
 import { Plus, Search, Eye, X, ChevronUp, ChevronDown } from 'lucide-react'
+
+const NAV_ITEM = findNavItem('reports')
 
 export default function AdminReports({ initialReportId }) {
   const { user } = useAuth()
@@ -113,6 +117,7 @@ export default function AdminReports({ initialReportId }) {
 
   return (
     <div className="space-y-5 animate-fade-in">
+      <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
 
       {/* Status filter bar */}
       <div className="flex gap-2 flex-wrap">

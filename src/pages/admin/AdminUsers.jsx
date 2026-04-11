@@ -4,6 +4,10 @@ import { ROLES, STATUS, SEVERITY, formatDate } from '../../lib/constants'
 import { Button, Modal, Input, EmptyState, Spinner } from '../../components/ui'
 import { useToast } from '../../hooks/useToast'
 import { Plus, Trash2, Users, Search, Truck, Printer } from 'lucide-react'
+import PageHeader from '../../components/layout/PageHeader'
+import { findNavItem } from '../../lib/adminNav'
+
+const NAV_ITEM = findNavItem('users')
 
 const isSupplier = (u) => u.email?.endsWith('@esterno.local')
 
@@ -138,6 +142,8 @@ export default function AdminUsers() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
+
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         {Object.entries(ROLES).map(([key, { label, icon, color }]) => {

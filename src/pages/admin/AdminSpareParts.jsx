@@ -12,11 +12,15 @@ import { ORDER_STATUS, formatDate } from '../../lib/constants'
 import { Button, Input, Modal, Badge, Spinner, EmptyState } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
+import PageHeader from '../../components/layout/PageHeader'
+import { findNavItem } from '../../lib/adminNav'
 import {
   Package, Plus, Edit, Trash2, Search, AlertTriangle,
   ShoppingCart, Check, Truck, MapPin, Hash, X,
   ArrowRight, Clock, Factory, ChevronRight, Archive
 } from 'lucide-react'
+
+const NAV_ITEM = findNavItem('spare-parts')
 
 const TABS = [
   { id: 'magazzino', label: 'Magazzino', icon: Package },
@@ -188,6 +192,8 @@ export default function AdminSpareParts() {
 
   return (
     <div className="space-y-5 animate-fade-in">
+      <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
+
       {/* ── Stats Bar ── */}
       <div className="grid grid-cols-4 gap-3">
         <div className="card-elevated rounded-xl p-4 text-center">

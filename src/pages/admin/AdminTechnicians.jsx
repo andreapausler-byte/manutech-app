@@ -5,6 +5,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { EmptyState, Spinner } from '../../components/ui'
 import { Wrench, CheckCircle, Clock, AlertTriangle, TrendingUp } from 'lucide-react'
 import TechnicianDetailSheet from './technicians/TechnicianDetailSheet'
+import PageHeader from '../../components/layout/PageHeader'
+import { findNavItem } from '../../lib/adminNav'
+
+const NAV_ITEM = findNavItem('technicians')
 
 export default function AdminTechnicians() {
   const { user } = useAuth()
@@ -45,6 +49,8 @@ export default function AdminTechnicians() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
+
       {/* Team Summary */}
       <div className="grid grid-cols-4 gap-4">
         {[

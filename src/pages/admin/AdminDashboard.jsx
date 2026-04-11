@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { useKPIStats } from '../../hooks/useKPIStats'
+import PageHeader from '../../components/layout/PageHeader'
+import { findNavItem } from '../../lib/adminNav'
 import HeroKPIs from './dashboard/HeroKPIs'
 import MaintenanceAlertBanner from './dashboard/MaintenanceAlertBanner'
 import TimeKPIs from './dashboard/TimeKPIs'
@@ -8,6 +10,8 @@ import ResolutionChart from './dashboard/ResolutionChart'
 import TeamWorkload from './dashboard/TeamWorkload'
 import ActivityFeed from './dashboard/ActivityFeed'
 import MaintenanceSummary from './dashboard/MaintenanceSummary'
+
+const NAV_ITEM = findNavItem('dashboard')
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
 
@@ -73,6 +77,8 @@ export default function AdminDashboard({ onNavigate }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }} className="stagger-children">
+      <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
+
       {/* Row 1: Hero KPIs */}
       <HeroKPIs stats={stats} resolveRate={resolveRate} urgenti={urgenti} nonAssegnate={nonAssegnate} />
 
