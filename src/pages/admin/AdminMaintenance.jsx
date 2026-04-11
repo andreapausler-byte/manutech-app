@@ -12,11 +12,15 @@ import { timeAgo } from '../../lib/constants'
 import { Button, Modal, Input, Textarea, EmptyState, Spinner, Badge } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
+import PageHeader from '../../components/layout/PageHeader'
+import { findNavItem } from '../../lib/adminNav'
 import {
   Shield, Wrench, AlertTriangle, CheckCircle, Cog, Clock,
   Plus, Edit, Trash2, Play, Search, X, Upload, ChevronRight,
   Filter, Calendar
 } from 'lucide-react'
+
+const NAV_ITEM = findNavItem('maintenance')
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
 
@@ -207,6 +211,7 @@ export default function AdminMaintenance() {
 
   return (
     <div className="space-y-5 animate-fade-in">
+      <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
 
       {/* ═══ KPI Semaforo ═══ */}
       <div className="grid grid-cols-4 gap-5">

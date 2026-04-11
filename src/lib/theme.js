@@ -51,6 +51,11 @@ export function makeTheme(mode, accent) {
       '--color-surface-3': '#1a1a26',
       '--color-surface-elevated': 'rgba(18, 18, 26, 0.88)',
 
+      // Admin layout chassis (ortogonale all'accent)
+      '--color-app-bg': '#13182b',
+      '--color-sidebar-bg': '#0f1423',
+      '--color-sidebar-border': 'rgba(255, 255, 255, 0.06)',
+
       // Card
       '--color-card': '#16161f',
       '--color-card-hover': '#1e1e2a',
@@ -132,6 +137,11 @@ export function makeTheme(mode, accent) {
     '--color-surface-2': '#f0f1f5',
     '--color-surface-3': '#f0f1f5',
     '--color-surface-elevated': 'rgba(255, 255, 255, 0.92)',
+
+    // Admin layout chassis (light)
+    '--color-app-bg': '#f4f5f7',
+    '--color-sidebar-bg': '#ffffff',
+    '--color-sidebar-border': '#e2e4ea',
 
     '--color-card': '#ffffff',
     '--color-card-hover': '#f8f8fc',

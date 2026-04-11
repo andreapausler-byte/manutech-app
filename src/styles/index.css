@@ -36,6 +36,11 @@
   --color-surface-3: #1a1a26;
   --color-surface-elevated: rgba(18, 18, 26, 0.88);
 
+  /* Admin layout chassis — palette ortogonale all'accent */
+  --color-app-bg: #13182b;
+  --color-sidebar-bg: #0f1423;
+  --color-sidebar-border: rgba(255, 255, 255, 0.06);
+
   /* Card */
   --color-card: #16161f;
   --color-card-hover: #1e1e2a;

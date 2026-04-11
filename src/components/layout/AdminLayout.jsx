@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
-import { LayoutDashboard, ClipboardList, Wrench, Users, Cog, LogOut, ChevronLeft, ChevronRight, Bell, Shield, Sun, Moon, Settings, MessageCircle, Trophy, Gift, Package } from 'lucide-react'
+import { LogOut, ChevronLeft, ChevronRight, Shield, Sun, Moon, Settings, Search, Layers } from 'lucide-react'
 import { useAutoNotifications } from '../../hooks/useAutoNotifications'
 import { getAmbientColors } from '../../hooks/usePremiumUI'
 import { usePWA } from '../../hooks/usePWA'
 import SettingsPanel from '../ui/SettingsPanel'
+import { NAV } from '../../lib/adminNav'
 import AdminDashboard from '../../pages/admin/AdminDashboard'
 import AdminReports from '../../pages/admin/AdminReports'
 import AdminMachines from '../../pages/admin/AdminMachines'
@@ -17,20 +18,6 @@ import AdminMessaging from '../../pages/admin/AdminMessaging'
 import AdminLeaderboard from '../../pages/admin/AdminLeaderboard'
 import AdminRewards from '../../pages/admin/AdminRewards'
 import AdminSpareParts from '../../pages/admin/AdminSpareParts'
-
-const NAV = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', desc: 'Panoramica generale' },
-  { id: 'reports', icon: ClipboardList, label: 'Segnalazioni', desc: 'Gestisci interventi' },
-  { id: 'machines', icon: Cog, label: 'Macchinari', desc: 'Anagrafica impianti' },
-  { id: 'maintenance', icon: Shield, label: 'Manutenzione', desc: 'Piani e interventi programmati' },
-  { id: 'spare-parts', icon: Package, label: 'Ricambi', desc: 'Magazzino e ordini ricambi' },
-  { id: 'technicians', icon: Wrench, label: 'Tecnici', desc: 'Carico e performance' },
-  { id: 'leaderboard', icon: Trophy, label: 'Classifica', desc: 'Punteggi e premi operatori' },
-  { id: 'rewards', icon: Gift, label: 'Premi', desc: 'Catalogo premi e ManuCoin' },
-  { id: 'users', icon: Users, label: 'Utenti', desc: 'Account e ruoli' },
-  { id: 'messages', icon: MessageCircle, label: 'Messaggi', desc: 'Chat diretta con il team' },
-  { id: 'notifications', icon: Bell, label: 'Notifiche', desc: 'Preferenze notifiche per ruolo' },
-]
 
 export default function AdminLayout({ initialReportId }) {
   const { user, logout } = useAuth()
@@ -72,47 +59,66 @@ export default function AdminLayout({ initialReportId }) {
     }
   }
 
-  const current = NAV.find(n => n.id === tab)
+  const iconBtnStyle = {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    background: 'var(--color-surface-2)',
+    color: 'var(--color-text-secondary)',
+  }
 
   return (
-    <div className="min-h-screen flex ambient-glow" style={{ background: 'var(--color-bg)', '--ambient-color': getAmbientColors(tab).color, '--ambient-color-2': getAmbientColors(tab).color2 }}>
-      {/* Sidebar — glass-heavy */}
+    <div
+      className="min-h-screen flex ambient-glow"
+      style={{
+        background: 'var(--color-app-bg)',
+        '--ambient-color': getAmbientColors(tab).color,
+        '--ambient-color-2': getAmbientColors(tab).color2,
+      }}
+    >
+      {/* Sidebar — dark chassis, piatta */}
       <aside
         aria-label="Navigazione principale"
-        className={`${collapsed ? 'w-[72px]' : 'w-[260px]'} glass-heavy flex flex-col transition-all duration-300 shrink-0 relative`}
-        style={{ borderRight: '1px solid var(--color-border)' }}
+        className={`${collapsed ? 'w-[72px]' : 'w-[260px]'} flex flex-col transition-all duration-300 shrink-0 relative`}
+        style={{
+          background: 'var(--color-sidebar-bg)',
+          borderRight: '1px solid var(--color-sidebar-border)',
+        }}
       >
-        {/* Logo area */}
-        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-5'} py-5`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+        {/* Logo area — solo icona gradient, minimale */}
+        <div
+          className={`flex items-center ${collapsed ? 'justify-center' : 'px-6'} h-[72px]`}
+          style={{ borderBottom: '1px solid var(--color-sidebar-border)' }}
+        >
           <div
             className="shrink-0 flex items-center justify-center"
             style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: 'linear-gradient(135deg, var(--color-primary), #00d4ff)',
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: 'var(--gradient-primary)',
             }}
           >
-            <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: "'Outfit', sans-serif" }}>M</span>
+            <Layers size={18} color="#fff" strokeWidth={2.2} />
           </div>
-          {!collapsed && (
-            <div>
-              <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)' }}>ManuTech</span>
-              <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--color-text-faint)' }}>Admin Console</p>
-            </div>
-          )}
         </div>
 
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
           aria-label={collapsed ? 'Espandi sidebar' : 'Comprimi sidebar'}
-          className="absolute -right-3 top-[72px] w-6 h-6 rounded-full flex items-center justify-center transition-colors z-10"
-          style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-hover)', color: 'var(--color-text-muted)' }}
+          className="absolute -right-3 top-[60px] w-6 h-6 rounded-full flex items-center justify-center transition-colors z-10"
+          style={{
+            background: 'var(--color-surface-2)',
+            border: '1px solid var(--color-sidebar-border)',
+            color: 'var(--color-text-muted)',
+          }}
         >
           {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>
 
         {/* Nav */}
-        <nav className="flex-1 py-4 px-2.5 space-y-1">
+        <nav className="flex-1 py-4 px-3 space-y-1">
           {NAV.map(({ id, icon: Icon, label }) => {
             const active = tab === id
             return (
@@ -121,40 +127,62 @@ export default function AdminLayout({ initialReportId }) {
                 onClick={() => setTab(id)}
                 aria-current={active ? 'page' : undefined}
                 aria-label={collapsed ? label : undefined}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group"
-                style={{
-                  background: active ? 'var(--color-primary-glow)' : 'transparent',
-                  color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                }}
                 title={collapsed ? label : undefined}
+                className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-4'} py-2.5 rounded-lg transition-colors duration-150`}
+                style={{
+                  background: active ? 'var(--color-surface-2)' : 'transparent',
+                  color: active ? '#ffffff' : 'var(--color-text-muted)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) e.currentTarget.style.color = '#ffffff'
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) e.currentTarget.style.color = 'var(--color-text-muted)'
+                }}
               >
-                <div
-                  className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors sidebar-icon-hover"
-                  style={{ background: active ? 'var(--color-primary-glow)' : undefined }}
-                >
-                  <Icon size={19} strokeWidth={active ? 2.2 : 1.8} />
-                </div>
-                {!collapsed && (
-                  <span className="text-[15px] font-medium">{label}</span>
-                )}
+                <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
+                {!collapsed && <span className="text-[14px] font-medium">{label}</span>}
               </button>
             )
           })}
         </nav>
 
-        {/* User section */}
-        <div className="p-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+        {/* User section — in fondo */}
+        <div
+          className="mt-auto p-3"
+          style={{ borderTop: '1px solid var(--color-sidebar-border)' }}
+        >
           {!collapsed ? (
             <div className="flex items-center gap-3 px-2 py-2 mb-2">
-              <div className="w-9 h-9 bg-gradient-to-br from-amber-500/20 to-amber-600/10 rounded-lg flex items-center justify-center text-base shrink-0">🛡️</div>
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: 'var(--color-surface-2)' }}
+              >
+                <Shield size={16} color="var(--color-primary)" />
+              </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-themed truncate">{user.name}</p>
-                <p className="text-[11px]" style={{ color: 'var(--color-text-faint)' }}>Amministratore</p>
+                <p
+                  className="text-sm font-semibold truncate"
+                  style={{ color: 'var(--color-text)' }}
+                >
+                  {user.name}
+                </p>
+                <p
+                  className="text-[11px]"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  Amministratore
+                </p>
               </div>
             </div>
           ) : (
             <div className="flex justify-center mb-2">
-              <div className="w-9 h-9 bg-gradient-to-br from-amber-500/20 to-amber-600/10 rounded-lg flex items-center justify-center text-base">🛡️</div>
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center"
+                style={{ background: 'var(--color-surface-2)' }}
+              >
+                <Shield size={16} color="var(--color-primary)" />
+              </div>
             </div>
           )}
           <button
@@ -171,45 +199,47 @@ export default function AdminLayout({ initialReportId }) {
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto scroll-smooth">
-        {/* Top bar — glass */}
-        <header className="glass flex items-center justify-between px-8 py-4 sticky top-0 z-30" style={{ borderBottom: '1px solid var(--color-border)' }}>
-          <div>
-            <h2 className="text-xl font-extrabold text-themed tracking-tight">{current?.label}</h2>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-faint)' }}>{current?.desc}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Theme toggle ☀/☾ */}
-            <button
-              onClick={toggleMode}
-              aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
-              className="press-scale"
-              style={{
-                width: 36, height: 36, borderRadius: 8,
-                background: 'var(--color-surface-2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: 'none', cursor: 'pointer', fontSize: 16,
-              }}
-            >
-              {isDark ? '☀' : '☾'}
-            </button>
-            {/* Settings */}
-            <button
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Personalizza tema"
-              className="w-9 h-9 rounded-xl flex items-center justify-center press-scale transition-colors"
-              style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-secondary)' }}
-            >
-              <Settings size={17} />
-            </button>
-            <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>
-              {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </span>
-          </div>
+        {/* Top bar — minimale, solo azioni */}
+        <header
+          className="glass flex items-center justify-end gap-3 px-10 py-4 sticky top-0 z-30"
+          style={{ borderBottom: '1px solid var(--color-sidebar-border)' }}
+        >
+          <button
+            aria-label="Cerca"
+            className="press-scale flex items-center justify-center border-0 cursor-pointer"
+            style={iconBtnStyle}
+            onClick={() => { /* placeholder — apertura search futura */ }}
+          >
+            <Search size={17} />
+          </button>
+          <button
+            onClick={toggleMode}
+            aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
+            className="press-scale flex items-center justify-center border-0 cursor-pointer"
+            style={iconBtnStyle}
+          >
+            {isDark ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Personalizza tema"
+            className="press-scale flex items-center justify-center border-0 cursor-pointer"
+            style={iconBtnStyle}
+          >
+            <Settings size={17} />
+          </button>
         </header>
 
-        <div className="p-8 animate-fade-in stagger-enter">
-          {renderPage()}
-        </div>
+        {/* Messaging usa full-width e altezza viewport; le altre pagine sono centrate con max-width */}
+        {tab === 'messages' ? (
+          <div className="p-8 animate-fade-in">
+            {renderPage()}
+          </div>
+        ) : (
+          <div className="px-10 pb-10 pt-8 max-w-7xl mx-auto animate-fade-in stagger-enter">
+            {renderPage()}
+          </div>
+        )}
       </main>
 
       {/* Settings Panel */}
