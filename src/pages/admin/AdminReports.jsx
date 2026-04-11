@@ -6,7 +6,25 @@ import { Badge, Button, Modal, Input, Textarea, Select, EmptyState, Spinner } fr
 import MediaCapture from '../../components/media/MediaCapture'
 import { useToast } from '../../hooks/useToast'
 import ReportDetailModal from './reports/ReportDetailModal'
-import { Plus, Search, Eye, X, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Search, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+
+const PER_PAGE = 15
+
+function getInitials(name) {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase()
+}
+
+function avatarColorFromName(name) {
+  if (!name) return '#7c6aff'
+  const palette = ['#7c6aff', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#8b5cf6']
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return palette[Math.abs(hash) % palette.length]
+}
 
 export default function AdminReports({ initialReportId }) {
   const { user } = useAuth()
@@ -24,6 +42,12 @@ export default function AdminReports({ initialReportId }) {
   const [machines, setMachines] = useState([])
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState('desc')
+  const [page, setPage] = useState(1)
+
+  // Wrappers che resettano la paginazione quando cambia un filtro
+  const updateSearch = (v) => { setSearch(v); setPage(1) }
+  const updateFilterStatus = (v) => { setFilterStatus(v); setPage(1) }
+  const updateFilterSeverity = (v) => { setFilterSeverity(v); setPage(1) }
 
   const load = async () => {
     setLoading(true)
@@ -75,6 +99,12 @@ export default function AdminReports({ initialReportId }) {
     return 0
   })
 
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
+  const safePage = Math.min(page, totalPages)
+  const startIdx = (safePage - 1) * PER_PAGE
+  const endIdx = Math.min(startIdx + PER_PAGE, sorted.length)
+  const paginated = sorted.slice(startIdx, endIdx)
+
   const createReport = async () => {
     if (!form.title.trim() || !form.description.trim()) return
     const created = await db.createReport({
@@ -111,121 +141,229 @@ export default function AdminReports({ initialReportId }) {
     if (deleted) load()
   }
 
+  const glassPanelStyle = {
+    background: 'rgba(255, 255, 255, 0.03)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    border: '1px solid rgba(255, 255, 255, 0.06)',
+  }
+
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
 
-      {/* Status filter bar */}
-      <div className="flex gap-2 flex-wrap">
-        {Object.entries(STATUS).map(([key, { label, color }]) => {
-          const count = reports.filter(r => r.status === key).length
-          return (
-            <button key={key} onClick={() => setFilterStatus(filterStatus === key ? '' : key)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                filterStatus === key ? 'text-white shadow-lg' : 'card-elevated text-muted hover:text-white hover:border-token'
-              }`}
-              style={filterStatus === key ? { background: color, boxShadow: `0 4px 14px ${color}33` } : {}}>
-              <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-              {label}
-              <span className="font-bold text-white">{count}</span>
-            </button>
-          )
-        })}
-      </div>
+      {/* ═══ PREMIUM HEADER ═══ */}
+      <header>
+        {/* Breadcrumb */}
+        <nav className="flex text-[11px] font-medium text-faint uppercase tracking-widest mb-2 gap-2">
+          <span>Gestione</span>
+          <span>/</span>
+          <span style={{ color: 'var(--color-primary, #7c6aff)' }}>Segnalazioni</span>
+        </nav>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-faint" />
-          <input type="text" placeholder="Cerca per titolo, macchinario o autore..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 transition-colors" />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-white">
-              <X size={16} />
-            </button>
-          )}
+        {/* Title row */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+          <h1 className="text-3xl lg:text-4xl font-extrabold text-themed tracking-tight flex items-center">
+            Segnalazioni
+            <span className="ml-4 px-2.5 py-0.5 bg-surface-2 text-faint text-sm font-medium rounded-md border border-token">
+              {reports.length}
+            </span>
+          </h1>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Search */}
+            <div className="relative group">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint group-focus-within:text-violet-400 transition-colors pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Cerca per titolo, macchinario o autore..."
+                value={search}
+                onChange={e => updateSearch(e.target.value)}
+                className="w-72 bg-surface-1/60 border border-token text-themed text-sm rounded-xl pl-10 pr-9 py-2.5 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 placeholder-gray-600 transition-all"
+              />
+              {search && (
+                <button onClick={() => updateSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-white">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <Button onClick={() => setShowNew(true)}><Plus size={16} /> Nuova</Button>
+          </div>
         </div>
-        <select value={filterSeverity} onChange={e => setFilterSeverity(e.target.value)}
-          className="card-elevated rounded-xl px-4 py-3 text-sm text-themed focus:outline-none focus:border-violet-500/50">
-          <option value="">Tutte le gravità</option>
-          {Object.entries(SEVERITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        {activeFilters > 0 && (
-          <button onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
-            className="text-sm text-muted hover:text-white px-3 py-2 rounded-lg hover:bg-white/5">
-            Rimuovi filtri
+
+        {/* Glass filter chips */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tutte */}
+          <button
+            onClick={() => updateFilterStatus('')}
+            className="filter-chip text-sm px-4 py-2 rounded-full border flex items-center transition-all"
+            style={filterStatus === ''
+              ? { ...glassPanelStyle, background: 'rgba(124,106,255,0.10)', borderColor: 'rgba(124,106,255,0.6)', color: '#a594ff' }
+              : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
+          >
+            Tutte <span className="ml-2 opacity-60 font-normal">{reports.length}</span>
           </button>
-        )}
-        <Button onClick={() => setShowNew(true)}><Plus size={18} /> Nuova</Button>
-      </div>
 
-      <p className="text-sm text-faint">{filtered.length} segnalazioni {activeFilters > 0 ? '(filtrate)' : ''}</p>
+          <div className="h-4 w-[1px] bg-token mx-1" />
 
-      {/* Table */}
+          {Object.entries(STATUS).map(([key, { label, color }]) => {
+            const count = reports.filter(r => r.status === key).length
+            const isActive = filterStatus === key
+            return (
+              <button
+                key={key}
+                onClick={() => updateFilterStatus(filterStatus === key ? '' : key)}
+                className="filter-chip text-sm px-4 py-2 rounded-full border flex items-center transition-all"
+                style={isActive
+                  ? { ...glassPanelStyle, background: color + '15', borderColor: color + '99', color }
+                  : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
+              >
+                <span className="h-2 w-2 rounded-full mr-2.5" style={{ background: color }} />
+                {label}
+                <span className="ml-2 text-xs opacity-60">{count}</span>
+              </button>
+            )
+          })}
+
+          {/* Severity filter (compact) */}
+          <select
+            value={filterSeverity}
+            onChange={e => updateFilterSeverity(e.target.value)}
+            className="ml-auto bg-surface-1/60 border border-token text-themed text-xs rounded-full px-4 py-2 focus:outline-none focus:border-violet-500/50"
+          >
+            <option value="">Tutte le gravità</option>
+            {Object.entries(SEVERITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+      </header>
+
+      {/* ═══ MAIN DATA AREA ═══ */}
       {loading ? <Spinner /> : filtered.length === 0 ? (
         <EmptyState icon="📋" title="Nessuna segnalazione trovata"
           subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined} />
       ) : (
-        <div className="bg-surface-1/60 border border-token rounded-2xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-token">
-                {[
-                  { label: 'Segnalazione', field: null },
-                  { label: 'Macchinario', field: 'machine', hide: 'hidden lg:table-cell' },
-                  { label: 'Gravità', field: null, hide: 'hidden md:table-cell' },
-                  { label: 'Tipo', field: null, hide: 'hidden lg:table-cell' },
-                  { label: 'Stato', field: 'status' },
-                  { label: 'Assegnato a', field: 'assigned_to_name', hide: 'hidden lg:table-cell' },
-                  { label: 'Data', field: 'created_at', hide: 'hidden lg:table-cell' },
-                  { label: '', field: null },
-                ].map((col, i) => (
-                  <th key={i} className={`text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider ${col.hide || ''}
-                    ${col.field ? 'cursor-pointer select-none hover:text-white text-faint' : 'text-faint'}`}
-                    onClick={col.field ? () => toggleSort(col.field) : undefined}>
-                    <span className="inline-flex items-center gap-1">
-                      {col.label}
-                      {col.field && sortBy === col.field && (
-                        sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
-                      )}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map(r => {
-                const sts = STATUS[r.status] || STATUS.aperta
-                const sev = SEVERITY[r.severity] || SEVERITY.media
-                return (
-                  <tr key={r.id} onClick={() => setSelected(r)}
-                    className="border-b border-token/30 hover:bg-white/[0.02] transition-colors cursor-pointer group">
-                    <td className="px-5 py-4" style={{ borderLeft: `3px solid ${sev.color}` }}>
-                      <p className="text-[15px] text-white font-medium group-hover:text-purple-300 transition-colors">{r.title}</p>
-                      <p className="text-xs text-faint mt-0.5">{r.created_by_name || 'Sconosciuto'}</p>
-                    </td>
-                    <td className="px-5 py-4 hidden lg:table-cell"><span className="text-sm text-muted">{r.machine || '—'}</span></td>
-                    <td className="px-5 py-4 hidden md:table-cell"><Badge {...sev} /></td>
-                    <td className="px-5 py-4 hidden lg:table-cell">
-                      {r.type && REPORT_TYPES[r.type] ? <Badge {...REPORT_TYPES[r.type]} /> : <span className="text-xs text-faint">—</span>}
-                    </td>
-                    <td className="px-5 py-4"><Badge {...sts} /></td>
-                    <td className="px-5 py-4 hidden lg:table-cell">
-                      {r.assigned_to_name
-                        ? <span className="text-sm text-secondary">🔧 {r.assigned_to_name}</span>
-                        : <span className="text-xs text-amber-400 bg-amber-400/10 px-2 py-1 rounded-md font-medium">Da assegnare</span>}
-                    </td>
-                    <td className="px-5 py-4 hidden lg:table-cell"><span className="text-sm text-faint">{timeAgo(r.created_at)}</span></td>
-                    <td className="px-5 py-4">
-                      <button className="p-2 rounded-lg hover:bg-white/10 text-muted hover:text-white opacity-0 group-hover:opacity-100 transition-all">
-                        <Eye size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div className="rounded-2xl overflow-hidden shadow-2xl" style={glassPanelStyle}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[1000px]">
+              <thead>
+                <tr className="text-[11px] uppercase text-faint border-b border-token bg-surface-1/30">
+                  {[
+                    { label: 'Segnalazione', field: null, className: 'px-8 py-5 w-[28%]' },
+                    { label: 'Macchinario', field: 'machine', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
+                    { label: 'Gravità', field: null, className: 'px-6 py-5 w-[10%] text-center hidden md:table-cell' },
+                    { label: 'Tipo', field: null, className: 'px-6 py-5 w-[10%] text-center hidden lg:table-cell' },
+                    { label: 'Stato', field: 'status', className: 'px-6 py-5 w-[12%] text-center' },
+                    { label: 'Assegnato', field: 'assigned_to_name', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
+                    { label: 'Data', field: 'created_at', className: 'px-8 py-5 text-right' },
+                  ].map((col, i) => (
+                    <th
+                      key={i}
+                      className={`font-bold tracking-widest ${col.className} ${col.field ? 'cursor-pointer select-none hover:text-themed' : ''}`}
+                      onClick={col.field ? () => toggleSort(col.field) : undefined}
+                    >
+                      <span className={`inline-flex items-center gap-1 ${col.className.includes('text-center') ? 'justify-center w-full' : ''} ${col.className.includes('text-right') ? 'justify-end w-full' : ''}`}>
+                        {col.label}
+                        {col.field && sortBy === col.field && (
+                          sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                        )}
+                      </span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-token/40 text-[13px]">
+                {paginated.map(r => {
+                  const sts = STATUS[r.status] || STATUS.aperta
+                  const sev = SEVERITY[r.severity] || SEVERITY.media
+                  const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
+                  const initials = getInitials(r.assigned_to_name)
+                  const avatarBg = avatarColorFromName(r.assigned_to_name)
+                  return (
+                    <tr
+                      key={r.id}
+                      onClick={() => setSelected(r)}
+                      className="hover:bg-violet-500/[0.03] transition-colors group cursor-pointer"
+                    >
+                      <td className="px-8 py-5">
+                        <div className="font-semibold text-themed mb-0.5 group-hover:text-violet-300 transition-colors truncate">{r.title}</div>
+                        <div className="text-[11px] text-faint font-medium truncate">{r.created_by_name || 'Sconosciuto'}</div>
+                      </td>
+                      <td className="px-6 py-5 hidden lg:table-cell">
+                        <span className="text-faint italic font-medium truncate block">{r.machine || '—'}</span>
+                      </td>
+                      <td className="px-6 py-5 text-center hidden md:table-cell">
+                        <span
+                          className="inline-flex text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border"
+                          style={{ background: sev.color + '15', color: sev.color, borderColor: sev.color + '30' }}
+                        >
+                          {sev.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5 text-center hidden lg:table-cell">
+                        {typ ? (
+                          <span
+                            className="inline-flex text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border"
+                            style={{ background: typ.color + '15', color: typ.color, borderColor: typ.color + '30' }}
+                          >
+                            {typ.label}
+                          </span>
+                        ) : <span className="text-xs text-faint">—</span>}
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <span
+                          className="inline-flex text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border"
+                          style={{ background: sts.color + '15', color: sts.color, borderColor: sts.color + '30' }}
+                        >
+                          {sts.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5 hidden lg:table-cell">
+                        {r.assigned_to_name ? (
+                          <div className="flex items-center text-secondary min-w-0">
+                            <div
+                              className="h-7 w-7 rounded-full mr-3 flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
+                              style={{ background: avatarBg, boxShadow: `0 0 0 1px ${avatarBg}40` }}
+                            >
+                              {initials}
+                            </div>
+                            <span className="font-medium truncate">{r.assigned_to_name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Da assegnare</span>
+                        )}
+                      </td>
+                      <td className="px-8 py-5 text-right text-faint font-medium whitespace-nowrap">{timeAgo(r.created_at)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination footer */}
+          <div className="px-8 py-5 bg-surface-1/30 border-t border-token flex items-center justify-between">
+            <p className="text-[11px] text-faint font-medium uppercase tracking-widest">
+              Mostrando {sorted.length === 0 ? 0 : startIdx + 1}-{endIdx} di {sorted.length} segnalazioni
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-faint font-medium mr-2">Pagina {safePage} / {totalPages}</span>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                className="p-2 rounded-lg border border-token text-faint hover:bg-surface-2 hover:text-themed transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Pagina precedente"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+                className="p-2 rounded-lg border border-token text-faint hover:bg-surface-2 hover:text-themed transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Pagina successiva"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
