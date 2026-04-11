@@ -7,12 +7,13 @@
 
 // ── Accent Presets (mantenuti per compatibilità) ──────────
 export const ACCENT_PRESETS = [
-  { name: 'Default',   primary: '#7c6aff', primaryLight: '#9d8cff', primaryDark: '#5b47e0' },
-  { name: 'Oceano',    primary: '#1D6FA5', primaryLight: '#E6F2FA', primaryDark: '#0E4D75' },
-  { name: 'Ambra',     primary: '#B8860B', primaryLight: '#FFF6E0', primaryDark: '#8B6508' },
-  { name: 'Vulcano',   primary: '#C0392B', primaryLight: '#FDECEA', primaryDark: '#922B21' },
-  { name: 'Grafite',   primary: '#4A5568', primaryLight: '#EDF2F7', primaryDark: '#2D3748' },
-  { name: 'Viola',     primary: '#7C3AED', primaryLight: '#F0EAFF', primaryDark: '#5B21B6' },
+  { name: 'Default',          primary: '#7c6aff', primaryLight: '#9d8cff', primaryDark: '#5b47e0' },
+  { name: 'Oceano',           primary: '#1D6FA5', primaryLight: '#E6F2FA', primaryDark: '#0E4D75' },
+  { name: 'Ambra',            primary: '#B8860B', primaryLight: '#FFF6E0', primaryDark: '#8B6508' },
+  { name: 'Vulcano',          primary: '#C0392B', primaryLight: '#FDECEA', primaryDark: '#922B21' },
+  { name: 'Grafite',          primary: '#4A5568', primaryLight: '#EDF2F7', primaryDark: '#2D3748' },
+  { name: 'Viola',            primary: '#7C3AED', primaryLight: '#F0EAFF', primaryDark: '#5B21B6' },
+  { name: 'Industrial Blue',  primary: '#3B82F6', primaryLight: '#DBEAFE', primaryDark: '#1D4ED8' },
 ]
 
 // ── Default ───────────────────────────────────────────────
