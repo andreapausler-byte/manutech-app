@@ -36,6 +36,363 @@ const healthLabels = {
   critico: 'Critico',
 }
 
+// ── System status derivato dall'assessment per il banner hero ──
+function getSystemStatus(assessment, criticalReports, activeReports) {
+  if (criticalReports.length > 0) {
+    return { label: 'CRITICO', color: '#ef4444', bgClass: 'bg-red-500/10', borderClass: 'border-red-500/30', dotClass: 'bg-red-500' }
+  }
+  if (!assessment) {
+    return { label: 'NON VALUTATO', color: '#64748b', bgClass: 'bg-slate-500/10', borderClass: 'border-slate-500/30', dotClass: 'bg-slate-500' }
+  }
+  if (assessment.status === 'ottimo') {
+    return { label: 'OPERATIVO', color: '#22c55e', bgClass: 'bg-emerald-500/10', borderClass: 'border-emerald-500/30', dotClass: 'bg-emerald-500' }
+  }
+  if (assessment.status === 'buono') {
+    return { label: 'OPERATIVO', color: '#22c55e', bgClass: 'bg-emerald-500/10', borderClass: 'border-emerald-500/30', dotClass: 'bg-emerald-500' }
+  }
+  if (assessment.status === 'attenzione' || activeReports.length > 0) {
+    return { label: 'ATTENZIONE', color: '#f59e0b', bgClass: 'bg-amber-500/10', borderClass: 'border-amber-500/30', dotClass: 'bg-amber-500' }
+  }
+  return { label: 'CRITICO', color: '#ef4444', bgClass: 'bg-red-500/10', borderClass: 'border-red-500/30', dotClass: 'bg-red-500' }
+}
+
+// ── Overview Tab: hero banner, health index, specs, severity, next maintenance, last log ──
+function OverviewTab({
+  sel, assessment, assessmentLoading,
+  activeReports, criticalReports, machineReports,
+  plans, logs, nextMaintenance, components,
+  onOpenReport, onOpenPlanForm, onOpenLogForm, setDetailTab,
+}) {
+  // ── Severity distribution ──
+  const severityBreakdown = useMemo(() => {
+    const counts = { critica: 0, alta: 0, media: 0, bassa: 0 }
+    activeReports.forEach(r => {
+      if (counts[r.severity] !== undefined) counts[r.severity] += 1
+    })
+    const max = Math.max(1, counts.critica, counts.alta, counts.media, counts.bassa)
+    return [
+      { key: 'critica', label: 'Critica', value: counts.critica, color: '#ef4444', pct: (counts.critica / max) * 100 },
+      { key: 'alta',    label: 'Alta',    value: counts.alta,    color: '#f97316', pct: (counts.alta / max) * 100 },
+      { key: 'media',   label: 'Media',   value: counts.media,   color: '#f59e0b', pct: (counts.media / max) * 100 },
+      { key: 'bassa',   label: 'Bassa',   value: counts.bassa,   color: '#22c55e', pct: (counts.bassa / max) * 100 },
+    ]
+  }, [activeReports])
+
+  // ── Last intervention (log più recente) ──
+  const lastLog = useMemo(() => {
+    if (!logs || logs.length === 0) return null
+    const sorted = [...logs].sort((a, b) => new Date(b.performed_at || b.created_at) - new Date(a.performed_at || a.created_at))
+    return sorted[0]
+  }, [logs])
+
+  // ── Stats derivati ──
+  const totalReports = machineReports.length
+  const resolvedReports = totalReports - activeReports.length
+  const resolveRate = totalReports > 0 ? Math.round((resolvedReports / totalReports) * 100) : null
+
+  const systemStatus = getSystemStatus(assessment, criticalReports, activeReports)
+  const healthScore = assessment?.health_score ?? null
+  const healthDashArray = 452
+  const healthDashOffset = healthScore != null ? healthDashArray * (1 - healthScore / 100) : healthDashArray
+
+  // ── Tech specs (filtrati a quelli valorizzati) ──
+  const specs = [
+    { label: 'Produttore',     value: sel.manufacturer },
+    { label: 'Modello',        value: sel.model },
+    { label: 'Seriale',        value: sel.serial_number },
+    { label: 'Anno',           value: sel.year },
+    { label: 'Reparto',        value: sel.department },
+    { label: 'Posizione',      value: sel.location },
+    { label: 'Criticità',      value: sel.criticality },
+    { label: 'Stato',          value: sel.status },
+  ].filter(s => s.value != null && s.value !== '')
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      {/* ── Hero banner: nome + zona + badge stato ── */}
+      <div
+        className="rounded-2xl px-5 py-4 flex items-center justify-between gap-4"
+        style={{
+          background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(16,185,129,0.04))',
+          border: '1px solid var(--color-border)',
+        }}
+      >
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold text-themed truncate">{sel.name}</h2>
+          <p className="text-xs text-muted mt-0.5">
+            {[sel.department, sel.location].filter(Boolean).join(' · ') || 'Telemetria in tempo reale'}
+          </p>
+        </div>
+        <div className={`flex items-center gap-2.5 px-4 py-2 rounded-full border ${systemStatus.bgClass} ${systemStatus.borderClass} shrink-0`}>
+          <span className={`w-2 h-2 rounded-full ${systemStatus.dotClass} animate-pulse`} />
+          <span className="text-[11px] font-bold tracking-wider" style={{ color: systemStatus.color }}>
+            {systemStatus.label}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Main grid ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+        {/* ─── Sinistra: Specs + Severity ─── */}
+        <div className="lg:col-span-7 space-y-4">
+
+          {/* Technical Specifications */}
+          <div className="bg-surface-2 rounded-2xl p-5 border border-token">
+            <div className="flex items-center gap-2 mb-4">
+              <Hash size={15} className="text-muted" />
+              <h3 className="text-sm font-bold text-themed uppercase tracking-wider">Specifiche tecniche</h3>
+            </div>
+            {specs.length === 0 ? (
+              <p className="text-xs text-faint italic">Nessuna specifica tecnica inserita. Usa il pulsante modifica per aggiungerne.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6">
+                {specs.map((s, i) => (
+                  <div key={s.label} className={i < specs.length - (specs.length % 3 || 3) ? 'pb-3 border-b border-white/5' : ''}>
+                    <span className="block text-[10px] text-faint font-bold uppercase mb-1 tracking-wider">{s.label}</span>
+                    <span className="text-sm font-medium text-themed capitalize">{String(s.value)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Severity Distribution */}
+          <div className="bg-surface-2 rounded-2xl p-5 border border-token">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={15} className="text-muted" />
+                <h3 className="text-sm font-bold text-themed uppercase tracking-wider">Distribuzione severità</h3>
+              </div>
+              <span className="text-[11px] text-faint">
+                {activeReports.length} segnalazion{activeReports.length === 1 ? 'e' : 'i'} attiv{activeReports.length === 1 ? 'a' : 'e'}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {severityBreakdown.map(s => (
+                <div key={s.key}>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-secondary">{s.label}</span>
+                    <span className="font-bold" style={{ color: s.value > 0 ? s.color : 'var(--color-text-muted)' }}>
+                      {s.value}
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-3)' }}>
+                    <div
+                      className="h-full transition-all duration-500"
+                      style={{ width: `${s.value > 0 ? Math.max(5, s.pct) : 0}%`, background: s.color }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {totalReports > 0 && (
+              <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[11px]">
+                <span className="text-faint">Tasso di risoluzione storico</span>
+                <span className="font-bold text-emerald-400">{resolveRate}%</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ─── Destra: Health Index + Quick Actions ─── */}
+        <div className="lg:col-span-5 space-y-4">
+
+          {/* Health Index Circular */}
+          <div className="bg-surface-2 rounded-2xl p-5 border border-token flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-themed uppercase tracking-wider">Health Index</h3>
+              <Activity size={15} className="text-cyan-400" />
+            </div>
+            <div className="relative flex items-center justify-center py-4">
+              <svg className="w-40 h-40 -rotate-90" viewBox="0 0 160 160" aria-hidden="true">
+                <circle cx="80" cy="80" r="72" fill="transparent" stroke="var(--color-surface-3)" strokeWidth="8" />
+                {healthScore != null && (
+                  <circle
+                    cx="80" cy="80" r="72"
+                    fill="transparent"
+                    stroke={healthColors[assessment.status]?.bg || '#3b82f6'}
+                    strokeWidth="10"
+                    strokeLinecap="round"
+                    strokeDasharray={healthDashArray}
+                    strokeDashoffset={healthDashOffset}
+                    style={{ filter: `drop-shadow(0 0 8px ${healthColors[assessment.status]?.bg || '#3b82f6'}80)`, transition: 'stroke-dashoffset 0.8s ease' }}
+                  />
+                )}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                {assessmentLoading ? (
+                  <div className="w-6 h-6 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                ) : healthScore != null ? (
+                  <>
+                    <span className="text-4xl font-black text-themed leading-none">{healthScore}%</span>
+                    <span className="text-[10px] text-faint font-bold uppercase mt-1 tracking-wider">
+                      {healthLabels[assessment.status] || assessment.status}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-2xl font-bold text-faint leading-none">N/D</span>
+                    <span className="text-[10px] text-faint uppercase mt-1">Nessun dato</span>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                <span className="block text-[9px] text-faint font-bold uppercase mb-0.5 tracking-wider">Piani</span>
+                <span className="text-lg font-black text-violet-400">{plans.length}</span>
+              </div>
+              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                <span className="block text-[9px] text-faint font-bold uppercase mb-0.5 tracking-wider">Componenti</span>
+                <span className="text-lg font-black text-cyan-400">{components.length}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick action: request intervention */}
+          <button
+            onClick={() => onOpenLogForm?.()}
+            className="w-full flex flex-col items-center justify-center gap-2 p-5 rounded-2xl transition-all border press-scale"
+            style={{
+              background: 'rgba(59,130,246,0.08)',
+              borderColor: 'rgba(59,130,246,0.3)',
+              color: 'var(--color-primary)',
+            }}
+          >
+            <Wrench size={24} />
+            <span className="font-bold text-[11px] tracking-wider uppercase">Registra intervento</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Bottom row: Next maintenance + Last log ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* Next maintenance */}
+        <div className="bg-surface-2 rounded-2xl p-5 border border-token flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[10px] text-faint font-bold uppercase mb-1 tracking-wider">Prossima manutenzione</p>
+            {nextMaintenance ? (
+              <>
+                <h4 className="text-sm font-bold text-themed truncate">{nextMaintenance.name}</h4>
+                <p className="text-xs mt-0.5" style={{ color: nextMaintenance.color }}>{nextMaintenance.label}</p>
+              </>
+            ) : (
+              <h4 className="text-sm font-bold text-faint">Nessun piano attivo</h4>
+            )}
+          </div>
+          {nextMaintenance ? (
+            <button
+              onClick={() => setDetailTab('plans')}
+              aria-label="Gestisci piani manutenzione"
+              className="w-11 h-11 rounded-full flex items-center justify-center text-white press-scale shrink-0"
+              style={{
+                background: 'var(--color-primary)',
+                boxShadow: '0 0 15px var(--color-primary-glow)',
+              }}
+            >
+              <Play size={18} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              onClick={() => onOpenPlanForm?.()}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-muted border border-token press-scale shrink-0 hover:text-primary"
+              aria-label="Crea piano manutenzione"
+            >
+              <Plus size={18} />
+            </button>
+          )}
+        </div>
+
+        {/* Last log */}
+        <div className="bg-surface-2 rounded-2xl p-5 border border-token flex items-center gap-4">
+          {lastLog ? (
+            <>
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+                <CheckCircleIcon />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-faint font-bold uppercase mb-0.5 tracking-wider">Ultimo intervento</p>
+                <h4 className="text-sm font-bold text-themed truncate">
+                  {lastLog.title || lastLog.description || 'Intervento registrato'}
+                </h4>
+                <p className="text-[11px] text-faint mt-0.5">
+                  {lastLog.performed_by_name || '—'} · {timeAgo(lastLog.performed_at || lastLog.created_at)}
+                </p>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full shrink-0">
+                COMPLETATO
+              </span>
+            </>
+          ) : (
+            <>
+              <div className="w-10 h-10 rounded-xl bg-surface-3 flex items-center justify-center shrink-0">
+                <Clock size={18} className="text-faint" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] text-faint font-bold uppercase mb-0.5 tracking-wider">Ultimo intervento</p>
+                <h4 className="text-sm font-bold text-faint">Nessun intervento registrato</h4>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Recent active reports ── */}
+      {activeReports.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-muted flex items-center gap-2">
+              <ClipboardList size={15} /> Segnalazioni attive recenti
+            </p>
+            {activeReports.length > 3 && (
+              <button onClick={() => setDetailTab('reports')} className="text-xs hover:underline flex items-center gap-1" style={{ color: 'var(--color-primary)' }}>
+                Vedi tutte ({activeReports.length}) <ChevronRight size={12} />
+              </button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {activeReports.slice(0, 3).map(r => {
+              const s = STATUS[r.status] || STATUS.aperta
+              const sv = SEVERITY[r.severity] || SEVERITY.media
+              const isCritical = r.severity === 'critica'
+              return (
+                <div key={r.id} onClick={() => onOpenReport?.(r)}
+                  className={`flex items-start gap-4 p-4 bg-surface-2 rounded-2xl cursor-pointer hover:bg-surface-3 transition-all border ${isCritical ? 'border-red-500/30' : 'border-token'}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-themed font-bold mb-1">{r.title}</p>
+                    {r.description && <p className="text-xs text-faint line-clamp-2 leading-relaxed mb-2">{r.description}</p>}
+                    <p className="text-[11px] text-faint">{r.created_by_name} · {timeAgo(r.created_at)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: s.color + '18', color: s.color }}>
+                      {s.icon} {s.label}
+                    </span>
+                    <span className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: sv.color + '18', color: sv.color }}>
+                      {sv.label}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Piccolo helper SVG per la checkmark nel last log card
+function CheckCircleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  )
+}
+
 export default function MachineDetailSheet({
   sel, qrDataUrl, plans, logs, planLastLogs, reports,
   components = [],
@@ -322,145 +679,22 @@ export default function MachineDetailSheet({
 
               {/* ═══ OVERVIEW TAB ═══ */}
               {detailTab === 'overview' && (
-                <div className="space-y-5 animate-fade-in">
-                  {/* Top row: 3 KPI cards */}
-                  <div className="grid grid-cols-3 gap-4">
-                    {/* STATO SALUTE */}
-                    <div className="bg-surface-2 rounded-2xl p-4 border border-token">
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <p className="text-[10px] text-faint uppercase tracking-wider font-semibold leading-tight pt-1.5 min-w-0">Stato Salute</p>
-                        <div className="w-9 h-9 rounded-xl bg-cyan-500/10 flex items-center justify-center shrink-0">
-                          <Activity size={16} className="text-cyan-400" />
-                        </div>
-                      </div>
-                      {assessmentLoading ? (
-                        <div className="w-6 h-6 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
-                      ) : assessment ? (
-                        <>
-                          <p className="text-3xl font-bold text-themed leading-none">{assessment.health_score}</p>
-                          <p className="text-xs text-faint mt-1.5 capitalize truncate">{healthLabels[assessment.status] || assessment.status}</p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-lg font-bold text-faint leading-tight">Non Disponibile</p>
-                          <p className="text-xs text-faint mt-1 opacity-60 truncate">Nessun assessment</p>
-                        </>
-                      )}
-                    </div>
-
-                    {/* SEGNALAZIONI ATTIVE */}
-                    <div
-                      className={`bg-surface-2 rounded-2xl p-4 border transition-all ${
-                        criticalReports.length > 0
-                          ? 'border-red-500/40'
-                          : activeReports.length > 0
-                            ? 'border-amber-500/40'
-                            : 'border-token'
-                      }`}
-                      style={criticalReports.length > 0 ? { boxShadow: '0 0 24px rgba(239,68,68,0.15), inset 0 0 24px rgba(239,68,68,0.05)' } : {}}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <p className="text-[10px] text-faint uppercase tracking-wider font-semibold leading-tight pt-1.5 min-w-0">Segnalazioni Attive</p>
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                          criticalReports.length > 0 ? 'bg-red-500/15' : activeReports.length > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10'
-                        }`}>
-                          <AlertTriangle size={16} className={criticalReports.length > 0 ? 'text-red-400' : activeReports.length > 0 ? 'text-amber-400' : 'text-emerald-400'} />
-                        </div>
-                      </div>
-                      <p className={`text-3xl font-bold leading-none ${criticalReports.length > 0 ? 'text-red-400' : activeReports.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                        {activeReports.length}
-                      </p>
-                      <p className="text-xs text-faint mt-1.5 truncate">
-                        {activeReports.length === 0 ? 'tutto ok' : 'segnalazioni da gestire'}
-                      </p>
-                    </div>
-
-                    {/* MANUTENZIONE */}
-                    <div className="bg-surface-2 rounded-2xl p-4 border border-token">
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <p className="text-[10px] text-faint uppercase tracking-wider font-semibold leading-tight pt-1.5 min-w-0">Manutenzione</p>
-                        <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
-                          <Wrench size={16} className="text-violet-400" />
-                        </div>
-                      </div>
-                      <p className="text-3xl font-bold text-violet-400 leading-none">{plans.length}</p>
-                      <p className="text-xs text-faint mt-1.5 truncate">Piani attivi</p>
-                    </div>
-                  </div>
-
-                  {/* Recent active reports */}
-                  {activeReports.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-muted flex items-center gap-2">
-                          <ClipboardList size={15} /> Segnalazioni attive recenti
-                        </p>
-                        {activeReports.length > 3 && (
-                          <button onClick={() => setDetailTab('reports')} className="text-xs text-violet-400 hover:underline flex items-center gap-1">
-                            Vedi tutte ({activeReports.length}) <ChevronRight size={12} />
-                          </button>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        {activeReports.slice(0, 3).map(r => {
-                          const s = STATUS[r.status] || STATUS.aperta
-                          const sv = SEVERITY[r.severity] || SEVERITY.media
-                          const isCritical = r.severity === 'critica'
-                          return (
-                            <div key={r.id} onClick={() => onOpenReport?.(r)}
-                              className={`flex items-start gap-4 p-4 bg-surface-2 rounded-2xl cursor-pointer hover:bg-surface-3 transition-all border ${isCritical ? 'border-red-500/30' : 'border-token'}`}>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-themed font-bold mb-1">{r.title}</p>
-                                {r.description && <p className="text-xs text-faint line-clamp-2 leading-relaxed mb-2">{r.description}</p>}
-                                <p className="text-[11px] text-faint">{r.created_by_name} · {timeAgo(r.created_at)}</p>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: s.color + '18', color: s.color }}>
-                                  {s.icon} {s.label}
-                                </span>
-                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: sv.color + '18', color: sv.color }}>
-                                  {sv.label}
-                                </span>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Upcoming maintenance plans */}
-                  {plans.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-muted flex items-center gap-2">
-                          <Shield size={15} /> Piani manutenzione
-                        </p>
-                        <button onClick={() => setDetailTab('plans')} className="text-xs text-violet-400 hover:underline flex items-center gap-1">
-                          Gestisci <ChevronRight size={12} />
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {plans.slice(0, 4).map(plan => {
-                          const light = getTrafficLight(plan, planLastLogs[plan.id])
-                          return (
-                            <div key={plan.id} className="flex items-center gap-3 p-3 bg-surface-2 rounded-xl">
-                              <div className="w-3 h-3 rounded-full shrink-0" style={{ background: light.color, boxShadow: `0 0 6px ${light.color}40` }} />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-themed truncate">{plan.name}</p>
-                                <p className="text-[10px] text-faint">Ogni {plan.frequency_days}g</p>
-                              </div>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg shrink-0"
-                                style={{ background: light.color + '18', color: light.color }}>
-                                {light.label}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <OverviewTab
+                  sel={sel}
+                  assessment={assessment}
+                  assessmentLoading={assessmentLoading}
+                  activeReports={activeReports}
+                  criticalReports={criticalReports}
+                  machineReports={machineReports}
+                  plans={plans}
+                  logs={logs}
+                  nextMaintenance={nextMaintenance}
+                  components={components}
+                  onOpenReport={onOpenReport}
+                  onOpenPlanForm={onOpenPlanForm}
+                  onOpenLogForm={onOpenLogForm}
+                  setDetailTab={setDetailTab}
+                />
               )}
 
               {/* ═══ PLANS TAB ═══ */}
