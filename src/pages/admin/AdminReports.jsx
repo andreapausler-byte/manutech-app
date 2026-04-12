@@ -15,9 +15,10 @@ const PER_PAGE = 15
 function CellBadge({ color, label }) {
   return (
     <span
-      className="inline-flex text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border whitespace-nowrap"
+      className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border whitespace-nowrap"
       style={{ background: `${color}15`, color, borderColor: `${color}30` }}
     >
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
       {label}
     </span>
   )
@@ -25,10 +26,11 @@ function CellBadge({ color, label }) {
 
 // ── Glass panel style condiviso (header + tabella) ──
 const glassPanelStyle = {
-  background: 'rgba(255, 255, 255, 0.03)',
+  background: 'rgba(30, 41, 59, 0.4)',
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',
   border: '1px solid rgba(255, 255, 255, 0.06)',
+  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
 }
 
 export default function AdminReports({ initialReportId }) {
@@ -188,10 +190,9 @@ export default function AdminReports({ initialReportId }) {
                 placeholder="Cerca per titolo, macchinario o autore..."
                 value={search}
                 onChange={e => updateSearch(e.target.value)}
-                className="w-72 text-sm rounded-xl pl-10 pr-9 py-2.5 focus:outline-none transition-all"
+                className="w-72 text-sm rounded-full pl-10 pr-9 py-2.5 border border-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
                 style={{
                   background: 'var(--color-sidebar-bg)',
-                  border: '1px solid var(--color-border)',
                   color: 'var(--color-text)',
                 }}
                 aria-label="Cerca segnalazioni"
@@ -207,7 +208,12 @@ export default function AdminReports({ initialReportId }) {
                 </button>
               )}
             </div>
-            <Button onClick={() => setShowNew(true)}><Plus size={16} /> Nuova</Button>
+            <button
+              onClick={() => setShowNew(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-full bg-linear-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all press-scale"
+            >
+              <Plus size={16} /> Nuova
+            </button>
           </div>
         </div>
 
@@ -285,11 +291,10 @@ export default function AdminReports({ initialReportId }) {
             <table className="w-full text-left border-collapse min-w-[1000px]">
               <thead>
                 <tr
-                  className="text-[11px] uppercase"
+                  className="text-[11px] uppercase bg-slate-900/40 backdrop-blur-md"
                   style={{
                     color: 'var(--color-text-muted)',
                     borderBottom: '1px solid var(--color-border)',
-                    background: 'rgba(0,0,0,0.2)',
                   }}
                 >
                   {[
@@ -325,12 +330,12 @@ export default function AdminReports({ initialReportId }) {
                     <tr
                       key={r.id}
                       onClick={() => setSelected(r)}
-                      className="hover:bg-violet-500/[0.03] transition-colors group cursor-pointer"
+                      className="hover:bg-indigo-500/5 transition-colors duration-200 group cursor-pointer"
                       style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
                     >
-                      <td className="px-8 py-5">
+                      <td className="px-8 py-5 align-middle">
                         <div
-                          className="font-semibold mb-0.5 group-hover:text-violet-300 transition-colors truncate"
+                          className="font-semibold mb-0.5 group-hover:text-indigo-300 transition-colors truncate"
                           style={{ color: 'var(--color-text)' }}
                         >
                           {r.title}
@@ -339,25 +344,25 @@ export default function AdminReports({ initialReportId }) {
                           {r.created_by_name || 'Sconosciuto'}
                         </div>
                       </td>
-                      <td className="px-6 py-5 hidden lg:table-cell">
+                      <td className="px-6 py-5 align-middle hidden lg:table-cell">
                         <span className="italic font-medium truncate block" style={{ color: 'var(--color-text-muted)' }}>
                           {r.machine || '—'}
                         </span>
                       </td>
-                      <td className="px-6 py-5 text-center hidden md:table-cell">
+                      <td className="px-6 py-5 align-middle text-center hidden md:table-cell">
                         <CellBadge color={sev.color} label={sev.label} />
                       </td>
-                      <td className="px-6 py-5 text-center hidden lg:table-cell">
+                      <td className="px-6 py-5 align-middle text-center hidden lg:table-cell">
                         {typ ? (
                           <CellBadge color={typ.color} label={typ.label} />
                         ) : (
                           <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
                         )}
                       </td>
-                      <td className="px-6 py-5 text-center">
+                      <td className="px-6 py-5 align-middle text-center">
                         <CellBadge color={sts.color} label={sts.label} />
                       </td>
-                      <td className="px-6 py-5 hidden lg:table-cell">
+                      <td className="px-6 py-5 align-middle hidden lg:table-cell">
                         {r.assigned_to_name ? (
                           <div className="flex items-center min-w-0" style={{ color: 'var(--color-text-secondary)' }}>
                             <div
@@ -374,7 +379,7 @@ export default function AdminReports({ initialReportId }) {
                           </span>
                         )}
                       </td>
-                      <td className="px-8 py-5 text-right font-medium whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>
+                      <td className="px-8 py-5 align-middle text-right font-medium whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>
                         {timeAgo(r.created_at)}
                       </td>
                     </tr>
@@ -384,12 +389,13 @@ export default function AdminReports({ initialReportId }) {
             </table>
           </div>
 
-          {/* Pagination footer */}
+          {/* Pagination footer — sticky glass */}
           <div
-            className="px-8 py-5 flex items-center justify-between flex-wrap gap-3"
+            className="px-8 py-5 flex items-center justify-between flex-wrap gap-3 sticky bottom-0"
             style={{
-              background: 'rgba(0,0,0,0.2)',
+              ...glassPanelStyle,
               borderTop: '1px solid var(--color-border)',
+              borderRadius: 0,
             }}
           >
             <p className="text-[11px] font-medium uppercase tracking-widest" style={{ color: 'var(--color-text-muted)' }}>
