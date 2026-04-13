@@ -67,8 +67,6 @@ export default function AssistantPage({ onOpenReport }) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
-        minHeight: 0,
       }}
     >
       <div style={{ padding: '14px 16px 8px 16px' }}>
@@ -150,7 +148,7 @@ export default function AssistantPage({ onOpenReport }) {
         )}
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, padding: '0 8px 8px 8px' }}>
+      <div style={{ padding: '0 8px 8px 8px' }}>
         <AssistantChat
           key={chatKey}
           initialConversationId={selectedId}
