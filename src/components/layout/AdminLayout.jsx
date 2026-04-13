@@ -78,120 +78,242 @@ export default function AdminLayout({ initialReportId }) {
         '--ambient-color-2': getAmbientColors(tab).color2,
       }}
     >
-      {/* Sidebar — dark chassis, piatta */}
+      {/* ════════ SIDEBAR — Glass chassis, accent left-bar nav ════════ */}
       <aside
         aria-label="Navigazione principale"
-        className={`${collapsed ? 'w-[72px]' : 'w-[260px]'} flex flex-col transition-all duration-300 shrink-0 relative`}
+        className={`${collapsed ? 'w-[76px]' : 'w-[264px]'} flex flex-col transition-all duration-300 shrink-0 relative overflow-hidden`}
         style={{
           background: 'var(--color-sidebar-bg)',
           borderRight: '1px solid var(--color-sidebar-border)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
         }}
       >
-        {/* Logo area — solo icona gradient, minimale */}
+        {/* Ambient glow decorativo — depth senza pesare */}
         <div
-          className={`flex items-center ${collapsed ? 'justify-center' : 'px-6'} h-[72px]`}
+          aria-hidden="true"
+          className="absolute pointer-events-none"
+          style={{
+            top: -120,
+            left: -80,
+            width: 320,
+            height: 320,
+            background: 'radial-gradient(circle, var(--color-primary-glow) 0%, transparent 70%)',
+            opacity: 0.7,
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute pointer-events-none"
+          style={{
+            bottom: -100,
+            right: -80,
+            width: 280,
+            height: 280,
+            background: 'radial-gradient(circle, var(--color-accent-glow, var(--color-primary-glow)) 0%, transparent 70%)',
+            opacity: 0.4,
+          }}
+        />
+
+        {/* ── Brand: icon + ManuTech + version ── */}
+        <div
+          className={`relative flex items-center ${collapsed ? 'justify-center px-0' : 'px-5'} h-[88px] shrink-0`}
           style={{ borderBottom: '1px solid var(--color-sidebar-border)' }}
         >
-          <div
-            className="shrink-0 flex items-center justify-center"
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: 'var(--gradient-primary)',
-            }}
-          >
-            <Layers size={18} color="#fff" strokeWidth={2.2} />
+          <div className={`flex items-center ${collapsed ? '' : 'gap-3'}`}>
+            <div
+              className="shrink-0 flex items-center justify-center"
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                background: 'var(--color-primary-glow)',
+                border: '1px solid var(--color-border-active)',
+                boxShadow: '0 4px 16px var(--color-primary-glow)',
+              }}
+            >
+              <Layers size={20} color="var(--color-primary)" strokeWidth={2.2} />
+            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <div
+                  className="text-[15px] font-extrabold tracking-tight leading-tight"
+                  style={{ color: 'var(--color-primary)' }}
+                >
+                  ManuTech
+                </div>
+                <div
+                  className="text-[10px] font-semibold uppercase mt-0.5"
+                  style={{
+                    color: 'var(--color-text-muted)',
+                    letterSpacing: '0.18em',
+                  }}
+                >
+                  v{__APP_VERSION__} · Console
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Collapse toggle */}
+        {/* ── Collapse toggle ── */}
         <button
           onClick={() => setCollapsed(!collapsed)}
           aria-label={collapsed ? 'Espandi sidebar' : 'Comprimi sidebar'}
-          className="absolute -right-3 top-[60px] w-6 h-6 rounded-full flex items-center justify-center transition-colors z-10"
+          className="absolute -right-3 top-[72px] w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 z-20 hover:scale-110"
           style={{
             background: 'var(--color-surface-2)',
             border: '1px solid var(--color-sidebar-border)',
             color: 'var(--color-text-muted)',
+            boxShadow: 'var(--shadow-sm)',
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-primary)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)' }}
         >
           {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>
 
-        {/* Nav */}
-        <nav className="flex-1 py-4 px-3 space-y-1">
-          {NAV.map(({ id, icon: Icon, label }) => {
-            const active = tab === id
-            return (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                aria-current={active ? 'page' : undefined}
-                aria-label={collapsed ? label : undefined}
-                title={collapsed ? label : undefined}
-                className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-4'} py-2.5 rounded-lg transition-colors duration-150`}
-                style={{
-                  background: active ? 'var(--color-surface-2)' : 'transparent',
-                  color: active ? '#ffffff' : 'var(--color-text-muted)',
-                }}
-                onMouseEnter={(e) => {
-                  if (!active) e.currentTarget.style.color = '#ffffff'
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) e.currentTarget.style.color = 'var(--color-text-muted)'
-                }}
-              >
-                <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
-                {!collapsed && <span className="text-[14px] font-medium">{label}</span>}
-              </button>
-            )
-          })}
+        {/* ── Nav: section label + items ── */}
+        <nav className="relative flex-1 py-5 overflow-y-auto">
+          {!collapsed && (
+            <div
+              className="px-6 mb-3 text-[10px] font-bold uppercase"
+              style={{
+                color: 'var(--color-text-muted)',
+                letterSpacing: '0.2em',
+              }}
+            >
+              Navigazione
+            </div>
+          )}
+
+          <div className={`${collapsed ? 'px-3' : 'px-3'} space-y-1`}>
+            {NAV.map(({ id, icon: Icon, label }) => {
+              const active = tab === id
+              return (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  aria-current={active ? 'page' : undefined}
+                  aria-label={collapsed ? label : undefined}
+                  title={collapsed ? label : undefined}
+                  className={`group relative w-full flex items-center ${collapsed ? 'justify-center px-0' : 'gap-3 pl-4 pr-3'} py-2.5 rounded-lg transition-all duration-300 ease-in-out`}
+                  style={{
+                    background: active ? 'var(--color-primary-glow)' : 'transparent',
+                    color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                    opacity: active ? 1 : 0.78,
+                    borderLeft: collapsed ? 'none' : `3px solid ${active ? 'var(--color-primary)' : 'transparent'}`,
+                    paddingLeft: collapsed ? undefined : (active ? 13 : 16),
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active) {
+                      e.currentTarget.style.background = 'var(--color-surface-2)'
+                      e.currentTarget.style.color = 'var(--color-text)'
+                      e.currentTarget.style.opacity = 1
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) {
+                      e.currentTarget.style.background = 'transparent'
+                      e.currentTarget.style.color = 'var(--color-text-muted)'
+                      e.currentTarget.style.opacity = 0.78
+                    }
+                  }}
+                >
+                  {/* Indicatore collapsed (dot accent quando attivo) */}
+                  {collapsed && active && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-full"
+                      style={{
+                        width: 3,
+                        height: 22,
+                        background: 'var(--color-primary)',
+                        boxShadow: '0 0 8px var(--color-primary)',
+                      }}
+                    />
+                  )}
+                  <Icon size={19} strokeWidth={active ? 2.2 : 1.8} />
+                  {!collapsed && (
+                    <span className="text-[13.5px] font-semibold tracking-tight">
+                      {label}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
         </nav>
 
-        {/* User section — in fondo */}
+        {/* ── User card + logout ── */}
         <div
-          className="mt-auto p-3"
+          className="relative mt-auto p-3 shrink-0"
           style={{ borderTop: '1px solid var(--color-sidebar-border)' }}
         >
           {!collapsed ? (
-            <div className="flex items-center gap-3 px-2 py-2 mb-2">
+            <div
+              className="flex items-center gap-3 p-2.5 mb-2 rounded-xl"
+              style={{
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-sidebar-border)',
+              }}
+            >
               <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: 'var(--color-surface-2)' }}
+                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold text-white text-[12px]"
+                style={{
+                  background: avatarGradient(user.name),
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                }}
               >
-                <Shield size={16} color="var(--color-primary)" />
+                {(user.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p
-                  className="text-sm font-semibold truncate"
+                  className="text-[13px] font-bold truncate leading-tight"
                   style={{ color: 'var(--color-text)' }}
                 >
                   {user.name}
                 </p>
                 <p
-                  className="text-[11px]"
-                  style={{ color: 'var(--color-text-muted)' }}
+                  className="text-[10px] font-semibold uppercase mt-0.5 flex items-center gap-1"
+                  style={{
+                    color: 'var(--color-primary)',
+                    letterSpacing: '0.12em',
+                  }}
                 >
-                  Amministratore
+                  <Shield size={9} strokeWidth={2.5} />
+                  Admin
                 </p>
               </div>
             </div>
           ) : (
             <div className="flex justify-center mb-2">
               <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center"
-                style={{ background: 'var(--color-surface-2)' }}
+                className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[12px]"
+                style={{
+                  background: avatarGradient(user.name),
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                }}
+                title={user.name}
               >
-                <Shield size={16} color="var(--color-primary)" />
+                {(user.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
             </div>
           )}
           <button
             onClick={logout}
             aria-label="Disconnetti"
-            className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-2 px-3'} py-2.5 rounded-lg text-sm transition-colors hover:text-red-400 hover:bg-red-500/10`}
+            title={collapsed ? 'Disconnetti' : undefined}
+            className={`w-full flex items-center ${collapsed ? 'justify-center px-0' : 'gap-2 px-3'} py-2.5 rounded-lg text-[13px] font-semibold transition-all duration-200`}
             style={{ color: 'var(--color-text-muted)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 92, 92, 0.10)'
+              e.currentTarget.style.color = 'var(--color-danger)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color = 'var(--color-text-muted)'
+            }}
           >
             <LogOut size={16} />
             {!collapsed && 'Disconnetti'}
