@@ -10,6 +10,7 @@ import VideoPlayer from '../media/VideoPlayer'
 import ActivityTimeline from './ActivityTimeline'
 import ChatPanel from '../chat/ChatPanel'
 import ShareGuestLink from '../chat/ShareGuestLink'
+import SimilarReportsPanel from './SimilarReportsPanel'
 import {
   ArrowLeft, MessageCircle, Video, Mic, Expand, Image, Clock,
   ChevronDown, Check, User, Wrench, Factory
@@ -483,6 +484,13 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ═══ Assistente AI — Soluzioni dal passato (solo tecnici su report non chiusi) ═══ */}
+      {user.role === 'tecnico' && report.status !== 'chiuso' && (
+        <div style={{ padding: '4px 4vw 12px' }}>
+          <SimilarReportsPanel report={report} />
         </div>
       )}
 
