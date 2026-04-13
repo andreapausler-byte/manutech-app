@@ -29,6 +29,7 @@ export default function AssistantChat({
   initialQuery = '',
   autoSendInitial = false,
   compact = false,
+  fillParent = false,
   suggestions = DEFAULT_SUGGESTIONS,
 }) {
   const { messages, sending, loading, error, send } = useAssistantChat({ machineId, reportId, initialConversationId })
@@ -80,11 +81,13 @@ export default function AssistantChat({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        // Altezza che lascia spazio a top header (~60px) + bottom nav (~72px + safe area)
-        height: compact ? 'auto' : 'calc(100dvh - 220px)',
+        // fillParent = layout desktop/modal (altezza 100% del parent)
+        // compact = layout embedded con min-height
+        // default = layout mobile full-page con calc(100dvh - header - bottom nav)
+        height: fillParent ? '100%' : (compact ? 'auto' : 'calc(100dvh - 220px)'),
         minHeight: compact ? 320 : 0,
         background: 'var(--color-surface-1)',
-        borderRadius: compact ? 16 : 0,
+        borderRadius: compact || fillParent ? 16 : 0,
         border: compact ? '1px solid var(--color-border-subtle)' : 'none',
         overflow: 'hidden',
       }}
