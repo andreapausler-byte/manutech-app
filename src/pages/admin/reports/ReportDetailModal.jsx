@@ -6,10 +6,13 @@ import { Badge } from '../../../components/ui'
 import MediaCapture from '../../../components/media/MediaCapture'
 import ActivityTimeline from '../../../components/reports/ActivityTimeline'
 import ChatPanel from '../../../components/chat/ChatPanel'
+import AssistantChat from '../../../components/assistant/AssistantChat'
+import DemoBanner from '../../../components/assistant/DemoBanner'
+import { isAssistantAvailable } from '../../../lib/assistant'
 import { useToast } from '../../../hooks/useToast'
 import {
   X, MessageCircle, Clock, Pencil, Trash2, Save, XCircle,
-  AlertTriangle, UserCheck
+  AlertTriangle, UserCheck, Sparkles
 } from 'lucide-react'
 
 function InfoCard({ label, value, icon }) {
@@ -329,7 +332,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
             )}
           </div>
 
-          {/* COL 2: Chat + Timeline */}
+          {/* COL 2: Chat + Timeline + AI */}
           <div className="col-span-6 border-r border-token flex flex-col overflow-hidden">
             <div className="flex border-b border-token shrink-0">
               <button onClick={() => setDetailTab('chat')}
@@ -340,12 +343,34 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'timeline' ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-400/5' : 'text-faint hover:text-secondary'}`}>
                 <Clock size={16} /> Cronologia
               </button>
+              <button onClick={() => setDetailTab('ai')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all ${detailTab === 'ai' ? 'text-violet-400 border-b-2 border-violet-400 bg-violet-400/5' : 'text-faint hover:text-secondary'}`}>
+                <Sparkles size={16} /> AI
+              </button>
             </div>
             {detailTab === 'chat' ? (
               <ChatPanel reportId={selected.id} user={user} report={selected} variant="desktop" className="flex-1 min-h-0" />
-            ) : (
+            ) : detailTab === 'timeline' ? (
               <div className="flex-1 overflow-y-auto p-4">
                 <ActivityTimeline reportId={selected.id} report={selected} />
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 p-3">
+                {isAssistantAvailable() ? (
+                  <AssistantChat
+                    machineId={selected.machine_id}
+                    reportId={selected.id}
+                    initialQuery={[selected.title, selected.description].filter(Boolean).join('. ').slice(0, 600)}
+                    fillParent
+                    suggestions={[
+                      'Quale ricambio è stato usato più spesso per casi simili?',
+                      'Passi tipici per diagnosticare questo problema',
+                      'Quanto dura mediamente questo tipo di intervento?',
+                    ]}
+                  />
+                ) : (
+                  <div className="p-4"><DemoBanner /></div>
+                )}
               </div>
             )}
           </div>

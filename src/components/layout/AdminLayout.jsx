@@ -20,6 +20,7 @@ import AdminMessaging from '../../pages/admin/AdminMessaging'
 import AdminLeaderboard from '../../pages/admin/AdminLeaderboard'
 import AdminRewards from '../../pages/admin/AdminRewards'
 import AdminSpareParts from '../../pages/admin/AdminSpareParts'
+import AdminAssistantPage from '../../pages/admin/AdminAssistantPage'
 
 export default function AdminLayout({ initialReportId }) {
   const { user, logout } = useAuth()
@@ -48,6 +49,7 @@ export default function AdminLayout({ initialReportId }) {
     switch (tab) {
       case 'dashboard': return <AdminDashboard onNavigate={setTab} />
       case 'reports': return <AdminReports initialReportId={initialReportId} />
+      case 'assistant': return <AdminAssistantPage onOpenReport={() => setTab('reports')} />
       case 'machines': return <AdminMachines />
       case 'maintenance': return <AdminMaintenance />
       case 'spare-parts': return <AdminSpareParts />
