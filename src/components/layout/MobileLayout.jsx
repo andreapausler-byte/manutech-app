@@ -646,7 +646,7 @@ export default function MobileLayout({ initialReportId }) {
               openNewChat={showNewConversation}
             />
           )}
-          {tab === 'profile' && <ProfilePage />}
+          {tab === 'profile' && <ProfilePage onOpenWallet={() => switchTab('wallet')} />}
         </div>
       </main>
 
