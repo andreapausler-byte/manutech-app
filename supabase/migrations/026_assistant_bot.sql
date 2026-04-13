@@ -58,7 +58,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_org_id UUID;
+  v_org_id TEXT;
   v_query tsquery;
 BEGIN
   v_org_id := public.get_my_org_id();
@@ -107,7 +107,7 @@ GRANT EXECUTE ON FUNCTION public.search_similar_reports(TEXT, INTEGER, UUID) TO 
 CREATE TABLE IF NOT EXISTS public.assistant_conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  org_id UUID NOT NULL,
+  org_id TEXT NOT NULL DEFAULT 'default',
   title TEXT NOT NULL DEFAULT 'Nuova conversazione',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
