@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Camera, FileText, Plus, Trash2, ExternalLink, Save, X,
-  BookOpen, Wrench, Image, ChevronDown, ChevronUp
+  BookOpen, Wrench, Image, ChevronDown, ChevronUp, Building,
+  ShieldCheck, Sparkles
 } from 'lucide-react'
+import { db } from '../../../lib/supabase'
 
 function Section({ icon, title, color, count, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -25,6 +27,30 @@ function Section({ icon, title, color, count, children, defaultOpen = true }) {
   )
 }
 
+// Badge che indica se un allegato è indicizzato dall'AI
+function AiBadge({ type }) {
+  // type è 'image' → non indicizzabile in Sprint A
+  // type è 'pdf'   → indicizzato (assumiamo ready dopo ingestione)
+  if (type === 'image') {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-md bg-slate-500/10 text-slate-400 shrink-0"
+        title="Le immagini non sono indicizzate dall'AI in questa versione"
+      >
+        <Image size={9} /> immagine
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 shrink-0"
+      title="Questo documento è interrogabile dall'assistente AI"
+    >
+      <Sparkles size={9} /> AI
+    </span>
+  )
+}
+
 function AttachmentItem({ attachment, index, onRemove }) {
   return (
     <div className="flex items-center gap-3 p-3 bg-surface-1 rounded-xl group hover:bg-surface-0/50 transition-all">
@@ -35,8 +61,9 @@ function AttachmentItem({ attachment, index, onRemove }) {
         : <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
             <FileText size={16} className="text-red-400" />
           </div>}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex items-center gap-2">
         <p className="text-sm text-themed truncate">{attachment.name}</p>
+        <AiBadge type={attachment.type} />
       </div>
       <a href={attachment.url} target="_blank" rel="noopener"
         className="p-2 rounded-lg hover:bg-white/10 text-faint hover:text-violet-400 transition-all shrink-0" title="Apri">
@@ -50,6 +77,50 @@ function AttachmentItem({ attachment, index, onRemove }) {
       )}
     </div>
   )
+}
+
+// Banner "Biblioteca AI": mostra quanti chunks sono indicizzati
+function KnowledgeStatsBadge({ machineId }) {
+  const [stats, setStats] = useState(null)
+  useEffect(() => {
+    if (!machineId) return
+    let cancelled = false
+    db.getKnowledgeStats(machineId).then(s => { if (!cancelled) setStats(s) })
+    return () => { cancelled = true }
+  }, [machineId])
+
+  const chunks = stats?.chunks || 0
+  const lastIndexed = stats?.last_indexed_at ? new Date(stats.last_indexed_at) : null
+  const relLabel = lastIndexed ? timeRelative(lastIndexed) : null
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-violet-500/10 to-emerald-500/10 border border-violet-500/20">
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-violet-500/20 shrink-0">
+        <Sparkles size={16} className="text-violet-400" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-themed">
+          Biblioteca AI — {chunks > 0 ? `${chunks} estratti indicizzati` : 'nessun documento indicizzato'}
+        </p>
+        <p className="text-[10px] text-faint">
+          {chunks > 0
+            ? `L'assistente può rispondere a domande su questa macchina${relLabel ? ` — aggiornata ${relLabel}` : ''}`
+            : "Aggiungi manuali o istruzioni: verranno indicizzati automaticamente"}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function timeRelative(date) {
+  const diffMs = Date.now() - date.getTime()
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'ora'
+  if (mins < 60) return `${mins} min fa`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h fa`
+  const days = Math.floor(hrs / 24)
+  return `${days}g fa`
 }
 
 function InstructionEditor({ value, onSave, placeholder }) {
@@ -105,14 +176,27 @@ export default function MachineDocumentationTab({ sel, onUpload, onRemoveAttachm
   const technicalSheets = attachments.filter(a => a.category === 'scheda_tecnica')
   const usageManuals = attachments.filter(a => a.category === 'manuale_uso')
   const maintenanceManuals = attachments.filter(a => a.category === 'manuale_manutenzione')
+  const externalReports = attachments.filter(a => a.category === 'intervento_esterno')
+  const certificates = attachments.filter(a => a.category === 'certificato')
   const otherDocs = attachments.filter(a =>
-    !a.category || (a.category !== 'foto' && a.category !== 'scheda_tecnica' && a.category !== 'manuale_uso' && a.category !== 'manuale_manutenzione' && a.type !== 'image')
+    !a.category || (
+      a.category !== 'foto' &&
+      a.category !== 'scheda_tecnica' &&
+      a.category !== 'manuale_uso' &&
+      a.category !== 'manuale_manutenzione' &&
+      a.category !== 'intervento_esterno' &&
+      a.category !== 'certificato' &&
+      a.type !== 'image'
+    )
   )
 
   const getIndex = (attachment) => attachments.indexOf(attachment)
 
   return (
     <div className="space-y-4 animate-fade-in">
+
+      {/* ═══ BIBLIOTECA AI — Badge stato indicizzazione ═══ */}
+      <KnowledgeStatsBadge machineId={sel?.id} />
 
       {/* ═══ GALLERIA FOTO ═══ */}
       <Section icon={Image} title="Galleria Foto" color="#7c6aff"
@@ -216,6 +300,57 @@ export default function MachineDocumentationTab({ sel, onUpload, onRemoveAttachm
           <button onClick={() => onUpload('pdf', 'manuale_manutenzione')}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-token/40 text-sm text-faint hover:border-red-500/40 hover:text-red-400 hover:bg-red-500/5 transition-all">
             <Plus size={14} /> Allega manuale manutenzione
+          </button>
+        </div>
+      </Section>
+
+      {/* ═══ INTERVENTI DITTA ESTERNA ═══ */}
+      <Section
+        icon={Building}
+        title="Interventi Ditta Esterna"
+        color="#f59e0b"
+        count={externalReports.length}
+        defaultOpen={externalReports.length > 0}
+      >
+        <div className="space-y-2">
+          {externalReports.map((doc, i) => (
+            <AttachmentItem key={i} attachment={doc} index={getIndex(doc)} onRemove={onRemoveAttachment} />
+          ))}
+          {externalReports.length === 0 && (
+            <p className="text-xs text-faint text-center py-2">
+              Rapporti di ditte esterne, bolle di lavoro, verbali di intervento
+            </p>
+          )}
+          <button onClick={() => onUpload('pdf', 'intervento_esterno')}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-token/40 text-sm text-faint hover:border-amber-500/40 hover:text-amber-400 hover:bg-amber-500/5 transition-all">
+            <Plus size={14} /> Carica rapporto ditta esterna
+          </button>
+          <p className="text-[10px] text-faint">
+            Suggerimento: per legare un intervento esterno a data/ricambi, registralo anche come "Intervento" con toggle "Ditta esterna".
+          </p>
+        </div>
+      </Section>
+
+      {/* ═══ CERTIFICATI E CONFORMITÀ ═══ */}
+      <Section
+        icon={ShieldCheck}
+        title="Certificati e Conformità"
+        color="#10b981"
+        count={certificates.length}
+        defaultOpen={certificates.length > 0}
+      >
+        <div className="space-y-2">
+          {certificates.map((doc, i) => (
+            <AttachmentItem key={i} attachment={doc} index={getIndex(doc)} onRemove={onRemoveAttachment} />
+          ))}
+          {certificates.length === 0 && (
+            <p className="text-xs text-faint text-center py-2">
+              Certificati CE, verifiche periodiche, tarature, ispezioni normative
+            </p>
+          )}
+          <button onClick={() => onUpload('pdf', 'certificato')}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-token/40 text-sm text-faint hover:border-emerald-500/40 hover:text-emerald-400 hover:bg-emerald-500/5 transition-all">
+            <Plus size={14} /> Carica certificato
           </button>
         </div>
       </Section>

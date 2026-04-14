@@ -60,7 +60,7 @@ export default function AdminMachines() {
 
   // Log form
   const [showLogForm, setShowLogForm] = useState(false)
-  const [logForm, setLogForm] = useState({ title: '', description: '', duration_minutes: '', parts_replaced: '', plan_id: '', component_id: '' })
+  const [logForm, setLogForm] = useState({ title: '', description: '', duration_minutes: '', parts_replaced: '', plan_id: '', component_id: '', is_external: false, contractor_name: '', contractor_reference: '', media: [] })
 
   // CSV
   const [showCSVImport, setShowCSVImport] = useState(false)
@@ -150,6 +150,10 @@ export default function AdminMachines() {
       const updated = await db.updateMachine(sel.id, { [field]: value })
       setSel(prev => ({ ...prev, ...updated }))
       toast.success('Salvato')
+      // Re-indicizza se il campo è testuale indicizzabile
+      if (field === 'usage_instructions' || field === 'maintenance_instructions') {
+        db.queueMachineReindex(sel.id)
+      }
     } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
   }
 
@@ -164,6 +168,8 @@ export default function AdminMachines() {
         const updated = await db.updateMachine(sel.id, { attachments: newAttachments })
         setSel(prev => ({ ...prev, ...updated }))
         toast.success('File caricato')
+        // PDF → indicizza AI
+        if (type === 'pdf') db.queueMachineReindex(sel.id)
       } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) }
     }
     input.click()
@@ -171,10 +177,13 @@ export default function AdminMachines() {
 
   const removeAttachment = async (index) => {
     if (!sel) return
+    const removed = (sel.attachments || [])[index]
     const newAttachments = (sel.attachments || []).filter((_, i) => i !== index)
     try {
       const updated = await db.updateMachine(sel.id, { attachments: newAttachments })
       setSel(prev => ({ ...prev, ...updated }))
+      // Se era un PDF, rifai l'indicizzazione
+      if (removed?.type === 'pdf') db.queueMachineReindex(sel.id)
     } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
   }
 
@@ -214,15 +223,37 @@ export default function AdminMachines() {
   // ── Logs ──
   const openLogForm = (planId = null) => {
     const plan = planId ? plans.find(p => p.id === planId) : null
-    setLogForm({ title: plan?.name || '', description: '', duration_minutes: '', parts_replaced: '', plan_id: planId || '', component_id: '' })
+    setLogForm({ title: plan?.name || '', description: '', duration_minutes: '', parts_replaced: '', plan_id: planId || '', component_id: '', is_external: false, contractor_name: '', contractor_reference: '', media: [] })
     setShowLogForm(true)
   }
 
   const saveLog = async () => {
     if (!logForm.title.trim() || !sel) return
     try {
-      await db.createMaintenanceLog({ machine_id: sel.id, plan_id: logForm.plan_id || null, report_id: null, component_id: logForm.component_id || null, type: logForm.plan_id ? 'programmata' : 'straordinaria', title: logForm.title.trim(), description: logForm.description || null, performed_by: user?.id, performed_by_name: user?.name, duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null, parts_replaced: logForm.parts_replaced || null, performed_at: new Date().toISOString(), org_id: user?.org_id || 'default' })
-      toast.success('Intervento registrato'); setShowLogForm(false); await refreshDetail()
+      await db.createMaintenanceLog({
+        machine_id: sel.id,
+        plan_id: logForm.plan_id || null,
+        report_id: null,
+        component_id: logForm.component_id || null,
+        type: logForm.plan_id ? 'programmata' : 'straordinaria',
+        title: logForm.title.trim(),
+        description: logForm.description || null,
+        performed_by: user?.id,
+        performed_by_name: user?.name,
+        duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
+        parts_replaced: logForm.parts_replaced || null,
+        performed_at: new Date().toISOString(),
+        org_id: user?.org_id || 'default',
+        is_external: !!logForm.is_external,
+        contractor_name: logForm.is_external ? (logForm.contractor_name || null) : null,
+        contractor_reference: logForm.is_external ? (logForm.contractor_reference || null) : null,
+        media: Array.isArray(logForm.media) ? logForm.media : [],
+      })
+      toast.success('Intervento registrato')
+      setShowLogForm(false)
+      await refreshDetail()
+      // Avvia indicizzazione AI in background (biblioteca tecnica)
+      db.queueMachineReindex(sel.id)
     } catch (e) { toast.error('Errore: ' + e.message) }
   }
 

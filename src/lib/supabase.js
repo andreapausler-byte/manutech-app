@@ -603,14 +603,18 @@ export const db = {
         _title: log.title,
         _plan_id: log.plan_id || null,
         _report_id: log.report_id || null,
+        _component_id: log.component_id || null,
         _type: log.type || 'programmata',
         _description: log.description || null,
         _performed_by_name: log.performed_by_name || null,
         _duration_minutes: log.duration_minutes || null,
         _parts_replaced: log.parts_replaced || null,
         _performed_at: log.performed_at || new Date().toISOString(),
+        _is_external: !!log.is_external,
+        _contractor_name: log.contractor_name || null,
+        _contractor_reference: log.contractor_reference || null,
+        _media: Array.isArray(log.media) ? log.media : [],
       }
-      if (log.component_id) rpcParams._component_id = log.component_id
       const { data: rpcData, error: rpcError } = await supabase.rpc('create_maintenance_log', rpcParams)
       if (!rpcError && rpcData) return rpcData
       // Fallback: insert diretto (se RPC non ancora deployata)
@@ -624,6 +628,48 @@ export const db = {
       return data
     }
     return { ...log, id: `ml-${Date.now()}`, created_at: new Date().toISOString() }
+  },
+
+  // ─── KNOWLEDGE BASE AI (biblioteca tecnica macchine) ───
+  // Avvia l'indicizzazione asincrona di una macchina dopo che sono
+  // cambiati documenti, istruzioni o maintenance_logs. Fire-and-forget:
+  // ritorna subito, il processing avviene nell'edge function.
+  async queueMachineReindex(machineId) {
+    if (!supabase || !machineId) return { ok: false, demo: true }
+    try {
+      // Non attendere il completamento: l'indicizzazione può richiedere
+      // secondi/minuti per manuali grossi. L'utente vedrà il badge
+      // aggiornarsi a posteriori.
+      supabase.functions.invoke('ingest-knowledge', {
+        body: { machine_id: machineId },
+      }).then(({ data, error }) => {
+        if (error) console.warn('[ManuTech] ingest-knowledge error:', error.message || error)
+        else if (data?.ok) console.info('[ManuTech] knowledge base aggiornata:', data)
+      }).catch(err => console.warn('[ManuTech] ingest-knowledge throw:', err))
+      return { ok: true, queued: true }
+    } catch (err) {
+      console.warn('[ManuTech] queueMachineReindex error:', err)
+      return { ok: false, error: err.message }
+    }
+  },
+
+  // Statistiche della biblioteca AI per una macchina (per badge UI)
+  // Ritorna { chunks, sources, last_indexed_at, by_kind }
+  async getKnowledgeStats(machineId) {
+    if (!supabase || !machineId) {
+      return { chunks: 0, sources: 0, last_indexed_at: null }
+    }
+    try {
+      const { data, error } = await supabase.rpc('get_knowledge_stats', { p_machine_id: machineId })
+      if (error) {
+        console.warn('[ManuTech] getKnowledgeStats error:', error.message)
+        return { chunks: 0, sources: 0, last_indexed_at: null }
+      }
+      return data || { chunks: 0, sources: 0, last_indexed_at: null }
+    } catch (err) {
+      console.warn('[ManuTech] getKnowledgeStats throw:', err)
+      return { chunks: 0, sources: 0, last_indexed_at: null }
+    }
   },
 
   async deleteMaintenanceLog(id) {
