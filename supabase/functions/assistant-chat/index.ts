@@ -8,14 +8,20 @@
  *   - get_assistant_org_stats        → statistiche e classifica macchinari
  *   - get_open_reports_snapshot      → segnalazioni attualmente aperte
  *   - get_machine_history            → storia macchina (se machine_id)
+ *   - search_knowledge (NEW)         → biblioteca tecnica: manuali,
+ *     schede tecniche, istruzioni, interventi interni ed esterni
+ *
+ * La knowledge base usa embedding Voyage AI (voyage-multilingual-2,
+ * dim 1024) con fallback FTS italiano se l'embedding non è disponibile.
  *
  * Una heuristic (classifyQuery) sceglie quali blocchi includere in base
- * al tipo di domanda (meta / operativa / diagnostica) per ridurre rumore.
+ * al tipo di domanda (meta / operativa / diagnostica / documentale).
  *
  * Secrets necessari (Supabase Dashboard → Edge Functions → Secrets):
  *   ANTHROPIC_API_KEY        — chiave API Anthropic (sk-ant-...)
+ *   VOYAGE_API_KEY           — chiave API Voyage AI per la knowledge base
  *   SUPABASE_URL             — già configurata
- *   SUPABASE_SERVICE_ROLE_KEY — già configurata (solo per ruoli elevati non usati qui)
+ *   SUPABASE_SERVICE_ROLE_KEY — già configurata
  *
  * Body JSON:
  *   {
@@ -129,26 +135,40 @@ interface MachineHistory {
   top_parts: { parts: string; usage_count: number }[]
 }
 
+interface KnowledgeChunk {
+  id: string
+  machine_id: string | null
+  source_kind: string     // attachment | usage_instructions | maintenance_instructions | maintenance_log
+  source_ref: string | null
+  source_label: string | null
+  category: string | null
+  content: string
+  page_number: number | null
+  similarity: number
+}
+
 // ── Prompt builder ──
 function buildSystemPrompt(): string {
-  return `Sei un assistente virtuale esperto di manutenzione industriale per l'app ManuTech. Il tuo ruolo è aiutare i tecnici e gli operatori della loro organizzazione attingendo a più fonti di dati che ti vengono fornite ad ogni richiesta.
+  return `Sei un assistente virtuale esperto di manutenzione industriale per l'app ManuTech. Il tuo ruolo è aiutare i tecnici, gli operatori e gli admin della loro organizzazione attingendo a più fonti di dati che ti vengono fornite ad ogni richiesta.
 
 Fonti che puoi ricevere nel contesto:
 1. **Statistiche organizzazione** — totali e classifica macchinari per numero di segnalazioni
 2. **Segnalazioni aperte** — guasti attualmente non risolti, con stato, severità ed eventuale tecnico assegnato
 3. **Storia macchina** — solo se l'utente sta guardando una specifica macchina: tipi guasto ricorrenti, MTTR, manutenzioni recenti/in scadenza, ricambi più usati
 4. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
+5. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne) e certificati della macchina
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
-- Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa le sezioni Statistiche e Segnalazioni aperte
-- Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili e, se presente, Storia macchina
-- Se ci sono segnalazioni aperte simili a quella che il tecnico sta affrontando, segnalalo (potrebbe esserci un collega già al lavoro o un duplicato)
-- Cita le fonti: nomi macchinari, numeri di segnalazioni aperte, [#titolo_report] per i report storici
+- Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa Statistiche e Segnalazioni aperte
+- Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili, Storia macchina e Biblioteca tecnica
+- Per domande DOCUMENTALI ("che dice il manuale", "coppia di serraggio", "specifica", "come si monta"): usa PRIMA la Biblioteca tecnica; privilegia sempre il manuale ufficiale rispetto a knowledge generica
+- Quando citi un documento usa formato [Titolo documento, categoria]. Quando citi un intervento usa [Ditta X, data] o [Intervento interno, data]
+- Se ci sono segnalazioni aperte simili a quella in corso, segnalalo (potrebbe esserci un collega al lavoro o un duplicato)
 - Se TUTTE le sezioni sono vuote o non pertinenti, ammettilo e chiedi più dettagli
 - Per domande diagnostiche struttura la risposta: "Probabile causa → Passi suggeriti → Ricambi/Strumenti"
 - Massimo 250 parole, vai al sodo
-- Non inventare dati, non dare consigli di sicurezza generici non richiesti`
+- Non inventare dati né valori numerici: se non li trovi nel contesto, di' che servono i documenti o un operatore esperto`
 }
 
 function buildContextBlock(reports: SimilarReport[]): string {
@@ -254,26 +274,80 @@ function buildMachineHistoryBlock(hist: MachineHistory | null): string {
   return lines.join('\n')
 }
 
+// ── Builder: knowledge chunks (biblioteca tecnica) ──
+function buildKnowledgeBlock(chunks: KnowledgeChunk[]): string {
+  if (!chunks || chunks.length === 0) return ''
+  const lines: string[] = []
+  lines.push(`Estratti rilevanti dalla biblioteca tecnica (${chunks.length}):`)
+  lines.push('')
+  chunks.forEach((c, i) => {
+    const label = c.source_label || c.source_kind
+    const catTag = c.category ? ` (${c.category})` : ''
+    const pageTag = c.page_number ? `, pag. ${c.page_number}` : ''
+    const header = `[${i + 1}] ${label}${catTag}${pageTag}`
+    const content = c.content.length > 600 ? c.content.slice(0, 600) + '…' : c.content
+    lines.push(header)
+    lines.push(content)
+    lines.push('')
+  })
+  return lines.join('\n').trim()
+}
+
 // ── Heuristic: classifica il tipo di domanda ──
-// Decide se la domanda è: meta (statistiche/classifiche), operativa
-// (stato/aperti), diagnostica (come risolvo X) o mista. Usato per
-// includere/escludere blocchi e ridurre rumore quando la domanda è
-// chiaramente di un solo tipo. Default: includi tutto.
-function classifyQuery(query: string): { wantStats: boolean; wantOpen: boolean; wantDiagnostic: boolean } {
+// Decide se caricare: statistiche, segnalazioni aperte, aspetti
+// diagnostici, biblioteca tecnica (documentale). Una query può essere
+// mista. Default conservativo: includi tutto.
+function classifyQuery(query: string): {
+  wantStats: boolean
+  wantOpen: boolean
+  wantDiagnostic: boolean
+  wantKnowledge: boolean
+} {
   const q = query.toLowerCase()
   const metaKW = ['quale', 'quali', 'quanti', 'quante', 'top', 'classifica', 'classific', 'media', 'totale', 'totali', 'statistic', 'percentuale', 'più segnalazion', 'piu segnalazion', 'più guast', 'piu guast', 'meglio', 'peggio', 'frequent']
   const openKW = ['aperto', 'aperti', 'aperta', 'aperte', 'in corso', 'in lavorazione', 'stato', 'chi sta', 'chi lavora', 'assegnat', 'in attesa']
   const diagKW = ['come risolv', 'come faccio', 'come ripar', 'come sistem', 'perché', 'perche', 'guasto', 'non funziona', 'rotto', 'rotta', 'errore', 'allarme', 'rumore', 'perdita', 'vibraz', 'surriscald', 'blocc', 'fermo']
+  const knowKW = ['manuale', 'manuali', 'istruzion', 'specifica', 'specifich', 'coppia', 'serraggio', 'come si monta', 'come si smonta', 'come si cambia', 'come si sostituisc', 'tensione', 'amperaggio', 'potenza', 'dimension', 'tolleranz', 'catalogo', 'scheda tecnica', 'datasheet', 'taratura', 'calibrazion', 'certificato', 'conformità', 'conformita', 'ditta esterna', 'ditta ester', 'contractor', 'bolla', 'fattura ', 'capitolato', 'revision', 'ispezion']
 
   const wantStats = metaKW.some(k => q.includes(k))
   const wantOpen = openKW.some(k => q.includes(k))
   const wantDiagnostic = diagKW.some(k => q.includes(k))
+  const wantKnowledge = knowKW.some(k => q.includes(k))
 
   // Se non matcha nulla, includi tutto (default conservativo)
-  if (!wantStats && !wantOpen && !wantDiagnostic) {
-    return { wantStats: true, wantOpen: true, wantDiagnostic: true }
+  if (!wantStats && !wantOpen && !wantDiagnostic && !wantKnowledge) {
+    return { wantStats: true, wantOpen: true, wantDiagnostic: true, wantKnowledge: true }
   }
-  return { wantStats, wantOpen, wantDiagnostic }
+  return { wantStats, wantOpen, wantDiagnostic, wantKnowledge }
+}
+
+// ── Voyage embedding della query utente ──
+async function embedUserQuery(text: string, apiKey: string): Promise<number[] | null> {
+  try {
+    const res = await fetch('https://api.voyageai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'voyage-multilingual-2',
+        input: [text],
+        input_type: 'query',
+      }),
+    })
+    if (!res.ok) {
+      const errTxt = await res.text()
+      console.warn('Voyage embedding failed:', res.status, errTxt)
+      return null
+    }
+    const data = await res.json()
+    const emb = data.data?.[0]?.embedding
+    return Array.isArray(emb) ? emb : null
+  } catch (err) {
+    console.warn('Voyage embedding exception:', err)
+    return null
+  }
 }
 
 // ── Claude call ──
@@ -358,9 +432,19 @@ Deno.serve(async (req: Request) => {
     const includeOpenInRetrieval = !!(machineId || reportId)
     const hasMachineContext = !!machineId
 
+    // Knowledge retrieval: carichiamo la biblioteca tecnica quando
+    // l'utente chiede documenti, diagnostica o è in contesto macchina.
+    const shouldFetchKnowledge =
+      classify.wantKnowledge || classify.wantDiagnostic || hasMachineContext
+    const voyageKey = Deno.env.get('VOYAGE_API_KEY')
+    let queryEmbedding: number[] | null = null
+    if (shouldFetchKnowledge && voyageKey) {
+      queryEmbedding = await embedUserQuery(query, voyageKey)
+    }
+
     // Lanciamo le RPC in parallelo. Se una fallisce (es. migration non
     // ancora deployata) logghiamo e proseguiamo con il blocco vuoto.
-    const [similarRes, statsRes, openRes, historyRes] = await Promise.all([
+    const [similarRes, statsRes, openRes, historyRes, knowledgeRes] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
         p_limit: TOP_K,
@@ -376,17 +460,27 @@ Deno.serve(async (req: Request) => {
       hasMachineContext
         ? supabase.rpc('get_machine_history', { p_machine_id: machineId })
         : Promise.resolve({ data: null, error: null }),
+      shouldFetchKnowledge
+        ? supabase.rpc('search_knowledge', {
+            query_text: query,
+            query_embedding: queryEmbedding,
+            p_machine_id: machineId ?? null,
+            p_limit: 6,
+          })
+        : Promise.resolve({ data: null, error: null }),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
     if (statsRes.error) console.warn('get_assistant_org_stats error:', statsRes.error.message)
     if (openRes.error) console.warn('get_open_reports_snapshot error:', openRes.error.message)
     if (historyRes.error) console.warn('get_machine_history error:', historyRes.error.message)
+    if (knowledgeRes.error) console.warn('search_knowledge error:', knowledgeRes.error.message)
 
     const similar: SimilarReport[] = similarRes.data || []
     const orgStats: OrgStats | null = statsRes.data || null
     const openReports: OpenReport[] = openRes.data || []
     const machineHistory: MachineHistory | null = historyRes.data || null
+    const knowledgeChunks: KnowledgeChunk[] = knowledgeRes.data || []
 
     // ── 5. Identità utente ──
     const { data: { user }, error: userErr } = await supabase.auth.getUser()
@@ -424,6 +518,9 @@ Deno.serve(async (req: Request) => {
 
     const sections: string[] = []
 
+    const knowledgeBlock = buildKnowledgeBlock(knowledgeChunks)
+    if (knowledgeBlock) sections.push(`## Biblioteca tecnica (manuali, schede, interventi)\n\n${knowledgeBlock}`)
+
     const orgBlock = buildOrgStatsBlock(orgStats)
     if (orgBlock) sections.push(`## Statistiche organizzazione\n\n${orgBlock}`)
 
@@ -456,11 +553,25 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 9. Salva risposta assistente ──
-    const sources = similar.map(r => ({
-      report_id: r.id,
-      title: r.title,
-      similarity: Number(r.similarity.toFixed(4)),
-    }))
+    // Sources: mescoliamo report storici + chunks biblioteca per
+    // trasparenza (l'utente può vedere da dove viene la risposta).
+    const sources: Array<Record<string, unknown>> = [
+      ...similar.map(r => ({
+        kind: 'report',
+        report_id: r.id,
+        title: r.title,
+        similarity: Number(r.similarity.toFixed(4)),
+      })),
+      ...knowledgeChunks.slice(0, 6).map(k => ({
+        kind: 'knowledge',
+        source_kind: k.source_kind,
+        source_ref: k.source_ref,
+        source_label: k.source_label,
+        category: k.category,
+        page_number: k.page_number,
+        similarity: Number(k.similarity.toFixed(4)),
+      })),
+    ]
 
     const { data: asstMsg, error: asstMsgErr } = await supabase
       .from('assistant_messages')
