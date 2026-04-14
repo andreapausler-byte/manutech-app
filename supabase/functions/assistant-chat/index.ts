@@ -2,10 +2,15 @@
  * Edge Function: assistant-chat
  *
  * Assistente AI per tecnici ManuTech. Riceve una domanda (+ context
- * opzionale machine_id / report_id), esegue retrieval sui report risolti
- * dell'organizzazione tramite RPC `search_similar_reports`, poi chiama
- * Claude Haiku 4.5 per sintetizzare una risposta azionabile in italiano
- * con riferimenti ai report sorgente.
+ * opzionale machine_id / report_id) e costruisce un prompt per Claude
+ * Haiku 4.5 con più fonti dati dell'organizzazione:
+ *   - search_similar_reports         → report storici simili (RAG)
+ *   - get_assistant_org_stats        → statistiche e classifica macchinari
+ *   - get_open_reports_snapshot      → segnalazioni attualmente aperte
+ *   - get_machine_history            → storia macchina (se machine_id)
+ *
+ * Una heuristic (classifyQuery) sceglie quali blocchi includere in base
+ * al tipo di domanda (meta / operativa / diagnostica) per ridurre rumore.
  *
  * Secrets necessari (Supabase Dashboard → Edge Functions → Secrets):
  *   ANTHROPIC_API_KEY        — chiave API Anthropic (sk-ant-...)
@@ -50,6 +55,7 @@ interface SimilarReport {
   title: string | null
   description: string | null
   severity: string | null
+  status: string | null
   type: string | null
   machine_id: string | null
   closure_root_cause: string | null
@@ -60,17 +66,88 @@ interface SimilarReport {
   similarity: number
 }
 
+interface OpenReport {
+  id: string
+  title: string | null
+  description: string | null
+  severity: string | null
+  status: string | null
+  type: string | null
+  machine: string | null
+  machine_id: string | null
+  assigned_to_name: string | null
+  age_hours: number | null
+  created_at: string | null
+}
+
+interface OrgStatsTotals {
+  reports_total: number
+  reports_open: number
+  reports_resolved: number
+  resolved_pct: number
+  critical_open: number
+  reports_last_30d: number
+}
+
+interface TopMachine {
+  name: string
+  total: number
+  open: number
+  assigned: number
+  in_progress: number
+  awaiting_parts: number
+  resolved: number
+  critical_open: number
+  last_report_at: string | null
+}
+
+interface OrgStats {
+  totals: OrgStatsTotals | null
+  top_machines: TopMachine[]
+}
+
+interface MachineHistory {
+  machine_name: string
+  total_reports: number
+  mttr_hours: number | null
+  recurring_types: { type: string; count: number }[]
+  recent_maintenance: {
+    title: string
+    type: string
+    description: string
+    parts_replaced: string
+    performed_by_name: string | null
+    performed_at_label: string
+  }[]
+  upcoming_maintenance: {
+    name: string
+    frequency_days: number
+    current_status: string
+    next_due_label: string
+    days_to_due: number
+  }[]
+  top_parts: { parts: string; usage_count: number }[]
+}
+
 // ── Prompt builder ──
 function buildSystemPrompt(): string {
-  return `Sei un assistente virtuale esperto di manutenzione industriale per l'app ManuTech. Il tuo ruolo è aiutare i tecnici a risolvere guasti attingendo allo storico degli interventi già risolti nella loro organizzazione.
+  return `Sei un assistente virtuale esperto di manutenzione industriale per l'app ManuTech. Il tuo ruolo è aiutare i tecnici e gli operatori della loro organizzazione attingendo a più fonti di dati che ti vengono fornite ad ogni richiesta.
+
+Fonti che puoi ricevere nel contesto:
+1. **Statistiche organizzazione** — totali e classifica macchinari per numero di segnalazioni
+2. **Segnalazioni aperte** — guasti attualmente non risolti, con stato, severità ed eventuale tecnico assegnato
+3. **Storia macchina** — solo se l'utente sta guardando una specifica macchina: tipi guasto ricorrenti, MTTR, manutenzioni recenti/in scadenza, ricambi più usati
+4. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
 
 Regole di risposta:
-- Rispondi SEMPRE in italiano, in tono pratico e diretto (tu dai del "tu" al tecnico)
-- Quando il contesto fornisce report storici simili, usa quelle informazioni concrete (cause, azioni, ricambi) per costruire la risposta
-- Cita esplicitamente i report a cui ti riferisci con [#nome_report] in linea
-- Se il contesto è vuoto o non pertinente, ammettilo chiaramente e chiedi dettagli in più
-- Struttura la risposta in: "Probabile causa → Passi suggeriti → Ricambi/Strumenti"
-- Massimo 200 parole, vai al sodo
+- Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
+- Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa le sezioni Statistiche e Segnalazioni aperte
+- Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili e, se presente, Storia macchina
+- Se ci sono segnalazioni aperte simili a quella che il tecnico sta affrontando, segnalalo (potrebbe esserci un collega già al lavoro o un duplicato)
+- Cita le fonti: nomi macchinari, numeri di segnalazioni aperte, [#titolo_report] per i report storici
+- Se TUTTE le sezioni sono vuote o non pertinenti, ammettilo e chiedi più dettagli
+- Per domande diagnostiche struttura la risposta: "Probabile causa → Passi suggeriti → Ricambi/Strumenti"
+- Massimo 250 parole, vai al sodo
 - Non inventare dati, non dare consigli di sicurezza generici non richiesti`
 }
 
@@ -80,7 +157,8 @@ function buildContextBlock(reports: SimilarReport[]): string {
   }
   return reports.map((r, i) => {
     const parts: string[] = []
-    parts.push(`--- Report storico #${i + 1} ---`)
+    const statusTag = r.status && !['risolta', 'chiuso'].includes(r.status) ? ` [APERTO — ${r.status}]` : ''
+    parts.push(`--- Report storico #${i + 1}${statusTag} ---`)
     parts.push(`Titolo: ${r.title || '(senza titolo)'}`)
     if (r.severity) parts.push(`Severità: ${r.severity}`)
     if (r.description) parts.push(`Problema riportato: ${r.description.slice(0, 400)}`)
@@ -90,6 +168,112 @@ function buildContextBlock(reports: SimilarReport[]): string {
     if (r.closure_hours) parts.push(`Ore intervento: ${r.closure_hours}`)
     return parts.join('\n')
   }).join('\n\n')
+}
+
+function buildOrgStatsBlock(stats: OrgStats | null): string {
+  if (!stats || !stats.totals) return ''
+  const t = stats.totals
+  const lines: string[] = []
+  lines.push(`Totale report: ${t.reports_total} (aperti: ${t.reports_open}, risolti: ${t.reports_resolved} — ${t.resolved_pct}%)`)
+  lines.push(`Critici aperti: ${t.critical_open} — Nuovi ultimi 30 giorni: ${t.reports_last_30d}`)
+  if (stats.top_machines && stats.top_machines.length > 0) {
+    lines.push('')
+    lines.push('Top macchinari per numero di segnalazioni:')
+    stats.top_machines.forEach((m, i) => {
+      const name = (m.name || 'Senza nome').slice(0, 50)
+      lines.push(
+        `${i + 1}. ${name} — ${m.total} report ` +
+        `(aperti ${m.open + m.assigned + m.in_progress + m.awaiting_parts}, ` +
+        `critici ${m.critical_open}, risolti ${m.resolved}, ultimo: ${m.last_report_at || '—'})`,
+      )
+    })
+  }
+  return lines.join('\n')
+}
+
+function buildOpenReportsBlock(reports: OpenReport[], scopedToMachine: boolean): string {
+  if (!reports || reports.length === 0) return ''
+  const header = scopedToMachine
+    ? `Segnalazioni aperte su questa macchina (${reports.length}):`
+    : `Segnalazioni aperte più rilevanti (${reports.length}, top per severità + età):`
+  const items = reports.map((r, i) => {
+    const age = r.age_hours != null
+      ? r.age_hours < 24 ? `${r.age_hours}h fa` : `${Math.floor(r.age_hours / 24)}g fa`
+      : '—'
+    const parts: string[] = []
+    parts.push(`${i + 1}. [${r.severity || '—'}/${r.status || '—'}] ${r.title || '(senza titolo)'}`)
+    if (r.machine && !scopedToMachine) parts.push(`   Macchina: ${r.machine}`)
+    parts.push(`   Aperto: ${age}${r.assigned_to_name ? ` — Tecnico: ${r.assigned_to_name}` : ' — Non assegnato'}`)
+    if (r.description) parts.push(`   Problema: ${r.description.slice(0, 200)}`)
+    return parts.join('\n')
+  })
+  return [header, ...items].join('\n')
+}
+
+function buildMachineHistoryBlock(hist: MachineHistory | null): string {
+  if (!hist) return ''
+  const lines: string[] = []
+  lines.push(`Macchinario: ${hist.machine_name} — Totale storico: ${hist.total_reports} report` +
+    (hist.mttr_hours != null ? ` — MTTR medio: ${hist.mttr_hours}h` : ''))
+
+  if (hist.recurring_types?.length) {
+    lines.push('')
+    lines.push('Tipi guasto ricorrenti: ' +
+      hist.recurring_types.map(t => `${t.type} (${t.count}x)`).join(', '))
+  }
+
+  if (hist.upcoming_maintenance?.length) {
+    lines.push('')
+    lines.push('Manutenzioni in scadenza/scadute:')
+    hist.upcoming_maintenance.forEach(m => {
+      const status = m.days_to_due < 0
+        ? `SCADUTA da ${Math.abs(m.days_to_due)}gg`
+        : `tra ${m.days_to_due}gg`
+      lines.push(`- ${m.name} (ogni ${m.frequency_days}gg) — ${status} — prossima: ${m.next_due_label}`)
+    })
+  }
+
+  if (hist.recent_maintenance?.length) {
+    lines.push('')
+    lines.push('Ultime manutenzioni eseguite:')
+    hist.recent_maintenance.forEach(m => {
+      const who = m.performed_by_name ? ` — ${m.performed_by_name}` : ''
+      const partsTxt = m.parts_replaced ? ` — Ricambi: ${m.parts_replaced}` : ''
+      lines.push(`- ${m.performed_at_label}: ${m.title}${who}${partsTxt}`)
+    })
+  }
+
+  if (hist.top_parts?.length) {
+    lines.push('')
+    lines.push('Ricambi più usati su questa macchina (da chiusure report):')
+    hist.top_parts.forEach(p => {
+      lines.push(`- ${p.parts} (usato ${p.usage_count}x)`)
+    })
+  }
+
+  return lines.join('\n')
+}
+
+// ── Heuristic: classifica il tipo di domanda ──
+// Decide se la domanda è: meta (statistiche/classifiche), operativa
+// (stato/aperti), diagnostica (come risolvo X) o mista. Usato per
+// includere/escludere blocchi e ridurre rumore quando la domanda è
+// chiaramente di un solo tipo. Default: includi tutto.
+function classifyQuery(query: string): { wantStats: boolean; wantOpen: boolean; wantDiagnostic: boolean } {
+  const q = query.toLowerCase()
+  const metaKW = ['quale', 'quali', 'quanti', 'quante', 'top', 'classifica', 'classific', 'media', 'totale', 'totali', 'statistic', 'percentuale', 'più segnalazion', 'piu segnalazion', 'più guast', 'piu guast', 'meglio', 'peggio', 'frequent']
+  const openKW = ['aperto', 'aperti', 'aperta', 'aperte', 'in corso', 'in lavorazione', 'stato', 'chi sta', 'chi lavora', 'assegnat', 'in attesa']
+  const diagKW = ['come risolv', 'come faccio', 'come ripar', 'come sistem', 'perché', 'perche', 'guasto', 'non funziona', 'rotto', 'rotta', 'errore', 'allarme', 'rumore', 'perdita', 'vibraz', 'surriscald', 'blocc', 'fermo']
+
+  const wantStats = metaKW.some(k => q.includes(k))
+  const wantOpen = openKW.some(k => q.includes(k))
+  const wantDiagnostic = diagKW.some(k => q.includes(k))
+
+  // Se non matcha nulla, includi tutto (default conservativo)
+  if (!wantStats && !wantOpen && !wantDiagnostic) {
+    return { wantStats: true, wantOpen: true, wantDiagnostic: true }
+  }
+  return { wantStats, wantOpen, wantDiagnostic }
 }
 
 // ── Claude call ──
@@ -166,16 +350,43 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: `Limite di ${MAX_MESSAGES_PER_HOUR} messaggi/ora raggiunto. Riprova più tardi.` }, 429)
     }
 
-    // ── 4. Retrieval: cerca report simili ──
-    const { data: similarRaw, error: searchErr } = await supabase.rpc('search_similar_reports', {
-      query_text: query,
-      p_limit: TOP_K,
-      p_machine_id: machineId ?? null,
-    })
-    if (searchErr) {
-      console.error('search_similar_reports error:', searchErr)
-    }
-    const similar: SimilarReport[] = similarRaw || []
+    // ── 4. Retrieval + contesto esteso ──
+    // Classifichiamo la query per decidere quali blocchi caricare.
+    const classify = classifyQuery(query)
+    // Scope C: estendere retrieval ai report aperti SOLO se siamo in contesto
+    // macchina/report (l'utente sta guardando qualcosa di specifico).
+    const includeOpenInRetrieval = !!(machineId || reportId)
+    const hasMachineContext = !!machineId
+
+    // Lanciamo le RPC in parallelo. Se una fallisce (es. migration non
+    // ancora deployata) logghiamo e proseguiamo con il blocco vuoto.
+    const [similarRes, statsRes, openRes, historyRes] = await Promise.all([
+      supabase.rpc('search_similar_reports', {
+        query_text: query,
+        p_limit: TOP_K,
+        p_machine_id: machineId ?? null,
+        p_include_open: includeOpenInRetrieval,
+      }),
+      classify.wantStats || classify.wantDiagnostic
+        ? supabase.rpc('get_assistant_org_stats')
+        : Promise.resolve({ data: null, error: null }),
+      classify.wantOpen || classify.wantDiagnostic || hasMachineContext
+        ? supabase.rpc('get_open_reports_snapshot', { p_machine_id: machineId ?? null })
+        : Promise.resolve({ data: null, error: null }),
+      hasMachineContext
+        ? supabase.rpc('get_machine_history', { p_machine_id: machineId })
+        : Promise.resolve({ data: null, error: null }),
+    ])
+
+    if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
+    if (statsRes.error) console.warn('get_assistant_org_stats error:', statsRes.error.message)
+    if (openRes.error) console.warn('get_open_reports_snapshot error:', openRes.error.message)
+    if (historyRes.error) console.warn('get_machine_history error:', historyRes.error.message)
+
+    const similar: SimilarReport[] = similarRes.data || []
+    const orgStats: OrgStats | null = statsRes.data || null
+    const openReports: OpenReport[] = openRes.data || []
+    const machineHistory: MachineHistory | null = historyRes.data || null
 
     // ── 5. Identità utente ──
     const { data: { user }, error: userErr } = await supabase.auth.getUser()
@@ -210,9 +421,26 @@ Deno.serve(async (req: Request) => {
 
     // ── 8. Costruisci prompt e chiama Claude ──
     const systemPrompt = buildSystemPrompt()
+
+    const sections: string[] = []
+
+    const orgBlock = buildOrgStatsBlock(orgStats)
+    if (orgBlock) sections.push(`## Statistiche organizzazione\n\n${orgBlock}`)
+
+    const openBlock = buildOpenReportsBlock(openReports, hasMachineContext)
+    if (openBlock) sections.push(`## Segnalazioni aperte\n\n${openBlock}`)
+
+    const historyBlock = buildMachineHistoryBlock(machineHistory)
+    if (historyBlock) sections.push(`## Storia macchina\n\n${historyBlock}`)
+
     const contextBlock = buildContextBlock(similar)
-    const contextNote = reportId ? `\n\n[Contesto aggiuntivo: il tecnico sta guardando il report ${reportId}]` : ''
-    const userMessage = `## Contesto: report storici risolti\n\n${contextBlock}${contextNote}\n\n## Domanda del tecnico\n\n${query}`
+    sections.push(`## Report storici simili\n\n${contextBlock}`)
+
+    const contextNote = reportId
+      ? `\n\n[Contesto aggiuntivo: il tecnico sta guardando il report ${reportId}]`
+      : ''
+
+    const userMessage = `${sections.join('\n\n')}${contextNote}\n\n## Domanda del tecnico\n\n${query}`
 
     let assistantText = ''
     let tokensUsed = 0
