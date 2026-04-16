@@ -402,6 +402,7 @@ export default function MachineDetailSheet({
   onHandleCSVFile,
   onOpenComponentForm, onDeleteComponent,
   onUploadToMachine, onRemoveAttachment, onSaveField,
+  reindexing = false,
 }) {
   const machineReports = useMemo(() =>
     reports.filter(r => r.machine === sel.name).sort((a, b) => {
@@ -836,6 +837,7 @@ export default function MachineDetailSheet({
                   onUpload={onUploadToMachine}
                   onRemoveAttachment={onRemoveAttachment}
                   onSaveField={onSaveField}
+                  reindexing={reindexing}
                 />
               )}
 

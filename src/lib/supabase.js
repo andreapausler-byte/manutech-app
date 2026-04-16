@@ -631,25 +631,28 @@ export const db = {
   },
 
   // ─── KNOWLEDGE BASE AI (biblioteca tecnica macchine) ───
-  // Avvia l'indicizzazione asincrona di una macchina dopo che sono
-  // cambiati documenti, istruzioni o maintenance_logs. Fire-and-forget:
-  // ritorna subito, il processing avviene nell'edge function.
+  // Avvia l'indicizzazione di una macchina dopo che sono cambiati documenti,
+  // istruzioni o maintenance_logs. Awaita il completamento dell'edge function
+  // e ritorna il risultato: { ok, chunks?, durations_ms?, error? }.
+  // In demo mode (no Supabase) ritorna { ok: false, demo: true } senza throw.
   async queueMachineReindex(machineId) {
     if (!supabase || !machineId) return { ok: false, demo: true }
     try {
-      // Non attendere il completamento: l'indicizzazione può richiedere
-      // secondi/minuti per manuali grossi. L'utente vedrà il badge
-      // aggiornarsi a posteriori.
-      supabase.functions.invoke('ingest-knowledge', {
+      const { data, error } = await supabase.functions.invoke('ingest-knowledge', {
         body: { machine_id: machineId },
-      }).then(({ data, error }) => {
-        if (error) console.warn('[ManuTech] ingest-knowledge error:', error.message || error)
-        else if (data?.ok) console.info('[ManuTech] knowledge base aggiornata:', data)
-      }).catch(err => console.warn('[ManuTech] ingest-knowledge throw:', err))
-      return { ok: true, queued: true }
+      })
+      if (error) {
+        console.warn('[ManuTech] ingest-knowledge error:', error.message || error)
+        return { ok: false, error: error.message || 'ingest-knowledge failed' }
+      }
+      if (data?.ok) {
+        console.info('[ManuTech] knowledge base aggiornata:', data)
+        return { ok: true, chunks: data.chunks ?? 0, ...data }
+      }
+      return { ok: false, error: data?.error || 'unknown error' }
     } catch (err) {
-      console.warn('[ManuTech] queueMachineReindex error:', err)
-      return { ok: false, error: err.message }
+      console.warn('[ManuTech] queueMachineReindex throw:', err)
+      return { ok: false, error: err.message || 'network error' }
     }
   },
 

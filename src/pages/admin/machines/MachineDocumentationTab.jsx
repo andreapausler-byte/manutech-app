@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Camera, FileText, Plus, Trash2, ExternalLink, Save, X,
   BookOpen, Wrench, Image, ChevronDown, ChevronUp, Building,
-  ShieldCheck, Sparkles
+  ShieldCheck, Sparkles, Loader2
 } from 'lucide-react'
 import { db } from '../../../lib/supabase'
 
@@ -79,9 +79,22 @@ function AttachmentItem({ attachment, index, onRemove }) {
   )
 }
 
-// Banner "Biblioteca AI": mostra quanti chunks sono indicizzati
-function KnowledgeStatsBadge({ machineId }) {
+// Banner "Biblioteca AI": mostra quanti chunks sono indicizzati.
+// Auto-refresh quando `reindexing` passa da true a false (fine indicizzazione),
+// con 2 retry a 2s di distanza per dare tempo al DB di materializzare i nuovi chunks.
+function KnowledgeStatsBadge({ machineId, reindexing = false }) {
   const [stats, setStats] = useState(null)
+  const prevReindexing = useRef(reindexing)
+
+  const fetchStats = () => {
+    if (!machineId) return Promise.resolve(null)
+    return db.getKnowledgeStats(machineId).then(s => {
+      setStats(s)
+      return s
+    })
+  }
+
+  // Fetch iniziale on-mount
   useEffect(() => {
     if (!machineId) return
     let cancelled = false
@@ -89,9 +102,44 @@ function KnowledgeStatsBadge({ machineId }) {
     return () => { cancelled = true }
   }, [machineId])
 
+  // Auto-refresh a fine reindex: true → false
+  useEffect(() => {
+    const wasReindexing = prevReindexing.current
+    prevReindexing.current = reindexing
+    if (!wasReindexing || reindexing || !machineId) return
+    // Reindex appena finito: aggiorna subito, poi un paio di retry leggeri
+    // nel caso la RPC non abbia ancora visto i nuovi chunks (edge function async).
+    let cancelled = false
+    let timers = []
+    fetchStats()
+    timers.push(setTimeout(() => { if (!cancelled) fetchStats() }, 2000))
+    timers.push(setTimeout(() => { if (!cancelled) fetchStats() }, 5000))
+    return () => { cancelled = true; timers.forEach(clearTimeout) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reindexing, machineId])
+
   const chunks = stats?.chunks || 0
   const lastIndexed = stats?.last_indexed_at ? new Date(stats.last_indexed_at) : null
   const relLabel = lastIndexed ? timeRelative(lastIndexed) : null
+
+  // Stato prioritario: indicizzazione in corso
+  if (reindexing) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-violet-500/15 to-emerald-500/15 border border-violet-500/30">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-violet-500/25 shrink-0">
+          <Loader2 size={16} className="text-violet-300 animate-spin" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold text-themed">
+            Biblioteca AI — indicizzazione in corso
+          </p>
+          <p className="text-[10px] text-faint">
+            Estrazione testo, generazione embedding e salvataggio estratti. Richiede alcuni secondi.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-violet-500/10 to-emerald-500/10 border border-violet-500/20">
@@ -168,7 +216,7 @@ function InstructionEditor({ value, onSave, placeholder }) {
   )
 }
 
-export default function MachineDocumentationTab({ sel, onUpload, onRemoveAttachment, onSaveField }) {
+export default function MachineDocumentationTab({ sel, onUpload, onRemoveAttachment, onSaveField, reindexing = false }) {
   const attachments = sel.attachments || []
 
   // Categorize attachments (legacy ones without category go to 'altro')
@@ -196,7 +244,7 @@ export default function MachineDocumentationTab({ sel, onUpload, onRemoveAttachm
     <div className="space-y-4 animate-fade-in">
 
       {/* ═══ BIBLIOTECA AI — Badge stato indicizzazione ═══ */}
-      <KnowledgeStatsBadge machineId={sel?.id} />
+      <KnowledgeStatsBadge machineId={sel?.id} reindexing={reindexing} />
 
       {/* ═══ GALLERIA FOTO ═══ */}
       <Section icon={Image} title="Galleria Foto" color="#7c6aff"
