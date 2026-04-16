@@ -642,8 +642,23 @@ export const db = {
         body: { machine_id: machineId },
       })
       if (error) {
-        console.warn('[ManuTech] ingest-knowledge error:', error.message || error)
-        return { ok: false, error: error.message || 'ingest-knowledge failed' }
+        // supabase-js ritorna un messaggio generico "Edge Function returned a non-2xx...".
+        // Il vero errore è nel body JSON della Response, esposto via error.context.
+        let detail = error.message || 'ingest-knowledge failed'
+        let statusCode = null
+        try {
+          if (error.context?.status) statusCode = error.context.status
+          if (typeof error.context?.json === 'function') {
+            const body = await error.context.json()
+            if (body?.error) detail = body.error
+          } else if (typeof error.context?.text === 'function') {
+            const txt = await error.context.text()
+            if (txt) detail = txt
+          }
+        } catch { /* body già consumato o non JSON, fallback al messaggio generico */ }
+        const prefix = statusCode ? `[${statusCode}] ` : ''
+        console.warn('[ManuTech] ingest-knowledge error:', prefix + detail, error)
+        return { ok: false, error: prefix + detail, status: statusCode }
       }
       if (data?.ok) {
         console.info('[ManuTech] knowledge base aggiornata:', data)
