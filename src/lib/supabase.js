@@ -638,33 +638,43 @@ export const db = {
   async queueMachineReindex(machineId) {
     if (!supabase || !machineId) return { ok: false, demo: true }
     try {
-      const { data, error } = await supabase.functions.invoke('ingest-knowledge', {
-        body: { machine_id: machineId },
+      // Recupera la sessione utente per allegare il JWT.
+      // supabase.functions.invoke() a volte non propaga il messaggio di errore
+      // reale dell'edge function, quindi usiamo fetch diretto per leggere il body.
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        return { ok: false, error: 'Sessione scaduta — rieffettua il login' }
+      }
+
+      const res = await fetch(`${supabaseUrl}/functions/v1/ingest-knowledge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': supabaseAnonKey,
+        },
+        body: JSON.stringify({ machine_id: machineId }),
       })
-      if (error) {
-        // supabase-js ritorna un messaggio generico "Edge Function returned a non-2xx...".
-        // Il vero errore è nel body JSON della Response, esposto via error.context.
-        let detail = error.message || 'ingest-knowledge failed'
-        let statusCode = null
-        try {
-          if (error.context?.status) statusCode = error.context.status
-          if (typeof error.context?.json === 'function') {
-            const body = await error.context.json()
-            if (body?.error) detail = body.error
-          } else if (typeof error.context?.text === 'function') {
-            const txt = await error.context.text()
-            if (txt) detail = txt
-          }
-        } catch { /* body già consumato o non JSON, fallback al messaggio generico */ }
-        const prefix = statusCode ? `[${statusCode}] ` : ''
-        console.warn('[ManuTech] ingest-knowledge error:', prefix + detail, error)
-        return { ok: false, error: prefix + detail, status: statusCode }
+
+      // Parsa il body anche sugli errori (può essere JSON con { error: "..." } o testo)
+      let body = null
+      let rawText = null
+      try { rawText = await res.text() } catch { /* no body */ }
+      if (rawText) {
+        try { body = JSON.parse(rawText) } catch { body = null }
       }
-      if (data?.ok) {
-        console.info('[ManuTech] knowledge base aggiornata:', data)
-        return { ok: true, chunks: data.chunks ?? 0, ...data }
+
+      if (!res.ok) {
+        const detail = body?.error || rawText || `HTTP ${res.status}`
+        const msg = `[${res.status}] ${detail}`
+        console.warn('[ManuTech] ingest-knowledge error:', msg)
+        return { ok: false, error: msg, status: res.status }
       }
-      return { ok: false, error: data?.error || 'unknown error' }
+      if (body?.ok) {
+        console.info('[ManuTech] knowledge base aggiornata:', body)
+        return { ok: true, chunks: body.chunks ?? 0, ...body }
+      }
+      return { ok: false, error: body?.error || 'unknown error' }
     } catch (err) {
       console.warn('[ManuTech] queueMachineReindex throw:', err)
       return { ok: false, error: err.message || 'network error' }
