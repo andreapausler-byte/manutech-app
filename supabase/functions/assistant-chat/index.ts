@@ -474,13 +474,16 @@ Deno.serve(async (req: Request) => {
     if (statsRes.error) console.warn('get_assistant_org_stats error:', statsRes.error.message)
     if (openRes.error) console.warn('get_open_reports_snapshot error:', openRes.error.message)
     if (historyRes.error) console.warn('get_machine_history error:', historyRes.error.message)
-    if (knowledgeRes.error) console.warn('search_knowledge error:', knowledgeRes.error.message)
+    if (knowledgeRes.error) console.warn('search_knowledge error:', knowledgeRes.error.message, JSON.stringify(knowledgeRes.error))
 
     const similar: SimilarReport[] = similarRes.data || []
     const orgStats: OrgStats | null = statsRes.data || null
     const openReports: OpenReport[] = openRes.data || []
     const machineHistory: MachineHistory | null = historyRes.data || null
     const knowledgeChunks: KnowledgeChunk[] = knowledgeRes.data || []
+
+    // ── Diagnostic trace: retrieval summary ──
+    console.info(`[retrieval] query="${query.slice(0, 80)}" | wantKnowledge=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | shouldFetchKnowledge=${shouldFetchKnowledge} voyageKeyPresent=${!!voyageKey} queryEmbeddingLen=${queryEmbedding?.length || 0} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length}`)
 
     // ── 5. Identità utente ──
     const { data: { user }, error: userErr } = await supabase.auth.getUser()
