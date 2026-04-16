@@ -76,6 +76,37 @@ export default function AdminMachines() {
   // Components cache per machine (for card preview)
   const [moveMenuId, setMoveMenuId] = useState(null)
 
+  // Biblioteca AI: stato indicizzazione in corso (per feedback UI)
+  const [reindexing, setReindexing] = useState(false)
+
+  // Helper: lancia l'indicizzazione AI con feedback utente (toast + stato).
+  // Awaita il completamento, così l'utente sa quando la biblioteca è pronta.
+  const triggerReindex = async (machineId) => {
+    if (!machineId) return
+    setReindexing(true)
+    const toastId = toast.loading('Indicizzazione biblioteca AI in corso...')
+    try {
+      const res = await db.queueMachineReindex(machineId)
+      if (res?.demo) {
+        toast.dismiss(toastId)
+        // Demo mode: nessun backend, silenzio (il contesto demo è già comunicato altrove)
+      } else if (res?.ok) {
+        toast.success(
+          res.chunks > 0
+            ? `Biblioteca AI aggiornata (${res.chunks} estratti)`
+            : 'Biblioteca AI aggiornata',
+          { id: toastId }
+        )
+      } else {
+        toast.error('Indicizzazione AI fallita: ' + (res?.error || 'riprova più tardi'), { id: toastId })
+      }
+    } catch (err) {
+      toast.error('Indicizzazione AI fallita: ' + (err.message || 'riprova'), { id: toastId })
+    } finally {
+      setReindexing(false)
+    }
+  }
+
   const load = async () => {
     setLoading(true)
     const [m, r, u, a] = await Promise.all([db.getMachines(), db.getReports(), db.getUsers(), db.getAreas()])
@@ -152,7 +183,7 @@ export default function AdminMachines() {
       toast.success('Salvato')
       // Re-indicizza se il campo è testuale indicizzabile
       if (field === 'usage_instructions' || field === 'maintenance_instructions') {
-        db.queueMachineReindex(sel.id)
+        triggerReindex(sel.id)
       }
     } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
   }
@@ -169,7 +200,7 @@ export default function AdminMachines() {
         setSel(prev => ({ ...prev, ...updated }))
         toast.success('File caricato')
         // PDF → indicizza AI
-        if (type === 'pdf') db.queueMachineReindex(sel.id)
+        if (type === 'pdf') triggerReindex(sel.id)
       } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) }
     }
     input.click()
@@ -183,7 +214,7 @@ export default function AdminMachines() {
       const updated = await db.updateMachine(sel.id, { attachments: newAttachments })
       setSel(prev => ({ ...prev, ...updated }))
       // Se era un PDF, rifai l'indicizzazione
-      if (removed?.type === 'pdf') db.queueMachineReindex(sel.id)
+      if (removed?.type === 'pdf') triggerReindex(sel.id)
     } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
   }
 
@@ -252,8 +283,8 @@ export default function AdminMachines() {
       toast.success('Intervento registrato')
       setShowLogForm(false)
       await refreshDetail()
-      // Avvia indicizzazione AI in background (biblioteca tecnica)
-      db.queueMachineReindex(sel.id)
+      // Avvia indicizzazione AI (biblioteca tecnica)
+      triggerReindex(sel.id)
     } catch (e) { toast.error('Errore: ' + e.message) }
   }
 
@@ -721,6 +752,7 @@ export default function AdminMachines() {
           onOpenLogForm={openLogForm} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
           onUploadToMachine={uploadToMachine} onRemoveAttachment={removeAttachment} onSaveField={updateMachineField}
+          reindexing={reindexing}
         />
       )}
 
