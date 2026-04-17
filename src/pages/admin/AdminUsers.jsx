@@ -3,7 +3,7 @@ import { db } from '../../lib/supabase'
 import { ROLES, STATUS, SEVERITY, formatDate, timeAgo } from '../../lib/constants'
 import { Button, Modal, Input, Spinner } from '../../components/ui'
 import { useToast } from '../../hooks/useToast'
-import { Trash2, Search, Truck, Printer, Mail, Copy, Clock, XCircle } from 'lucide-react'
+import { Trash2, Search, Truck, Printer, Mail, Copy, Clock, XCircle, MessageCircle, Send, Share2 } from 'lucide-react'
 import PageHeader from '../../components/layout/PageHeader'
 import { findNavItem } from '../../lib/adminNav'
 
@@ -56,6 +56,33 @@ export default function AdminUsers() {
       toast.success('Link copiato negli appunti')
     } catch {
       toast.warning('Copia manualmente il link')
+    }
+  }
+
+  const buildInviteMessage = (name, url) =>
+    `Ciao ${name || ''}! Sei stato invitato in ManuTech. Attiva il tuo account qui: ${url}`
+
+  const shareWhatsApp = (name, url) => {
+    const text = encodeURIComponent(buildInviteMessage(name, url))
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer')
+  }
+
+  const shareEmail = (name, email, url) => {
+    const subject = encodeURIComponent('Invito a ManuTech')
+    const body = encodeURIComponent(buildInviteMessage(name, url))
+    window.location.href = `mailto:${email || ''}?subject=${subject}&body=${body}`
+  }
+
+  const shareNative = async (name, url) => {
+    if (!navigator.share) { copyInviteUrl(url); return }
+    try {
+      await navigator.share({
+        title: 'Invito ManuTech',
+        text: buildInviteMessage(name, url),
+        url,
+      })
+    } catch {
+      // Utente ha annullato, nessuna azione
     }
   }
 
@@ -243,11 +270,23 @@ export default function AdminUsers() {
                     )}
                   </div>
                   {inviteUrl && !expired && (
-                    <button onClick={() => copyInviteUrl(inviteUrl)}
-                      className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-all"
-                      title="Copia link invito">
-                      <Copy size={15} />
-                    </button>
+                    <>
+                      <button onClick={() => shareWhatsApp(u.name, inviteUrl)}
+                        className="p-2 rounded-lg hover:bg-green-500/20 text-muted hover:text-green-400 transition-all"
+                        title="Invia su WhatsApp">
+                        <MessageCircle size={15} />
+                      </button>
+                      <button onClick={() => shareEmail(u.name, u.email, inviteUrl)}
+                        className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-all"
+                        title="Invia via email">
+                        <Send size={15} />
+                      </button>
+                      <button onClick={() => copyInviteUrl(inviteUrl)}
+                        className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-all"
+                        title="Copia link invito">
+                        <Copy size={15} />
+                      </button>
+                    </>
                   )}
                   <button onClick={() => revoke(u.id)}
                     className="p-2 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 transition-all"
@@ -349,6 +388,29 @@ export default function AdminUsers() {
                 title="Copia link">
                 <Copy size={15} />
               </button>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: 'var(--color-text-muted)' }}>Condividi via</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button onClick={() => shareWhatsApp(inviteResult.user.name, inviteResult.url)}
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl border transition-all press-scale hover:border-violet-500"
+                  style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-0)' }}>
+                  <MessageCircle size={20} style={{ color: '#25d366' }} />
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>WhatsApp</span>
+                </button>
+                <button onClick={() => shareEmail(inviteResult.user.name, inviteResult.user.email, inviteResult.url)}
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl border transition-all press-scale hover:border-violet-500"
+                  style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-0)' }}>
+                  <Send size={20} style={{ color: 'var(--color-primary)' }} />
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Email</span>
+                </button>
+                <button onClick={() => shareNative(inviteResult.user.name, inviteResult.url)}
+                  className="flex flex-col items-center gap-1 p-3 rounded-xl border transition-all press-scale hover:border-violet-500"
+                  style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-0)' }}>
+                  <Share2 size={20} style={{ color: 'var(--color-text-muted)' }} />
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Altro</span>
+                </button>
+              </div>
             </div>
             <Button onClick={closeInvite} className="w-full" size="lg" variant="secondary">Chiudi</Button>
           </div>
