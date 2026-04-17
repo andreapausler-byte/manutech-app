@@ -642,7 +642,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
               <span className="text-[11px] font-medium">{label}</span>
             </button>
           ))}
-          <button onClick={() => setShowMediaBar(false)} className="ml-auto p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-tertiary)' }}>
+          <button onClick={() => setShowMediaBar(false)} aria-label="Chiudi allegati" className="ml-auto p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-tertiary)' }}>
             <X size={18} />
           </button>
         </div>

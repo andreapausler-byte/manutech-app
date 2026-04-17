@@ -173,6 +173,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
             <button
               type="button"
               onClick={() => { haptic.light(); setShowQR(true) }}
+              aria-label="Scansiona QR macchinario"
               style={{
                 width: 56, height: 56, flexShrink: 0,
                 background: 'var(--color-surface-2)',

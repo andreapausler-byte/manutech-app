@@ -380,7 +380,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
             }}
           />
           {search && (
-            <button onClick={() => setSearch('')} style={{
+            <button onClick={() => setSearch('')} aria-label="Cancella ricerca" style={{
               position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
               width: 24, height: 24, borderRadius: 12, background: 'var(--color-surface-3)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer',

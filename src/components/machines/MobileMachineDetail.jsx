@@ -182,7 +182,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
             )
           })()}
           {onDelete && (
-            <button onClick={onDelete} className="w-[13vw] h-[13vw] max-w-[52px] max-h-[52px] rounded-2xl bg-red-500/10 flex items-center justify-center press-scale">
+            <button onClick={onDelete} aria-label="Elimina macchinario" className="w-[13vw] h-[13vw] max-w-[52px] max-h-[52px] rounded-2xl bg-red-500/10 flex items-center justify-center press-scale">
               <Trash2 size={20} style={{ color: '#ef4444' }} />
             </button>
           )}
@@ -388,7 +388,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         {/* ═══ DOCUMENTS ═══ */}
         {machine.attachments?.length > 0 && (
           <div>
-            <button onClick={() => toggle(setShowDocs)} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
+            <button onClick={() => toggle(setShowDocs)} aria-expanded={showDocs} aria-label={`${showDocs ? 'Nascondi' : 'Mostra'} documenti`} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
               <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
                 <FileText size={17} /> Documenti ({machine.attachments.length})
               </p>
@@ -420,7 +420,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
         {/* ═══ LOGS ═══ */}
         <div>
-          <button onClick={() => toggle(setShowLogs)} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
+          <button onClick={() => toggle(setShowLogs)} aria-expanded={showLogs} aria-label={`${showLogs ? 'Nascondi' : 'Mostra'} ultimi interventi`} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
             <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
               <Wrench size={17} /> Ultimi Interventi ({logs.length})
             </p>
@@ -463,7 +463,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         {/* ═══ RESOLVED ═══ */}
         {resolvedReports.length > 0 && (
           <div>
-            <button onClick={() => toggle(setShowResolved)} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
+            <button onClick={() => toggle(setShowResolved)} aria-expanded={showResolved} aria-label={`${showResolved ? 'Nascondi' : 'Mostra'} segnalazioni risolte`} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
               <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
                 <CheckCircle size={17} /> Risolte ({resolvedReports.length})
               </p>
@@ -540,8 +540,8 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
       {/* ═══ MODAL — Conferma Manutenzione ═══ */}
       {confirmPlan && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setConfirmPlan(null)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setConfirmPlan(null)} role="dialog" aria-modal="true" aria-labelledby="confirm-plan-title">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
           <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl p-[5vw] pb-[8vw] animate-slide-up safe-area-bottom"
             style={{ maxHeight: '75vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
             onClick={e => e.stopPropagation()}>
@@ -551,7 +551,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
                 <CheckCircle size={24} className="text-emerald-400" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-themed">Conferma Manutenzione</h3>
+                <h3 id="confirm-plan-title" className="text-lg font-bold text-themed">Conferma Manutenzione</h3>
                 <p className="text-sm text-faint">{confirmPlan.name}</p>
               </div>
             </div>
@@ -583,8 +583,8 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
       {/* ═══ MODAL — Risolvi + Registra ═══ */}
       {resolveReport && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setResolveReport(null)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setResolveReport(null)} role="dialog" aria-modal="true" aria-labelledby="resolve-report-title">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
           <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl p-[5vw] pb-[8vw] animate-slide-up safe-area-bottom"
             style={{ maxHeight: '75vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
             onClick={e => e.stopPropagation()}>
@@ -594,7 +594,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
                 <Wrench size={24} className="text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-bold text-themed">Risolvi e Registra</h3>
+                <h3 id="resolve-report-title" className="text-lg font-bold text-themed">Risolvi e Registra</h3>
                 <p className="text-sm text-faint truncate">{resolveReport.title}</p>
               </div>
             </div>

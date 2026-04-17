@@ -523,6 +523,8 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
             {!guestMode && (
             <button
               onClick={() => { setShowMediaBar(prev => !prev); hapticRef.current.light() }}
+              aria-label={showMediaBar ? 'Chiudi allegati' : 'Apri allegati'}
+              aria-expanded={showMediaBar}
               disabled={uploading}
               className={`shrink-0 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
                 showMediaBar ? 'bg-violet-500/20 text-violet-400 ring-1 ring-violet-500/30' : 'bg-surface-2 text-muted hover:text-gray-300'
@@ -798,6 +800,7 @@ function MiniAudioPlayer({ src, name, isMobile, onDownload }) {
       <audio ref={audioRef} src={src} preload="metadata" />
 
       <button onClick={togglePlay}
+        aria-label={playing ? 'Pausa audio' : 'Riproduci audio'}
         className={`shrink-0 rounded-full flex items-center justify-center transition-all active:scale-90 ${
           playing ? 'bg-orange-500' : 'bg-orange-500/20 border border-orange-500/50'
         } ${isMobile ? 'w-10 h-10' : 'w-9 h-9'}`}>
@@ -822,6 +825,7 @@ function MiniAudioPlayer({ src, name, isMobile, onDownload }) {
       {/* Download button — desktop only */}
       {onDownload && (
         <button onClick={onDownload}
+          aria-label="Scarica audio"
           className="shrink-0 w-8 h-8 rounded-lg bg-surface-3 hover:bg-orange-500/20 flex items-center justify-center
             text-muted hover:text-orange-400 transition-all"
           title="Scarica audio">

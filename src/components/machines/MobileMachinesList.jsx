@@ -82,7 +82,7 @@ export default function MobileMachinesList({ onSelectMachine }) {
           }}
         />
         {search && (
-          <button onClick={() => setSearch('')} style={{
+          <button onClick={() => setSearch('')} aria-label="Cancella ricerca" style={{
             position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
             width: 24, height: 24, borderRadius: 12, background: 'var(--color-surface-3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer',
