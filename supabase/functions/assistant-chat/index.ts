@@ -8,14 +8,20 @@
  *   - get_assistant_org_stats        → statistiche e classifica macchinari
  *   - get_open_reports_snapshot      → segnalazioni attualmente aperte
  *   - get_machine_history            → storia macchina (se machine_id)
- *   - search_knowledge (NEW)         → biblioteca tecnica: manuali,
+ *   - get_machines_inventory (NEW)   → anagrafica macchinari (matricole,
+ *     modelli, produttori, reparto)
+ *   - get_assistant_strategic_insights (NEW) → KPI gestionali:
+ *     macchine a rischio, manutenzioni scadute, pattern guasto org,
+ *     riparazioni lunghe
+ *   - search_knowledge               → biblioteca tecnica: manuali,
  *     schede tecniche, istruzioni, interventi interni ed esterni
  *
  * La knowledge base usa embedding Voyage AI (voyage-multilingual-2,
  * dim 1024) con fallback FTS italiano se l'embedding non è disponibile.
  *
  * Una heuristic (classifyQuery) sceglie quali blocchi includere in base
- * al tipo di domanda (meta / operativa / diagnostica / documentale).
+ * al tipo di domanda (meta / operativa / diagnostica / documentale /
+ * anagrafica / strategica).
  *
  * Secrets necessari (Supabase Dashboard → Edge Functions → Secrets):
  *   ANTHROPIC_API_KEY        — chiave API Anthropic (sk-ant-...)
@@ -52,7 +58,7 @@ const corsHeaders = {
 const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const MAX_MESSAGES_PER_HOUR = 30
-const MAX_TOKENS = 1024
+const MAX_TOKENS = 2048
 const TOP_K = 5
 
 // ── Tipi retrieval ──
@@ -114,6 +120,14 @@ interface OrgStats {
 
 interface MachineHistory {
   machine_name: string
+  serial_number: string | null
+  manufacturer: string | null
+  model: string | null
+  year: number | null
+  department: string | null
+  location: string | null
+  status: string | null
+  criticality: string | null
   total_reports: number
   mttr_hours: number | null
   recurring_types: { type: string; count: number }[]
@@ -135,6 +149,67 @@ interface MachineHistory {
   top_parts: { parts: string; usage_count: number }[]
 }
 
+interface MachineInventoryItem {
+  id: string
+  name: string
+  serial_number: string | null
+  manufacturer: string | null
+  model: string | null
+  year: number | null
+  department: string | null
+  location: string | null
+  status: string | null
+  criticality: string | null
+}
+
+interface StrategicMachineAtRisk {
+  machine_id: string | null
+  machine_name: string | null
+  serial_number: string | null
+  machine_criticality: string | null
+  total_reports: number
+  open_reports: number
+  critical_open: number
+  reports_last_90d: number
+  mttr_hours: number | null
+  last_critical_at: string | null
+  risk_score: number
+}
+
+interface StrategicOverduePreventive {
+  plan_name: string
+  frequency_days: number
+  machine_name: string | null
+  serial_number: string | null
+  next_due_label: string
+  days_overdue: number
+  days_to_due: number
+}
+
+interface StrategicRecurringFailure {
+  type: string
+  count: number
+  distinct_machines: number
+  critical_count: number
+}
+
+interface StrategicLongRepair {
+  title: string | null
+  machine_name: string | null
+  severity: string | null
+  type: string | null
+  closure_hours: number | null
+  closure_root_cause: string | null
+  closed_at_label: string | null
+}
+
+interface StrategicInsights {
+  machines_at_risk: StrategicMachineAtRisk[]
+  overdue_preventive: StrategicOverduePreventive[]
+  recurring_failures: StrategicRecurringFailure[]
+  long_repairs: StrategicLongRepair[]
+}
+
 interface KnowledgeChunk {
   id: string
   machine_id: string | null
@@ -149,25 +224,31 @@ interface KnowledgeChunk {
 
 // ── Prompt builder ──
 function buildSystemPrompt(): string {
-  return `Sei un assistente virtuale esperto di manutenzione industriale per l'app ManuTech. Il tuo ruolo è aiutare i tecnici, gli operatori e gli admin della loro organizzazione attingendo a più fonti di dati che ti vengono fornite ad ogni richiesta.
+  return `Sei il "cervello operativo" di ManuTech: un assistente AI esperto di manutenzione industriale che guida tecnici, operatori e manager di un'azienda manifatturiera. Il tuo obiettivo strategico è aiutare l'organizzazione a ridurre i tempi di riparazione e a prevenire i fermi macchina straordinari (che impattano direttamente il fatturato). Per farlo attingi alle fonti dati dell'organizzazione che ti vengono fornite ad ogni richiesta.
 
 Fonti che puoi ricevere nel contesto:
-1. **Statistiche organizzazione** — totali e classifica macchinari per numero di segnalazioni
-2. **Segnalazioni aperte** — guasti attualmente non risolti, con stato, severità ed eventuale tecnico assegnato
-3. **Storia macchina** — solo se l'utente sta guardando una specifica macchina: tipi guasto ricorrenti, MTTR, manutenzioni recenti/in scadenza, ricambi più usati
-4. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
-5. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne) e certificati della macchina
+1. **Anagrafica macchinari** — lista delle macchine dell'org con matricola (serial number), modello, produttore, anno, reparto, ubicazione, stato operativo, criticità
+2. **Statistiche organizzazione** — totali e classifica macchinari per numero di segnalazioni
+3. **Insight strategici** — macchine più a rischio (ranking), manutenzioni preventive scadute, pattern di guasto ricorrenti a livello org (ultimi 90gg), riparazioni lunghe (outlier ore)
+4. **Segnalazioni aperte** — guasti attualmente non risolti, con stato, severità ed eventuale tecnico assegnato
+5. **Storia macchina** — solo se l'utente sta guardando una specifica macchina: anagrafica completa, tipi guasto ricorrenti, MTTR, manutenzioni recenti/in scadenza, ricambi più usati
+6. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
+7. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne) e certificati della macchina
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
-- Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa Statistiche e Segnalazioni aperte
+- Per domande ANAGRAFICHE ("matricole", "modelli", "produttori", "quali macchine abbiamo"): usa Anagrafica macchinari; presenta i dati in elenco o tabella compatta
+- Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa Statistiche, Anagrafica e Segnalazioni aperte
+- Per domande STRATEGICHE / MANAGERIALI ("su cosa concentrarmi", "come riduco i fermi", "priorità", "cosa sta peggiorando", "dove perdo tempo"): usa Insight strategici come fonte principale; proponi 2-4 azioni concrete ordinate per impatto, citando numeri (matricole, MTTR, giorni di ritardo)
 - Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili, Storia macchina e Biblioteca tecnica
-- Per domande DOCUMENTALI ("che dice il manuale", "coppia di serraggio", "specifica", "come si monta"): usa PRIMA la Biblioteca tecnica; privilegia sempre il manuale ufficiale rispetto a knowledge generica
+- Per domande DOCUMENTALI ("che dice il manuale", "coppia di serraggio", "specifica", "come si monta"): usa PRIMA la Biblioteca tecnica; privilegia il manuale ufficiale
+- Quando citi una macchina includi nome e matricola se disponibile (es. "Imbottigliatrice [matricola IMB-023]")
 - Quando citi un documento usa formato [Titolo documento, categoria]. Quando citi un intervento usa [Ditta X, data] o [Intervento interno, data]
-- Se ci sono segnalazioni aperte simili a quella in corso, segnalalo (potrebbe esserci un collega al lavoro o un duplicato)
+- Se ci sono segnalazioni aperte simili a quella in corso, segnalalo (possibile duplicato o collega già al lavoro)
 - Se TUTTE le sezioni sono vuote o non pertinenti, ammettilo e chiedi più dettagli
 - Per domande diagnostiche struttura la risposta: "Probabile causa → Passi suggeriti → Ricambi/Strumenti"
-- Massimo 250 parole, vai al sodo
+- Per domande strategiche struttura: "Situazione → Priorità → Azioni concrete"
+- Massimo 300 parole, vai al sodo. Per liste anagrafiche puoi essere più compatto (usa tabelle/bullet)
 - Non inventare dati né valori numerici: se non li trovi nel contesto, di' che servono i documenti o un operatore esperto`
 }
 
@@ -236,6 +317,21 @@ function buildMachineHistoryBlock(hist: MachineHistory | null): string {
   lines.push(`Macchinario: ${hist.machine_name} — Totale storico: ${hist.total_reports} report` +
     (hist.mttr_hours != null ? ` — MTTR medio: ${hist.mttr_hours}h` : ''))
 
+  // Anagrafica estesa
+  const idParts: string[] = []
+  if (hist.serial_number) idParts.push(`Matricola: ${hist.serial_number}`)
+  if (hist.manufacturer) idParts.push(`Produttore: ${hist.manufacturer}`)
+  if (hist.model) idParts.push(`Modello: ${hist.model}`)
+  if (hist.year) idParts.push(`Anno: ${hist.year}`)
+  if (idParts.length) lines.push(idParts.join(' — '))
+
+  const locParts: string[] = []
+  if (hist.department) locParts.push(`Reparto: ${hist.department}`)
+  if (hist.location) locParts.push(`Ubicazione: ${hist.location}`)
+  if (hist.status) locParts.push(`Stato: ${hist.status}`)
+  if (hist.criticality) locParts.push(`Criticità: ${hist.criticality}`)
+  if (locParts.length) lines.push(locParts.join(' — '))
+
   if (hist.recurring_types?.length) {
     lines.push('')
     lines.push('Tipi guasto ricorrenti: ' +
@@ -293,32 +389,124 @@ function buildKnowledgeBlock(chunks: KnowledgeChunk[]): string {
   return lines.join('\n').trim()
 }
 
+// ── Builder: anagrafica macchinari ──
+function buildInventoryBlock(items: MachineInventoryItem[]): string {
+  if (!items || items.length === 0) return ''
+  const lines: string[] = []
+  lines.push(`Macchinari dell'organizzazione (${items.length}):`)
+  items.forEach((m, i) => {
+    const parts: string[] = [`${i + 1}. ${m.name}`]
+    const id: string[] = []
+    if (m.serial_number) id.push(`matricola: ${m.serial_number}`)
+    if (m.manufacturer) id.push(`produttore: ${m.manufacturer}`)
+    if (m.model) id.push(`modello: ${m.model}`)
+    if (m.year) id.push(`anno: ${m.year}`)
+    if (id.length) parts.push(`(${id.join(', ')})`)
+    const loc: string[] = []
+    if (m.department) loc.push(m.department)
+    if (m.location) loc.push(m.location)
+    if (loc.length) parts.push(`— ${loc.join(' / ')}`)
+    const meta: string[] = []
+    if (m.status && m.status !== 'attivo') meta.push(`stato: ${m.status}`)
+    if (m.criticality) meta.push(`criticità: ${m.criticality}`)
+    if (meta.length) parts.push(`[${meta.join(', ')}]`)
+    lines.push(parts.join(' '))
+  })
+  return lines.join('\n')
+}
+
+// ── Builder: insight strategici (KPI manageriali) ──
+function buildStrategicBlock(s: StrategicInsights | null): string {
+  if (!s) return ''
+  const lines: string[] = []
+
+  if (s.machines_at_risk?.length) {
+    lines.push('Macchine più a rischio (ranking per criticità/aperti/MTTR):')
+    s.machines_at_risk.forEach((m, i) => {
+      const sn = m.serial_number ? ` [${m.serial_number}]` : ''
+      const mttr = m.mttr_hours != null ? `, MTTR ${m.mttr_hours}h` : ''
+      const last = m.last_critical_at ? `, ultimo critico ${m.last_critical_at}` : ''
+      lines.push(
+        `${i + 1}. ${m.machine_name || '—'}${sn} — score ${Number(m.risk_score).toFixed(1)} ` +
+        `(aperti ${m.open_reports}, critici aperti ${m.critical_open}, 90gg ${m.reports_last_90d}${mttr}${last})`,
+      )
+    })
+    lines.push('')
+  }
+
+  if (s.overdue_preventive?.length) {
+    lines.push('Manutenzioni preventive scadute o in scadenza (rischio fermo imprevisto):')
+    s.overdue_preventive.forEach(p => {
+      const sn = p.serial_number ? ` [${p.serial_number}]` : ''
+      const label = p.days_overdue > 0
+        ? `SCADUTA da ${p.days_overdue}gg`
+        : `tra ${Math.max(0, p.days_to_due)}gg`
+      lines.push(
+        `- ${p.plan_name} su ${p.machine_name}${sn} — ${label} (prossima: ${p.next_due_label}, ogni ${p.frequency_days}gg)`,
+      )
+    })
+    lines.push('')
+  }
+
+  if (s.recurring_failures?.length) {
+    lines.push('Tipi di guasto ricorrenti (ultimi 90 giorni, intera org):')
+    s.recurring_failures.forEach(f => {
+      const crit = f.critical_count > 0 ? `, ${f.critical_count} critici` : ''
+      lines.push(`- ${f.type}: ${f.count} eventi su ${f.distinct_machines} macchine${crit}`)
+    })
+    lines.push('')
+  }
+
+  if (s.long_repairs?.length) {
+    lines.push('Riparazioni più lunghe (ultimi 90gg — candidati per analisi/formazione):')
+    s.long_repairs.forEach(r => {
+      const cause = r.closure_root_cause ? ` — causa: ${r.closure_root_cause}` : ''
+      lines.push(
+        `- [${r.closure_hours}h] ${r.title || '(senza titolo)'} su ${r.machine_name || '—'} ` +
+        `(${r.severity || '—'}/${r.type || '—'}, chiuso ${r.closed_at_label || '—'})${cause}`,
+      )
+    })
+  }
+
+  return lines.join('\n').trim()
+}
+
 // ── Heuristic: classifica il tipo di domanda ──
-// Decide se caricare: statistiche, segnalazioni aperte, aspetti
-// diagnostici, biblioteca tecnica (documentale). Una query può essere
-// mista. Default conservativo: includi tutto.
+// Decide se caricare: anagrafica, statistiche, segnalazioni aperte,
+// aspetti diagnostici, biblioteca tecnica (documentale), insight
+// strategici. Una query può essere mista. Default conservativo:
+// includi tutto.
 function classifyQuery(query: string): {
   wantStats: boolean
   wantOpen: boolean
   wantDiagnostic: boolean
   wantKnowledge: boolean
+  wantInventory: boolean
+  wantStrategic: boolean
 } {
   const q = query.toLowerCase()
   const metaKW = ['quale', 'quali', 'quanti', 'quante', 'top', 'classifica', 'classific', 'media', 'totale', 'totali', 'statistic', 'percentuale', 'più segnalazion', 'piu segnalazion', 'più guast', 'piu guast', 'meglio', 'peggio', 'frequent']
   const openKW = ['aperto', 'aperti', 'aperta', 'aperte', 'in corso', 'in lavorazione', 'stato', 'chi sta', 'chi lavora', 'assegnat', 'in attesa']
-  const diagKW = ['come risolv', 'come faccio', 'come ripar', 'come sistem', 'perché', 'perche', 'guasto', 'non funziona', 'rotto', 'rotta', 'errore', 'allarme', 'rumore', 'perdita', 'vibraz', 'surriscald', 'blocc', 'fermo']
+  const diagKW = ['come risolv', 'come faccio', 'come ripar', 'come sistem', 'perché', 'perche', 'guasto', 'non funziona', 'rotto', 'rotta', 'errore', 'allarme', 'rumore', 'perdita', 'vibraz', 'surriscald', 'blocc']
   const knowKW = ['manuale', 'manuali', 'istruzion', 'specifica', 'specifich', 'coppia', 'serraggio', 'come si monta', 'come si smonta', 'come si cambia', 'come si sostituisc', 'tensione', 'amperaggio', 'potenza', 'dimension', 'tolleranz', 'catalogo', 'scheda tecnica', 'datasheet', 'taratura', 'calibrazion', 'certificato', 'conformità', 'conformita', 'ditta esterna', 'ditta ester', 'contractor', 'bolla', 'fattura ', 'capitolato', 'revision', 'ispezion']
+  const invKW = ['matricol', 'serial', 'modello', 'modelli', 'produttor', 'marca', 'marche', 'anagrafic', 'inventario', 'elenco macchin', 'lista macchin', 'quali macchine', 'quali macchinar', 'reparto', 'reparti', 'ubicazion', 'macchine abbiamo', 'macchinari abbiamo', 'dismess', 'fuori servizio']
+  const stratKW = ['priorit', 'concentrar', 'focus', 'focalizz', 'ridurr', 'riduzione', 'ottimizz', 'migliorar', 'pianific', 'strategi', 'fermo macchina', 'fermi macchina', 'downtime', 'imprevist', 'dove perdo', 'perdo tempo', 'perdo di più', 'cosa sta peggiorando', 'sta peggiorando', 'cosa dovrei', 'su cosa', 'quali interventi', 'rischio', 'a rischio', 'scadut', 'scadenz', 'pattern', 'ricorrent', 'azioni concret', 'raccomand']
 
   const wantStats = metaKW.some(k => q.includes(k))
   const wantOpen = openKW.some(k => q.includes(k))
   const wantDiagnostic = diagKW.some(k => q.includes(k))
   const wantKnowledge = knowKW.some(k => q.includes(k))
+  const wantInventory = invKW.some(k => q.includes(k))
+  const wantStrategic = stratKW.some(k => q.includes(k))
 
   // Se non matcha nulla, includi tutto (default conservativo)
-  if (!wantStats && !wantOpen && !wantDiagnostic && !wantKnowledge) {
-    return { wantStats: true, wantOpen: true, wantDiagnostic: true, wantKnowledge: true }
+  if (!wantStats && !wantOpen && !wantDiagnostic && !wantKnowledge && !wantInventory && !wantStrategic) {
+    return {
+      wantStats: true, wantOpen: true, wantDiagnostic: true,
+      wantKnowledge: true, wantInventory: true, wantStrategic: true,
+    }
   }
-  return { wantStats, wantOpen, wantDiagnostic, wantKnowledge }
+  return { wantStats, wantOpen, wantDiagnostic, wantKnowledge, wantInventory, wantStrategic }
 }
 
 // ── Voyage embedding della query utente ──
@@ -436,6 +624,14 @@ Deno.serve(async (req: Request) => {
     // l'utente chiede documenti, diagnostica o è in contesto macchina.
     const shouldFetchKnowledge =
       classify.wantKnowledge || classify.wantDiagnostic || hasMachineContext
+    // Inventario: lo carichiamo quando l'utente chiede matricole/anagrafica,
+    // quando fa domande meta (serve per referenziare le macchine),
+    // strategiche, o quando NON è in contesto macchina (org-wide overview).
+    const shouldFetchInventory =
+      classify.wantInventory || classify.wantStats || classify.wantStrategic
+    // Insight strategici: solo se domanda strategica o meta.
+    const shouldFetchStrategic =
+      classify.wantStrategic || classify.wantStats
     const voyageKey = Deno.env.get('VOYAGE_API_KEY')
     let queryEmbedding: number[] | null = null
     if (shouldFetchKnowledge && voyageKey) {
@@ -444,17 +640,20 @@ Deno.serve(async (req: Request) => {
 
     // Lanciamo le RPC in parallelo. Se una fallisce (es. migration non
     // ancora deployata) logghiamo e proseguiamo con il blocco vuoto.
-    const [similarRes, statsRes, openRes, historyRes, knowledgeRes] = await Promise.all([
+    const [
+      similarRes, statsRes, openRes, historyRes,
+      knowledgeRes, inventoryRes, strategicRes,
+    ] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
         p_limit: TOP_K,
         p_machine_id: machineId ?? null,
         p_include_open: includeOpenInRetrieval,
       }),
-      classify.wantStats || classify.wantDiagnostic
+      classify.wantStats || classify.wantDiagnostic || classify.wantStrategic
         ? supabase.rpc('get_assistant_org_stats')
         : Promise.resolve({ data: null, error: null }),
-      classify.wantOpen || classify.wantDiagnostic || hasMachineContext
+      classify.wantOpen || classify.wantDiagnostic || classify.wantStrategic || hasMachineContext
         ? supabase.rpc('get_open_reports_snapshot', { p_machine_id: machineId ?? null })
         : Promise.resolve({ data: null, error: null }),
       hasMachineContext
@@ -468,6 +667,12 @@ Deno.serve(async (req: Request) => {
             p_limit: 6,
           })
         : Promise.resolve({ data: null, error: null }),
+      shouldFetchInventory
+        ? supabase.rpc('get_machines_inventory')
+        : Promise.resolve({ data: null, error: null }),
+      shouldFetchStrategic
+        ? supabase.rpc('get_assistant_strategic_insights')
+        : Promise.resolve({ data: null, error: null }),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
@@ -475,15 +680,19 @@ Deno.serve(async (req: Request) => {
     if (openRes.error) console.warn('get_open_reports_snapshot error:', openRes.error.message)
     if (historyRes.error) console.warn('get_machine_history error:', historyRes.error.message)
     if (knowledgeRes.error) console.warn('search_knowledge error:', knowledgeRes.error.message, JSON.stringify(knowledgeRes.error))
+    if (inventoryRes.error) console.warn('get_machines_inventory error:', inventoryRes.error.message)
+    if (strategicRes.error) console.warn('get_assistant_strategic_insights error:', strategicRes.error.message)
 
     const similar: SimilarReport[] = similarRes.data || []
     const orgStats: OrgStats | null = statsRes.data || null
     const openReports: OpenReport[] = openRes.data || []
     const machineHistory: MachineHistory | null = historyRes.data || null
     const knowledgeChunks: KnowledgeChunk[] = knowledgeRes.data || []
+    const inventory: MachineInventoryItem[] = inventoryRes.data || []
+    const strategic: StrategicInsights | null = strategicRes.data || null
 
     // ── Diagnostic trace: retrieval summary ──
-    console.info(`[retrieval] query="${query.slice(0, 80)}" | wantKnowledge=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | shouldFetchKnowledge=${shouldFetchKnowledge} voyageKeyPresent=${!!voyageKey} queryEmbeddingLen=${queryEmbedding?.length || 0} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length}`)
+    console.info(`[retrieval] query="${query.slice(0, 80)}" | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'}`)
 
     // ── 5. Identità utente ──
     const { data: { user }, error: userErr } = await supabase.auth.getUser()
@@ -520,6 +729,12 @@ Deno.serve(async (req: Request) => {
     const systemPrompt = buildSystemPrompt()
 
     const sections: string[] = []
+
+    const inventoryBlock = buildInventoryBlock(inventory)
+    if (inventoryBlock) sections.push(`## Anagrafica macchinari\n\n${inventoryBlock}`)
+
+    const strategicBlock = buildStrategicBlock(strategic)
+    if (strategicBlock) sections.push(`## Insight strategici (governance manutenzione)\n\n${strategicBlock}`)
 
     const knowledgeBlock = buildKnowledgeBlock(knowledgeChunks)
     if (knowledgeBlock) sections.push(`## Biblioteca tecnica (manuali, schede, interventi)\n\n${knowledgeBlock}`)
