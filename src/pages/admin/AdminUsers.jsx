@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { ROLES, STATUS, SEVERITY, SUPPLIER_SPECIALTIES, formatDate, timeAgo } from '../../lib/constants'
 import { Button, Modal, Input, Spinner } from '../../components/ui'
@@ -34,7 +34,7 @@ export default function AdminUsers() {
   const [savingSupplier, setSavingSupplier] = useState(false)
   const toast = useToast()
 
-  const load = useCallback(async () => {
+  const load = async () => {
     setLoading(true)
     try {
       const [u, profiles] = await Promise.all([db.getUsers(), db.getSupplierProfiles()])
@@ -46,9 +46,10 @@ export default function AdminUsers() {
       toast.error('Errore caricamento: ' + (err.message || 'sconosciuto'))
     }
     setLoading(false)
-  }, [toast])
+  }
 
-  useEffect(() => { load() }, [load])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [])
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
