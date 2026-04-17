@@ -26,7 +26,7 @@ function InfoCard({ label, value, icon }) {
 
 export default function ReportDetailModal({ selected, user, users, machines, onClose, onUpdate }) {
   const toast = useToast()
-  const { position, dragProps } = useDraggable()
+  const { position, dragging, dragProps } = useDraggable()
   const [detailTab, setDetailTab] = useState('chat')
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
@@ -175,11 +175,13 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center" style={{ paddingTop: '5vh' }} onClick={closeDetail}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" style={{ animation: 'fadeIn 0.2s ease' }} />
-      <div {...dragProps} className="relative bg-surface-1 border border-token rounded-2xl w-full animate-fade-in shadow-2xl overflow-hidden"
-        style={{ ...dragProps.style, maxWidth: 1200, height: '82vh', transform: `translate(${position.x}px, ${position.y}px)` }} onClick={e => e.stopPropagation()}>
+      <div className="relative bg-surface-1 border border-token rounded-2xl w-full animate-fade-in shadow-2xl overflow-hidden"
+        style={{ maxWidth: 1200, height: '82vh', transform: `translate(${position.x}px, ${position.y}px)` }} onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-token shrink-0">
+        {/* Header — drag handle: trascina da qui per spostare il modal */}
+        <div {...dragProps}
+          style={{ ...dragProps.style, cursor: dragging ? 'grabbing' : 'grab' }}
+          className="flex items-center justify-between px-6 py-4 border-b border-token shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             {editing ? (
               <div className="flex items-center gap-2">
