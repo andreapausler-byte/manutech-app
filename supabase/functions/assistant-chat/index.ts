@@ -72,6 +72,22 @@ interface SimilarReport {
   similarity: number
 }
 
+interface CurrentReport {
+  id: string
+  title: string | null
+  description: string | null
+  severity: string | null
+  status: string | null
+  type: string | null
+  machine: string | null
+  closure_root_cause: string | null
+  closure_action: string | null
+  closure_parts: string | null
+  closure_hours: number | null
+  closed_at: string | null
+  created_at: string | null
+}
+
 interface OpenReport {
   id: string
   title: string | null
@@ -152,6 +168,7 @@ function buildSystemPrompt(): string {
   return `Sei un assistente virtuale esperto di manutenzione industriale per l'app ManuTech. Il tuo ruolo è aiutare i tecnici, gli operatori e gli admin della loro organizzazione attingendo a più fonti di dati che ti vengono fornite ad ogni richiesta.
 
 Fonti che puoi ricevere nel contesto:
+0. **Report corrente** — se presente, è LA segnalazione su cui il tecnico sta lavorando in questo momento (aperta a video nella sua scheda). Contiene titolo, descrizione, macchinario, severità, stato, ed eventuali dati di chiusura.
 1. **Statistiche organizzazione** — totali e classifica macchinari per numero di segnalazioni
 2. **Segnalazioni aperte** — guasti attualmente non risolti, con stato, severità ed eventuale tecnico assegnato
 3. **Storia macchina** — solo se l'utente sta guardando una specifica macchina: tipi guasto ricorrenti, MTTR, manutenzioni recenti/in scadenza, ricambi più usati
@@ -160,8 +177,10 @@ Fonti che puoi ricevere nel contesto:
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
+- **Report corrente = fonte primaria**: quando l'utente dice "questa segnalazione", "questo report", "questo guasto", "il problema", "quello che sto vedendo", si riferisce SEMPRE al Report corrente. Usa i suoi dati letterali (titolo, descrizione, macchinario). NON confonderlo con i Report storici simili.
+- Se ti viene chiesto di scrivere un testo, una email o un messaggio "basato su questa segnalazione", basati ESCLUSIVAMENTE sul Report corrente. I Report simili possono fornire contesto aggiuntivo ma non vanno citati come fossero il caso in questione.
 - Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa Statistiche e Segnalazioni aperte
-- Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili, Storia macchina e Biblioteca tecnica
+- Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): parti dal Report corrente (se c'è), poi Storia macchina, poi Report storici simili, poi Biblioteca tecnica
 - Per domande DOCUMENTALI ("che dice il manuale", "coppia di serraggio", "specifica", "come si monta"): usa PRIMA la Biblioteca tecnica; privilegia sempre il manuale ufficiale rispetto a knowledge generica
 - Quando citi un documento usa formato [Titolo documento, categoria]. Quando citi un intervento usa [Ditta X, data] o [Intervento interno, data]
 - Se ci sono segnalazioni aperte simili a quella in corso, segnalalo (potrebbe esserci un collega al lavoro o un duplicato)
@@ -169,6 +188,26 @@ Regole di risposta:
 - Per domande diagnostiche struttura la risposta: "Probabile causa → Passi suggeriti → Ricambi/Strumenti"
 - Massimo 250 parole, vai al sodo
 - Non inventare dati né valori numerici: se non li trovi nel contesto, di' che servono i documenti o un operatore esperto`
+}
+
+function buildCurrentReportBlock(r: CurrentReport | null): string | null {
+  if (!r) return null
+  const parts: string[] = []
+  parts.push(`Titolo: ${r.title || '(senza titolo)'}`)
+  if (r.machine) parts.push(`Macchinario: ${r.machine}`)
+  if (r.severity) parts.push(`Severità: ${r.severity}`)
+  if (r.status) parts.push(`Stato: ${r.status}`)
+  if (r.type) parts.push(`Tipo intervento: ${r.type}`)
+  if (r.description) {
+    const desc = r.description.length > 1500 ? r.description.slice(0, 1500) + '…' : r.description
+    parts.push(`Descrizione (testuale, scritta dall'operatore): ${desc}`)
+  }
+  if (r.closure_root_cause) parts.push(`Causa radice (chiusura): ${r.closure_root_cause}`)
+  if (r.closure_action) parts.push(`Azione correttiva (chiusura): ${r.closure_action}`)
+  if (r.closure_parts) parts.push(`Ricambi utilizzati: ${r.closure_parts}`)
+  if (r.closure_hours != null) parts.push(`Ore lavoro: ${r.closure_hours}`)
+  parts.push(`ID: ${r.id}`)
+  return parts.join('\n')
 }
 
 function buildContextBlock(reports: SimilarReport[]): string {
@@ -444,12 +483,13 @@ Deno.serve(async (req: Request) => {
 
     // Lanciamo le RPC in parallelo. Se una fallisce (es. migration non
     // ancora deployata) logghiamo e proseguiamo con il blocco vuoto.
-    const [similarRes, statsRes, openRes, historyRes, knowledgeRes] = await Promise.all([
+    const [similarRes, statsRes, openRes, historyRes, knowledgeRes, currentReportRes] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
         p_limit: TOP_K,
         p_machine_id: machineId ?? null,
         p_include_open: includeOpenInRetrieval,
+        p_exclude_report_id: reportId ?? null,
       }),
       classify.wantStats || classify.wantDiagnostic
         ? supabase.rpc('get_assistant_org_stats')
@@ -468,6 +508,16 @@ Deno.serve(async (req: Request) => {
             p_limit: 6,
           })
         : Promise.resolve({ data: null, error: null }),
+      // Report corrente: quando report_id è passato, carichiamo la
+      // segnalazione per iniettarla come fonte primaria nel prompt.
+      // RLS usa il JWT dell'utente, quindi la query rispetta l'org.
+      reportId
+        ? supabase
+            .from('reports')
+            .select('id, title, description, machine, severity, status, type, closure_root_cause, closure_action, closure_parts, closure_hours, closed_at, created_at')
+            .eq('id', reportId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
@@ -475,15 +525,17 @@ Deno.serve(async (req: Request) => {
     if (openRes.error) console.warn('get_open_reports_snapshot error:', openRes.error.message)
     if (historyRes.error) console.warn('get_machine_history error:', historyRes.error.message)
     if (knowledgeRes.error) console.warn('search_knowledge error:', knowledgeRes.error.message, JSON.stringify(knowledgeRes.error))
+    if (currentReportRes.error) console.warn('current report fetch error:', currentReportRes.error.message)
 
     const similar: SimilarReport[] = similarRes.data || []
     const orgStats: OrgStats | null = statsRes.data || null
     const openReports: OpenReport[] = openRes.data || []
     const machineHistory: MachineHistory | null = historyRes.data || null
     const knowledgeChunks: KnowledgeChunk[] = knowledgeRes.data || []
+    const currentReport: CurrentReport | null = (currentReportRes.data as CurrentReport | null) || null
 
     // ── Diagnostic trace: retrieval summary ──
-    console.info(`[retrieval] query="${query.slice(0, 80)}" | wantKnowledge=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | shouldFetchKnowledge=${shouldFetchKnowledge} voyageKeyPresent=${!!voyageKey} queryEmbeddingLen=${queryEmbedding?.length || 0} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length}`)
+    console.info(`[retrieval] query="${query.slice(0, 80)}" | wantKnowledge=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} reportCtx=${currentReport ? 'Y' : 'N'} | shouldFetchKnowledge=${shouldFetchKnowledge} voyageKeyPresent=${!!voyageKey} queryEmbeddingLen=${queryEmbedding?.length || 0} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length}`)
 
     // ── 5. Identità utente ──
     const { data: { user }, error: userErr } = await supabase.auth.getUser()
@@ -521,6 +573,14 @@ Deno.serve(async (req: Request) => {
 
     const sections: string[] = []
 
+    // Fonte primaria: il report aperto nella scheda. Va PER PRIMO
+    // così il modello lo aggancia come riferimento per frasi come
+    // "questa segnalazione", "il problema", "basati su questo guasto".
+    const currentBlock = buildCurrentReportBlock(currentReport)
+    if (currentBlock) {
+      sections.push(`## Report corrente (quello che il tecnico sta guardando in questo momento)\n\n${currentBlock}`)
+    }
+
     const knowledgeBlock = buildKnowledgeBlock(knowledgeChunks)
     if (knowledgeBlock) sections.push(`## Biblioteca tecnica (manuali, schede, interventi)\n\n${knowledgeBlock}`)
 
@@ -534,13 +594,9 @@ Deno.serve(async (req: Request) => {
     if (historyBlock) sections.push(`## Storia macchina\n\n${historyBlock}`)
 
     const contextBlock = buildContextBlock(similar)
-    sections.push(`## Report storici simili\n\n${contextBlock}`)
+    sections.push(`## Report storici simili (NON sono la segnalazione corrente, sono casi passati a titolo di ispirazione)\n\n${contextBlock}`)
 
-    const contextNote = reportId
-      ? `\n\n[Contesto aggiuntivo: il tecnico sta guardando il report ${reportId}]`
-      : ''
-
-    const userMessage = `${sections.join('\n\n')}${contextNote}\n\n## Domanda del tecnico\n\n${query}`
+    const userMessage = `${sections.join('\n\n')}\n\n## Domanda del tecnico\n\n${query}`
 
     let assistantText = ''
     let tokensUsed = 0
