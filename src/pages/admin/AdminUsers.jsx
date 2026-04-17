@@ -1,31 +1,54 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
-import { ROLES, STATUS, SEVERITY, formatDate, timeAgo } from '../../lib/constants'
+import { ROLES, STATUS, SEVERITY, SUPPLIER_SPECIALTIES, formatDate, timeAgo } from '../../lib/constants'
 import { Button, Modal, Input, Spinner } from '../../components/ui'
 import { useToast } from '../../hooks/useToast'
-import { Trash2, Search, Truck, Printer, Mail, Copy, Clock, XCircle, MessageCircle, Send, Share2 } from 'lucide-react'
+import { Trash2, Search, Truck, Printer, Mail, Copy, Clock, XCircle, MessageCircle, Send, Share2, Phone, MapPin } from 'lucide-react'
 import PageHeader from '../../components/layout/PageHeader'
+import SupplierFormModal from '../../components/SupplierFormModal'
+import SupplierDetailModal from '../../components/SupplierDetailModal'
 import { findNavItem } from '../../lib/adminNav'
 
 const NAV_ITEM = findNavItem('users')
 
-const isSupplier = (u) => u.email?.endsWith('@esterno.local')
+// Un utente è fornitore se ha un profilo supplier_profiles oppure (legacy) ha email @esterno.local
+const isSupplier = (u, profileMap) =>
+  !!profileMap?.[u.id] || u.email?.endsWith('@esterno.local')
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([])
+  const [profileMap, setProfileMap] = useState({}) // user_id → supplier_profile
   const [loading, setLoading] = useState(true)
   const [showInvite, setShowInvite] = useState(false)
-  const [showNewSupplier, setShowNewSupplier] = useState(false)
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({ name: '', email: '', role: 'operatore' })
   const [inviteResult, setInviteResult] = useState(null)
   const [inviting, setInviting] = useState(false)
-  const [supplierName, setSupplierName] = useState('')
   const [printing, setPrinting] = useState(null)
+
+  // Supplier flows
+  const [supplierFormOpen, setSupplierFormOpen] = useState(false)
+  const [supplierDetailOpen, setSupplierDetailOpen] = useState(false)
+  const [supplierFormMode, setSupplierFormMode] = useState('create') // 'create' | 'edit'
+  const [selectedSupplier, setSelectedSupplier] = useState(null)
+  const [savingSupplier, setSavingSupplier] = useState(false)
   const toast = useToast()
 
-  const load = async () => { setLoading(true); setUsers(await db.getUsers()); setLoading(false) }
-  useEffect(() => { load() }, [])
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [u, profiles] = await Promise.all([db.getUsers(), db.getSupplierProfiles()])
+      setUsers(u)
+      const map = {}
+      for (const p of (profiles || [])) map[p.user_id] = p
+      setProfileMap(map)
+    } catch (err) {
+      toast.error('Errore caricamento: ' + (err.message || 'sconosciuto'))
+    }
+    setLoading(false)
+  }, [toast])
+
+  useEffect(() => { load() }, [load])
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
@@ -97,19 +120,68 @@ export default function AdminUsers() {
     }
   }
 
-  const createSupplier = async () => {
-    const name = supplierName.trim()
-    if (!name) return
-    const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    const email = `${slug}-${Date.now()}@esterno.local`
+  const openNewSupplier = () => {
+    setSelectedSupplier(null)
+    setSupplierFormMode('create')
+    setSupplierFormOpen(true)
+  }
+
+  const openEditSupplier = (user) => {
+    setSelectedSupplier(user)
+    setSupplierFormMode('edit')
+    setSupplierDetailOpen(false)
+    setSupplierFormOpen(true)
+  }
+
+  const openSupplierDetail = (user) => {
+    setSelectedSupplier(user)
+    setSupplierDetailOpen(true)
+  }
+
+  const handleSaveSupplier = async (profileData) => {
+    setSavingSupplier(true)
     try {
-      await db.createUser({ name, email, role: 'tecnico', org_id: 'default', status: 'active' })
-      setShowNewSupplier(false)
-      setSupplierName('')
-      toast.success(`Fornitore "${name}" aggiunto`)
-      load()
+      let userId
+      if (supplierFormMode === 'create') {
+        // Email: usa email_public se fornita, altrimenti email fake @esterno.local (legacy, niente auth)
+        const baseEmail = profileData.email_public
+          || `${profileData.company_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}-${Date.now()}@esterno.local`
+        const createdUser = await db.createUser({
+          name: profileData.company_name,
+          email: baseEmail,
+          role: 'tecnico',
+          org_id: 'default',
+          status: 'active',
+        })
+        userId = createdUser.id
+      } else {
+        userId = selectedSupplier.id
+        // Aggiorna anche il name dell'utente se è cambiata la ragione sociale
+        if (profileData.company_name && profileData.company_name !== selectedSupplier.name) {
+          await db.updateUser(userId, { name: profileData.company_name })
+        }
+      }
+
+      await db.upsertSupplierProfile({ ...profileData, user_id: userId })
+      setSupplierFormOpen(false)
+      toast.success(supplierFormMode === 'create' ? 'Fornitore creato' : 'Fornitore aggiornato')
+      await load()
     } catch (err) {
-      toast.error('Errore: ' + err.message)
+      toast.error('Errore: ' + (err.message || 'sconosciuto'))
+    }
+    setSavingSupplier(false)
+  }
+
+  const handleDeleteSupplier = async (user) => {
+    if (!confirm(`Eliminare il fornitore "${user.name}"? L'operazione è irreversibile.`)) return
+    try {
+      await db.deleteSupplierProfile(user.id)
+      await db.deleteUser(user.id)
+      setSupplierDetailOpen(false)
+      toast.success('Fornitore eliminato')
+      await load()
+    } catch (err) {
+      toast.error('Errore: ' + (err.message || 'sconosciuto'))
     }
   }
 
@@ -233,7 +305,7 @@ export default function AdminUsers() {
           <input type="text" placeholder="Cerca utenti..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50" />
         </div>
-        <Button onClick={() => setShowNewSupplier(true)} variant="secondary"><Truck size={18} /> Aggiungi Fornitore</Button>
+        <Button onClick={openNewSupplier} variant="secondary"><Truck size={18} /> Aggiungi Fornitore</Button>
         <Button onClick={() => setShowInvite(true)}><Mail size={18} /> Invita Utente</Button>
       </div>
 
@@ -311,32 +383,74 @@ export default function AdminUsers() {
                   <span>{info.icon}</span> {info.label} ({list.length})
                 </h3>
                 <div className="bg-surface-1/60 border border-token rounded-2xl overflow-hidden divide-y divide-gray-800/40">
-                  {list.map(u => (
-                    <div key={u.id} className="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors group">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: info.color + '15' }}>
-                        {isSupplier(u) ? '🚚' : info.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[15px] font-medium text-white">{u.name}</p>
-                        {isSupplier(u)
-                          ? <span className="text-xs font-medium text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded-md">Fornitore esterno</span>
-                          : <p className="text-sm text-faint">{u.email}</p>}
-                      </div>
-                      <button onClick={() => printUserSummary(u)} disabled={printing === u.id}
-                        className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-all"
-                        title="Stampa riepilogo segnalazioni">
-                        {printing === u.id
-                          ? <div className="w-4 h-4 border-2 border-violet-400/30 border-t-blue-400 rounded-full animate-spin" />
-                          : <Printer size={15} />}
-                      </button>
-                      {u.id !== 'admin-1' && (
-                        <button onClick={() => remove(u.id)}
-                          className="p-2 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
-                          <Trash2 size={15} />
+                  {list.map(u => {
+                    const isSup = isSupplier(u, profileMap)
+                    const profile = profileMap[u.id]
+                    const specialties = (profile?.specialties || []).slice(0, 3)
+                    const rowClickable = isSup
+                    return (
+                      <div key={u.id}
+                        onClick={rowClickable ? () => openSupplierDetail(u) : undefined}
+                        className={`flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors group ${rowClickable ? 'cursor-pointer' : ''}`}>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0" style={{ background: info.color + '15' }}>
+                          {isSup ? '🚚' : info.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-[15px] font-medium text-white truncate">{profile?.company_name || u.name}</p>
+                            {isSup && <span className="text-xs font-medium text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded-md shrink-0">Fornitore</span>}
+                          </div>
+                          {isSup ? (
+                            <div className="space-y-0.5 mt-0.5">
+                              {profile?.referent_name && (
+                                <p className="text-sm text-faint truncate">👤 {profile.referent_name}</p>
+                              )}
+                              <div className="flex items-center gap-3 flex-wrap text-xs text-faint">
+                                {profile?.phone && (
+                                  <span className="inline-flex items-center gap-1"><Phone size={11} />{profile.phone}</span>
+                                )}
+                                {profile?.city && (
+                                  <span className="inline-flex items-center gap-1"><MapPin size={11} />{profile.city}</span>
+                                )}
+                              </div>
+                              {specialties.length > 0 && (
+                                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                  {specialties.map(key => {
+                                    const s = SUPPLIER_SPECIALTIES[key]
+                                    if (!s) return null
+                                    return (
+                                      <span key={key} className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded"
+                                        style={{ background: s.color + '20', color: s.color }}>
+                                        <span>{s.icon}</span> {s.label}
+                                      </span>
+                                    )
+                                  })}
+                                  {(profile?.specialties?.length || 0) > 3 && (
+                                    <span className="text-[10px] text-faint">+{profile.specialties.length - 3}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-faint">{u.email}</p>
+                          )}
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); printUserSummary(u) }} disabled={printing === u.id}
+                          className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-all"
+                          title="Stampa riepilogo segnalazioni">
+                          {printing === u.id
+                            ? <div className="w-4 h-4 border-2 border-violet-400/30 border-t-blue-400 rounded-full animate-spin" />
+                            : <Printer size={15} />}
                         </button>
-                      )}
-                    </div>
-                  ))}
+                        {u.id !== 'admin-1' && !isSup && (
+                          <button onClick={e => { e.stopPropagation(); remove(u.id) }}
+                            className="p-2 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -417,18 +531,24 @@ export default function AdminUsers() {
         )}
       </Modal>
 
-      {/* Modal: Aggiungi Fornitore */}
-      <Modal open={showNewSupplier} onClose={() => setShowNewSupplier(false)} title="Aggiungi Fornitore Esterno">
-        <div className="space-y-4">
-          <p className="text-sm text-muted">
-            Crea un fornitore esterno (es. elettricista, idraulico). Non richiede email o password — serve solo per assegnare segnalazioni e stampare riepiloghi.
-          </p>
-          <Input label="Nome fornitore" placeholder="Es. Elettricista Marco" value={supplierName} onChange={e => setSupplierName(e.target.value)} />
-          <Button onClick={createSupplier} className="w-full" size="lg" disabled={!supplierName.trim()}>
-            <Truck size={18} /> Aggiungi Fornitore
-          </Button>
-        </div>
-      </Modal>
+      {/* Modal: Form fornitore (create/edit) */}
+      <SupplierFormModal
+        open={supplierFormOpen}
+        onClose={() => setSupplierFormOpen(false)}
+        initialProfile={supplierFormMode === 'edit' && selectedSupplier ? profileMap[selectedSupplier.id] : null}
+        onSubmit={handleSaveSupplier}
+        submitting={savingSupplier}
+      />
+
+      {/* Modal: Scheda dettaglio fornitore */}
+      <SupplierDetailModal
+        open={supplierDetailOpen}
+        onClose={() => setSupplierDetailOpen(false)}
+        supplier={selectedSupplier}
+        profile={selectedSupplier ? profileMap[selectedSupplier.id] : null}
+        onEdit={() => selectedSupplier && openEditSupplier(selectedSupplier)}
+        onDelete={() => selectedSupplier && handleDeleteSupplier(selectedSupplier)}
+      />
     </div>
   )
 }

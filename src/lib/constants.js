@@ -34,6 +34,27 @@ export const ORDER_STATUS = {
   installato: { label: 'Installato', color: '#22c55e', bg: 'rgba(34,197,94,0.10)' },
 }
 
+// ── Anagrafica fornitori esterni ──
+export const SUPPLIER_SPECIALTIES = {
+  elettrico: { label: 'Elettrico', icon: '⚡', color: '#f59e0b' },
+  meccanico: { label: 'Meccanico', icon: '⚙️', color: '#7c6aff' },
+  pneumatico: { label: 'Pneumatico', icon: '💨', color: '#06b6d4' },
+  idraulico: { label: 'Idraulico', icon: '💧', color: '#3b82f6' },
+  refrigerazione: { label: 'Refrigerazione', icon: '❄️', color: '#22d3ee' },
+  elettronico: { label: 'Elettronico', icon: '🔌', color: '#a855f7' },
+  antincendio: { label: 'Antincendio', icon: '🧯', color: '#ef4444' },
+  saldatura: { label: 'Saldatura', icon: '🔥', color: '#f97316' },
+  automazione: { label: 'Automazione', icon: '🤖', color: '#10b981' },
+  altro: { label: 'Altro', icon: '🛠️', color: '#6b7280' },
+}
+
+export const SUPPLIER_AVAILABILITY = {
+  feriali: { label: 'Feriali (lun-ven)', icon: '📅' },
+  h24: { label: 'H24 / 7gg', icon: '🌙' },
+  weekend: { label: 'Weekend inclusi', icon: '📆' },
+  su_chiamata: { label: 'Su chiamata', icon: '📞' },
+}
+
 // ── Quick Report Templates ────────────────────────────────
 // Problemi comuni precompilati per report in 3 tap
 // extraFields: campi dinamici mostrati nel form rapido

@@ -279,6 +279,54 @@ export const db = {
     return u
   },
 
+  // ─── PROFILO FORNITORE ESTERNO ───
+  async getSupplierProfiles() {
+    if (supabase) {
+      const { data, error } = await supabase.from('supplier_profiles').select('*').order('company_name')
+      if (error) throw error
+      return data || []
+    }
+    return getStore('manutech_supplier_profiles')
+  },
+
+  async getSupplierProfile(userId) {
+    if (!userId) return null
+    if (supabase) {
+      const { data, error } = await supabase.from('supplier_profiles').select('*').eq('user_id', userId).maybeSingle()
+      if (error) throw error
+      return data
+    }
+    return getStore('manutech_supplier_profiles').find(s => s.user_id === userId) || null
+  },
+
+  async upsertSupplierProfile(profile) {
+    const payload = { ...profile, updated_at: new Date().toISOString() }
+    if (supabase) {
+      const orgId = await getMyOrgId()
+      const { data, error } = await supabase.from('supplier_profiles')
+        .upsert({ ...payload, org_id: payload.org_id || orgId }, { onConflict: 'user_id' })
+        .select().single()
+      if (error) throw error
+      return data
+    }
+    const profiles = getStore('manutech_supplier_profiles')
+    const idx = profiles.findIndex(p => p.user_id === payload.user_id)
+    if (idx >= 0) profiles[idx] = { ...profiles[idx], ...payload }
+    else profiles.push({ ...payload, org_id: payload.org_id || 'default', created_at: new Date().toISOString() })
+    setStore('manutech_supplier_profiles', profiles)
+    return payload
+  },
+
+  async deleteSupplierProfile(userId) {
+    if (supabase) {
+      const { error } = await supabase.from('supplier_profiles').delete().eq('user_id', userId)
+      if (error) throw error
+      return
+    }
+    const profiles = getStore('manutech_supplier_profiles').filter(p => p.user_id !== userId)
+    setStore('manutech_supplier_profiles', profiles)
+  },
+
   async getSession() {
     if (supabase) {
       const { data: { session } } = await supabase.auth.getSession()
