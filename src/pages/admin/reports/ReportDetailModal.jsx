@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { db } from '../../../lib/supabase'
 import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo } from '../../../lib/constants'
 import { Badge } from '../../../components/ui'
 import MediaCapture from '../../../components/media/MediaCapture'
+import MediaLightbox from '../../../components/media/MediaLightbox'
 import ActivityTimeline from '../../../components/reports/ActivityTimeline'
 import ChatPanel from '../../../components/chat/ChatPanel'
 import AssistantChat from '../../../components/assistant/AssistantChat'
@@ -37,6 +38,9 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
   const [showClosureForm, setShowClosureForm] = useState(false)
   const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '' })
   const [closureSaving, setClosureSaving] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(null)
+
+  const photos = (selected.media || []).filter(m => m.type === 'photo')
 
   const allAssignableUsers = users.filter(u => u.role === 'tecnico' || u.role === 'operatore' || u.role === 'admin')
   const setEdit = (key, val) => setEditForm(f => ({ ...f, [key]: val }))
@@ -173,6 +177,7 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
   const closeDetail = () => { setEditing(false); setShowDeleteConfirm(false); onClose() }
 
   return (
+    <Fragment>
     <div className="fixed inset-0 z-50 flex items-start justify-center" style={{ paddingTop: '5vh' }} onClick={closeDetail}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" style={{ animation: 'fadeIn 0.2s ease' }} />
       <div className="relative bg-surface-1 border border-token rounded-2xl w-full animate-fade-in shadow-2xl overflow-hidden"
@@ -293,13 +298,25 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                   <div>
                     <p className="text-[11px] text-faint uppercase tracking-wider mb-2">Allegati ({selected.media.length})</p>
                     <div className="grid grid-cols-3 gap-2">
-                      {selected.media.map((m, i) => (
-                        <div key={i} className="aspect-square rounded-xl bg-surface-2 overflow-hidden border border-token flex items-center justify-center">
-                          {m.type === 'photo'
-                            ? <img src={m.url} alt="" className="w-full h-full object-cover" />
-                            : <span className="text-2xl">{m.type === 'video' ? '🎥' : '🎤'}</span>}
-                        </div>
-                      ))}
+                      {selected.media.map((m, i) => {
+                        if (m.type === 'photo') {
+                          const photoIdx = photos.indexOf(m)
+                          return (
+                            <button key={i}
+                              type="button"
+                              onClick={() => setLightboxIndex(photoIdx)}
+                              aria-label={`Apri foto ${photoIdx + 1} a schermo intero`}
+                              className="aspect-square rounded-xl bg-surface-2 overflow-hidden border border-token flex items-center justify-center hover:ring-2 hover:ring-violet-500/40 transition-all press-scale cursor-zoom-in">
+                              <img src={m.url} alt="" className="w-full h-full object-cover" />
+                            </button>
+                          )
+                        }
+                        return (
+                          <div key={i} className="aspect-square rounded-xl bg-surface-2 overflow-hidden border border-token flex items-center justify-center">
+                            <span className="text-2xl">{m.type === 'video' ? '🎥' : '🎤'}</span>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -505,5 +522,14 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
         )}
       </div>
     </div>
+
+    {lightboxIndex !== null && (
+      <MediaLightbox
+        images={photos}
+        initialIndex={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+      />
+    )}
+    </Fragment>
   )
 }
