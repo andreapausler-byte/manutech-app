@@ -95,6 +95,7 @@ export default function ConversationList({ user, onSelectConversation, unreadByC
         </div>
         <button
           onClick={() => setShowNewModal(true)}
+          aria-label="Nuova conversazione"
           className="w-12 h-12 rounded-2xl flex items-center justify-center press-scale"
           style={{
             background: 'var(--gradient-primary)',

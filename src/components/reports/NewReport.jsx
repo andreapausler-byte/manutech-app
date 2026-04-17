@@ -41,7 +41,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
       setMachines(m)
       if (preselectedMachine) {
         const machine = m.find(x => x.name === preselectedMachine)
-        if (machine) db.getMachineComponents(machine.id).then(setComponents).catch(() => {})
+        if (machine) db.getMachineComponents(machine.id).then(setComponents).catch(e => console.error('[NewReport] getMachineComponents failed:', e))
       }
     })
     db.getUsers().then(u => setUsers(u.filter(x => x.role === 'tecnico' || x.role === 'admin')))
@@ -173,6 +173,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
             <button
               type="button"
               onClick={() => { haptic.light(); setShowQR(true) }}
+              aria-label="Scansiona QR macchinario"
               style={{
                 width: 56, height: 56, flexShrink: 0,
                 background: 'var(--color-surface-2)',

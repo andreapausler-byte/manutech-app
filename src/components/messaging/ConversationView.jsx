@@ -158,7 +158,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
     const interval = setInterval(() => {
       db.getDirectMessages(conversation.id)
         .then(m => setMessages(m || []))
-        .catch(() => {})
+        .catch(e => console.error('[ConversationView] getDirectMessages polling failed:', e))
     }, 5000)
     return () => clearInterval(interval)
   }, [conversation?.id])
@@ -642,7 +642,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
               <span className="text-[11px] font-medium">{label}</span>
             </button>
           ))}
-          <button onClick={() => setShowMediaBar(false)} className="ml-auto p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-tertiary)' }}>
+          <button onClick={() => setShowMediaBar(false)} aria-label="Chiudi allegati" className="ml-auto p-2 rounded-xl press-scale" style={{ color: 'var(--color-text-tertiary)' }}>
             <X size={18} />
           </button>
         </div>

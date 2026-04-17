@@ -281,6 +281,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                       <div className={`grid gap-[2.5vw] ${photos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                         {photos.map((m, i) => (
                           <button key={m.id || i} onClick={() => { haptic.light(); setLightboxIndex(i) }}
+                            aria-label={`Apri foto ${i + 1} a schermo intero`}
                             className="relative rounded-2xl bg-gray-800 overflow-hidden border border-token active:opacity-80 press-scale aspect-[4/3]">
                             <img src={m.url} alt="" className="w-full h-full object-cover" />
                             <div className="absolute bottom-2 right-2 w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm flex items-center justify-center">
@@ -408,8 +409,8 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
 
       {/* ═══ Closure Form — Modern Bottom Sheet ═══ */}
       {showClosureForm && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowClosureForm(false)}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', animation: 'fadeIn 0.2s ease both' }} />
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowClosureForm(false)} role="dialog" aria-modal="true" aria-labelledby="closure-form-title">
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', animation: 'fadeIn 0.2s ease both' }} aria-hidden="true" />
           <div
             onClick={e => e.stopPropagation()}
             style={{
@@ -425,7 +426,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--color-border)' }} />
             </div>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 16 }}>
+            <h3 id="closure-form-title" style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 16 }}>
               Chiusura Intervento
             </h3>
 

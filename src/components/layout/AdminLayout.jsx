@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { LogOut, ChevronLeft, ChevronRight, Shield, Sun, Moon, Settings, Layers } from 'lucide-react'
@@ -8,19 +8,29 @@ import { usePWA } from '../../hooks/usePWA'
 import SettingsPanel from '../ui/SettingsPanel'
 import NotificationCenter from '../ui/NotificationCenter'
 import StatusBar from './StatusBar'
+import { Spinner } from '../ui'
 import { NAV } from '../../lib/adminNav'
-import AdminDashboard from '../../pages/admin/AdminDashboard'
-import AdminReports from '../../pages/admin/AdminReports'
-import AdminMachines from '../../pages/admin/AdminMachines'
-import AdminMaintenance from '../../pages/admin/AdminMaintenance'
-import AdminUsers from '../../pages/admin/AdminUsers'
-import AdminTechnicians from '../../pages/admin/AdminTechnicians'
-import AdminNotifSettings from '../../pages/admin/AdminNotifSettings'
-import AdminMessaging from '../../pages/admin/AdminMessaging'
-import AdminLeaderboard from '../../pages/admin/AdminLeaderboard'
-import AdminRewards from '../../pages/admin/AdminRewards'
-import AdminSpareParts from '../../pages/admin/AdminSpareParts'
-import AdminAssistantPage from '../../pages/admin/AdminAssistantPage'
+
+const AdminDashboard = lazy(() => import('../../pages/admin/AdminDashboard'))
+const AdminReports = lazy(() => import('../../pages/admin/AdminReports'))
+const AdminMachines = lazy(() => import('../../pages/admin/AdminMachines'))
+const AdminMaintenance = lazy(() => import('../../pages/admin/AdminMaintenance'))
+const AdminUsers = lazy(() => import('../../pages/admin/AdminUsers'))
+const AdminTechnicians = lazy(() => import('../../pages/admin/AdminTechnicians'))
+const AdminNotifSettings = lazy(() => import('../../pages/admin/AdminNotifSettings'))
+const AdminMessaging = lazy(() => import('../../pages/admin/AdminMessaging'))
+const AdminLeaderboard = lazy(() => import('../../pages/admin/AdminLeaderboard'))
+const AdminRewards = lazy(() => import('../../pages/admin/AdminRewards'))
+const AdminSpareParts = lazy(() => import('../../pages/admin/AdminSpareParts'))
+const AdminAssistantPage = lazy(() => import('../../pages/admin/AdminAssistantPage'))
+
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center py-20" role="status" aria-label="Caricamento pagina">
+      <Spinner />
+    </div>
+  )
+}
 
 export default function AdminLayout({ initialReportId }) {
   const { user, logout } = useAuth()
@@ -377,11 +387,11 @@ export default function AdminLayout({ initialReportId }) {
           {/* Messaging usa full-width; le altre pagine sono centrate con max-width */}
           {tab === 'messages' ? (
             <div className="p-8 animate-fade-in">
-              {renderPage()}
+              <Suspense fallback={<PageFallback />}>{renderPage()}</Suspense>
             </div>
           ) : (
             <div className="px-10 pb-10 pt-8 max-w-7xl mx-auto animate-fade-in stagger-enter">
-              {renderPage()}
+              <Suspense fallback={<PageFallback />}>{renderPage()}</Suspense>
             </div>
           )}
         </main>
