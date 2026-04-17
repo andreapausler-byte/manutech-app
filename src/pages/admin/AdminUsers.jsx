@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
-import { ROLES, STATUS, SEVERITY, formatDate } from '../../lib/constants'
-import { Button, Modal, Input, EmptyState, Spinner } from '../../components/ui'
+import { ROLES, STATUS, SEVERITY, formatDate, timeAgo } from '../../lib/constants'
+import { Button, Modal, Input, Spinner } from '../../components/ui'
 import { useToast } from '../../hooks/useToast'
-import { Plus, Trash2, Users, Search, Truck, Printer } from 'lucide-react'
+import { Trash2, Search, Truck, Printer, Mail, Copy, Clock, XCircle } from 'lucide-react'
 import PageHeader from '../../components/layout/PageHeader'
 import { findNavItem } from '../../lib/adminNav'
 
@@ -14,10 +14,12 @@ const isSupplier = (u) => u.email?.endsWith('@esterno.local')
 export default function AdminUsers() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showNew, setShowNew] = useState(false)
+  const [showInvite, setShowInvite] = useState(false)
   const [showNewSupplier, setShowNewSupplier] = useState(false)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'operatore' })
+  const [form, setForm] = useState({ name: '', email: '', role: 'operatore' })
+  const [inviteResult, setInviteResult] = useState(null)
+  const [inviting, setInviting] = useState(false)
   const [supplierName, setSupplierName] = useState('')
   const [printing, setPrinting] = useState(null)
   const toast = useToast()
@@ -27,9 +29,45 @@ export default function AdminUsers() {
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
-  const create = async () => {
-    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) return
-    await db.createUser(form); setShowNew(false); setForm({ name: '', email: '', password: '', role: 'operatore' }); load()
+  const invite = async () => {
+    if (!form.name.trim() || !form.email.trim()) return
+    setInviting(true)
+    try {
+      const invited = await db.inviteUser({ email: form.email, name: form.name, role: form.role })
+      const url = `${window.location.origin}/invite/${invited.invite_token}`
+      setInviteResult({ user: invited, url })
+      toast.success(`Invito creato per ${invited.name}`)
+      load()
+    } catch (err) {
+      toast.error(err.message || 'Errore invio invito')
+    }
+    setInviting(false)
+  }
+
+  const closeInvite = () => {
+    setShowInvite(false)
+    setInviteResult(null)
+    setForm({ name: '', email: '', role: 'operatore' })
+  }
+
+  const copyInviteUrl = async (url) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Link copiato negli appunti')
+    } catch {
+      toast.warning('Copia manualmente il link')
+    }
+  }
+
+  const revoke = async (userId) => {
+    if (!confirm('Revocare questo invito?')) return
+    try {
+      await db.revokeInvite(userId)
+      toast.success('Invito revocato')
+      load()
+    } catch (err) {
+      toast.error(err.message || 'Errore revoca invito')
+    }
   }
 
   const createSupplier = async () => {
@@ -38,7 +76,7 @@ export default function AdminUsers() {
     const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
     const email = `${slug}-${Date.now()}@esterno.local`
     try {
-      await db.createUser({ name, email, role: 'tecnico', org_id: 'default' })
+      await db.createUser({ name, email, role: 'tecnico', org_id: 'default', status: 'active' })
       setShowNewSupplier(false)
       setSupplierName('')
       toast.success(`Fornitore "${name}" aggiunto`)
@@ -138,7 +176,9 @@ export default function AdminUsers() {
   }
 
   const filtered = users.filter(u => !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase()))
-  const grouped = { admin: filtered.filter(u => u.role === 'admin'), tecnico: filtered.filter(u => u.role === 'tecnico'), operatore: filtered.filter(u => u.role === 'operatore') }
+  const activeUsers = filtered.filter(u => !u.status || u.status === 'active')
+  const pendingInvites = filtered.filter(u => u.status === 'pending')
+  const grouped = { admin: activeUsers.filter(u => u.role === 'admin'), tecnico: activeUsers.filter(u => u.role === 'tecnico'), operatore: activeUsers.filter(u => u.role === 'operatore') }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -167,8 +207,59 @@ export default function AdminUsers() {
             className="w-full card-elevated rounded-xl pl-11 pr-4 py-3 text-[15px] text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50" />
         </div>
         <Button onClick={() => setShowNewSupplier(true)} variant="secondary"><Truck size={18} /> Aggiungi Fornitore</Button>
-        <Button onClick={() => setShowNew(true)}><Plus size={18} /> Nuovo Utente</Button>
+        <Button onClick={() => setShowInvite(true)}><Mail size={18} /> Invita Utente</Button>
       </div>
+
+      {/* Sezione inviti pendenti */}
+      {pendingInvites.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Clock size={14} /> Inviti in sospeso ({pendingInvites.length})
+          </h3>
+          <div className="bg-surface-1/60 border border-token rounded-2xl overflow-hidden divide-y divide-gray-800/40">
+            {pendingInvites.map(u => {
+              const expired = u.invite_expires_at && new Date(u.invite_expires_at) < new Date()
+              const inviteUrl = u.invite_token ? `${window.location.origin}/invite/${u.invite_token}` : null
+              return (
+                <div key={u.id} className="flex items-center gap-4 px-5 py-4 group">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'var(--color-primary-glow)' }}>
+                    <Mail size={18} style={{ color: 'var(--color-primary)' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-[15px] font-medium text-white">{u.name}</p>
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-md"
+                        style={{
+                          background: expired ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-primary-glow)',
+                          color: expired ? '#f87171' : 'var(--color-primary)',
+                        }}>
+                        {ROLES[u.role]?.label || u.role}
+                      </span>
+                      {expired && <span className="text-xs text-red-400">Scaduto</span>}
+                    </div>
+                    <p className="text-sm text-faint">{u.email}</p>
+                    {u.invited_at && (
+                      <p className="text-xs text-faint mt-0.5">Invitato {timeAgo(u.invited_at)}</p>
+                    )}
+                  </div>
+                  {inviteUrl && !expired && (
+                    <button onClick={() => copyInviteUrl(inviteUrl)}
+                      className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-all"
+                      title="Copia link invito">
+                      <Copy size={15} />
+                    </button>
+                  )}
+                  <button onClick={() => revoke(u.id)}
+                    className="p-2 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 transition-all"
+                    title="Revoca invito">
+                    <XCircle size={15} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {loading ? <Spinner /> : (
         <div className="space-y-6 stagger-children">
@@ -214,28 +305,54 @@ export default function AdminUsers() {
         </div>
       )}
 
-      {/* Modal: Nuovo Utente */}
-      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nuovo Utente">
-        <div className="space-y-4">
-          <Input label="Nome" placeholder="Mario Rossi" value={form.name} onChange={e => set('name', e.target.value)} />
-          <Input label="Email" type="email" placeholder="mario@azienda.it" value={form.email} onChange={e => set('email', e.target.value)} />
-          <Input label="Password" type="password" placeholder="Min. 6 caratteri" value={form.password} onChange={e => set('password', e.target.value)} />
-          <div>
-            <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Ruolo</label>
-            <div className="flex gap-2">
-              {Object.entries(ROLES).map(([key, { label, icon }]) => (
-                <button key={key} onClick={() => set('role', key)}
-                  className={`flex-1 p-4 rounded-xl border text-center transition-all press-scale ${
-                    form.role === key ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-token text-muted hover:border-gray-500'
-                  }`}>
-                  <div className="text-2xl mb-1.5">{icon}</div>
-                  <div className="text-sm font-medium">{label}</div>
-                </button>
-              ))}
+      {/* Modal: Invita Utente */}
+      <Modal open={showInvite} onClose={closeInvite} title={inviteResult ? 'Invito creato' : 'Invita Utente'}>
+        {!inviteResult ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted">
+              L'utente riceverà un link per impostare la propria password e accedere. L'invito scade dopo 7 giorni.
+            </p>
+            <Input label="Nome" placeholder="Mario Rossi" value={form.name} onChange={e => set('name', e.target.value)} />
+            <Input label="Email" type="email" placeholder="mario@azienda.it" value={form.email} onChange={e => set('email', e.target.value)} />
+            <div>
+              <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Ruolo</label>
+              <div className="flex gap-2">
+                {Object.entries(ROLES).map(([key, { label, icon }]) => (
+                  <button key={key} onClick={() => set('role', key)}
+                    className={`flex-1 p-4 rounded-xl border text-center transition-all press-scale ${
+                      form.role === key ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-token text-muted hover:border-gray-500'
+                    }`}>
+                    <div className="text-2xl mb-1.5">{icon}</div>
+                    <div className="text-sm font-medium">{label}</div>
+                  </button>
+                ))}
+              </div>
             </div>
+            <Button onClick={invite} className="w-full" size="lg" disabled={!form.name || !form.email || inviting}>
+              {inviting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Mail size={18} /> Crea invito</>}
+            </Button>
           </div>
-          <Button onClick={create} className="w-full" size="lg" disabled={!form.name || !form.email || !form.password}>Crea Utente</Button>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-xl p-4" style={{ background: 'var(--color-primary-glow)', border: '1px solid var(--color-border)' }}>
+              <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
+                Condividi questo link con {inviteResult.user.name}
+              </p>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                L'invito è valido 7 giorni. Puoi ricopiare il link anche dopo dalla lista "Inviti in sospeso".
+              </p>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border p-3" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-0)' }}>
+              <code className="flex-1 text-xs break-all" style={{ color: 'var(--color-text)' }}>{inviteResult.url}</code>
+              <button onClick={() => copyInviteUrl(inviteResult.url)}
+                className="p-2 rounded-lg hover:bg-violet-500/20 text-muted hover:text-violet-400 transition-all"
+                title="Copia link">
+                <Copy size={15} />
+              </button>
+            </div>
+            <Button onClick={closeInvite} className="w-full" size="lg" variant="secondary">Chiudi</Button>
+          </div>
+        )}
       </Modal>
 
       {/* Modal: Aggiungi Fornitore */}

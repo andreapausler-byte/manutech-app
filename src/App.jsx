@@ -7,6 +7,7 @@ const LoginPage = lazy(() => import('./components/layout/LoginPage'))
 const MobileLayout = lazy(() => import('./components/layout/MobileLayout'))
 const AdminLayout = lazy(() => import('./components/layout/AdminLayout'))
 const GuestChatPage = lazy(() => import('./components/guest/GuestChatPage'))
+const AcceptInvitePage = lazy(() => import('./components/layout/AcceptInvitePage'))
 
 function AppLoader({ label = 'Caricamento ManuTech...' }) {
   return (
@@ -28,7 +29,13 @@ function getGuestParams() {
   return match ? { reportId: match[1], token: match[2] } : null
 }
 
+function getInviteToken() {
+  const match = window.location.pathname.match(/^\/invite\/([^/]+)$/)
+  return match ? match[1] : null
+}
+
 const guestParams = getGuestParams()
+const inviteToken = getInviteToken()
 
 function AuthenticatedApp() {
   const { user, loading } = useAuth()
@@ -54,6 +61,19 @@ export default function App() {
         <Suspense fallback={<AppLoader />}>
           <GuestChatPage reportId={guestParams.reportId} token={guestParams.token} />
         </Suspense>
+      </ThemeProvider>
+    )
+  }
+
+  // Invite route: dentro AuthProvider (acceptInvite aggiorna user)
+  if (inviteToken) {
+    return (
+      <ThemeProvider>
+        <AuthProvider>
+          <Suspense fallback={<AppLoader />}>
+            <AcceptInvitePage token={inviteToken} />
+          </Suspense>
+        </AuthProvider>
       </ThemeProvider>
     )
   }

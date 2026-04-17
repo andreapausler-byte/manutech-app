@@ -65,6 +65,7 @@ export function ensureDefaultAdmin() {
       email: 'admin@manutech.it',
       password: 'admin123',
       role: 'admin',
+      status: 'active',
       created_at: new Date().toISOString(),
     })
     setStore(KEYS.users, users)
@@ -72,8 +73,8 @@ export function ensureDefaultAdmin() {
   // Ensure demo users exist for testing messaging
   const updated = getStore(KEYS.users)
   const demoUsers = [
-    { id: 'tecnico-1', name: 'Marco Rossi', email: 'marco@manutech.it', password: 'demo123', role: 'tecnico', created_at: new Date().toISOString() },
-    { id: 'operatore-1', name: 'Luca Bianchi', email: 'luca@manutech.it', password: 'demo123', role: 'operatore', created_at: new Date().toISOString() },
+    { id: 'tecnico-1', name: 'Marco Rossi', email: 'marco@manutech.it', password: 'demo123', role: 'tecnico', status: 'active', created_at: new Date().toISOString() },
+    { id: 'operatore-1', name: 'Luca Bianchi', email: 'luca@manutech.it', password: 'demo123', role: 'operatore', status: 'active', created_at: new Date().toISOString() },
   ]
   let changed = false
   for (const du of demoUsers) {
@@ -82,7 +83,16 @@ export function ensureDefaultAdmin() {
       changed = true
     }
   }
+  // Retrofit: utenti esistenti senza status → 'active'
+  for (const u of updated) {
+    if (!u.status) { u.status = 'active'; changed = true }
+  }
   if (changed) setStore(KEYS.users, updated)
+}
+
+// Demo helper: genera token invito
+function demoToken() {
+  return 'demo_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
 // ── API unificata (Supabase o localStorage) ──────────────
@@ -139,64 +149,134 @@ export const db = {
 
   async login(email, password) {
     if (supabase) {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (authError) throw authError
 
-      // RPC SECURITY DEFINER: cerca/linka/crea profilo bypassando RLS
+      // RPC SECURITY DEFINER: cerca/linka profilo bypassando RLS (rifiuta non-active)
       const { data: profile, error: rpcError } = await supabase.rpc('resolve_my_profile')
-      if (rpcError) throw new Error('Errore caricamento profilo: ' + rpcError.message)
+      if (rpcError) {
+        // Logout per evitare sessione orfana se il profilo è rifiutato
+        await supabase.auth.signOut()
+        throw new Error(rpcError.message)
+      }
       if (!profile) throw new Error('Profilo utente non trovato')
       return profile
     }
     const users = getStore(KEYS.users)
     const user = users.find(u => u.email === email && u.password === password)
     if (!user) throw new Error('Credenziali non valide')
+    if (user.status && user.status !== 'active') {
+      throw new Error(user.status === 'pending'
+        ? 'Account in attesa di attivazione'
+        : 'Account disabilitato. Contatta l\'amministratore.')
+    }
     setStore(KEYS.session, user)
     return user
   },
 
-  async register(userData) {
+  // ─── INVITI ───
+  async inviteUser({ email, name, role = 'operatore', expiresHours = 168 }) {
     if (supabase) {
-      // 1. Crea account in auth.users (il trigger creerà il profilo in public.users)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            name: userData.name,
-            role: userData.role || 'operatore',
-            org_id: userData.org_id || 'default',
-          },
-        },
+      const { data, error } = await supabase.rpc('invite_user', {
+        _email: email, _name: name, _role: role, _expires_hours: expiresHours,
       })
-      if (authError) throw authError
-
-      // 2. Retry con backoff — il trigger potrebbe impiegare un momento
-      let user = null
-      for (let attempt = 0; attempt < 5; attempt++) {
-        await new Promise(r => setTimeout(r, 600 * (attempt + 1)))
-        const { data, error } = await supabase
-          .from('users').select('*').eq('auth_id', authData.user.id).maybeSingle()
-        if (data) { user = data; break }
-      }
-
-      // 3. Fallback — se il trigger non esiste, crea il profilo manualmente
-      if (!user) {
-        const { data: created, error: insertError } = await supabase
-          .from('users').insert({
-            auth_id: authData.user.id,
-            email: userData.email,
-            name: userData.name,
-            role: userData.role || 'operatore',
-            org_id: userData.org_id || 'default',
-          }).select().single()
-        if (insertError) throw new Error('Registrazione auth OK ma errore creazione profilo: ' + insertError.message)
-        user = created
-      }
-
-      return user
+      if (error) throw new Error(error.message)
+      return data
     }
-    return db.createUser(userData)
+    const users = getStore(KEYS.users)
+    const emailLower = (email || '').trim().toLowerCase()
+    if (!emailLower || !name?.trim()) throw new Error('Email e nome obbligatori')
+    const existing = users.find(u => u.email?.toLowerCase() === emailLower)
+    if (existing && existing.status === 'active') throw new Error('Esiste già un utente attivo con questa email')
+    const token = demoToken()
+    const expires = new Date(Date.now() + expiresHours * 3600 * 1000).toISOString()
+    if (existing) {
+      Object.assign(existing, {
+        name, role, status: 'pending',
+        invite_token: token, invite_expires_at: expires,
+        invited_at: new Date().toISOString(), invite_accepted_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      setStore(KEYS.users, users)
+      return existing
+    }
+    const newUser = {
+      id: `user-${Date.now()}`, email: emailLower, name, role,
+      org_id: 'default', status: 'pending',
+      invite_token: token, invite_expires_at: expires,
+      invited_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    }
+    users.push(newUser)
+    setStore(KEYS.users, users)
+    return newUser
+  },
+
+  async getInviteInfo(token) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('get_invite_info', { _token: token })
+      if (error) throw new Error(error.message)
+      return data
+    }
+    const u = getStore(KEYS.users).find(u => u.invite_token === token)
+    if (!u) throw new Error('Invito non valido')
+    if (u.status !== 'pending') throw new Error('Invito già utilizzato o revocato')
+    if (new Date(u.invite_expires_at) < new Date()) throw new Error('Invito scaduto')
+    return { email: u.email, name: u.name, role: u.role, expires_at: u.invite_expires_at }
+  },
+
+  async acceptInvite({ token, password }) {
+    if (supabase) {
+      // Step 1: recupera info invito (valida token)
+      const info = await db.getInviteInfo(token)
+      // Step 2: signUp con email dell'invito
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: info.email, password,
+        options: { data: { name: info.name, role: info.role } },
+      })
+      if (authError) throw new Error(authError.message)
+      // Se email confirmation è attiva non c'è sessione: chiedi al user di confermare
+      if (!authData.session) {
+        return { needsEmailConfirmation: true, email: info.email }
+      }
+      // Step 3: accept_invite linka auth_id e attiva l'account
+      const { data: profile, error: rpcError } = await supabase.rpc('accept_invite', { _token: token })
+      if (rpcError) throw new Error(rpcError.message)
+      return { needsEmailConfirmation: false, profile }
+    }
+    // Demo: simula signUp + accept
+    const users = getStore(KEYS.users)
+    const u = users.find(u => u.invite_token === token)
+    if (!u) throw new Error('Invito non valido')
+    if (u.status !== 'pending') throw new Error('Invito già utilizzato o revocato')
+    if (new Date(u.invite_expires_at) < new Date()) throw new Error('Invito scaduto')
+    u.password = password
+    u.status = 'active'
+    u.invite_token = null
+    u.invite_expires_at = null
+    u.invite_accepted_at = new Date().toISOString()
+    u.updated_at = new Date().toISOString()
+    setStore(KEYS.users, users)
+    setStore(KEYS.session, u)
+    return { needsEmailConfirmation: false, profile: u }
+  },
+
+  async revokeInvite(userId) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('revoke_invite', { _user_id: userId })
+      if (error) throw new Error(error.message)
+      return data
+    }
+    const users = getStore(KEYS.users)
+    const u = users.find(u => u.id === userId)
+    if (!u) throw new Error('Utente non trovato')
+    if (u.status !== 'pending') throw new Error('Solo gli inviti in attesa possono essere revocati')
+    u.status = 'disabled'
+    u.invite_token = null
+    u.invite_expires_at = null
+    u.updated_at = new Date().toISOString()
+    setStore(KEYS.users, users)
+    return u
   },
 
   async getSession() {
