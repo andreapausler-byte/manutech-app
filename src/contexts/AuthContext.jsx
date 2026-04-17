@@ -21,10 +21,10 @@ export function AuthProvider({ children }) {
     return user
   }
 
-  const register = async (userData) => {
-    const user = await db.register(userData)
-    setUser(user)
-    return user
+  const acceptInvite = async ({ token, password }) => {
+    const result = await db.acceptInvite({ token, password })
+    if (result.profile) setUser(result.profile)
+    return result
   }
 
   const logout = async () => {
@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, acceptInvite, logout }}>
       {children}
     </AuthContext.Provider>
   )
