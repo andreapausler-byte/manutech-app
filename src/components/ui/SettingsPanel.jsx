@@ -209,7 +209,7 @@ export default function SettingsPanel({ open, onClose, userId, userRole }) {
   // Carica preferenze notifiche (async da DB)
   useEffect(() => {
     if (userId && userRole) {
-      getEffectivePrefs(userId, userRole).then(setNotifPrefs).catch(() => {})
+      getEffectivePrefs(userId, userRole).then(setNotifPrefs).catch(e => console.error('[SettingsPanel] getEffectivePrefs failed:', e))
     }
   }, [userId, userRole, open])
 

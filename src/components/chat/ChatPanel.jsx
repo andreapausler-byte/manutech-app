@@ -153,7 +153,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
     const interval = setInterval(() => {
       guestMode.getComments()
         .then(c => setComments(c || []))
-        .catch(() => {})
+        .catch(e => console.error('[ChatPanel] guest getComments polling failed:', e))
     }, 10000)
     return () => clearInterval(interval)
   }, [guestMode, reportId])

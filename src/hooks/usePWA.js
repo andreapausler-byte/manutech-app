@@ -188,7 +188,7 @@ export function usePWA(onNotificationClick, userInfo) {
           report_id: data.report_id || null,
           type: data.type,
         },
-      }).catch(() => {})
+      }).catch(e => console.error('[usePWA] showNotification failed:', e))
     } else {
       // Fallback: Notification API diretta
       try {

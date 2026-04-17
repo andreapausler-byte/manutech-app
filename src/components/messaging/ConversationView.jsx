@@ -158,7 +158,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
     const interval = setInterval(() => {
       db.getDirectMessages(conversation.id)
         .then(m => setMessages(m || []))
-        .catch(() => {})
+        .catch(e => console.error('[ConversationView] getDirectMessages polling failed:', e))
     }, 5000)
     return () => clearInterval(interval)
   }, [conversation?.id])

@@ -66,7 +66,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         const a = result?.assessments?.find(a => a.machine_id === machine.id)
         setAssessment(a || null)
       })
-      .catch(() => {})
+      .catch(e => console.error('[MobileMachineDetail] fetchMachineAssessments failed:', e))
   }, [machine.id])
 
   const loadData = async () => {

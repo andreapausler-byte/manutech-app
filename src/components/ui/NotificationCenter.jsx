@@ -76,7 +76,7 @@ export default function NotificationCenter({ userId, userRole, onOpenReport, onN
   // ── Pre-carica preferenze notifiche in cache ──
   useEffect(() => {
     if (userId && userRole) {
-      preloadPrefs(userId, userRole).catch(() => {})
+      preloadPrefs(userId, userRole).catch(e => console.error('[NotificationCenter] preloadPrefs failed:', e))
     }
   }, [userId, userRole])
 

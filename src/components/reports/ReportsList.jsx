@@ -269,9 +269,9 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       // Load last chat message for each report
       if (data.length > 0) {
         const ids = data.map(r => r.id)
-        db.getLastCommentsByReports(ids).then(map => setLastMessages(map)).catch(() => {})
+        db.getLastCommentsByReports(ids).then(map => setLastMessages(map)).catch(e => console.error('[ReportsList] getLastCommentsByReports failed:', e))
       }
-    } catch {} // eslint-disable-line no-empty
+    } catch (e) { console.error('[ReportsList] load failed:', e) }
     setLoading(false)
   }, [])
 
@@ -279,7 +279,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
     const data = await db.getReports({})
     setReports(data)
     if (data.length > 0) {
-      db.getLastCommentsByReports(data.map(r => r.id)).then(map => setLastMessages(map)).catch(() => {})
+      db.getLastCommentsByReports(data.map(r => r.id)).then(map => setLastMessages(map)).catch(e => console.error('[ReportsList] getLastCommentsByReports refresh failed:', e))
     }
   }, [])
 
