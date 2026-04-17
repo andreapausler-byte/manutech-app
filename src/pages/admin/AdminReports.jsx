@@ -7,9 +7,9 @@ import MediaCapture from '../../components/media/MediaCapture'
 import { useToast } from '../../hooks/useToast'
 import ReportDetailModal from './reports/ReportDetailModal'
 import { avatarGradient } from '../../hooks/usePremiumUI'
-import { Plus, Search, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, X, ChevronUp, ChevronDown, ChevronRight } from 'lucide-react'
 
-const PER_PAGE = 15
+const TERMINAL_STATUSES = ['risolta', 'chiuso']
 
 // ── CellBadge: piccolo badge bordato per celle tabella (gravità/tipo/stato) ──
 function CellBadge({ color, label }) {
@@ -49,12 +49,7 @@ export default function AdminReports({ initialReportId }) {
   const [machines, setMachines] = useState([])
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState('desc')
-  const [page, setPage] = useState(1)
-
-  // Wrapper setters: reset pagina quando cambia un filtro
-  const updateSearch = (v) => { setSearch(v); setPage(1) }
-  const updateFilterStatus = (v) => { setFilterStatus(v); setPage(1) }
-  const updateFilterSeverity = (v) => { setFilterSeverity(v); setPage(1) }
+  const [archiveOpen, setArchiveOpen] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -106,12 +101,18 @@ export default function AdminReports({ initialReportId }) {
     return 0
   })
 
-  // Pagination derived
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
-  const safePage = Math.min(page, totalPages)
-  const startIdx = (safePage - 1) * PER_PAGE
-  const endIdx = Math.min(startIdx + PER_PAGE, sorted.length)
-  const paginated = sorted.slice(startIdx, endIdx)
+  // Split in attive + archivio (risolta/chiuso).
+  // Se l'utente filtra esplicitamente su uno stato terminale, mostra lista piatta.
+  const isFilteringArchive = TERMINAL_STATUSES.includes(filterStatus)
+  const activeReports = isFilteringArchive
+    ? sorted
+    : sorted.filter(r => !TERMINAL_STATUSES.includes(r.status))
+  const archivedReports = isFilteringArchive
+    ? []
+    : sorted.filter(r => TERMINAL_STATUSES.includes(r.status))
+  const hasArchiveSeparator = !isFilteringArchive && archivedReports.length > 0
+  const autoExpandArchive = !!search && archivedReports.length > 0
+  const archiveVisible = archiveOpen || autoExpandArchive
 
   const createReport = async () => {
     if (!form.title.trim() || !form.description.trim()) return
@@ -147,6 +148,73 @@ export default function AdminReports({ initialReportId }) {
   const handleDetailClose = (deleted) => {
     setSelected(null)
     if (deleted) load()
+  }
+
+  const renderReportRow = (r, archived) => {
+    const sts = STATUS[r.status] || STATUS.aperta
+    const sev = SEVERITY[r.severity] || SEVERITY.media
+    const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
+    return (
+      <tr
+        key={r.id}
+        onClick={() => setSelected(r)}
+        className="hover:bg-indigo-500/5 transition-colors duration-200 group cursor-pointer"
+        style={{
+          borderBottom: '1px solid var(--color-border-subtle)',
+          opacity: archived ? 0.75 : 1,
+        }}
+      >
+        <td className="px-8 py-5 align-middle">
+          <div
+            className="font-semibold mb-0.5 group-hover:text-indigo-300 transition-colors truncate"
+            style={{ color: 'var(--color-text)' }}
+          >
+            {r.title}
+          </div>
+          <div className="text-[11px] font-medium truncate" style={{ color: 'var(--color-text-muted)' }}>
+            {r.created_by_name || 'Sconosciuto'}
+          </div>
+        </td>
+        <td className="px-6 py-5 align-middle hidden lg:table-cell">
+          <span className="italic font-medium truncate block" style={{ color: 'var(--color-text-muted)' }}>
+            {r.machine || '—'}
+          </span>
+        </td>
+        <td className="px-6 py-5 align-middle text-center hidden md:table-cell">
+          <CellBadge color={sev.color} label={sev.label} />
+        </td>
+        <td className="px-6 py-5 align-middle text-center hidden lg:table-cell">
+          {typ ? (
+            <CellBadge color={typ.color} label={typ.label} />
+          ) : (
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
+          )}
+        </td>
+        <td className="px-6 py-5 align-middle text-center">
+          <CellBadge color={sts.color} label={sts.label} />
+        </td>
+        <td className="px-6 py-5 align-middle hidden lg:table-cell">
+          {r.assigned_to_name ? (
+            <div className="flex items-center min-w-0" style={{ color: 'var(--color-text-secondary)' }}>
+              <div
+                className="h-7 w-7 rounded-full mr-3 flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
+                style={{ background: avatarGradient(r.assigned_to_name) }}
+              >
+                {r.assigned_to_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+              </div>
+              <span className="font-medium truncate">{r.assigned_to_name}</span>
+            </div>
+          ) : (
+            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#f59e0b' }}>
+              Da assegnare
+            </span>
+          )}
+        </td>
+        <td className="px-8 py-5 align-middle text-right font-medium whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>
+          {timeAgo(r.created_at)}
+        </td>
+      </tr>
+    )
   }
 
   return (
@@ -189,7 +257,7 @@ export default function AdminReports({ initialReportId }) {
                 type="text"
                 placeholder="Cerca per titolo, macchinario o autore..."
                 value={search}
-                onChange={e => updateSearch(e.target.value)}
+                onChange={e => setSearch(e.target.value)}
                 className="w-72 text-sm rounded-full pl-10 pr-9 py-2.5 border border-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
                 style={{
                   background: 'var(--color-sidebar-bg)',
@@ -199,7 +267,7 @@ export default function AdminReports({ initialReportId }) {
               />
               {search && (
                 <button
-                  onClick={() => updateSearch('')}
+                  onClick={() => setSearch('')}
                   aria-label="Cancella ricerca"
                   className="absolute right-3 top-1/2 -translate-y-1/2 hover:text-white"
                   style={{ color: 'var(--color-text-muted)' }}
@@ -221,7 +289,7 @@ export default function AdminReports({ initialReportId }) {
         <div className="flex flex-wrap items-center gap-2">
           {/* Tutte */}
           <button
-            onClick={() => updateFilterStatus('')}
+            onClick={() => setFilterStatus('')}
             aria-pressed={filterStatus === ''}
             className="text-sm px-4 py-2 rounded-full border flex items-center transition-all press-scale"
             style={filterStatus === ''
@@ -239,7 +307,7 @@ export default function AdminReports({ initialReportId }) {
             return (
               <button
                 key={key}
-                onClick={() => updateFilterStatus(filterStatus === key ? '' : key)}
+                onClick={() => setFilterStatus(filterStatus === key ? '' : key)}
                 aria-pressed={isActive}
                 className="text-sm px-4 py-2 rounded-full border flex items-center transition-all press-scale"
                 style={isActive
@@ -256,7 +324,7 @@ export default function AdminReports({ initialReportId }) {
           {/* Severity filter (compact, right-aligned) */}
           <select
             value={filterSeverity}
-            onChange={e => updateFilterSeverity(e.target.value)}
+            onChange={e => setFilterSeverity(e.target.value)}
             className="ml-auto text-xs rounded-full px-4 py-2 focus:outline-none"
             style={{
               background: 'var(--color-sidebar-bg)',
@@ -271,7 +339,7 @@ export default function AdminReports({ initialReportId }) {
 
           {activeFilters > 0 && (
             <button
-              onClick={() => { updateFilterStatus(''); updateFilterSeverity('') }}
+              onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
               className="text-xs px-3 py-2 rounded-full transition-colors hover:bg-white/5"
               style={{ color: 'var(--color-text-muted)' }}
             >
@@ -322,114 +390,43 @@ export default function AdminReports({ initialReportId }) {
                 </tr>
               </thead>
               <tbody className="text-[13px]">
-                {paginated.map(r => {
-                  const sts = STATUS[r.status] || STATUS.aperta
-                  const sev = SEVERITY[r.severity] || SEVERITY.media
-                  const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
-                  return (
-                    <tr
-                      key={r.id}
-                      onClick={() => setSelected(r)}
-                      className="hover:bg-indigo-500/5 transition-colors duration-200 group cursor-pointer"
-                      style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
-                    >
-                      <td className="px-8 py-5 align-middle">
-                        <div
-                          className="font-semibold mb-0.5 group-hover:text-indigo-300 transition-colors truncate"
-                          style={{ color: 'var(--color-text)' }}
+                {activeReports.map(r => renderReportRow(r, false))}
+
+                {hasArchiveSeparator && (
+                  <tr
+                    onClick={() => setArchiveOpen(o => !o)}
+                    className="cursor-pointer select-none hover:bg-white/5 transition-colors"
+                    style={{
+                      background: 'var(--color-surface-2)',
+                      borderTop: '1px solid var(--color-border)',
+                      borderBottom: '1px solid var(--color-border)',
+                    }}
+                    aria-expanded={archiveVisible}
+                  >
+                    <td colSpan={7} className="px-8 py-3">
+                      <div
+                        className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-widest"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        {archiveVisible ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        Archivio
+                        <span
+                          className="px-2 py-0.5 rounded-md"
+                          style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}
                         >
-                          {r.title}
-                        </div>
-                        <div className="text-[11px] font-medium truncate" style={{ color: 'var(--color-text-muted)' }}>
-                          {r.created_by_name || 'Sconosciuto'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 align-middle hidden lg:table-cell">
-                        <span className="italic font-medium truncate block" style={{ color: 'var(--color-text-muted)' }}>
-                          {r.machine || '—'}
+                          {archivedReports.length}
                         </span>
-                      </td>
-                      <td className="px-6 py-5 align-middle text-center hidden md:table-cell">
-                        <CellBadge color={sev.color} label={sev.label} />
-                      </td>
-                      <td className="px-6 py-5 align-middle text-center hidden lg:table-cell">
-                        {typ ? (
-                          <CellBadge color={typ.color} label={typ.label} />
-                        ) : (
-                          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-5 align-middle text-center">
-                        <CellBadge color={sts.color} label={sts.label} />
-                      </td>
-                      <td className="px-6 py-5 align-middle hidden lg:table-cell">
-                        {r.assigned_to_name ? (
-                          <div className="flex items-center min-w-0" style={{ color: 'var(--color-text-secondary)' }}>
-                            <div
-                              className="h-7 w-7 rounded-full mr-3 flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
-                              style={{ background: avatarGradient(r.assigned_to_name) }}
-                            >
-                              {r.assigned_to_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                            </div>
-                            <span className="font-medium truncate">{r.assigned_to_name}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#f59e0b' }}>
-                            Da assegnare
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-8 py-5 align-middle text-right font-medium whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>
-                        {timeAgo(r.created_at)}
-                      </td>
-                    </tr>
-                  )
-                })}
+                        <span className="font-normal normal-case tracking-normal opacity-60">
+                          segnalazioni completate o chiuse
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
+                {hasArchiveSeparator && archiveVisible && archivedReports.map(r => renderReportRow(r, true))}
               </tbody>
             </table>
-          </div>
-
-          {/* Pagination footer — sticky glass */}
-          <div
-            className="px-8 py-5 flex items-center justify-between flex-wrap gap-3 sticky bottom-0"
-            style={{
-              ...glassPanelStyle,
-              borderTop: '1px solid var(--color-border)',
-              borderRadius: 0,
-            }}
-          >
-            <p className="text-[11px] font-medium uppercase tracking-widest" style={{ color: 'var(--color-text-muted)' }}>
-              Mostrando {sorted.length === 0 ? 0 : startIdx + 1}-{endIdx} di {sorted.length} segnalazioni
-            </p>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-medium mr-2" style={{ color: 'var(--color-text-muted)' }}>
-                Pagina {safePage} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={safePage === 1}
-                className="p-2 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5"
-                style={{
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-text-muted)',
-                }}
-                aria-label="Pagina precedente"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage === totalPages}
-                className="p-2 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5"
-                style={{
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-text-muted)',
-                }}
-                aria-label="Pagina successiva"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
           </div>
         </div>
       )}
