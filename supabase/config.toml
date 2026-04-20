@@ -1,0 +1,16 @@
+# Supabase local/project configuration.
+# Solo le sezioni necessarie per le Edge Functions.
+# Le altre impostazioni del progetto (db, auth, api) restano ai default.
+
+[functions.transcribe]
+# Disabilita verify_jwt perche' ManuTech usa un sistema di login custom
+# (db.login in src/lib/supabase.js), non supabase.auth.signInWithPassword.
+# La chiave publishable nell'header Authorization non e' un JWT utente,
+# quindi il check JWT default restituirebbe 401 prima di arrivare
+# all'handler. Il codice legge GROQ_API_KEY lato server, nessun segreto
+# viene esposto al client.
+verify_jwt = false
+
+[functions.extract-ticket-fields]
+# Stesso motivo di `transcribe`. Vedi commento sopra.
+verify_jwt = false
