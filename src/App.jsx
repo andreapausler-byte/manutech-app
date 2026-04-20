@@ -6,6 +6,7 @@ import { Spinner } from './components/ui'
 const LoginPage = lazy(() => import('./components/layout/LoginPage'))
 const MobileLayout = lazy(() => import('./components/layout/MobileLayout'))
 const AdminLayout = lazy(() => import('./components/layout/AdminLayout'))
+const OperatorApp = lazy(() => import('./pages/operator/OperatorApp'))
 const GuestChatPage = lazy(() => import('./components/guest/GuestChatPage'))
 const AcceptInvitePage = lazy(() => import('./components/layout/AcceptInvitePage'))
 
@@ -48,8 +49,9 @@ function AuthenticatedApp() {
 
   if (!user) return <Suspense fallback={<AppLoader />}><LoginPage /></Suspense>
 
-  // Admin → desktop layout, others → mobile layout
+  // Admin → desktop layout, operator → voice-first app, technician → mobile layout
   if (user.role === 'admin') return <Suspense fallback={<AppLoader />}><AdminLayout initialReportId={initialReportId} /></Suspense>
+  if (user.role === 'operatore') return <Suspense fallback={<AppLoader />}><OperatorApp /></Suspense>
   return <Suspense fallback={<AppLoader />}><MobileLayout initialReportId={initialReportId} /></Suspense>
 }
 
