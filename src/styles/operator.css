@@ -1,0 +1,726 @@
+/*
+ * ManuTech — Operator App (scoped)
+ *
+ * Palette verde Amarcord + font Barlow Condensed / DM Mono.
+ * Tutto vive sotto `.operator-shell` per non interferire con il resto
+ * dell'app (admin, technician, login, ecc.).
+ */
+
+.operator-shell {
+  /* Palette */
+  --op-bg: #060e09;
+  --op-surface: #0b1710;
+  --op-surface-2: #0f2016;
+  --op-border: #152111;
+  --op-border-strong: #1f3520;
+  --op-green: #1B6B4A;
+  --op-green-light: #2a9d6e;
+  --op-green-dim: #0f3d2a;
+  --op-green-soft: rgba(27, 107, 74, 0.14);
+  --op-text: #e8f5ee;
+  --op-text-muted: #3d6b50;
+  --op-text-soft: #6f957f;
+  --op-red: #e03c31;
+  --op-amber: #f59e0b;
+
+  /* Layout */
+  min-height: 100dvh;
+  background: var(--op-bg);
+  color: var(--op-text);
+  font-family: 'Barlow Condensed', 'Outfit', system-ui, sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.operator-shell *,
+.operator-shell *::before,
+.operator-shell *::after {
+  box-sizing: border-box;
+}
+
+.operator-shell button {
+  font-family: inherit;
+  color: inherit;
+}
+
+.operator-shell .op-mono {
+  font-family: 'DM Mono', 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.02em;
+}
+
+.operator-shell .op-display {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  line-height: 1.05;
+}
+
+/* Scroll area interna */
+.op-screen {
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top, 0) 20px 96px;
+  display: flex;
+  flex-direction: column;
+}
+
+.op-screen--full {
+  padding-bottom: 0;
+}
+
+/* Status bar */
+.op-statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--op-text-muted);
+  text-transform: uppercase;
+}
+
+/* Header */
+.op-header-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1;
+  margin-top: 8px;
+  text-transform: uppercase;
+}
+
+.op-header-shift {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: var(--op-green-soft);
+  border: 1px solid var(--op-green);
+  color: var(--op-green-light);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border-radius: 4px;
+}
+
+/* Counter cards */
+.op-counters {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.op-counter {
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  padding: 12px 10px;
+  min-height: 82px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.op-counter__n {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1;
+  color: var(--op-text);
+}
+
+.op-counter__label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--op-text-muted);
+}
+
+/* REC button */
+.op-rec-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 30px 0;
+}
+
+.op-rec-btn {
+  --size: 140px;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: var(--op-green);
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  box-shadow: 0 0 0 1px var(--op-green-light), 0 14px 38px rgba(27, 107, 74, 0.35);
+  transition: transform 0.12s ease, background 0.2s ease;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.op-rec-btn:active {
+  transform: scale(0.94);
+  background: var(--op-green-light);
+}
+
+.op-rec-btn[disabled] {
+  background: var(--op-green-dim);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.op-rec-btn::before,
+.op-rec-btn::after {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 2px solid var(--op-green-light);
+  opacity: 0;
+  animation: opPulse 2.4s ease-out infinite;
+}
+
+.op-rec-btn::after {
+  animation-delay: 1.2s;
+}
+
+@keyframes opPulse {
+  0%   { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+.op-rec-label {
+  margin-top: 22px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--op-text-soft);
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* Recording screen */
+.op-rec-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--op-bg);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+
+.op-rec-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  color: var(--op-red);
+  text-transform: uppercase;
+}
+
+.op-rec-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--op-red);
+  animation: opBlink 0.9s ease-in-out infinite;
+}
+
+@keyframes opBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.2; }
+}
+
+.op-timer {
+  margin-top: 28px;
+  font-family: 'DM Mono', monospace;
+  font-size: 58px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--op-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Waveform */
+.op-wave {
+  margin-top: 36px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 72px;
+  width: min(360px, 80vw);
+}
+
+.op-wave__bar {
+  flex: 1;
+  background: var(--op-green-light);
+  border-radius: 2px;
+  transition: height 0.08s ease;
+  min-height: 4px;
+}
+
+/* Stop button */
+.op-stop-btn {
+  margin-top: 56px;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--op-red);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+  box-shadow: 0 10px 28px rgba(224, 60, 49, 0.35);
+}
+
+.op-stop-btn:active {
+  transform: scale(0.92);
+}
+
+.op-stop-btn__square {
+  width: 30px;
+  height: 30px;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.op-rec-release {
+  margin-top: 18px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--op-text-muted);
+}
+
+/* Transcribing state */
+.op-spin {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 4px solid var(--op-green-dim);
+  border-top-color: var(--op-green-light);
+  animation: opSpin 0.9s linear infinite;
+}
+
+@keyframes opSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Review screen */
+.op-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--op-green-soft);
+  border: 1px solid var(--op-green);
+  color: var(--op-green-light);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 999px;
+}
+
+.op-badge__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--op-green-light);
+  animation: opBlink 1.6s ease-in-out infinite;
+}
+
+.op-review-textarea,
+.op-input,
+.op-select {
+  width: 100%;
+  background: var(--op-surface);
+  border: 1px solid var(--op-border-strong);
+  color: var(--op-text);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 17px;
+  padding: 12px 14px;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.op-review-textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.35;
+}
+
+.op-input:focus,
+.op-select:focus,
+.op-review-textarea:focus {
+  border-color: var(--op-green-light);
+}
+
+.op-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.op-field__label {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--op-text-muted);
+}
+
+.op-action-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.op-btn {
+  border: none;
+  padding: 16px 20px;
+  border-radius: 4px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.2s ease, opacity 0.2s ease;
+  min-height: 48px;
+}
+
+.op-btn:active {
+  transform: scale(0.97);
+}
+
+.op-btn--primary {
+  flex: 2;
+  background: var(--op-green);
+  color: #fff;
+}
+
+.op-btn--primary:hover {
+  background: var(--op-green-light);
+}
+
+.op-btn--primary[disabled] {
+  background: var(--op-green-dim);
+  color: var(--op-text-muted);
+  cursor: not-allowed;
+}
+
+.op-btn--ghost {
+  flex: 1;
+  background: transparent;
+  color: var(--op-text-soft);
+  border: 1px solid var(--op-border-strong);
+}
+
+.op-btn--ghost:hover {
+  border-color: var(--op-green);
+  color: var(--op-text);
+}
+
+/* Ticket card */
+.op-ticket {
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  padding: 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.op-ticket:hover,
+.op-ticket:active {
+  border-color: var(--op-green);
+}
+
+.op-ticket__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.op-ticket__id {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--op-text-muted);
+  text-transform: uppercase;
+}
+
+.op-ticket__title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.15;
+  color: var(--op-text);
+}
+
+.op-ticket__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--op-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Status pill */
+.op-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+
+/* Priority dot */
+.op-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Filters */
+.op-filters {
+  display: flex;
+  gap: 6px;
+  margin: 14px 0 18px;
+}
+
+.op-filter {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--op-border-strong);
+  color: var(--op-text-soft);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  padding: 10px 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 4px;
+  min-height: 40px;
+}
+
+.op-filter--active {
+  background: var(--op-green-soft);
+  border-color: var(--op-green);
+  color: var(--op-green-light);
+}
+
+/* Nav bar */
+.op-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 72px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  background: var(--op-surface);
+  border-top: 1px solid var(--op-border);
+  display: flex;
+  z-index: 40;
+}
+
+.op-nav__btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--op-text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 6px 8px;
+  position: relative;
+}
+
+.op-nav__btn--active {
+  color: var(--op-green-light);
+}
+
+.op-nav__btn--active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: var(--op-green-light);
+}
+
+/* Error banner */
+.op-error {
+  background: rgba(224, 60, 49, 0.1);
+  border: 1px solid var(--op-red);
+  color: var(--op-red);
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  border-radius: 4px;
+  margin: 12px 0;
+}
+
+.op-info {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid var(--op-amber);
+  color: var(--op-amber);
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  border-radius: 4px;
+  margin: 12px 0;
+}
+
+/* Section title */
+.op-section-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--op-text-muted);
+  margin: 24px 0 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.op-link {
+  background: transparent;
+  border: none;
+  color: var(--op-green-light);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Preview tickets (home) */
+.op-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.op-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  cursor: pointer;
+  min-height: 48px;
+}
+
+.op-preview__title {
+  flex: 1;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--op-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.op-preview__meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--op-text-muted);
+  letter-spacing: 0.08em;
+}
+
+/* Ticket detail */
+.op-detail-box {
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  padding: 14px;
+  margin-top: 10px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--op-text);
+  white-space: pre-wrap;
+}
+
+.op-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.op-detail-field {
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  padding: 12px;
+}
+
+.op-back {
+  background: transparent;
+  border: none;
+  color: var(--op-text-soft);
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 10px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.op-back:hover {
+  color: var(--op-green-light);
+}
