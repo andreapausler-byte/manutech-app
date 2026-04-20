@@ -45,8 +45,12 @@ export default function AcceptInvitePage({ token }) {
         toast.success('Account creato! Controlla la tua email per confermare.')
       } else {
         toast.success('Benvenuto in ManuTech!')
-        // AuthContext aggiorna user: App.jsx farà il redirect automatico
-        window.history.replaceState({}, '', '/')
+        // inviteToken e' valutato a livello module in App.jsx al primo load,
+        // quindi un solo history.replaceState non basta a uscire dalla
+        // AcceptInvitePage. Forziamo un reload completo sulla root: App.jsx
+        // ricalcola le route, trova la sessione gia' valida via
+        // AuthContext e manda l'utente al layout corretto (operator/admin/mobile).
+        window.location.replace('/')
       }
     } catch (err) {
       const msg = err.message || 'Errore durante l\'attivazione'
