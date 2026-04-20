@@ -2,10 +2,11 @@
  * Edge Function: transcribe
  *
  * Trascrive un file audio (webm/ogg/mp4/m4a/wav) in testo italiano usando
- * OpenAI Whisper. Usata dall'app operatore per la creazione ticket vocale.
+ * Groq Whisper (whisper-large-v3-turbo). API OpenAI-compatible, free tier
+ * generoso — niente carta di credito richiesta.
  *
  * Secrets necessari (Supabase Dashboard → Edge Functions → Secrets):
- *   OPENAI_API_KEY — chiave API OpenAI (sk-...)
+ *   GROQ_API_KEY — chiave API Groq (gsk_...)
  *
  * Body: multipart/form-data con campo "audio" (Blob).
  *
@@ -19,8 +20,9 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions'
-const WHISPER_MODEL = 'whisper-1'
+const GROQ_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
+// whisper-large-v3-turbo: fastest, identical quality for short clips
+const WHISPER_MODEL = 'whisper-large-v3-turbo'
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -34,8 +36,8 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
 
   try {
-    const apiKey = Deno.env.get('OPENAI_API_KEY')
-    if (!apiKey) return jsonResponse({ error: 'OPENAI_API_KEY non configurata' }, 500)
+    const apiKey = Deno.env.get('GROQ_API_KEY')
+    if (!apiKey) return jsonResponse({ error: 'GROQ_API_KEY non configurata' }, 500)
 
     const inbound = await req.formData()
     const audio = inbound.get('audio')
@@ -43,15 +45,16 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Campo "audio" mancante o non valido' }, 400)
     }
 
-    // Re-forward to OpenAI with the shape it expects
+    // Re-forward to Groq with the shape it expects (OpenAI-compatible)
     const outbound = new FormData()
     const filename = (audio as File).name || 'recording.webm'
     outbound.append('file', audio, filename)
     outbound.append('model', WHISPER_MODEL)
     outbound.append('language', 'it')
     outbound.append('response_format', 'json')
+    outbound.append('temperature', '0')
 
-    const res = await fetch(WHISPER_URL, {
+    const res = await fetch(GROQ_URL, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}` },
       body: outbound,
@@ -59,7 +62,7 @@ Deno.serve(async (req: Request) => {
 
     if (!res.ok) {
       const errText = await res.text()
-      console.error('Whisper API error', res.status, errText)
+      console.error('Groq Whisper API error', res.status, errText)
       return jsonResponse({ error: `Whisper API error ${res.status}` }, 502)
     }
 
