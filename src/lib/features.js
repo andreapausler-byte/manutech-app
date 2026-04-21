@@ -10,5 +10,5 @@
  */
 export const FEATURES = {
   // ManuTech v6 "Amarcord" — sandbox con Command Center + Ticket Board + Ticket Detail
-  manutechV6: import.meta.env.VITE_MT_V6 === 'true',
+  manutechV6: true,
 }
