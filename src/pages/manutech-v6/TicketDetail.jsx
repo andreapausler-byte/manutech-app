@@ -35,7 +35,7 @@ export default function TicketDetail({ id }) {
                   <span style={{ width: 5, height: 5, borderRadius: 5, background: MT.greenLight, animation: 'mt-pulse 1.5s infinite' }}/>
                   AI WHISPER
                 </Pill>
-                <span style={{ fontFamily: fMono, fontSize: 10, color: MT.textDim }}>
+                <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>
                   TRASCRITTO · confidence {Math.round(t.aiConfidence * 100)}%
                 </span>
               </div>
@@ -74,8 +74,8 @@ export default function TicketDetail({ id }) {
                 { l: 'AREA', v: m.area },
               ].map(f => (
                 <div key={f.l} style={{ background: MT.surface2, padding: '10px 12px' }}>
-                  <div style={{ fontFamily: fMono, fontSize: 9, color: MT.textMuted, letterSpacing: 1 }}>{f.l}</div>
-                  <div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{f.v}</div>
+                  <div style={{ fontFamily: fMono, fontSize: 11, color: MT.textMuted, letterSpacing: 0.6 }}>{f.l}</div>
+                  <div style={{ fontSize: 15, fontWeight: 500, marginTop: 4 }}>{f.v}</div>
                 </div>
               ))}
             </div>
@@ -90,11 +90,11 @@ export default function TicketDetail({ id }) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={MT.greenLight} strokeWidth="1.8">
                 <path d="M12 2 L14 9 L21 12 L14 15 L12 22 L10 15 L3 12 L10 9 Z"/>
               </svg>
-              <span style={{ fontFamily: fMono, fontSize: 11, color: MT.greenLight, letterSpacing: 1, fontWeight: 600 }}>
+              <span style={{ fontFamily: fMono, fontSize: 13, color: MT.greenLight, letterSpacing: 0.6, fontWeight: 600 }}>
                 AI COPILOT · ANALISI STORICA
               </span>
             </div>
-            <div style={{ fontSize: 15, color: MT.text, lineHeight: 1.55, marginBottom: 12 }}>
+            <div style={{ fontSize: 16, color: MT.text, lineHeight: 1.55, marginBottom: 12 }}>
               La macchina <strong>{m.name}</strong> ha avuto <strong style={{ color: MT.amber }}>3 ticket simili</strong> negli
               ultimi 6 mesi. Pattern suggerisce guasto ricorrente — ispezionare componente critico.
             </div>
@@ -109,41 +109,41 @@ export default function TicketDetail({ id }) {
         {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ background: MT.surface, border: `1px solid ${MT.border}`, padding: 16 }}>
-            <div style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted, letterSpacing: 1, marginBottom: 10 }}>
+            <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6, marginBottom: 10 }}>
               IMPATTO STIMATO
             </div>
             <div style={{ fontFamily: fDisplay, fontSize: 40, fontWeight: 600, color: MT.red, letterSpacing: -0.5, lineHeight: 1 }}>
               {t.impactEurH}€<span style={{ fontSize: 18, color: MT.textDim }}>/h</span>
             </div>
-            <div style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted, marginTop: 6 }}>
+            <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, marginTop: 6 }}>
               FERMO LINEA · impatto produzione
             </div>
           </div>
 
           <div style={{ background: MT.surface, border: `1px solid ${MT.border}`, padding: 16 }}>
-            <div style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted, letterSpacing: 1, marginBottom: 10 }}>
+            <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6, marginBottom: 10 }}>
               TECNICO ASSEGNATO
             </div>
             {t.techName ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Avatar name={t.techName} size={40}/>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 500 }}>{t.techName}</div>
-                  <div style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted }}>SPECIALISTA</div>
+                  <div style={{ fontSize: 16, fontWeight: 500 }}>{t.techName}</div>
+                  <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>SPECIALISTA</div>
                 </div>
               </div>
             ) : <BtnPrimary size="sm">+ ASSEGNA TECNICO</BtnPrimary>}
           </div>
 
           <div style={{ background: MT.surface, border: `1px solid ${MT.border}`, padding: 16 }}>
-            <div style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted, letterSpacing: 1, marginBottom: 10 }}>
+            <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6, marginBottom: 10 }}>
               SEGNALATO DA
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Avatar name={t.operatorName} size={32}/>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>{t.operatorName}</div>
-                <div style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted }}>TURNO A</div>
+                <div style={{ fontSize: 15, fontWeight: 500 }}>{t.operatorName}</div>
+                <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>TURNO A</div>
               </div>
             </div>
           </div>

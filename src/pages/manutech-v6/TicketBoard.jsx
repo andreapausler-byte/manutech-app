@@ -30,16 +30,16 @@ export default function TicketBoard() {
       <div style={{
         padding: '20px 28px', display: 'flex', gap: 10,
         borderBottom: `1px solid ${MT.border}`,
-        fontFamily: fMono, fontSize: 11, color: MT.textMuted, letterSpacing: 1,
+        fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6,
       }}>
         <span>FILTRI:</span>
         {['TUTTE LE MACCHINE', 'PRIORITÀ TUTTE', 'ULTIME 24H'].map(f => (
           <span key={f} style={{
-            padding: '4px 10px', background: MT.surface,
+            padding: '5px 11px', background: MT.surface,
             border: `1px solid ${MT.border}`, cursor: 'pointer',
           }}>{f} ▾</span>
         ))}
-        <span style={{ marginLeft: 'auto', color: MT.textDim }}>{TICKETS.length} TICKET</span>
+        <span style={{ marginLeft: 'auto', color: MT.textMuted }}>{TICKETS.length} TICKET</span>
       </div>
 
       <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
@@ -53,11 +53,11 @@ export default function TicketBoard() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 8, background: col.tone }}/>
-                  <span style={{ fontFamily: fMono, fontSize: 11, fontWeight: 600, letterSpacing: 1, color: col.tone }}>
+                  <span style={{ fontFamily: fMono, fontSize: 13, fontWeight: 600, letterSpacing: 0.6, color: col.tone }}>
                     {col.l}
                   </span>
                 </div>
-                <span style={{ fontFamily: fMono, fontSize: 11, color: MT.textDim }}>{list.length}</span>
+                <span style={{ fontFamily: fMono, fontSize: 13, color: MT.textMuted }}>{list.length}</span>
               </div>
 
               {list.map(t => {
@@ -70,11 +70,11 @@ export default function TicketBoard() {
                     display: 'flex', flexDirection: 'column', gap: 10,
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontFamily: fMono, fontSize: 10, color: MT.textDim }}>{t.id}</span>
-                      <span style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted }}>{t.ago}</span>
+                      <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>{t.id}</span>
+                      <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>{t.ago}</span>
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.25 }}>{t.title}</div>
-                    <div style={{ fontFamily: fMono, fontSize: 11, color: MT.greenLight }}>
+                    <div style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.3 }}>{t.title}</div>
+                    <div style={{ fontFamily: fMono, fontSize: 13, color: MT.greenLight }}>
                       {m.code} · {m.name}
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -94,11 +94,11 @@ export default function TicketBoard() {
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Avatar name={t.operatorName} size={20}/>
-                        <span style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted }}>{t.operatorName}</span>
+                        <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>{t.operatorName}</span>
                       </div>
                       {t.techName
                         ? <Avatar name={t.techName} size={22}/>
-                        : <span style={{ fontFamily: fMono, fontSize: 10, color: MT.textDim }}>+ ASSEGNA</span>}
+                        : <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>+ ASSEGNA</span>}
                     </div>
                   </div>
                 )

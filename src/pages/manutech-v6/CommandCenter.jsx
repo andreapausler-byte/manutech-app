@@ -27,10 +27,10 @@ export default function CommandCenter() {
         <section>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Allerte predittive AI</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Allerte predittive AI</h2>
               <Pill tone="red" size="sm">{PREDICTIVE_ALERTS.length} ATTIVE</Pill>
             </div>
-            <span style={{ fontFamily: fMono, fontSize: 10, color: MT.textDim, letterSpacing: 1 }}>
+            <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6 }}>
               AGGIORNATO 2 MIN FA · CLAUDE HAIKU 4.5
             </span>
           </div>
@@ -49,36 +49,36 @@ export default function CommandCenter() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted, letterSpacing: 1 }}>
+                      <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6 }}>
                         {m.code} · {m.area.toUpperCase()}
                       </div>
-                      <div style={{ fontSize: 17, fontWeight: 600, marginTop: 2 }}>{m.name}</div>
+                      <div style={{ fontSize: 18, fontWeight: 600, marginTop: 3 }}>{m.name}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontFamily: fDisplay, fontSize: 32, fontWeight: 600, color: tone.fg, lineHeight: 1 }}>
-                        {a.risk}<span style={{ fontSize: 14, color: MT.textDim }}>%</span>
+                        {a.risk}<span style={{ fontSize: 15, color: MT.textDim }}>%</span>
                       </div>
-                      <div style={{ fontFamily: fMono, fontSize: 9, color: MT.textDim, letterSpacing: 0.5 }}>
+                      <div style={{ fontFamily: fMono, fontSize: 11, color: MT.textMuted, letterSpacing: 0.5 }}>
                         RISCHIO · {a.window}
                       </div>
                     </div>
                   </div>
                   <RiskBar value={a.risk} height={3}/>
                   <div>
-                    <div style={{ fontFamily: fMono, fontSize: 9, color: MT.textMuted, letterSpacing: 1, marginBottom: 4 }}>
+                    <div style={{ fontFamily: fMono, fontSize: 11, color: MT.textMuted, letterSpacing: 0.6, marginBottom: 5 }}>
                       PATTERN IDENTIFICATO
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{a.pattern}</div>
+                    <div style={{ fontSize: 15, fontWeight: 500 }}>{a.pattern}</div>
                   </div>
-                  <div style={{ fontSize: 12, color: MT.textMuted, lineHeight: 1.45 }}>{a.evidence}</div>
+                  <div style={{ fontSize: 14, color: MT.textMuted, lineHeight: 1.55 }}>{a.evidence}</div>
                   <div style={{
                     display: 'flex', gap: 6, alignItems: 'center', marginTop: 4,
                     paddingTop: 10, borderTop: `1px solid ${MT.border}`,
                   }}>
-                    <span style={{ fontFamily: fDisplay, fontSize: 13, color: tone.fg, fontWeight: 500, flex: 1 }}>
+                    <span style={{ fontFamily: fDisplay, fontSize: 14, color: tone.fg, fontWeight: 500, flex: 1 }}>
                       → {a.action}
                     </span>
-                    <span style={{ fontFamily: fMono, fontSize: 10, color: MT.textDim }}>
+                    <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>
                       {Math.round(a.confidence * 100)}%
                     </span>
                   </div>
@@ -91,8 +91,8 @@ export default function CommandCenter() {
         {/* KPI */}
         <section>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>KPI produzione</h2>
-            <span style={{ fontFamily: fMono, fontSize: 10, color: MT.textDim, letterSpacing: 1 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>KPI produzione</h2>
+            <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6 }}>
               ULTIME 24H · TREND VS. 7G
             </span>
           </div>
@@ -108,7 +108,7 @@ export default function CommandCenter() {
         {/* Risk map + active tickets */}
         <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>Mappa rischio macchine</h2>
+            <h2 style={{ fontSize: 20, fontWeight: 600, margin: '0 0 12px' }}>Mappa rischio macchine</h2>
             <div style={{ background: MT.surface, border: `1px solid ${MT.border}` }}>
               {['Cantina', 'Filtrazione', 'Sala cotte', 'Confezionamento'].map(area => {
                 const ms = MACHINES.filter(m => m.area === area)
@@ -118,8 +118,8 @@ export default function CommandCenter() {
                     display: 'grid', gridTemplateColumns: '120px 1fr', gap: 14, alignItems: 'center',
                   }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{area}</div>
-                      <div style={{ fontFamily: fMono, fontSize: 9, color: MT.textDim }}>{ms.length} macchine</div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>{area}</div>
+                      <div style={{ fontFamily: fMono, fontSize: 11, color: MT.textMuted }}>{ms.length} macchine</div>
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       {ms.map(m => {
@@ -130,9 +130,9 @@ export default function CommandCenter() {
                             padding: '6px 8px', background: dim, border: `1px solid ${c}`,
                             cursor: 'default', minWidth: 80,
                           }}>
-                            <div style={{ fontFamily: fMono, fontSize: 9, color: c, fontWeight: 600 }}>{m.code}</div>
-                            <div style={{ fontFamily: fMono, fontSize: 14, color: MT.text, fontWeight: 500 }}>
-                              {m.risk}<span style={{ color: MT.textDim, fontSize: 9 }}>%</span>
+                            <div style={{ fontFamily: fMono, fontSize: 11, color: c, fontWeight: 600 }}>{m.code}</div>
+                            <div style={{ fontFamily: fMono, fontSize: 15, color: MT.text, fontWeight: 500 }}>
+                              {m.risk}<span style={{ color: MT.textDim, fontSize: 11 }}>%</span>
                             </div>
                           </div>
                         )
@@ -146,9 +146,9 @@ export default function CommandCenter() {
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Ticket attivi</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Ticket attivi</h2>
               <span onClick={() => navigate('tickets')} style={{
-                fontFamily: fMono, fontSize: 10, color: MT.greenLight, letterSpacing: 1, cursor: 'pointer',
+                fontFamily: fMono, fontSize: 12, color: MT.greenLight, letterSpacing: 0.6, cursor: 'pointer',
               }}>VEDI TUTTI →</span>
             </div>
             <div style={{ background: MT.surface, border: `1px solid ${MT.border}` }}>
@@ -161,16 +161,16 @@ export default function CommandCenter() {
                   }}>
                     <PriorityDot p={t.priority}/>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {t.title}
                       </div>
-                      <div style={{ fontFamily: fMono, fontSize: 10, color: MT.textMuted, marginTop: 2 }}>
+                      <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, marginTop: 3 }}>
                         {m.code} · {t.id}
                       </div>
                     </div>
                     {t.impactEurH > 0 && (
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontFamily: fMono, fontSize: 12, color: MT.red, fontWeight: 600 }}>
+                        <div style={{ fontFamily: fMono, fontSize: 13, color: MT.red, fontWeight: 600 }}>
                           {t.impactEurH}€/h
                         </div>
                       </div>
