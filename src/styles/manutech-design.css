@@ -24,8 +24,8 @@
 
   /* ── Text ──────────────────── */
   --mt-text:        #e8f5ee;
-  --mt-text-muted:  #5a8a70;
-  --mt-text-dim:    #3d6b50;
+  --mt-text-muted:  #7aaa8e;
+  --mt-text-dim:    #4e8066;
 
   /* ── Semantic ──────────────── */
   --mt-red:         #e03c31;
@@ -35,15 +35,15 @@
   --mt-blue:        #4f8bff;
 
   /* ── Typography ────────────── */
-  --mt-font-display: 'Barlow Condensed', system-ui, sans-serif;
+  --mt-font-display: 'Barlow', system-ui, sans-serif;
   --mt-font-mono:    'DM Mono', ui-monospace, monospace;
 
   --mt-fs-hero:      56px;
   --mt-fs-title:     24px;
-  --mt-fs-h2:        18px;
-  --mt-fs-body:      14px;
-  --mt-fs-small:     12px;
-  --mt-fs-micro:     10px;
+  --mt-fs-h2:        20px;
+  --mt-fs-body:      15px;
+  --mt-fs-small:     13px;
+  --mt-fs-micro:     12px;
 
   /* ── Spacing ───────────────── */
   --mt-space-1:     4px;
@@ -68,7 +68,7 @@
 /* Utility classes */
 .mt-display { font-family: var(--mt-font-display); font-weight: 600; letter-spacing: -0.3px; }
 .mt-mono    { font-family: var(--mt-font-mono); letter-spacing: 0.5px; }
-.mt-label   { font-family: var(--mt-font-mono); font-size: var(--mt-fs-micro); text-transform: uppercase; letter-spacing: 1px; color: var(--mt-text-muted); }
+.mt-label   { font-family: var(--mt-font-mono); font-size: var(--mt-fs-micro); text-transform: uppercase; letter-spacing: 0.6px; color: var(--mt-text-muted); }
 
 /* Animations */
 @keyframes mt-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.85); } }

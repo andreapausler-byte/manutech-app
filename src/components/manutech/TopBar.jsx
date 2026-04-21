@@ -11,8 +11,8 @@ export function TopBar({ title, crumbs, right }) {
       <div>
         {crumbs && (
           <div style={{
-            fontFamily: fMono, fontSize: 10, color: MT.textDim,
-            letterSpacing: 1, marginBottom: 4, textTransform: 'uppercase',
+            fontFamily: fMono, fontSize: 12, color: MT.textMuted,
+            letterSpacing: 0.6, marginBottom: 4, textTransform: 'uppercase',
           }}>{crumbs}</div>
         )}
         <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.3, margin: 0, lineHeight: 1 }}>

@@ -19,9 +19,9 @@ export const MT = {
   amberDim: '#2e1f08',
   blue: '#4f8bff',
   text: '#e8f5ee',
-  textMuted: '#5a8a70',
-  textDim: '#3d6b50',
+  textMuted: '#7aaa8e',
+  textDim: '#4e8066',
 }
 
-export const fDisplay = `'Barlow Condensed', system-ui, sans-serif`
+export const fDisplay = `'Barlow', system-ui, sans-serif`
 export const fMono = `'DM Mono', ui-monospace, monospace`

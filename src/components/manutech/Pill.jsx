@@ -14,10 +14,10 @@ export function Pill({ children, tone = 'neutral', size = 'md', style = {} }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
-      padding: size === 'sm' ? '3px 8px' : '5px 10px',
+      padding: size === 'sm' ? '4px 9px' : '6px 11px',
       background: t.bg, color: t.fg, border: `1px solid ${t.bd}`,
-      fontFamily: fMono, fontSize: size === 'sm' ? 9 : 10,
-      fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase',
+      fontFamily: fMono, fontSize: size === 'sm' ? 11 : 12,
+      fontWeight: 600, letterSpacing: 0.6, textTransform: 'uppercase',
       ...style,
     }}>
       {children}

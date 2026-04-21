@@ -44,8 +44,8 @@ export function Shell({
               ManuTech
             </div>
             <div style={{
-              fontFamily: fMono, fontSize: 9, color: MT.textDim,
-              letterSpacing: 1, marginTop: 3,
+              fontFamily: fMono, fontSize: 11, color: MT.textMuted,
+              letterSpacing: 0.8, marginTop: 3,
             }}>v6 · AMARCORD</div>
           </div>
         </div>
@@ -53,8 +53,8 @@ export function Shell({
         {/* Nav */}
         <nav style={{ padding: '12px 8px', flex: 1, overflowY: 'auto' }}>
           <div style={{
-            fontFamily: fMono, fontSize: 9, color: MT.textDim,
-            letterSpacing: 1.5, padding: '6px 12px 10px',
+            fontFamily: fMono, fontSize: 11, color: MT.textMuted,
+            letterSpacing: 1, padding: '6px 12px 10px',
           }}>NAVIGAZIONE</div>
           {NAV.map(it => {
             const active = activeRoute === it.route
@@ -74,7 +74,7 @@ export function Shell({
                   color: active ? MT.greenLight : (disabled ? MT.textDim : MT.textMuted),
                   textDecoration: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
                   opacity: disabled ? 0.5 : 1,
-                  fontFamily: fDisplay, fontSize: 14, fontWeight: 500, letterSpacing: 0.3,
+                  fontFamily: fDisplay, fontSize: 15, fontWeight: 500, letterSpacing: 0.2,
                   textAlign: 'left',
                 }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -88,7 +88,7 @@ export function Shell({
                   }}/>
                 )}
                 {disabled && (
-                  <span style={{ fontFamily: fMono, fontSize: 8, color: MT.textDim, letterSpacing: 0.5 }}>F2</span>
+                  <span style={{ fontFamily: fMono, fontSize: 10, color: MT.textDim, letterSpacing: 0.5 }}>F2</span>
                 )}
               </button>
             )
@@ -102,17 +102,17 @@ export function Shell({
         }}>
           <Avatar name={userName} size={32}/>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {userName}
             </div>
-            <div style={{ fontFamily: fMono, fontSize: 9, color: MT.textDim, letterSpacing: 0.5 }}>
+            <div style={{ fontFamily: fMono, fontSize: 11, color: MT.textMuted, letterSpacing: 0.5 }}>
               {userSubtitle}
             </div>
           </div>
           {onExit && (
             <button onClick={onExit} title="Torna alla console admin" style={{
-              background: 'transparent', border: `1px solid ${MT.border}`, color: MT.textDim,
-              fontFamily: fMono, fontSize: 9, letterSpacing: 0.5, padding: '4px 6px', cursor: 'pointer',
+              background: 'transparent', border: `1px solid ${MT.border}`, color: MT.textMuted,
+              fontFamily: fMono, fontSize: 11, letterSpacing: 0.5, padding: '5px 8px', cursor: 'pointer',
             }}>
               EXIT
             </button>

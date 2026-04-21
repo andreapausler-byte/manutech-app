@@ -14,11 +14,11 @@ export function SearchField({ placeholder = 'Cerca ticket, macchina, operatoreâ€
       </svg>
       <input placeholder={placeholder} style={{
         background: 'transparent', border: 'none', color: MT.text,
-        outline: 'none', fontFamily: fDisplay, fontSize: 13, flex: 1, fontWeight: 400,
+        outline: 'none', fontFamily: fDisplay, fontSize: 14, flex: 1, fontWeight: 400,
       }}/>
       <kbd style={{
-        fontFamily: fMono, fontSize: 9, color: MT.textDim, letterSpacing: 0.5,
-        border: `1px solid ${MT.border}`, padding: '1px 5px', background: MT.bg,
+        fontFamily: fMono, fontSize: 11, color: MT.textMuted, letterSpacing: 0.5,
+        border: `1px solid ${MT.border}`, padding: '2px 6px', background: MT.bg,
       }}>âŒ˜K</kbd>
     </div>
   )
