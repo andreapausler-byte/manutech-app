@@ -17,9 +17,11 @@ import {
   Gift,
   Package,
   Sparkles,
+  Terminal,
 } from 'lucide-react'
+import { FEATURES } from './features'
 
-export const NAV = [
+const BASE_NAV = [
   { id: 'dashboard',     icon: LayoutDashboard, label: 'Dashboard',    desc: 'Panoramica generale' },
   { id: 'reports',       icon: ClipboardList,   label: 'Segnalazioni', desc: 'Gestisci interventi' },
   { id: 'assistant',     icon: Sparkles,        label: 'Assistente AI', desc: 'Cerca soluzioni nello storico' },
@@ -33,6 +35,15 @@ export const NAV = [
   { id: 'messages',      icon: MessageCircle,   label: 'Messaggi',     desc: 'Chat diretta con il team' },
   { id: 'notifications', icon: Bell,            label: 'Notifiche',    desc: 'Preferenze notifiche per ruolo' },
 ]
+
+const V6_NAV_ITEM = {
+  id: 'v6',
+  icon: Terminal,
+  label: 'v6 Amarcord',
+  desc: 'Anteprima nuovo design Amarcord · sandbox isolato',
+}
+
+export const NAV = FEATURES.manutechV6 ? [...BASE_NAV, V6_NAV_ITEM] : BASE_NAV
 
 export function findNavItem(id) {
   return NAV.find(n => n.id === id)

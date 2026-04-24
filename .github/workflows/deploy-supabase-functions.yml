@@ -1,0 +1,91 @@
+name: Deploy Supabase Edge Functions
+
+on:
+  # Lancio manuale dall'interfaccia GitHub (tab Actions → Run workflow)
+  workflow_dispatch:
+    inputs:
+      functions:
+        description: 'Funzioni da deployare (comma-separated, "all" per tutte)'
+        required: false
+        default: 'all'
+        type: string
+
+  # Trigger automatico quando cambia qualcosa dentro supabase/functions/
+  push:
+    branches:
+      - main
+      - 'claude/**'
+    paths:
+      - 'supabase/functions/**'
+
+jobs:
+  deploy:
+    name: Deploy Edge Functions
+    runs-on: ubuntu-latest
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify required secrets
+        run: |
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || { echo "::error::SUPABASE_ACCESS_TOKEN mancante"; exit 1; }
+          [ -n "$SUPABASE_PROJECT_REF" ] || { echo "::error::SUPABASE_PROJECT_REF mancante"; exit 1; }
+          echo "✓ Access token + project ref presenti"
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Set Edge Function secrets
+        run: |
+          # Imposta GROQ_API_KEY + ANTHROPIC_API_KEY solo se i rispettivi
+          # GitHub secrets sono popolati. Altrimenti si assume siano
+          # già stati configurati manualmente (per rotazione indipendente).
+          ARGS=()
+          if [ -n "$GROQ_API_KEY" ]; then
+            ARGS+=("GROQ_API_KEY=$GROQ_API_KEY")
+          fi
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            ARGS+=("ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY")
+          fi
+          if [ ${#ARGS[@]} -gt 0 ]; then
+            supabase secrets set "${ARGS[@]}"
+            echo "✓ ${#ARGS[@]} secrets Edge Function aggiornati"
+          else
+            echo "ℹ Nessun GitHub secret API presente: skip (i secrets Supabase restano quelli attuali)"
+          fi
+
+      - name: Deploy functions
+        run: |
+          FUNCS="${{ github.event.inputs.functions }}"
+          if [ -z "$FUNCS" ] || [ "$FUNCS" = "all" ]; then
+            FUNCS="transcribe,extract-ticket-fields"
+          fi
+          IFS=',' read -ra LIST <<< "$FUNCS"
+          for fn in "${LIST[@]}"; do
+            fn=$(echo "$fn" | xargs)  # trim
+            if [ -d "supabase/functions/$fn" ]; then
+              echo "▶ Deploying $fn..."
+              supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"
+            else
+              echo "::warning::Funzione '$fn' non trovata in supabase/functions/"
+            fi
+          done
+
+      - name: Summary
+        run: |
+          echo "### Deploy completato" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Project: \`$SUPABASE_PROJECT_REF\`" >> $GITHUB_STEP_SUMMARY
+          echo "Funzioni: \`${{ github.event.inputs.functions || 'all' }}\`" >> $GITHUB_STEP_SUMMARY

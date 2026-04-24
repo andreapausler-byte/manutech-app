@@ -1,0 +1,97 @@
+/* ──────────────────────────────────────────────────────────
+   ManuTech v6 — Design Tokens (Amarcord)
+   Brutalist industrial · Dark-first · Terminal vibes
+   Scoped via .mt-scope per non alterare il resto del sito.
+   ────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Backgrounds ───────────── */
+  --mt-bg:          #060e09;
+  --mt-bg-2:        #040806;
+  --mt-surface:     #0b1710;
+  --mt-surface-2:   #11201a;
+  --mt-surface-3:   #16281e;
+
+  /* ── Borders ─────────────────── */
+  --mt-border:      #1b2e22;
+  --mt-border-hi:   #244335;
+
+  /* ── Brand (Amarcord green) ── */
+  --mt-green:       #1B6B4A;
+  --mt-green-light: #2a9d6e;
+  --mt-green-dim:   #0f3d2a;
+  --mt-green-glow:  rgba(42, 157, 110, 0.35);
+
+  /* ── Text ──────────────────── */
+  --mt-text:        #e8f5ee;
+  --mt-text-muted:  #7aaa8e;
+  --mt-text-dim:    #4e8066;
+
+  /* ── Semantic ──────────────── */
+  --mt-red:         #e03c31;
+  --mt-red-dim:     #2a0f0d;
+  --mt-amber:       #f59e0b;
+  --mt-amber-dim:   #2e1f08;
+  --mt-blue:        #4f8bff;
+
+  /* ── Typography ────────────── */
+  --mt-font-display: 'Barlow', system-ui, sans-serif;
+  --mt-font-mono:    'DM Mono', ui-monospace, monospace;
+
+  --mt-fs-hero:      56px;
+  --mt-fs-title:     24px;
+  --mt-fs-h2:        20px;
+  --mt-fs-body:      15px;
+  --mt-fs-small:     13px;
+  --mt-fs-micro:     12px;
+
+  /* ── Spacing ───────────────── */
+  --mt-space-1:     4px;
+  --mt-space-2:     8px;
+  --mt-space-3:     12px;
+  --mt-space-4:     16px;
+  --mt-space-5:     20px;
+  --mt-space-6:     24px;
+  --mt-space-8:     32px;
+
+  /* ── Radius ────────────────── */
+  /* ManuTech v6 è brutalista: radius = 0 */
+  --mt-radius: 0;
+
+  /* ── Motion ────────────────── */
+  --mt-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --mt-dur-fast:   120ms;
+  --mt-dur-base:   200ms;
+  --mt-dur-slow:   400ms;
+}
+
+/* Utility classes */
+.mt-display { font-family: var(--mt-font-display); font-weight: 600; letter-spacing: -0.3px; }
+.mt-mono    { font-family: var(--mt-font-mono); letter-spacing: 0.5px; }
+.mt-label   { font-family: var(--mt-font-mono); font-size: var(--mt-fs-micro); text-transform: uppercase; letter-spacing: 0.6px; color: var(--mt-text-muted); }
+
+/* Animations */
+@keyframes mt-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.85); } }
+@keyframes mt-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* Scrollbar (solo dentro .mt-scope per non alterare il resto del sito) */
+.mt-scope ::-webkit-scrollbar        { width: 10px; height: 10px; }
+.mt-scope ::-webkit-scrollbar-track  { background: var(--mt-bg); }
+.mt-scope ::-webkit-scrollbar-thumb  { background: var(--mt-border); }
+.mt-scope ::-webkit-scrollbar-thumb:hover { background: var(--mt-border-hi); }
+
+/* Base — applica solo dentro .mt-scope */
+.mt-scope {
+  background: var(--mt-bg);
+  color: var(--mt-text);
+  font-family: var(--mt-font-display);
+  -webkit-font-smoothing: antialiased;
+}
+.mt-scope ::selection { background: var(--mt-green); color: #fff; }
+
+/* Buttons inside mt-scope: override default button styles */
+.mt-scope button {
+  transition: background var(--mt-dur-fast) var(--mt-ease),
+              color var(--mt-dur-fast) var(--mt-ease),
+              border-color var(--mt-dur-fast) var(--mt-ease);
+}

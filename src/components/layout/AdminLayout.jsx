@@ -23,6 +23,7 @@ const AdminLeaderboard = lazy(() => import('../../pages/admin/AdminLeaderboard')
 const AdminRewards = lazy(() => import('../../pages/admin/AdminRewards'))
 const AdminSpareParts = lazy(() => import('../../pages/admin/AdminSpareParts'))
 const AdminAssistantPage = lazy(() => import('../../pages/admin/AdminAssistantPage'))
+const V6App = lazy(() => import('../../pages/manutech-v6/V6App'))
 
 function PageFallback() {
   return (
@@ -54,6 +55,15 @@ export default function AdminLayout({ initialReportId }) {
     if (data.report_id) setTab('reports')
   }
   usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id || 'default' })
+
+  // ── V6 Amarcord sandbox: full-screen immersivo, bypass layout admin ──
+  if (tab === 'v6') {
+    return (
+      <Suspense fallback={<PageFallback />}>
+        <V6App onExit={() => setTab('dashboard')} userName={user?.name} />
+      </Suspense>
+    )
+  }
 
   const renderPage = () => {
     switch (tab) {
