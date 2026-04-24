@@ -64,6 +64,15 @@ function buildTickets(reports, machinesById) {
   return reports.map(r => {
     const m = r.machine_id ? machinesById[r.machine_id] : null
     const status = ticketStatusFromReport(r.status)
+    // Confidence simbolica: severità più alta → confidence più alta.
+    // Non è una vera AI; riempie lo slot "AI WHISPER · confidence N%".
+    const aiConfidence = r.severity === 'critica' ? 0.92
+      : r.severity === 'alta' ? 0.85
+      : r.severity === 'media' ? 0.72
+      : 0.62
+    // "Durata audio" derivata dalla lunghezza della descrizione (circa 1s ogni 8 caratteri).
+    const descLen = (r.description || '').length
+    const audioDurationSec = descLen > 0 ? Math.max(6, Math.min(60, Math.round(descLen / 8))) : 0
     return {
       id: shortTicketId(r.id),
       rawId: r.id,
@@ -84,6 +93,9 @@ function buildTickets(reports, machinesById) {
       severity: r.severity,
       description: r.description || '',
       reportStatus: r.status,
+      aiConfidence,
+      audioDurationSec,
+      transcript: r.description || '',
     }
   })
 }
@@ -266,6 +278,7 @@ export function useV6Data() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [reloadTick, setReloadTick] = useState(0)
+  const [loadedAt, setLoadedAt] = useState(null)
 
   useEffect(() => {
     let alive = true
@@ -279,6 +292,7 @@ export function useV6Data() {
         if (!alive) return
         setReports(r || [])
         setRawMachines(m || [])
+        setLoadedAt(Date.now())
         setError(null)
       } catch (e) {
         if (!alive) return
@@ -327,6 +341,7 @@ export function useV6Data() {
     ...view,
     loading,
     error,
+    loadedAt,
     reload: () => setReloadTick(t => t + 1),
   }
 }
