@@ -23,7 +23,6 @@ const AdminLeaderboard = lazy(() => import('../../pages/admin/AdminLeaderboard')
 const AdminRewards = lazy(() => import('../../pages/admin/AdminRewards'))
 const AdminSpareParts = lazy(() => import('../../pages/admin/AdminSpareParts'))
 const AdminAssistantPage = lazy(() => import('../../pages/admin/AdminAssistantPage'))
-const V6App = lazy(() => import('../../pages/manutech-v6/V6App'))
 
 function PageFallback() {
   return (
@@ -33,7 +32,7 @@ function PageFallback() {
   )
 }
 
-export default function AdminLayout({ initialReportId }) {
+export default function AdminLayout({ initialReportId, onSwitchToV6 }) {
   const { user, logout } = useAuth()
   const { toggleMode, isDark } = useTheme()
   const [tab, setTab] = useState(initialReportId ? 'reports' : 'dashboard')
@@ -56,13 +55,12 @@ export default function AdminLayout({ initialReportId }) {
   }
   usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id || 'default' })
 
-  // ── V6 Amarcord sandbox: full-screen immersivo, bypass layout admin ──
-  if (tab === 'v6') {
-    return (
-      <Suspense fallback={<PageFallback />}>
-        <V6App onExit={() => setTab('dashboard')} userName={user?.name} />
-      </Suspense>
-    )
+  const handleNavClick = (id) => {
+    if (id === 'v6') {
+      if (onSwitchToV6) onSwitchToV6()
+      return
+    }
+    setTab(id)
   }
 
   const renderPage = () => {
@@ -215,7 +213,7 @@ export default function AdminLayout({ initialReportId }) {
               return (
                 <button
                   key={id}
-                  onClick={() => setTab(id)}
+                  onClick={() => handleNavClick(id)}
                   aria-current={active ? 'page' : undefined}
                   aria-label={collapsed ? label : undefined}
                   title={collapsed ? label : undefined}
