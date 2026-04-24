@@ -39,8 +39,8 @@ const BASE_NAV = [
 const V6_NAV_ITEM = {
   id: 'v6',
   icon: Terminal,
-  label: 'v6 Amarcord',
-  desc: 'Anteprima nuovo design Amarcord · sandbox isolato',
+  label: 'Layout v6',
+  desc: 'Torna alla console v6 (dark industriale)',
 }
 
 export const NAV = FEATURES.manutechV6 ? [...BASE_NAV, V6_NAV_ITEM] : BASE_NAV
