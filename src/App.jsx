@@ -9,6 +9,7 @@ const AdminLayout = lazy(() => import('./components/layout/AdminLayout'))
 const OperatorApp = lazy(() => import('./pages/operator/OperatorApp'))
 const GuestChatPage = lazy(() => import('./components/guest/GuestChatPage'))
 const AcceptInvitePage = lazy(() => import('./components/layout/AcceptInvitePage'))
+const DesignPreview = lazy(() => import('./pages/DesignPreview'))
 
 function AppLoader({ label = 'Caricamento ManuTech...' }) {
   return (
@@ -37,6 +38,7 @@ function getInviteToken() {
 
 const guestParams = getGuestParams()
 const inviteToken = getInviteToken()
+const isDesignPreview = window.location.pathname === '/design-preview'
 
 function AuthenticatedApp() {
   const { user, loading } = useAuth()
@@ -56,6 +58,15 @@ function AuthenticatedApp() {
 }
 
 export default function App() {
+  // Design preview: mockup statico fuori da auth/theme
+  if (isDesignPreview) {
+    return (
+      <Suspense fallback={<AppLoader label="Caricamento mockup..." />}>
+        <DesignPreview />
+      </Suspense>
+    )
+  }
+
   // Guest route: render outside AuthProvider (no auth needed)
   if (guestParams) {
     return (
