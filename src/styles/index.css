@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&display=swap');
 
 /* ══════════════════════════════════════════════════════════
    ManuTech Design Foundation — Sprint 2.4
@@ -1003,4 +1004,147 @@ h1, h2, h3, h4 {
 @keyframes gearSpin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Claude Design Showcase — scoped mockup (non globale)
+   Applicato solo dentro .claude-design (vedi /design-preview)
+   ══════════════════════════════════════════════════════════ */
+.claude-design {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.claude-design *,
+.claude-design *::before,
+.claude-design *::after {
+  box-sizing: border-box;
+}
+.claude-design h1,
+.claude-design h2,
+.claude-design h3 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.claude-design .cd-card {
+  background: var(--cd-surface);
+  border: 1px solid var(--cd-border);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(20, 20, 19, 0.04),
+              0 4px 12px rgba(20, 20, 19, 0.05);
+}
+.claude-design .cd-kpi-value {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 2.75rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--cd-text);
+}
+
+/* Buttons */
+.claude-design .cd-btn-primary,
+.claude-design .cd-btn-outline,
+.claude-design .cd-btn-ghost,
+.claude-design .cd-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+.claude-design .cd-btn-sm { padding: 6px 12px; font-size: 13px; border-radius: 5px; }
+.claude-design .cd-btn-lg { padding: 12px 22px; font-size: 15px; border-radius: 8px; }
+.claude-design .cd-btn-primary {
+  background: var(--cd-accent);
+  color: #FAF9F5;
+}
+.claude-design .cd-btn-primary:hover { background: var(--cd-accent-hover); }
+.claude-design .cd-btn-outline {
+  background: transparent;
+  color: var(--cd-text);
+  border-color: var(--cd-border);
+}
+.claude-design .cd-btn-outline:hover { background: var(--cd-surface); border-color: var(--cd-text-muted); }
+.claude-design .cd-btn-ghost {
+  background: transparent;
+  color: var(--cd-text-muted);
+  padding: 8px;
+}
+.claude-design .cd-btn-ghost:hover { background: var(--cd-surface); color: var(--cd-text); }
+.claude-design .cd-btn-danger {
+  background: transparent;
+  color: var(--cd-danger);
+  border-color: var(--cd-danger);
+}
+.claude-design .cd-btn-danger:hover { background: var(--cd-danger); color: #FAF9F5; }
+
+/* Form inputs */
+.claude-design .cd-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cd-text);
+  margin-bottom: 6px;
+}
+.claude-design .cd-input {
+  width: 100%;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--cd-text);
+  background: var(--cd-bg);
+  border: 1px solid var(--cd-border);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.claude-design .cd-input:focus {
+  border-color: var(--cd-accent);
+  box-shadow: 0 0 0 3px rgba(204, 120, 92, 0.15);
+}
+.claude-design .cd-input::placeholder { color: var(--cd-text-muted); }
+.claude-design textarea.cd-input { resize: vertical; min-height: 96px; font-family: inherit; }
+
+/* Nav items */
+.claude-design .cd-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  font-size: 14px;
+  color: var(--cd-text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.claude-design .cd-nav-item:hover { background: var(--cd-surface); color: var(--cd-text); }
+.claude-design .cd-nav-item.active {
+  background: var(--cd-surface-2);
+  color: var(--cd-text);
+  font-weight: 500;
+}
+.claude-design .cd-nav-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--cd-accent);
+  color: #FAF9F5;
+}
+
+@media (max-width: 768px) {
+  .claude-design main { padding: 32px 16px 64px !important; }
+  .claude-design [style*="grid-template-columns: 240px 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
 }
