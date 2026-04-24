@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, lazy, Suspense } from 'react'
-import { LogOut, Sun, Moon, Settings, Terminal } from 'lucide-react'
+import { LogOut, Sun, Moon, Settings } from 'lucide-react'
 import { Shell, MT, fMono } from '../../components/manutech'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -7,11 +7,6 @@ import { NAV as ADMIN_NAV } from '../../lib/adminNav'
 import NotificationCenter from '../../components/ui/NotificationCenter'
 import SettingsPanel from '../../components/ui/SettingsPanel'
 import { Spinner } from '../../components/ui'
-import { useV6Data } from '../../hooks/useV6Data'
-import { V6NavContext } from './V6Nav'
-import CommandCenter from './CommandCenter'
-import TicketBoard from './TicketBoard'
-import TicketDetail from './TicketDetail'
 
 const AdminDashboard = lazy(() => import('../admin/AdminDashboard'))
 const AdminReports = lazy(() => import('../admin/AdminReports'))
@@ -26,8 +21,6 @@ const AdminRewards = lazy(() => import('../admin/AdminRewards'))
 const AdminSpareParts = lazy(() => import('../admin/AdminSpareParts'))
 const AdminAssistantPage = lazy(() => import('../admin/AdminAssistantPage'))
 
-const V6_ROUTES = new Set(['command', 'tickets', 'ticket-detail'])
-
 function PageFallback() {
   return (
     <div className="flex items-center justify-center py-20" role="status" aria-label="Caricamento pagina">
@@ -36,29 +29,10 @@ function PageFallback() {
   )
 }
 
-// Sezioni sidebar: preview v6 in cima, console admin sotto.
-function buildNavSections(adminNav) {
-  const adminItems = adminNav
+function buildNavItems(adminNav) {
+  return adminNav
     .filter(n => n.id !== 'v6')
-    .map(n => ({
-      route: n.id,
-      label: n.label,
-      IconCmp: n.icon,
-    }))
-
-  return [
-    {
-      title: 'V6 · Preview',
-      items: [
-        { route: 'command', label: 'Command Center', IconCmp: Terminal, hot: true },
-        { route: 'tickets', label: 'Ticket Board', IconCmp: Terminal },
-      ],
-    },
-    {
-      title: 'Console',
-      items: adminItems,
-    },
-  ]
+    .map(n => ({ route: n.id, label: n.label, IconCmp: n.icon }))
 }
 
 function V6TopBar({ title, crumbs }) {
@@ -105,7 +79,7 @@ export default function V6App({ onExit, userName, initialReportId }) {
   const { user, logout } = useAuth()
   const { toggleMode, isDark } = useTheme()
   const [route, setRoute] = useState(() =>
-    initialReportId ? { name: 'reports' } : { name: 'command' }
+    initialReportId ? { name: 'reports' } : { name: 'dashboard' }
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
 
@@ -113,16 +87,8 @@ export default function V6App({ onExit, userName, initialReportId }) {
     setRoute({ name, ...params })
   }, [])
 
-  const v6Data = useV6Data()
-
-  const nav = useMemo(() => ({ route, navigate, data: v6Data }), [route, navigate, v6Data])
-
-  const navSections = useMemo(() => buildNavSections(ADMIN_NAV), [])
-  const activeRoute = route.name === 'ticket-detail' ? 'tickets' : route.name
-
+  const navItems = useMemo(() => buildNavItems(ADMIN_NAV), [])
   const adminNavItem = ADMIN_NAV.find(n => n.id === route.name)
-
-  const isV6Route = V6_ROUTES.has(route.name)
 
   const sidebarFooter = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
@@ -170,50 +136,39 @@ export default function V6App({ onExit, userName, initialReportId }) {
   )
 
   return (
-    <V6NavContext.Provider value={nav}>
-      <div className="mt-scope" style={{ minHeight: '100vh' }}>
-        <Shell
-          activeRoute={activeRoute}
-          onNavigate={(r) => navigate(r)}
-          onExit={onExit}
-          exitLabel="CLASSIC"
-          exitTitle="Passa al layout classico"
-          userName={userName || user?.name}
-          userSubtitle={user ? `${(user.role || '').toUpperCase()} · ${user?.org_name || 'MANUTECH'}` : 'ADMIN · MANUTECH'}
-          navSections={navSections}
-          versionLabel={`v${__APP_VERSION__} · CONSOLE`}
-          sidebarFooter={sidebarFooter}
+    <div className="mt-scope" style={{ minHeight: '100vh' }}>
+      <Shell
+        activeRoute={route.name}
+        onNavigate={(r) => navigate(r)}
+        onExit={onExit}
+        exitLabel="CLASSIC"
+        exitTitle="Passa al layout classico"
+        userName={userName || user?.name}
+        userSubtitle={user ? `${(user.role || '').toUpperCase()} · ${user?.org_name || 'MANUTECH'}` : 'ADMIN · MANUTECH'}
+        navItems={navItems}
+        versionLabel={`v${__APP_VERSION__} · CONSOLE`}
+        sidebarFooter={sidebarFooter}
+      >
+        <AdminPageFrame
+          title={adminNavItem?.label || 'Console'}
+          crumbs={user?.org_name || 'ManuTech · Console'}
         >
-          {isV6Route ? (
-            <>
-              {route.name === 'command' && <CommandCenter />}
-              {route.name === 'tickets' && <TicketBoard />}
-              {route.name === 'ticket-detail' && <TicketDetail id={route.id} />}
-            </>
-          ) : (
-            <AdminPageFrame
-              title={adminNavItem?.label || 'Console'}
-              crumbs={user?.org_name || 'ManuTech · Console'}
-            >
-              {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
-              {route.name === 'reports' && <AdminReports initialReportId={initialReportId} />}
-              {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} />}
-              {route.name === 'machines' && <AdminMachines />}
-              {route.name === 'maintenance' && <AdminMaintenance />}
-              {route.name === 'spare-parts' && <AdminSpareParts />}
-              {route.name === 'technicians' && <AdminTechnicians />}
-              {route.name === 'leaderboard' && <AdminLeaderboard />}
-              {route.name === 'rewards' && <AdminRewards />}
-              {route.name === 'users' && <AdminUsers />}
-              {route.name === 'messages' && <AdminMessaging />}
-              {route.name === 'notifications' && <AdminNotifSettings />}
-            </AdminPageFrame>
-          )}
+          {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
+          {route.name === 'reports' && <AdminReports initialReportId={initialReportId} />}
+          {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} />}
+          {route.name === 'machines' && <AdminMachines />}
+          {route.name === 'maintenance' && <AdminMaintenance />}
+          {route.name === 'spare-parts' && <AdminSpareParts />}
+          {route.name === 'technicians' && <AdminTechnicians />}
+          {route.name === 'leaderboard' && <AdminLeaderboard />}
+          {route.name === 'rewards' && <AdminRewards />}
+          {route.name === 'users' && <AdminUsers />}
+          {route.name === 'messages' && <AdminMessaging />}
+          {route.name === 'notifications' && <AdminNotifSettings />}
+        </AdminPageFrame>
+      </Shell>
 
-        </Shell>
-
-        <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user?.id} userRole={user?.role} />
-      </div>
-    </V6NavContext.Provider>
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user?.id} userRole={user?.role} />
+    </div>
   )
 }
