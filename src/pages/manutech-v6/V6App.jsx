@@ -7,6 +7,7 @@ import { NAV as ADMIN_NAV } from '../../lib/adminNav'
 import NotificationCenter from '../../components/ui/NotificationCenter'
 import SettingsPanel from '../../components/ui/SettingsPanel'
 import { Spinner } from '../../components/ui'
+import { useV6Data } from '../../hooks/useV6Data'
 import { V6NavContext } from './V6Nav'
 import CommandCenter from './CommandCenter'
 import TicketBoard from './TicketBoard'
@@ -112,7 +113,9 @@ export default function V6App({ onExit, userName, initialReportId }) {
     setRoute({ name, ...params })
   }, [])
 
-  const nav = useMemo(() => ({ route, navigate }), [route, navigate])
+  const v6Data = useV6Data()
+
+  const nav = useMemo(() => ({ route, navigate, data: v6Data }), [route, navigate, v6Data])
 
   const navSections = useMemo(() => buildNavSections(ADMIN_NAV), [])
   const activeRoute = route.name === 'ticket-detail' ? 'tickets' : route.name

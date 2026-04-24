@@ -1,7 +1,12 @@
 import React from 'react'
 import { MT, fDisplay, fMono } from './tokens'
 
-export function SearchField({ placeholder = 'Cerca ticket, macchina, operatore…' }) {
+export function SearchField({
+  placeholder = 'Cerca ticket, macchina, operatore…',
+  value,
+  onChange,
+  showKbd = true,
+}) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
@@ -12,14 +17,21 @@ export function SearchField({ placeholder = 'Cerca ticket, macchina, operatore�
         <circle cx="11" cy="11" r="7"/>
         <line x1="16" y1="16" x2="20" y2="20" strokeLinecap="round"/>
       </svg>
-      <input placeholder={placeholder} style={{
-        background: 'transparent', border: 'none', color: MT.text,
-        outline: 'none', fontFamily: fDisplay, fontSize: 14, flex: 1, fontWeight: 400,
-      }}/>
-      <kbd style={{
-        fontFamily: fMono, fontSize: 11, color: MT.textMuted, letterSpacing: 0.5,
-        border: `1px solid ${MT.border}`, padding: '2px 6px', background: MT.bg,
-      }}>⌘K</kbd>
+      <input
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        style={{
+          background: 'transparent', border: 'none', color: MT.text,
+          outline: 'none', fontFamily: fDisplay, fontSize: 14, flex: 1, fontWeight: 400,
+        }}
+      />
+      {showKbd && (
+        <kbd style={{
+          fontFamily: fMono, fontSize: 11, color: MT.textMuted, letterSpacing: 0.5,
+          border: `1px solid ${MT.border}`, padding: '2px 6px', background: MT.bg,
+        }}>⌘K</kbd>
+      )}
     </div>
   )
 }
