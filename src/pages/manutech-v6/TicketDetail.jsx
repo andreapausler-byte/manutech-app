@@ -4,13 +4,47 @@ import {
   TopBar, BtnPrimary, BtnGhost,
   Pill, StatusPill, Avatar,
 } from '../../components/manutech'
-import { TICKETS, machineById } from '../../mocks/predictive'
 import { useV6Nav } from './V6Nav'
 
 export default function TicketDetail({ id }) {
-  const { navigate } = useV6Nav()
-  const t = TICKETS.find(x => x.id === id) || TICKETS[0]
-  const m = machineById(t.machineId)
+  const { navigate, data } = useV6Nav()
+  const { ticketById, machineById, tickets = [], loading } = data || {}
+
+  if (loading) {
+    return (
+      <>
+        <TopBar title="Ticket" crumbs="Caricamento…"/>
+        <div style={{ padding: 24, color: MT.textMuted, fontFamily: fMono, fontSize: 13 }}>
+          Caricamento ticket…
+        </div>
+      </>
+    )
+  }
+
+  const t = (ticketById && ticketById(id)) || tickets[0]
+
+  if (!t) {
+    return (
+      <>
+        <TopBar
+          title="Nessun ticket"
+          crumbs={<span style={{ cursor: 'pointer' }} onClick={() => navigate('tickets')}>← Ticket Board</span>}
+        />
+        <div style={{ padding: 32, color: MT.textMuted, fontFamily: fMono, fontSize: 13 }}>
+          Nessuna segnalazione presente. Apri la console segnalazioni per crearne una.
+        </div>
+      </>
+    )
+  }
+
+  const m = (machineById && machineById(t.machineId)) || {
+    code: t.machineCode, name: t.machineName, area: t.machineArea,
+  }
+
+  // Storico: altri ticket stessa macchina, più recenti, escluso corrente
+  const related = tickets
+    .filter(x => x.machineId && x.machineId === t.machineId && x.id !== t.id)
+    .slice(0, 3)
 
   return (
     <>
@@ -19,47 +53,39 @@ export default function TicketDetail({ id }) {
         crumbs={<span style={{ cursor: 'pointer' }} onClick={() => navigate('tickets')}>← Ticket Board · {t.id}</span>}
         right={<>
           <StatusPill status={t.status}/>
-          <BtnGhost size="sm">COMMENTA</BtnGhost>
-          <BtnPrimary size="sm">CHIUDI TICKET</BtnPrimary>
+          <BtnGhost size="sm" onClick={() => navigate('reports')}>APRI IN CONSOLE</BtnGhost>
+          <BtnPrimary size="sm" onClick={() => navigate('tickets')}>TORNA AL BOARD</BtnPrimary>
         </>}
       />
 
       <div style={{ padding: 24, display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* Audio + transcription */}
+          {/* Descrizione segnalazione */}
           <div style={{ background: MT.surface, border: `1px solid ${MT.border}`, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Pill tone="green" size="sm">
-                  <span style={{ width: 5, height: 5, borderRadius: 5, background: MT.greenLight, animation: 'mt-pulse 1.5s infinite' }}/>
-                  AI WHISPER
-                </Pill>
+                <Pill tone="green" size="sm">SEGNALAZIONE</Pill>
                 <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>
-                  TRASCRITTO · confidence {Math.round(t.aiConfidence * 100)}%
+                  {t.reportStatus ? t.reportStatus.replace('_', ' ').toUpperCase() : '—'}
                 </span>
               </div>
-              <BtnGhost size="sm">▶ RIASCOLTA ({t.audioDurationSec ?? 0}s)</BtnGhost>
+              <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>{t.ago}</span>
             </div>
 
-            {/* Waveform */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 40, padding: '8px 0', marginBottom: 12 }}>
-              {Array.from({ length: 64 }).map((_, i) => {
-                const h = 6 + (Math.sin(i * 0.7) + 1) / 2 * 28
-                return <div key={i} style={{
-                  flex: 1, height: h,
-                  background: i < 20 ? MT.greenLight : MT.green,
-                  opacity: i < 20 ? 1 : 0.4,
-                }}/>
-              })}
-            </div>
-
-            {t.transcript && (
+            {t.description ? (
               <div style={{
                 fontSize: 15, lineHeight: 1.55, color: MT.text,
                 borderLeft: `3px solid ${MT.green}`, padding: '8px 14px',
               }}>
-                "{t.transcript}"
+                {t.description}
+              </div>
+            ) : (
+              <div style={{
+                fontFamily: fMono, fontSize: 13, color: MT.textDim,
+                border: `1px dashed ${MT.border}`, padding: '12px 14px',
+              }}>
+                Nessuna descrizione fornita — apri la console per aggiungere dettagli.
               </div>
             )}
 
@@ -68,10 +94,10 @@ export default function TicketDetail({ id }) {
               marginTop: 14, background: MT.border,
             }}>
               {[
-                { l: 'MACCHINA', v: m.code },
-                { l: 'PRIORITÀ', v: t.priority.toUpperCase() },
-                { l: 'CATEGORIA', v: t.category.toUpperCase() },
-                { l: 'AREA', v: m.area },
+                { l: 'MACCHINA', v: m.code || '—' },
+                { l: 'PRIORITÀ', v: (t.priority || '—').toUpperCase() },
+                { l: 'CATEGORIA', v: (t.category || '—').toUpperCase() },
+                { l: 'AREA', v: m.area || '—' },
               ].map(f => (
                 <div key={f.l} style={{ background: MT.surface2, padding: '10px 12px' }}>
                   <div style={{ fontFamily: fMono, fontSize: 11, color: MT.textMuted, letterSpacing: 0.6 }}>{f.l}</div>
@@ -81,44 +107,58 @@ export default function TicketDetail({ id }) {
             </div>
           </div>
 
-          {/* AI Copilot */}
-          <div style={{
-            background: `linear-gradient(180deg, ${MT.greenDim} 0%, ${MT.surface} 100%)`,
-            border: `1px solid ${MT.green}`, padding: 16,
-          }}>
+          {/* Storico macchina */}
+          <div style={{ background: MT.surface, border: `1px solid ${MT.border}`, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={MT.greenLight} strokeWidth="1.8">
-                <path d="M12 2 L14 9 L21 12 L14 15 L12 22 L10 15 L3 12 L10 9 Z"/>
-              </svg>
               <span style={{ fontFamily: fMono, fontSize: 13, color: MT.greenLight, letterSpacing: 0.6, fontWeight: 600 }}>
-                AI COPILOT · ANALISI STORICA
+                STORICO · {m.code || 'MACCHINA'}
+              </span>
+              <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>
+                {related.length} ticket correlati
               </span>
             </div>
-            <div style={{ fontSize: 16, color: MT.text, lineHeight: 1.55, marginBottom: 12 }}>
-              La macchina <strong>{m.name}</strong> ha avuto <strong style={{ color: MT.amber }}>3 ticket simili</strong> negli
-              ultimi 6 mesi. Pattern suggerisce guasto ricorrente — ispezionare componente critico.
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Pill tone="green" size="sm">→ TK-2501 (15 gg fa)</Pill>
-              <Pill tone="green" size="sm">→ TK-2382 (2 mesi fa)</Pill>
-              <Pill tone="amber" size="sm">📦 P/N disponibili</Pill>
-            </div>
+            {related.length === 0 ? (
+              <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textDim, padding: '6px 0' }}>
+                Nessun altro ticket associato a questa macchina.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {related.map(r => (
+                  <div
+                    key={r.id}
+                    onClick={() => navigate('ticket-detail', { id: r.id })}
+                    style={{
+                      display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: 12, alignItems: 'center',
+                      padding: '8px 10px', border: `1px solid ${MT.border}`, cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>{r.id}</span>
+                    <span style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.title}
+                    </span>
+                    <StatusPill status={r.status}/>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ background: MT.surface, border: `1px solid ${MT.border}`, padding: 16 }}>
-            <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6, marginBottom: 10 }}>
-              IMPATTO STIMATO
+          {t.impactEurH > 0 && (
+            <div style={{ background: MT.surface, border: `1px solid ${MT.border}`, padding: 16 }}>
+              <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6, marginBottom: 10 }}>
+                IMPATTO STIMATO
+              </div>
+              <div style={{ fontFamily: fDisplay, fontSize: 40, fontWeight: 600, color: MT.red, letterSpacing: -0.5, lineHeight: 1 }}>
+                {t.impactEurH}€<span style={{ fontSize: 18, color: MT.textDim }}>/h</span>
+              </div>
+              <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, marginTop: 6 }}>
+                STIMA SU SEVERITÀ · non campo DB
+              </div>
             </div>
-            <div style={{ fontFamily: fDisplay, fontSize: 40, fontWeight: 600, color: MT.red, letterSpacing: -0.5, lineHeight: 1 }}>
-              {t.impactEurH}€<span style={{ fontSize: 18, color: MT.textDim }}>/h</span>
-            </div>
-            <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, marginTop: 6 }}>
-              FERMO LINEA · impatto produzione
-            </div>
-          </div>
+          )}
 
           <div style={{ background: MT.surface, border: `1px solid ${MT.border}`, padding: 16 }}>
             <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted, letterSpacing: 0.6, marginBottom: 10 }}>
@@ -132,7 +172,11 @@ export default function TicketDetail({ id }) {
                   <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>SPECIALISTA</div>
                 </div>
               </div>
-            ) : <BtnPrimary size="sm">+ ASSEGNA TECNICO</BtnPrimary>}
+            ) : (
+              <div style={{ fontFamily: fMono, fontSize: 13, color: MT.textDim }}>
+                Non ancora assegnato. Usa la console per assegnare un tecnico.
+              </div>
+            )}
           </div>
 
           <div style={{ background: MT.surface, border: `1px solid ${MT.border}`, padding: 16 }}>
@@ -143,7 +187,9 @@ export default function TicketDetail({ id }) {
               <Avatar name={t.operatorName} size={32}/>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 500 }}>{t.operatorName}</div>
-                <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>TURNO A</div>
+                <div style={{ fontFamily: fMono, fontSize: 12, color: MT.textMuted }}>
+                  {t.severity ? `SEVERITÀ ${t.severity.toUpperCase()}` : 'OPERATORE'}
+                </div>
               </div>
             </div>
           </div>
