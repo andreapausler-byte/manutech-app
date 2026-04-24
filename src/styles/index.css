@@ -1149,3 +1149,118 @@ h1, h2, h3, h4 {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════
+   ManuTech v6 — Scoped palette override
+   Applica il dark-industriale verde anche alle pagine admin
+   ospitate dentro V6App. Scope: qualunque discendente di .mt-scope.
+   ══════════════════════════════════════════════════════════ */
+.mt-scope {
+  /* Brand / Primary (green industrial) */
+  --color-primary: #2a9d6e;
+  --color-primary-light: #3db685;
+  --color-primary-dark: #1B6B4A;
+  --color-primary-glow: rgba(42, 157, 110, 0.18);
+
+  /* Semantic */
+  --color-success: #2a9d6e;
+  --color-success-glow: rgba(42, 157, 110, 0.12);
+  --color-warning: #f59e0b;
+  --color-warning-glow: rgba(245, 158, 11, 0.12);
+  --color-danger: #e03c31;
+  --color-danger-glow: rgba(224, 60, 49, 0.12);
+  --color-critical: #e03c31;
+  --color-info: #4f8bff;
+
+  /* Chassis / surfaces */
+  --color-bg: #060e09;
+  --color-bg-subtle: #081410;
+  --color-surface-0: #0b1710;
+  --color-surface-1: #0b1710;
+  --color-surface-2: #11201a;
+  --color-surface-3: #16281e;
+  --color-surface-elevated: rgba(11, 23, 16, 0.92);
+
+  /* Admin chassis */
+  --color-app-bg: #060e09;
+  --color-sidebar-bg: #040806;
+  --color-sidebar-border: #1b2e22;
+
+  /* Cards */
+  --color-card: #0b1710;
+  --color-card-hover: #11201a;
+
+  /* Borders */
+  --color-border: #1b2e22;
+  --color-border-subtle: #122218;
+  --color-border-hover: #244335;
+  --color-border-active: rgba(42, 157, 110, 0.45);
+
+  /* Text */
+  --color-text: #e8f5ee;
+  --color-text-secondary: #9cbfaa;
+  --color-text-muted: #7aaa8e;
+  --color-text-faint: #4e8066;
+
+  /* Status accents */
+  --color-cyan: #4f8bff;
+  --color-cyan-bg: rgba(79, 139, 255, 0.12);
+  --color-green: #2a9d6e;
+  --color-green-bg: rgba(42, 157, 110, 0.12);
+  --color-red: #e03c31;
+  --color-red-bg: rgba(224, 60, 49, 0.12);
+  --color-orange: #f59e0b;
+  --color-orange-bg: rgba(245, 158, 11, 0.12);
+  --color-yellow: #ffe066;
+  --color-yellow-bg: rgba(255, 224, 102, 0.12);
+
+  /* Shadows (più profonde sul dark) */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.7);
+  --shadow-glow-primary: 0 0 20px rgba(42, 157, 110, 0.25), 0 0 60px rgba(42, 157, 110, 0.08);
+
+  /* Glass */
+  --glass-bg: rgba(11, 23, 16, 0.88);
+  --glass-bg-heavy: rgba(6, 14, 9, 0.94);
+  --glass-blur: 16px;
+  --glass-blur-heavy: 24px;
+  --glass-border: #1b2e22;
+
+  /* Gradients */
+  --gradient-surface: linear-gradient(145deg, #11201a 0%, #0b1710 100%);
+  --gradient-card: linear-gradient(160deg, rgba(17, 32, 26, 0.55) 0%, rgba(11, 23, 16, 0.3) 100%);
+  --gradient-primary: linear-gradient(135deg, #2a9d6e 0%, #1B6B4A 100%);
+
+  /* Header */
+  --header-bg: linear-gradient(135deg, #1B6B4A 0%, #2a9d6e 100%);
+  --header-text: #e8f5ee;
+
+  /* Meta */
+  --theme-color: #060e09;
+
+  /* Spigoli meno morbidi per coerenza industrial */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+/* Le radius sui card/button che usano valori hardcoded 16-24px sono
+   smussate a 6px dentro la v6 scope per coerenza con lo stile industrial. */
+.mt-scope [class*="rounded-2xl"],
+.mt-scope [class*="rounded-xl"],
+.mt-scope [class*="rounded-lg"] {
+  border-radius: 6px;
+}
+.mt-scope [class*="rounded-full"] {
+  border-radius: 999px;
+}
+
+/* Evita che i glow ambient dell'AdminLayout si riscaldino sul verde */
+.mt-scope .ambient-glow::before,
+.mt-scope .ambient-glow::after {
+  opacity: 0.5;
+}
+
