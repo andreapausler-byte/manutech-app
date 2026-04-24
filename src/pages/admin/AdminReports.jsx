@@ -26,11 +26,11 @@ function CellBadge({ color, label }) {
 
 // ── Glass panel style condiviso (header + tabella) ──
 const glassPanelStyle = {
-  background: 'rgba(30, 41, 59, 0.4)',
+  background: 'var(--color-surface-2)',
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',
-  border: '1px solid rgba(255, 255, 255, 0.06)',
-  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+  border: '1px solid var(--color-border)',
+  boxShadow: 'var(--shadow-lg)',
 }
 
 export default function AdminReports({ initialReportId }) {
@@ -158,15 +158,15 @@ export default function AdminReports({ initialReportId }) {
       <tr
         key={r.id}
         onClick={() => setSelected(r)}
-        className="hover:bg-indigo-500/5 transition-colors duration-200 group cursor-pointer"
+        className="transition-colors duration-200 group cursor-pointer hover:bg-[var(--color-primary-glow)]"
         style={{
           borderBottom: '1px solid var(--color-border-subtle)',
           opacity: archived ? 0.75 : 1,
         }}
       >
-        <td className="px-8 py-5 align-middle">
+        <td className="px-6 py-3.5 align-middle">
           <div
-            className="font-semibold mb-0.5 group-hover:text-indigo-300 transition-colors truncate"
+            className="font-semibold mb-0.5 transition-colors truncate group-hover:text-[var(--color-primary)]"
             style={{ color: 'var(--color-text)' }}
           >
             {r.title}
@@ -175,25 +175,25 @@ export default function AdminReports({ initialReportId }) {
             {r.created_by_name || 'Sconosciuto'}
           </div>
         </td>
-        <td className="px-6 py-5 align-middle hidden lg:table-cell">
+        <td className="px-5 py-3.5 align-middle hidden lg:table-cell">
           <span className="italic font-medium truncate block" style={{ color: 'var(--color-text-muted)' }}>
             {r.machine || '—'}
           </span>
         </td>
-        <td className="px-6 py-5 align-middle text-center hidden md:table-cell">
+        <td className="px-5 py-3.5 align-middle text-center hidden md:table-cell">
           <CellBadge color={sev.color} label={sev.label} />
         </td>
-        <td className="px-6 py-5 align-middle text-center hidden lg:table-cell">
+        <td className="px-5 py-3.5 align-middle text-center hidden lg:table-cell">
           {typ ? (
             <CellBadge color={typ.color} label={typ.label} />
           ) : (
             <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
           )}
         </td>
-        <td className="px-6 py-5 align-middle text-center">
+        <td className="px-5 py-3.5 align-middle text-center">
           <CellBadge color={sts.color} label={sts.label} />
         </td>
-        <td className="px-6 py-5 align-middle hidden lg:table-cell">
+        <td className="px-5 py-3.5 align-middle hidden lg:table-cell">
           {r.assigned_to_name ? (
             <div className="flex items-center min-w-0" style={{ color: 'var(--color-text-secondary)' }}>
               <div
@@ -210,7 +210,7 @@ export default function AdminReports({ initialReportId }) {
             </span>
           )}
         </td>
-        <td className="px-8 py-5 align-middle text-right font-medium whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>
+        <td className="px-6 py-3.5 align-middle text-right font-medium whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>
           {timeAgo(r.created_at)}
         </td>
       </tr>
@@ -218,23 +218,23 @@ export default function AdminReports({ initialReportId }) {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
 
-      {/* ═══ PREMIUM HEADER ═══ */}
+      {/* ═══ HEADER ═══ */}
       <header>
         {/* Breadcrumb */}
         <nav className="flex text-[11px] font-medium uppercase tracking-widest mb-2 gap-2" style={{ color: 'var(--color-text-muted)' }}>
           <span>Gestione</span>
           <span>/</span>
-          <span style={{ color: 'var(--color-primary, #7c6aff)' }}>Segnalazioni</span>
+          <span style={{ color: 'var(--color-primary)' }}>Segnalazioni</span>
         </nav>
 
         {/* Title row */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
-          <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight flex items-center" style={{ color: 'var(--color-text)' }}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3" style={{ color: 'var(--color-text)' }}>
             Segnalazioni
             <span
-              className="ml-4 px-2.5 py-0.5 text-sm font-medium rounded-md border"
+              className="px-2 py-0.5 text-xs font-semibold rounded-md border"
               style={{
                 background: 'var(--color-surface-2)',
                 color: 'var(--color-text-muted)',
@@ -245,12 +245,12 @@ export default function AdminReports({ initialReportId }) {
             </span>
           </h1>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Search */}
             <div className="relative group">
               <Search
-                size={16}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors pointer-events-none"
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
                 style={{ color: 'var(--color-text-muted)' }}
               />
               <input
@@ -258,18 +258,22 @@ export default function AdminReports({ initialReportId }) {
                 placeholder="Cerca per titolo, macchinario o autore..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-72 text-sm rounded-full pl-10 pr-9 py-2.5 border border-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                className="w-72 text-[13px] pl-9 pr-8 py-2 focus:outline-none transition-colors"
                 style={{
-                  background: 'var(--color-sidebar-bg)',
+                  background: 'var(--color-surface)',
                   color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 6,
                 }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--color-primary)' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
                 aria-label="Cerca segnalazioni"
               />
               {search && (
                 <button
                   onClick={() => setSearch('')}
                   aria-label="Cancella ricerca"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 hover:text-white"
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
                   style={{ color: 'var(--color-text-muted)' }}
                 >
                   <X size={14} />
@@ -278,28 +282,33 @@ export default function AdminReports({ initialReportId }) {
             </div>
             <button
               onClick={() => setShowNew(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-full bg-linear-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all press-scale"
+              className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white transition-all press-scale"
+              style={{
+                background: 'var(--gradient-primary)',
+                borderRadius: 6,
+                boxShadow: 'var(--shadow-sm)',
+              }}
             >
-              <Plus size={16} /> Nuova
+              <Plus size={15} /> Nuova
             </button>
           </div>
         </div>
 
-        {/* Glass filter chips */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Filter chips */}
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* Tutte */}
           <button
             onClick={() => setFilterStatus('')}
             aria-pressed={filterStatus === ''}
-            className="text-sm px-4 py-2 rounded-full border flex items-center transition-all press-scale"
+            className="text-[12px] px-3 py-1.5 border flex items-center gap-2 transition-all press-scale"
             style={filterStatus === ''
-              ? { ...glassPanelStyle, background: 'rgba(124,106,255,0.10)', borderColor: 'rgba(124,106,255,0.6)', color: '#a594ff' }
-              : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
+              ? { background: 'var(--color-primary-glow)', borderColor: 'var(--color-primary)', color: 'var(--color-primary)', borderRadius: 4 }
+              : { background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 4 }}
           >
-            Tutte <span className="ml-2 opacity-60 font-normal">{reports.length}</span>
+            Tutte <span className="opacity-60 font-normal">{reports.length}</span>
           </button>
 
-          <div className="h-4 w-px mx-1" style={{ background: 'var(--color-border)' }} />
+          <div className="h-4 w-px mx-0.5" style={{ background: 'var(--color-border)' }} />
 
           {Object.entries(STATUS).map(([key, { label, color }]) => {
             const count = reports.filter(r => r.status === key).length
@@ -309,14 +318,14 @@ export default function AdminReports({ initialReportId }) {
                 key={key}
                 onClick={() => setFilterStatus(filterStatus === key ? '' : key)}
                 aria-pressed={isActive}
-                className="text-sm px-4 py-2 rounded-full border flex items-center transition-all press-scale"
+                className="text-[12px] px-3 py-1.5 border flex items-center gap-2 transition-all press-scale"
                 style={isActive
-                  ? { ...glassPanelStyle, background: `${color}15`, borderColor: `${color}99`, color }
-                  : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
+                  ? { background: `${color}18`, borderColor: `${color}99`, color, borderRadius: 4 }
+                  : { background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text-muted)', borderRadius: 4 }}
               >
-                <span className="h-2 w-2 rounded-full mr-2.5" style={{ background: color }} />
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
                 {label}
-                <span className="ml-2 text-xs opacity-60">{count}</span>
+                <span className="text-[11px] opacity-60">{count}</span>
               </button>
             )
           })}
@@ -325,11 +334,12 @@ export default function AdminReports({ initialReportId }) {
           <select
             value={filterSeverity}
             onChange={e => setFilterSeverity(e.target.value)}
-            className="ml-auto text-xs rounded-full px-4 py-2 focus:outline-none"
+            className="ml-auto text-[12px] px-3 py-1.5 focus:outline-none"
             style={{
-              background: 'var(--color-sidebar-bg)',
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               color: 'var(--color-text)',
+              borderRadius: 4,
             }}
             aria-label="Filtra per gravità"
           >
@@ -340,7 +350,7 @@ export default function AdminReports({ initialReportId }) {
           {activeFilters > 0 && (
             <button
               onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
-              className="text-xs px-3 py-2 rounded-full transition-colors hover:bg-white/5"
+              className="text-[12px] px-3 py-1.5 transition-colors hover:opacity-80"
               style={{ color: 'var(--color-text-muted)' }}
             >
               Rimuovi filtri
@@ -354,25 +364,26 @@ export default function AdminReports({ initialReportId }) {
         <EmptyState icon="📋" title="Nessuna segnalazione trovata"
           subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined} />
       ) : (
-        <div className="rounded-2xl overflow-hidden shadow-2xl" style={glassPanelStyle}>
+        <div className="overflow-hidden" style={{ ...glassPanelStyle, borderRadius: 6 }}>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[1000px]">
               <thead>
                 <tr
-                  className="text-[11px] uppercase bg-slate-900/40 backdrop-blur-md"
+                  className="text-[11px] uppercase"
                   style={{
+                    background: 'var(--color-surface-3)',
                     color: 'var(--color-text-muted)',
                     borderBottom: '1px solid var(--color-border)',
                   }}
                 >
                   {[
-                    { label: 'Segnalazione', field: null, className: 'px-8 py-5 w-[28%]' },
-                    { label: 'Macchinario', field: 'machine', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
-                    { label: 'Gravità', field: null, className: 'px-6 py-5 w-[10%] text-center hidden md:table-cell' },
-                    { label: 'Tipo', field: null, className: 'px-6 py-5 w-[10%] text-center hidden lg:table-cell' },
-                    { label: 'Stato', field: 'status', className: 'px-6 py-5 w-[12%] text-center' },
-                    { label: 'Assegnato', field: 'assigned_to_name', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
-                    { label: 'Data', field: 'created_at', className: 'px-8 py-5 text-right' },
+                    { label: 'Segnalazione', field: null, className: 'px-6 py-3.5 w-[28%]' },
+                    { label: 'Macchinario', field: 'machine', className: 'px-5 py-3.5 w-[14%] hidden lg:table-cell' },
+                    { label: 'Gravità', field: null, className: 'px-5 py-3.5 w-[10%] text-center hidden md:table-cell' },
+                    { label: 'Tipo', field: null, className: 'px-5 py-3.5 w-[10%] text-center hidden lg:table-cell' },
+                    { label: 'Stato', field: 'status', className: 'px-5 py-3.5 w-[12%] text-center' },
+                    { label: 'Assegnato', field: 'assigned_to_name', className: 'px-5 py-3.5 w-[14%] hidden lg:table-cell' },
+                    { label: 'Data', field: 'created_at', className: 'px-6 py-3.5 text-right' },
                   ].map((col, i) => (
                     <th
                       key={i}

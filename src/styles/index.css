@@ -1264,3 +1264,79 @@ h1, h2, h3, h4 {
   opacity: 0.5;
 }
 
+/* ── Tailwind color-utility overrides ─────────────────────────
+   Molte pagine admin hanno hardcoded text-violet-*, bg-indigo-*,
+   gradient from-indigo-500 to-purple-600. Dentro .mt-scope rimpiazziamo
+   il viola/indigo/slate con il verde industrial così le pagine admin
+   ereditano la palette v6 senza toccare ogni singolo file. */
+.mt-scope [class*="text-violet-"],
+.mt-scope [class*="text-indigo-"],
+.mt-scope [class*="text-purple-"] {
+  color: var(--color-primary);
+}
+
+.mt-scope .bg-violet-500,
+.mt-scope .bg-violet-600,
+.mt-scope .bg-violet-700,
+.mt-scope .bg-indigo-500,
+.mt-scope .bg-indigo-600 {
+  background-color: var(--color-primary);
+}
+
+.mt-scope [class*="bg-violet-"][class*="/5"],
+.mt-scope [class*="bg-violet-"][class*="/10"],
+.mt-scope [class*="bg-violet-"][class*="/15"],
+.mt-scope [class*="bg-violet-"][class*="/20"],
+.mt-scope [class*="bg-indigo-"][class*="/5"],
+.mt-scope [class*="bg-indigo-"][class*="/10"],
+.mt-scope [class*="bg-indigo-"][class*="/15"],
+.mt-scope [class*="bg-indigo-"][class*="/20"] {
+  background-color: var(--color-primary-glow);
+}
+
+.mt-scope [class*="border-violet-"],
+.mt-scope [class*="border-indigo-"],
+.mt-scope [class*="border-purple-"] {
+  border-color: var(--color-primary);
+}
+
+.mt-scope [class*="border-slate-"] {
+  border-color: var(--color-border);
+}
+
+.mt-scope [class*="ring-violet-"],
+.mt-scope [class*="ring-indigo-"] {
+  --tw-ring-color: var(--color-primary);
+}
+
+.mt-scope [class*="shadow-violet-"],
+.mt-scope [class*="shadow-indigo-"] {
+  --tw-shadow-color: var(--color-primary);
+}
+
+/* Gradient stops (bg-linear-to-r from-* to-*) */
+.mt-scope [class*="from-violet-"],
+.mt-scope [class*="from-indigo-"] {
+  --tw-gradient-from: var(--color-primary);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(0,0,0,0));
+}
+.mt-scope [class*="to-violet-"],
+.mt-scope [class*="to-indigo-"],
+.mt-scope [class*="to-purple-"] {
+  --tw-gradient-to: var(--color-primary-dark);
+}
+
+/* Slate backgrounds → surfaces v6 */
+.mt-scope [class*="bg-slate-900"] {
+  background-color: var(--color-surface-3);
+}
+.mt-scope [class*="bg-slate-800"] {
+  background-color: var(--color-surface-2);
+}
+.mt-scope [class*="bg-slate-700"] {
+  background-color: var(--color-surface);
+}
+.mt-scope [class*="text-slate-"] {
+  color: var(--color-text-muted);
+}
+
