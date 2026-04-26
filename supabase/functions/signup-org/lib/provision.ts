@@ -28,7 +28,7 @@ export type ProvisionResult =
     }
   | {
       ok: false
-      error: 'email_exists' | 'internal'
+      error: 'email_exists' | 'slug_taken' | 'internal'
       message: string
     }
 
@@ -56,6 +56,20 @@ export async function provisionOrganization(
     .single()
 
   if (orgErr || !orgData) {
+    // Race condition slug: tra check_slug_available (RPC, step 6 di index.ts)
+    // e questo INSERT, un altro signup concorrente può aver registrato lo
+    // stesso slug. Postgres unique_violation = SQLSTATE 23505. Trasformiamo
+    // l'errore generico 'internal' in 'slug_taken' user-friendly + retryable.
+    const errCode = (orgErr as { code?: string })?.code
+    const errMsg = orgErr?.message?.toLowerCase() ?? ''
+    if (errCode === '23505' || errMsg.includes('duplicate key')) {
+      console.warn('[signup-org] Step A slug race detected:', input.org_slug)
+      return {
+        ok: false,
+        error: 'slug_taken',
+        message: `Slug "${input.org_slug}" appena registrato da un altro utente, riprova`,
+      }
+    }
     console.error('[signup-org] Step A failed:', orgErr?.message)
     return {
       ok: false,
@@ -81,24 +95,35 @@ export async function provisionOrganization(
     // Rollback Step A
     await rollbackOrganization(supabase, orgId)
 
-    // Distingui email_exists da altri errori per dare messaggio specifico
-    const msg = userErr?.message || 'unknown'
-    if (
-      msg.toLowerCase().includes('already registered') ||
-      msg.toLowerCase().includes('already exists') ||
-      msg.toLowerCase().includes('user already')
-    ) {
+    // Distingui email_exists da altri errori per dare messaggio specifico.
+    // Strategia in cascata (più stabile → meno stabile):
+    //   1. error.code esposto dalla SDK (es. 'email_exists', 'user_already_exists')
+    //   2. status HTTP 422 + keyword nel message (Supabase usa 422 per email dup)
+    //   3. fallback string-match su varianti note (legacy, robustezza)
+    const authStatus = (userErr as { status?: number })?.status
+    const authCode = (userErr as { code?: string })?.code
+    const msg = (userErr?.message || '').toLowerCase()
+    const isEmailDup =
+      authCode === 'email_exists' ||
+      authCode === 'user_already_exists' ||
+      authCode === 'email_address_already_exists' ||
+      (authStatus === 422 && (msg.includes('already') || msg.includes('exists'))) ||
+      msg.includes('already registered') ||
+      msg.includes('already exists') ||
+      msg.includes('user already')
+
+    if (isEmailDup) {
       return {
         ok: false,
         error: 'email_exists',
         message: `Email "${input.admin_email}" già registrata`,
       }
     }
-    console.error('[signup-org] Step B failed:', msg)
+    console.error('[signup-org] Step B failed:', msg, { code: authCode, status: authStatus })
     return {
       ok: false,
       error: 'internal',
-      message: `Errore creazione utente: ${msg}`,
+      message: `Errore creazione utente: ${userErr?.message || 'unknown'}`,
     }
   }
   userId = userData.user.id

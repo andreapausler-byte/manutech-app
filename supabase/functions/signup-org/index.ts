@@ -158,6 +158,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // ── 7. Provisioning atomico (rollback gestito internamente) ──
   const result = await provisionOrganization(supabase, input)
+
+  // recordAttempt è chiamato SEMPRE (success o failure). Intenzionale:
+  // anche signup riusciti contano contro il limite di 5/h per IP.
+  // Razionale: un attacker che vuole creare 100 org bot-driven sarebbe
+  // contato 5 volte per IP (= bloccato), non solo quando fallisce.
+  // Vedi README sezione "Rate limiting policy" per spiegazione completa.
   recordAttempt(ipHash)
 
   if (!result.ok) {

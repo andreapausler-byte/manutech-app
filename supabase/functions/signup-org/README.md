@@ -139,12 +139,21 @@ Step D: UPDATE organizations.owner_user_id (Q3: fail = warning, NO rollback)
 
 ---
 
-## Rate limiting
+## Rate limiting policy
 
 - **Limite**: 5 signup/ora per `hashIp(IP)` (sliding window)
 - **Storage**: in-memory `Map<ipHash, timestamps[]>`
 - **Ip hashing**: `SHA-256(ip + IP_HASH_SALT)` — IP grezzo MAI persistito o loggato
 - **Ip extraction order**: `X-Forwarded-For` (primo hop) > `X-Real-IP` > `'unknown'`
+
+### Quando viene incrementato il counter
+
+Decisione esplicita: `recordAttempt(ipHash)` è chiamato **SEMPRE** dopo `provisionOrganization`, sia su successo che su fallimento (eccetto early-return su validazione/rate-limit/CORS).
+
+**Perché anche su success?**
+Se contassimo solo i fallimenti, un attacker che vuole creare 100 org bot-driven non sarebbe rallentato: ogni signup riuscito non incrementa il counter → loop infinito. Contando ANCHE i success, lo stesso IP è limitato a 5 org/ora → abuse vector chiuso.
+
+**Effetto sul caso legittimo**: un utente che crea la propria org una volta non è penalizzato (1/5 attempts/h). Lo scenario "stesso utente crea 5 org legittime in 1h" è non realistico (≠ casi di test che vanno fatti con email/IP diversi).
 
 ### Limite noto
 
