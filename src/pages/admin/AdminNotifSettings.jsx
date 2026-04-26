@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from 'react'
 import { Bell, Save, RotateCcw, Mail } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import {
@@ -18,6 +19,8 @@ import {
 } from '../../lib/notifPreferences'
 
 export default function AdminNotifSettings() {
+  const { user } = useAuth()
+  const orgId = user?.org_id
   const [selectedRole, setSelectedRole] = useState('tecnico')
   const [prefs, setPrefs] = useState({})
   const [hasChanges, setHasChanges] = useState(false)
@@ -28,7 +31,7 @@ export default function AdminNotifSettings() {
   useEffect(() => {
     let cancelled = false
     async function load() {
-      const orgDefaults = await getOrgDefaults()
+      const orgDefaults = await getOrgDefaults(orgId)
       if (cancelled) return
       if (orgDefaults && orgDefaults[selectedRole]) {
         setPrefs(orgDefaults[selectedRole])
@@ -39,7 +42,7 @@ export default function AdminNotifSettings() {
     }
     load()
     return () => { cancelled = true }
-  }, [selectedRole])
+  }, [selectedRole, orgId])
 
   const handleToggle = (key) => {
     haptic.light()
@@ -49,7 +52,7 @@ export default function AdminNotifSettings() {
 
   const handleSave = async () => {
     haptic.success()
-    await saveOrgDefaults('default', selectedRole, prefs)
+    await saveOrgDefaults(orgId, selectedRole, prefs)
     setHasChanges(false)
     toast.success(`Notifiche ${ALL_ROLES.find(r => r.key === selectedRole)?.label} salvate`)
   }
@@ -58,7 +61,7 @@ export default function AdminNotifSettings() {
     haptic.medium()
     setPrefs(getRoleDefaults(selectedRole))
     // Salva i default di sistema per questo ruolo
-    await saveOrgDefaults('default', selectedRole, getRoleDefaults(selectedRole))
+    await saveOrgDefaults(orgId, selectedRole, getRoleDefaults(selectedRole))
     setHasChanges(false)
     toast.success('Ripristinati default di sistema')
   }

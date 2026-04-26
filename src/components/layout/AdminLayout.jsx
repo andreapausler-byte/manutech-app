@@ -53,7 +53,7 @@ export default function AdminLayout({ initialReportId, onSwitchToV6 }) {
   const handleNotifClick = (data) => {
     if (data.report_id) setTab('reports')
   }
-  usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id || 'default' })
+  usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id })
 
   const handleNavClick = (id) => {
     if (id === 'v6') {

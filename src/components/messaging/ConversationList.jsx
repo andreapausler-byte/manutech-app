@@ -66,7 +66,7 @@ export default function ConversationList({ user, onSelectConversation, unreadByC
   const handleNewConversation = async (otherUser) => {
     setShowNewModal(false)
     try {
-      const conv = await db.getOrCreateConversation(user.id, otherUser.id, user.org_id || 'default')
+      const conv = await db.getOrCreateConversation(user.id, otherUser.id, user.org_id)
       await loadConversations()
       onSelectConversation({ ...conv, otherUser })
     } catch (err) {

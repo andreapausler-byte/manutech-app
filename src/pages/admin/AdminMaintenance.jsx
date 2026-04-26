@@ -134,7 +134,7 @@ export default function AdminMaintenance() {
         name: planForm.name.trim(), frequency_days: parseInt(planForm.frequency_days) || 30,
         machine_id: planForm.machine_id, assigned_to: planForm.assigned_to || null,
         assigned_to_name: assignee?.name || null, instructions: planForm.instructions || null,
-        org_id: user?.org_id || 'default',
+        org_id: user?.org_id,
       }
       if (editingPlan) { await db.updateMaintenancePlan(editingPlan.id, data); toast.success('Piano aggiornato') }
       else { await db.createMaintenancePlan(data); toast.success('Piano creato') }
@@ -171,7 +171,7 @@ export default function AdminMaintenance() {
         performed_by: user?.id, performed_by_name: user?.name,
         duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
         parts_replaced: logForm.parts_replaced || null,
-        performed_at: new Date().toISOString(), org_id: user?.org_id || 'default',
+        performed_at: new Date().toISOString(), org_id: user?.org_id,
       })
       toast.success('Intervento registrato'); setShowLogForm(false); load()
     } catch (e) { toast.error('Errore: ' + e.message) }
@@ -201,7 +201,7 @@ export default function AdminMaintenance() {
       await db.importMaintenancePlans(csvData.map(p => ({
         machine_id: csvMachine, name: p.name, frequency_days: p.frequency_days,
         assigned_to: csvUser || null, assigned_to_name: assignee?.name || null,
-        instructions: p.instructions || null, org_id: user?.org_id || 'default',
+        instructions: p.instructions || null, org_id: user?.org_id,
       })))
       toast.success(`${csvData.length} piani importati!`); setShowCSV(false); setCsvData([]); load()
     } catch (e) { toast.error('Errore: ' + e.message) }

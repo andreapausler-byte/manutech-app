@@ -27,13 +27,19 @@ export function AuthProvider({ children }) {
     return result
   }
 
+  const signupOrganization = async ({ orgName, email, password, adminName }) => {
+    const result = await db.signupOrganization({ orgName, email, password, adminName })
+    if (result.profile) setUser(result.profile)
+    return result
+  }
+
   const logout = async () => {
     await db.logout()
     setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, acceptInvite, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, acceptInvite, signupOrganization, logout }}>
       {children}
     </AuthContext.Provider>
   )
