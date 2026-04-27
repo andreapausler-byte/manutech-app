@@ -41,7 +41,9 @@ export default function MobileMachinesList({ onSelectMachine }) {
       const [m, r] = await Promise.all([db.getMachines(), db.getReports()])
       setMachines(m)
       setReports(r)
-    } catch {}
+    } catch (e) {
+      console.warn('[MobileMachinesList] load failed', e)
+    }
     setLoading(false)
   }, [])
 

@@ -5,7 +5,7 @@
  * workData (ore/ricambi chiusura) in box verde.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, timeAgo } from '../../lib/constants'
 import { ArrowRight } from 'lucide-react'
@@ -36,18 +36,20 @@ export default function ActivityTimeline({ reportId, report }) {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadActivities()
-  }, [reportId])
-
-  const loadActivities = async () => {
+  const loadActivities = useCallback(async () => {
     setLoading(true)
     try {
       const data = await db.getActivities(reportId)
       setActivities(data)
-    } catch {}
+    } catch (e) {
+      console.warn('[ActivityTimeline] loadActivities failed', e)
+    }
     setLoading(false)
-  }
+  }, [reportId])
+
+  useEffect(() => {
+    loadActivities()
+  }, [loadActivities])
 
   const timeline = activities.length > 0 ? activities : buildFallbackTimeline(report)
 

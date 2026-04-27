@@ -189,6 +189,7 @@ export function useOperatorScore(allReports, period = 'all') {
       return { leaderboard: [], myScore: null }
     }
 
+    // eslint-disable-next-line react-hooks/purity -- Date.now stabile dentro useMemo
     const now = Date.now()
     const DAY = 86400000
 

@@ -63,15 +63,6 @@ export default function AdminNotifSettings() {
     toast.success('Ripristinati default di sistema')
   }
 
-  const handleToggleAll = (group, enable) => {
-    haptic.light()
-    const items = NOTIF_TYPES.filter(t => t.group === group)
-    const updated = { ...prefs }
-    items.forEach(item => { updated[item.key] = enable })
-    setPrefs(updated)
-    setHasChanges(true)
-  }
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -144,8 +135,6 @@ export default function AdminNotifSettings() {
       {/* Notification groups */}
       {NOTIF_GROUPS.map(group => {
         const items = NOTIF_TYPES.filter(t => t.group === group.key)
-        const allEnabled = items.every(item => prefs[item.key] !== false)
-        const noneEnabled = items.every(item => prefs[item.key] === false)
 
         return (
           <div

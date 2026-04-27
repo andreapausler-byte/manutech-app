@@ -28,7 +28,6 @@ export default function AdminDashboard({ onNavigate }) {
   const [reports, setReports] = useState([])
   const [users, setUsers] = useState([])
   const [activities, setActivities] = useState([])
-  const [machines, setMachines] = useState([])
   const [maintenanceTasks, setMaintenanceTasks] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -36,11 +35,11 @@ export default function AdminDashboard({ onNavigate }) {
 
   useEffect(() => {
     async function loadAll() {
-      const [r, u, a, m, plans, lastLogByPlan] = await Promise.all([
-        db.getReports(), db.getUsers(), db.getAllActivities(20), db.getMachines(),
+      const [r, u, a, plans, lastLogByPlan] = await Promise.all([
+        db.getReports(), db.getUsers(), db.getAllActivities(20),
         db.getAllMaintenancePlansWithMachine(), db.getLastLogPerPlan()
       ])
-      setReports(r); setUsers(u); setActivities(a); setMachines(m)
+      setReports(r); setUsers(u); setActivities(a)
 
       const tasks = plans.map(plan => {
         const machine = plan.machine
@@ -97,7 +96,7 @@ export default function AdminDashboard({ onNavigate }) {
       {/* Row 5: Activity + Maintenance — full width */}
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 16 }}>
         <ActivityFeed activities={activities} reports={reports} onNavigate={onNavigate} />
-        <MaintenanceSummary maintenanceTasks={maintenanceTasks} nonAssegnate={nonAssegnate} reports={reports} onNavigate={onNavigate} />
+        <MaintenanceSummary maintenanceTasks={maintenanceTasks} nonAssegnate={nonAssegnate} onNavigate={onNavigate} />
       </div>
     </div>
   )

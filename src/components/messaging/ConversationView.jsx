@@ -621,6 +621,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
             background: 'var(--color-surface)',
           }}
         >
+          {/* eslint-disable-next-line react-hooks/refs */}
           {[
             { icon: Camera, label: 'Foto', action: capturePhoto },
             { icon: Video, label: 'Video', action: captureVideo },

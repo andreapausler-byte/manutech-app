@@ -394,7 +394,7 @@ function CheckCircleIcon() {
 }
 
 export default function MachineDetailSheet({
-  sel, qrDataUrl, plans, logs, planLastLogs, reports,
+  sel, plans, logs, planLastLogs, reports,
   components = [],
   detailTab, setDetailTab,
   onClose, onEdit, onDelete, onDownloadQR, onOpenReport,

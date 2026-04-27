@@ -23,7 +23,6 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { db } from '../../lib/supabase'
-import { timeAgo } from '../../lib/constants'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -131,8 +130,8 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
   const haptic = useHaptic()
   const toastRef = useRef(toast)
   const hapticRef = useRef(haptic)
-  toastRef.current = toast
-  hapticRef.current = haptic
+  useEffect(() => { toastRef.current = toast }, [toast])
+  useEffect(() => { hapticRef.current = haptic }, [haptic])
 
   const isMobile = variant === 'mobile'
 
@@ -484,6 +483,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
       {showMediaBar && !recording && !guestMode && (
         <div className={`shrink-0 border-t border-token bg-surface-1/40 ${isMobile ? 'px-[3vw] py-[2.5vw]' : 'px-3 py-2'}`}>
           <div className={`grid grid-cols-4 ${isMobile ? 'gap-[2vw]' : 'gap-2'}`}>
+            {/* eslint-disable-next-line react-hooks/refs */}
             {mediaActions.map(({ action, icon: Icon, label, color }, i) => (
               <button key={i} onClick={action} disabled={uploading}
                 className={`flex flex-col items-center justify-center rounded-xl border border-token bg-surface-2 active:bg-surface-3 transition-all active:scale-95 ${
@@ -751,7 +751,7 @@ function DiscordMessage({ comment: c, showHeader, isMobile, onPhotoClick, onDown
 
 // ── MiniAudioPlayer — with optional download ─────────────
 
-function MiniAudioPlayer({ src, name, isMobile, onDownload }) {
+function MiniAudioPlayer({ src, isMobile, onDownload }) {
   const audioRef = useRef(null)
   const [playing, setPlaying] = useState(false)
   const [duration, setDuration] = useState(0)

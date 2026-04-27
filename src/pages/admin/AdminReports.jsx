@@ -4,7 +4,6 @@ import { useAuth } from '../../contexts/AuthContext'
 import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
 import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
-import { useToast } from '../../hooks/useToast'
 import ReportDetailModal from './reports/ReportDetailModal'
 import { avatarGradient } from '../../hooks/usePremiumUI'
 import { Plus, Search, X, ChevronUp, ChevronDown, ChevronRight } from 'lucide-react'
@@ -35,7 +34,6 @@ const glassPanelStyle = {
 
 export default function AdminReports({ initialReportId }) {
   const { user } = useAuth()
-  const toast = useToast()
   const [reports, setReports] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)

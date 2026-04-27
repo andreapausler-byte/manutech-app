@@ -5,7 +5,7 @@
  * Design: compatto, spazi ottimizzati, severity accent bars, bordi uniformi
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, SEVERITY, timeAgo } from '../../lib/constants'
 import { Badge } from '../ui'
@@ -58,18 +58,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
   const [assessment, setAssessment] = useState(null)
 
-  useEffect(() => { loadData() }, [machine.id])
-
-  useEffect(() => {
-    db.fetchMachineAssessments(machine.org_id || user?.org_id || 'default', machine.id)
-      .then(result => {
-        const a = result?.assessments?.find(a => a.machine_id === machine.id)
-        setAssessment(a || null)
-      })
-      .catch(e => console.error('[MobileMachineDetail] fetchMachineAssessments failed:', e))
-  }, [machine.id])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const [p, l, r] = await Promise.all([
@@ -83,9 +72,22 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
       const ll = {}
       for (const plan of p) { ll[plan.id] = await db.getLastLogForPlan(plan.id) }
       setPlanLastLogs(ll)
-    } catch {}
+    } catch (e) {
+      console.warn('[MobileMachineDetail] loadData failed', e)
+    }
     setLoading(false)
-  }
+  }, [machine.id, machine.name])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  useEffect(() => {
+    db.fetchMachineAssessments(machine.org_id || user?.org_id || 'default', machine.id)
+      .then(result => {
+        const a = result?.assessments?.find(a => a.machine_id === machine.id)
+        setAssessment(a || null)
+      })
+      .catch(e => console.error('[MobileMachineDetail] fetchMachineAssessments failed:', e))
+  }, [machine.id, machine.org_id, user?.org_id])
 
   const toggle = (setter) => { haptic.light(); setter(prev => !prev) }
 
@@ -148,9 +150,6 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   const resolvedReports = reports.filter(r => r.status === 'risolta')
   const urgentPlans = plans.filter(p => getTrafficLight(p, planLastLogs[p.id]).urgent)
   const okPlans = plans.filter(p => !getTrafficLight(p, planLastLogs[p.id]).urgent)
-
-  // Stile bordo uniforme
-  const cardStyle = { background: 'var(--color-surface-1)', border: '1px solid var(--color-border)' }
 
   return (
     <div className="h-screen h-[100dvh] bg-base flex flex-col overflow-hidden">

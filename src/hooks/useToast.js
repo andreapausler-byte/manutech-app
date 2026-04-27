@@ -57,7 +57,7 @@ export function useToast() {
   const promise = (promiseFn, messages = {}) => {
     return hotToast.promise(promiseFn, {
       loading: messages.loading || 'Caricamento...',
-      success: (data) => {
+      success: () => {
         haptic.success()
         return messages.success || 'Fatto!'
       },

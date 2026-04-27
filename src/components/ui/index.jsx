@@ -144,10 +144,10 @@ export function Textarea({ label, className = '', ...props }) {
 
 // ── Modal — glassmorphism + draggable su desktop ────────────────────────────────
 export function Modal({ open, onClose, title, children, size = 'md' }) {
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768
+  const { position, dragProps } = useDraggable({ enabled: isDesktop && open })
   if (!open) return null
 
-  const isDesktop = window.innerWidth >= 768
-  const { position, dragProps } = useDraggable({ enabled: isDesktop })
   const titleId = title ? `modal-title-${title.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}` : undefined
   const maxW = size === 'lg' ? 640 : size === 'sm' ? 380 : 500
 

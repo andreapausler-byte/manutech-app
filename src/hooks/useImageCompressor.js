@@ -21,7 +21,7 @@ export function useImageCompressor(options = {}) {
   const config = { ...DEFAULT_OPTIONS, ...options }
 
   const compress = (file) => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, _reject) => {
       // Skip se non è un'immagine
       if (!file.type.startsWith('image/')) {
         resolve({ file, wasCompressed: false, originalSize: file.size, compressedSize: file.size })

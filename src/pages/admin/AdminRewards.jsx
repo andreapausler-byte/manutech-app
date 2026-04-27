@@ -2,9 +2,8 @@
  * AdminRewards — Gestione catalogo premi e configurazione ManuCoin
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
-import { useAuth } from '../../contexts/AuthContext'
 import { TOKEN_REWARDS } from '../../hooks/useWallet'
 import {
   Gift, Plus, Pencil, Trash2, Settings2, Save, Package,
@@ -29,7 +28,6 @@ const REDEMPTION_STATUS = {
 const emptyReward = { name: '', description: '', cost: '', category: 'buono', icon: '🎁', stock: '', active: true }
 
 export default function AdminRewards() {
-  const { user } = useAuth()
   const [rewards, setRewards] = useState([])
   const [redemptions, setRedemptions] = useState([])
   const [config, setConfig] = useState({ token_name: 'ManuCoin', token_symbol: 'MC', token_value_eur: 0.50, monthly_budget: '' })
@@ -40,11 +38,7 @@ export default function AdminRewards() {
   const [saving, setSaving] = useState(false)
   const [configSaving, setConfigSaving] = useState(false)
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [rwd, cfg, red] = await Promise.all([
         db.getAllRewards(),
@@ -56,7 +50,11 @@ export default function AdminRewards() {
       setRedemptions(red)
     } catch (e) { console.warn('Load error:', e) }
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const handleSaveConfig = async () => {
     setConfigSaving(true)

@@ -63,7 +63,7 @@ export function usePWA(onNotificationClick, userInfo) {
   const [isInstalled, setIsInstalled] = useState(false)
   const [swRegistration, setSwRegistration] = useState(null)
   const onClickRef = useRef(onNotificationClick)
-  onClickRef.current = onNotificationClick
+  useEffect(() => { onClickRef.current = onNotificationClick }, [onNotificationClick])
 
   // ── 1. Registra SW al mount ──
   useEffect(() => {
@@ -197,7 +197,9 @@ export function usePWA(onNotificationClick, userInfo) {
           icon: '/icons/icon-192x192.png',
           tag: data.type || 'manutech',
         })
-      } catch {}
+      } catch (e) {
+        console.warn('[usePWA] Notification fallback failed', e)
+      }
     }
   }, [swRegistration])
 

@@ -201,7 +201,7 @@ function PushDiagnostics({ open, userId }) {
 }
 
 export default function SettingsPanel({ open, onClose, userId, userRole }) {
-  const { mode, accent, setMode, setAccent, presets, resolved } = useTheme()
+  const { mode, accent, setMode, setAccent, presets } = useTheme()
   const haptic = useHaptic()
   const [visible, setVisible] = useState(false)
   const [notifPrefs, setNotifPrefs] = useState({})

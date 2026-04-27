@@ -94,7 +94,9 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
         return a.light.daysLeft - b.light.daysLeft
       })
       setMyTasks(allTasks)
-    } catch {}
+    } catch (e) {
+      console.warn('[MobileDashboard] loadData failed', e)
+    }
     setLoading(false)
   }, [user?.id])
 

@@ -122,12 +122,13 @@ export default function MediaCapture({ media, onChange }) {
 
       {/* Capture buttons — 2x2 responsive */}
       <div className="grid grid-cols-2 gap-[2.5vw] mb-[3vw]">
+        {/* eslint-disable-next-line react-hooks/refs */}
         {[
-          { action: () => handleCapture('image/*', 'photo'), label: '📷 Foto', color: '#7c6aff' },
-          { action: () => handleCapture('video/*', 'video'), label: '🎥 Video', color: '#22c55e' },
-          { action: recording ? stopAudio : startAudio, label: recording ? `⏹ ${fmt(audioTime)}` : '🎤 Audio', color: recording ? '#ef4444' : '#f59e0b' },
-          { action: handleGallery, label: '🖼 Galleria', color: '#a855f7' },
-        ].map(({ action, label, color }, i) => (
+          { action: () => handleCapture('image/*', 'photo'), label: '📷 Foto' },
+          { action: () => handleCapture('video/*', 'video'), label: '🎥 Video' },
+          { action: recording ? stopAudio : startAudio, label: recording ? `⏹ ${fmt(audioTime)}` : '🎤 Audio' },
+          { action: handleGallery, label: '🖼 Galleria' },
+        ].map(({ action, label }, i) => (
           <button key={i} type="button" onClick={action}
             className={`flex items-center justify-center gap-2 py-[4vw] bg-surface-2/60 active:bg-surface-2 rounded-2xl border border-token/50 transition-colors press-scale text-base font-semibold text-secondary ${recording && i === 2 ? 'animate-pulse border-red-500/50 bg-red-500/10' : ''}`}>
             {label}

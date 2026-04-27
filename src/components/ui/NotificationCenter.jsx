@@ -58,7 +58,9 @@ function playNotifSound() {
     gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
     osc2.start(ctx.currentTime + 0.15)
     osc2.stop(ctx.currentTime + 0.5)
-  } catch {}
+  } catch (e) {
+    console.warn('[NotificationCenter] beep failed', e)
+  }
 }
 
 export default function NotificationCenter({ userId, userRole, onOpenReport, onNewNotifications }) {
@@ -69,7 +71,7 @@ export default function NotificationCenter({ userId, userRole, onOpenReport, onN
   const panelRef = useRef(null)
   const initialLoadRef = useRef(true)
   const onNewRef = useRef(onNewNotifications)
-  onNewRef.current = onNewNotifications
+  useEffect(() => { onNewRef.current = onNewNotifications }, [onNewNotifications])
 
   const unreadCount = notifications.filter(n => !n.read).length
 
@@ -86,7 +88,9 @@ export default function NotificationCenter({ userId, userRole, onOpenReport, onN
       const data = await db.getNotifications(userId)
       setNotifications(data)
       if (initialLoadRef.current) initialLoadRef.current = false
-    } catch {}
+    } catch (e) {
+      console.warn('[NotificationCenter] loadNotifications failed', e)
+    }
   }, [userId])
 
   // ── Gestisci nuova notifica (realtime o polling) ──

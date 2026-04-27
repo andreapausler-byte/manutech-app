@@ -1,6 +1,6 @@
 import { CheckCircle, ChevronRight, Cog, AlertTriangle, Clock } from 'lucide-react'
 
-export default function MaintenanceSummary({ maintenanceTasks, nonAssegnate, reports, onNavigate }) {
+export default function MaintenanceSummary({ maintenanceTasks, nonAssegnate, onNavigate }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Da assegnare */}
