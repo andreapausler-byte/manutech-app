@@ -61,7 +61,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   useEffect(() => { loadData() }, [machine.id])
 
   useEffect(() => {
-    db.fetchMachineAssessments(machine.org_id || user?.org_id || 'default', machine.id)
+    db.fetchMachineAssessments(machine.org_id || user?.org_id, machine.id)
       .then(result => {
         const a = result?.assessments?.find(a => a.machine_id === machine.id)
         setAssessment(a || null)
@@ -98,7 +98,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         title: confirmPlan.name, description: confirmNote.trim() || null,
         performed_by: user?.id, performed_by_name: user?.name,
         duration_minutes: confirmDuration ? parseInt(confirmDuration) : null,
-        performed_at: new Date().toISOString(), org_id: user?.org_id || 'default',
+        performed_at: new Date().toISOString(), org_id: user?.org_id,
       })
       haptic.success()
       toast.success('Manutenzione registrata!')
@@ -128,7 +128,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         performed_by: user?.id, performed_by_name: user?.name,
         duration_minutes: resolveDuration ? parseInt(resolveDuration) : null,
         parts_replaced: resolveParts.trim() || null,
-        performed_at: new Date().toISOString(), org_id: user?.org_id || 'default',
+        performed_at: new Date().toISOString(), org_id: user?.org_id,
       })
       haptic.success()
       toast.success('Segnalazione risolta e intervento registrato!')

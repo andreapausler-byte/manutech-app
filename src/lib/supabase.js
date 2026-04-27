@@ -18,13 +18,18 @@ export const supabase = supabaseUrl && supabaseAnonKey
 
 export const isSupabaseConfigured = () => !!supabase
 
+// Org_id di fallback usato solo in demo mode (localStorage, no Supabase).
+// Non viene mai usato come placeholder in produzione: in Supabase l'org_id
+// arriva sempre da get_my_org_id() che JOIN-a la tabella organizations.
+export const DEMO_ORG_ID = 'demo-org'
+
 // ── Cache org_id per evitare query ripetute ──
 let _cachedOrgId = null
 async function getMyOrgId() {
   if (_cachedOrgId) return _cachedOrgId
-  if (!supabase) return 'default'
+  if (!supabase) return DEMO_ORG_ID
   const { data } = await supabase.rpc('get_my_org_id')
-  _cachedOrgId = data || 'default'
+  _cachedOrgId = data || null
   return _cachedOrgId
 }
 // Reset cache on auth state change (login/logout)
@@ -55,39 +60,18 @@ function setStore(key, data) {
   localStorage.setItem(key, JSON.stringify(data))
 }
 
-// Assicura che esista un admin di default
+// Inizializza lo store demo (localStorage) con un'organizzazione fittizia.
+// Usato solo quando Supabase non è configurato: l'utente reale dovrà comunque
+// completare il signup. Niente credenziali predefinite vengono mostrate in UI.
 export function ensureDefaultAdmin() {
+  // Retrofit: utenti esistenti senza status → 'active', senza org_id → demo
   const users = getStore(KEYS.users)
-  if (!users.find(u => u.role === 'admin')) {
-    users.push({
-      id: 'admin-1',
-      name: 'Admin',
-      email: 'admin@manutech.it',
-      password: 'admin123',
-      role: 'admin',
-      status: 'active',
-      created_at: new Date().toISOString(),
-    })
-    setStore(KEYS.users, users)
-  }
-  // Ensure demo users exist for testing messaging
-  const updated = getStore(KEYS.users)
-  const demoUsers = [
-    { id: 'tecnico-1', name: 'Marco Rossi', email: 'marco@manutech.it', password: 'demo123', role: 'tecnico', status: 'active', created_at: new Date().toISOString() },
-    { id: 'operatore-1', name: 'Luca Bianchi', email: 'luca@manutech.it', password: 'demo123', role: 'operatore', status: 'active', created_at: new Date().toISOString() },
-  ]
   let changed = false
-  for (const du of demoUsers) {
-    if (!updated.find(u => u.id === du.id)) {
-      updated.push(du)
-      changed = true
-    }
-  }
-  // Retrofit: utenti esistenti senza status → 'active'
-  for (const u of updated) {
+  for (const u of users) {
     if (!u.status) { u.status = 'active'; changed = true }
+    if (!u.org_id) { u.org_id = DEMO_ORG_ID; changed = true }
   }
-  if (changed) setStore(KEYS.users, updated)
+  if (changed) setStore(KEYS.users, users)
 }
 
 // Demo helper: genera token invito
@@ -147,6 +131,66 @@ export const db = {
     return users[idx]
   },
 
+  // ─── SIGNUP ORGANIZATION ───
+  // Crea una nuova organizzazione + utente admin via supabase.auth.signUp.
+  // Il trigger handle_new_user (vedi migration 032) legge `org_name` dai
+  // metadati e crea la riga in `organizations` prima del profilo utente.
+  // Se la conferma email è disattivata su Supabase, ritorna una sessione
+  // attiva e l'utente è già loggato. Altrimenti `needsEmailConfirmation=true`.
+  async signupOrganization({ orgName, email, password, adminName }) {
+    const cleanOrg = (orgName || '').trim()
+    const cleanEmail = (email || '').trim().toLowerCase()
+    const cleanName = (adminName || '').trim() || cleanEmail.split('@')[0]
+    if (!cleanOrg) throw new Error('Nome organizzazione obbligatorio')
+    if (!cleanEmail) throw new Error('Email obbligatoria')
+    if (!password || password.length < 8) throw new Error('Password di almeno 8 caratteri')
+
+    if (supabase) {
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: { data: { name: cleanName, role: 'admin', org_name: cleanOrg } },
+      })
+      if (error) throw new Error(error.message)
+      if (!data.session) {
+        return { needsEmailConfirmation: true, email: cleanEmail }
+      }
+      // Risolve il profilo appena creato dal trigger (con org_id valido)
+      const { data: profile, error: rpcError } = await supabase.rpc('resolve_my_profile')
+      if (rpcError) {
+        await supabase.auth.signOut()
+        throw new Error(rpcError.message)
+      }
+      _cachedOrgId = null
+      return { needsEmailConfirmation: false, profile }
+    }
+
+    // Demo mode: simula la creazione di un'organizzazione in localStorage
+    const users = getStore(KEYS.users)
+    if (users.find(u => u.email?.toLowerCase() === cleanEmail)) {
+      throw new Error('Esiste già un account con questa email')
+    }
+    const orgs = JSON.parse(localStorage.getItem('manutech_organizations') || '[]')
+    const slug = cleanOrg.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `org-${Date.now()}`
+    const newOrg = {
+      id: `org-${Date.now()}`, name: cleanOrg, slug,
+      plan: 'free', status: 'trial',
+      created_at: new Date().toISOString(),
+    }
+    orgs.push(newOrg)
+    localStorage.setItem('manutech_organizations', JSON.stringify(orgs))
+    const newUser = {
+      id: `user-${Date.now()}`,
+      name: cleanName, email: cleanEmail, password,
+      role: 'admin', status: 'active', org_id: newOrg.id,
+      created_at: new Date().toISOString(),
+    }
+    users.push(newUser)
+    setStore(KEYS.users, users)
+    setStore(KEYS.session, newUser)
+    return { needsEmailConfirmation: false, profile: newUser }
+  },
+
   async login(email, password) {
     if (supabase) {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
@@ -202,7 +246,7 @@ export const db = {
     }
     const newUser = {
       id: `user-${Date.now()}`, email: emailLower, name, role,
-      org_id: 'default', status: 'pending',
+      org_id: DEMO_ORG_ID, status: 'pending',
       invite_token: token, invite_expires_at: expires,
       invited_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
@@ -312,7 +356,7 @@ export const db = {
     const profiles = getStore('manutech_supplier_profiles')
     const idx = profiles.findIndex(p => p.user_id === payload.user_id)
     if (idx >= 0) profiles[idx] = { ...profiles[idx], ...payload }
-    else profiles.push({ ...payload, org_id: payload.org_id || 'default', created_at: new Date().toISOString() })
+    else profiles.push({ ...payload, org_id: payload.org_id || DEMO_ORG_ID, created_at: new Date().toISOString() })
     setStore('manutech_supplier_profiles', profiles)
     return payload
   },
@@ -748,7 +792,7 @@ export const db = {
       // Fallback: insert diretto (se RPC non ancora deployata)
       if (rpcError) console.warn('[ManuTech] RPC create_maintenance_log non disponibile, fallback insert diretto:', rpcError.message)
       let insertData = { ...log }
-      if (!insertData.org_id || insertData.org_id === 'default') {
+      if (!insertData.org_id) {
         insertData.org_id = await getMyOrgId()
       }
       const { data, error } = await supabase.from('maintenance_logs').insert(insertData).select().single()
@@ -1254,7 +1298,7 @@ export const db = {
   },
 
   // ─── PUSH SUBSCRIPTIONS ───
-  async savePushSubscription(userId, subscription, orgId = 'default') {
+  async savePushSubscription(userId, subscription, orgId) {
     if (supabase) {
       const { endpoint, keys } = subscription
       const { data, error } = await supabase.from('push_subscriptions')
@@ -1314,7 +1358,7 @@ export const db = {
     } catch (e) { console.warn('[ManuTech] Preferenze notifiche corrotte:', e.message); return null }
   },
 
-  async saveUserNotifPrefs(userId, prefs, orgId = 'default') {
+  async saveUserNotifPrefs(userId, prefs, orgId) {
     if (supabase) {
       const { data, error } = await supabase.from('notification_preferences')
         .upsert({
@@ -1385,8 +1429,9 @@ export const db = {
     localStorage.removeItem(`manutech_notif_prefs_${userId}`)
   },
 
-  async getOrgNotifDefaults(orgId = 'default') {
+  async getOrgNotifDefaults(orgId) {
     if (supabase) {
+      if (!orgId) return null
       const { data, error } = await supabase.from('notification_preferences')
         .select('role, prefs').eq('org_id', orgId).eq('is_org_default', true)
       if (error) throw error
@@ -1402,7 +1447,7 @@ export const db = {
     } catch (e) { console.warn('[ManuTech] Default org notifiche corrotti:', e.message); return null }
   },
 
-  async saveOrgNotifDefaults(orgId = 'default', role, prefs) {
+  async saveOrgNotifDefaults(orgId, role, prefs) {
     if (supabase) {
       // Upsert per ruolo — usa user_id = NULL per org defaults
       // Dato che UNIQUE è su user_id (e NULL non matcha), usiamo delete+insert
@@ -1437,7 +1482,7 @@ export const db = {
     }
     const tokens = JSON.parse(localStorage.getItem('manutech_guest_tokens') || '[]')
     const token = Math.random().toString(36).slice(2, 10)
-    const newToken = { id: `gt-${Date.now()}`, report_id: reportId, token, enabled: true, org_id: 'default', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 30 * 86400000).toISOString() }
+    const newToken = { id: `gt-${Date.now()}`, report_id: reportId, token, enabled: true, org_id: DEMO_ORG_ID, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 30 * 86400000).toISOString() }
     tokens.push(newToken)
     localStorage.setItem('manutech_guest_tokens', JSON.stringify(tokens))
     return newToken
@@ -1548,7 +1593,7 @@ export const db = {
       })
   },
 
-  async getOrCreateConversation(userId1, userId2, orgId = 'default') {
+  async getOrCreateConversation(userId1, userId2, orgId) {
     // Normalize: smaller UUID first
     const [p1, p2] = userId1 < userId2 ? [userId1, userId2] : [userId2, userId1]
 
@@ -1585,7 +1630,7 @@ export const db = {
       last_message_text: null,
       last_message_at: null,
       last_message_by: null,
-      org_id: orgId,
+      org_id: orgId || DEMO_ORG_ID,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
@@ -1652,7 +1697,7 @@ export const db = {
       sender_role: senderRole,
       text,
       media: media || null,
-      org_id: orgId || 'default',
+      org_id: orgId || DEMO_ORG_ID,
       created_at: now,
     }
     msgs.push(newMsg)

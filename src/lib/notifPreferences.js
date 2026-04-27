@@ -137,7 +137,7 @@ export async function getUserPrefs(userId) {
 }
 
 // ── Salva preferenze personali (async) ──
-export async function saveUserPrefs(userId, prefs, orgId = 'default') {
+export async function saveUserPrefs(userId, prefs, orgId) {
   if (!userId) return
   _cache.userPrefs[userId] = { prefs, ts: Date.now() }
   try {
@@ -148,11 +148,11 @@ export async function saveUserPrefs(userId, prefs, orgId = 'default') {
 }
 
 // ── Carica default aziendali (async) ──
-export async function getOrgDefaults(orgId = 'default') {
+export async function getOrgDefaults(orgId) {
   if (isCacheValid(_cache.orgDefaults)) {
     return _cache.orgDefaults.defaults
   }
-
+  if (!orgId) return null
   try {
     const defaults = await db.getOrgNotifDefaults(orgId)
     _cache.orgDefaults = { defaults, ts: Date.now() }
@@ -163,7 +163,7 @@ export async function getOrgDefaults(orgId = 'default') {
 }
 
 // ── Salva default aziendali per ruolo (async, solo admin) ──
-export async function saveOrgDefaults(orgId = 'default', role, prefs) {
+export async function saveOrgDefaults(orgId, role, prefs) {
   // Invalida cache
   _cache.orgDefaults = null
   try {
@@ -174,11 +174,11 @@ export async function saveOrgDefaults(orgId = 'default', role, prefs) {
 }
 
 // ── Salva tutti i default org (compatibilità con vecchia API) ──
-export async function saveAllOrgDefaults(defaults) {
+export async function saveAllOrgDefaults(orgId, defaults) {
   _cache.orgDefaults = null
   for (const role of Object.keys(defaults)) {
     try {
-      await db.saveOrgNotifDefaults('default', role, defaults[role])
+      await db.saveOrgNotifDefaults(orgId, role, defaults[role])
     } catch (err) {
       console.warn(`Errore salvataggio default per ${role}:`, err)
     }
@@ -186,13 +186,13 @@ export async function saveAllOrgDefaults(defaults) {
 }
 
 // ── Risolvi preferenze effettive (async) ──
-export async function getEffectivePrefs(userId, role) {
+export async function getEffectivePrefs(userId, role, orgId) {
   // 1. Preferenze personali (priorità massima)
   const personal = await getUserPrefs(userId)
   if (personal) return personal
 
   // 2. Default aziendali (impostati dall'admin)
-  const org = await getOrgDefaults()
+  const org = await getOrgDefaults(orgId)
   if (org && org[role]) return org[role]
 
   // 3. Default di sistema per ruolo
@@ -208,8 +208,8 @@ export async function resetUserPrefs(userId) {
 }
 
 // ── Controlla se una notifica va mostrata (async) ──
-export async function shouldShowNotification(notifType, userId, role) {
-  const prefs = await getEffectivePrefs(userId, role)
+export async function shouldShowNotification(notifType, userId, role, orgId) {
+  const prefs = await getEffectivePrefs(userId, role, orgId)
   return prefs[notifType] !== false
 }
 
@@ -232,7 +232,7 @@ export function shouldShowNotificationSync(notifType, userId, role) {
 }
 
 // ── Pre-load cache (chiamare al login) ──
-export async function preloadPrefs(userId, role, orgId = 'default') {
+export async function preloadPrefs(userId, role, orgId) {
   await Promise.all([
     getUserPrefs(userId),
     getOrgDefaults(orgId),

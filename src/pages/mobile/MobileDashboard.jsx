@@ -171,7 +171,7 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
         parts_replaced: cParts.trim() || null,
         media: cMedia.length > 0 ? cMedia : null,
         performed_at: new Date().toISOString(),
-        org_id: user?.org_id || 'default',
+        org_id: user?.org_id,
       })
       await db.completeMaintenancePlan(completeTask.plan.id)
       db.addNotification({

@@ -424,7 +424,7 @@ export default function MachineDetailSheet({
   useEffect(() => {
     if (!sel?.id) return
     setAssessmentLoading(true)
-    db.fetchMachineAssessments(sel.org_id || 'default', sel.id)
+    db.fetchMachineAssessments(sel.org_id, sel.id)
       .then(result => {
         const a = result?.assessments?.find(a => a.machine_id === sel.id)
         setAssessment(a || null)

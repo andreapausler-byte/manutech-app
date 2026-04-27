@@ -69,7 +69,7 @@ export function useAutoNotifications(userId, userRole) {
               report_id: null,
               from_user: null,
               target_user: targetUser,
-              org_id: plan.org_id || 'default',
+              org_id: plan.org_id,
             }).catch(e => console.warn('Side effect failed:', e.message))
             markSent(plan.id, 'overdue', lastLogKey)
           }
@@ -83,7 +83,7 @@ export function useAutoNotifications(userId, userRole) {
               report_id: null,
               from_user: null,
               target_user: targetUser,
-              org_id: plan.org_id || 'default',
+              org_id: plan.org_id,
             }).catch(e => console.warn('Side effect failed:', e.message))
             markSent(plan.id, 'reminder', lastLogKey)
           }

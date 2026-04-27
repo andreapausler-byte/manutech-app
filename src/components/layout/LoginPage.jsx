@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { Button, Input } from '../ui'
+import { Button, Input, Spinner } from '../ui'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
-import { LogIn, Wrench, Mail } from 'lucide-react'
+import { LogIn, Wrench, Building2 } from 'lucide-react'
+
+const SignupPage = lazy(() => import('./SignupPage'))
 
 export default function LoginPage() {
   const { login } = useAuth()
+  const [showSignup, setShowSignup] = useState(false)
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,6 +31,14 @@ export default function LoginPage() {
       toast.error(msg)
     }
     setLoading(false)
+  }
+
+  if (showSignup) {
+    return (
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Spinner /></div>}>
+        <SignupPage onBack={() => setShowSignup(false)} />
+      </Suspense>
+    )
   }
 
   return (
@@ -69,15 +80,20 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-5 pt-5 border-t flex items-start gap-3" style={{ borderColor: 'var(--color-border)' }}>
-            <Mail size={18} style={{ color: 'var(--color-text-muted)', marginTop: 2 }} />
-            <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              <p className="font-semibold mb-1" style={{ color: 'var(--color-text)' }}>Non hai un account?</p>
-              <p>L'accesso è solo su invito. Contatta l'amministratore della tua organizzazione per ricevere un link di attivazione.</p>
-            </div>
+          <div className="mt-5 pt-5 border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              size="lg"
+              onClick={() => { setError(''); setShowSignup(true) }}
+            >
+              <Building2 size={20} /> Crea una nuova organizzazione
+            </Button>
+            <p className="text-xs mt-3 text-center" style={{ color: 'var(--color-text-faint)' }}>
+              Sei stato invitato? Apri il link ricevuto via email per attivare il tuo account.
+            </p>
           </div>
-
-          <p className="text-center text-base mt-4" style={{ color: 'var(--color-text-faint)' }}>Demo: admin@manutech.it / admin123</p>
         </div>
       </div>
     </div>
