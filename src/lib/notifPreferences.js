@@ -9,7 +9,6 @@
  */
 
 import { db } from './supabase'
-import { supabase } from './supabase'
 
 // ── Tipi di notifica disponibili ──
 export const NOTIF_TYPES = [
@@ -204,7 +203,9 @@ export async function resetUserPrefs(userId) {
   delete _cache.userPrefs[userId]
   try {
     await db.deleteUserNotifPrefs(userId)
-  } catch {}
+  } catch (e) {
+    console.warn('[notifPreferences] resetUserPrefs failed', e)
+  }
 }
 
 // ── Controlla se una notifica va mostrata (async) ──

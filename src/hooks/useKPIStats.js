@@ -30,6 +30,7 @@ export function useKPIStats(reports) {
       }
     }
 
+    // eslint-disable-next-line react-hooks/purity -- Date.now stabile dentro useMemo([reports])
     const now = Date.now()
     const DAY = 86400000
     const WEEK = 7 * DAY

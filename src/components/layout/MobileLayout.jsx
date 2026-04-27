@@ -386,6 +386,7 @@ export default function MobileLayout({ initialReportId }) {
   const [transitionClass, setTransitionClass] = useState('page-slide-in')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const haptic = useHaptic()
+  const toast = useToast()
   const { isOnline, wasOffline } = useOnlineStatus()
 
   // ── Chat Realtime ──
@@ -399,18 +400,20 @@ export default function MobileLayout({ initialReportId }) {
   useAutoNotifications(user?.id, user?.role)
 
   // ── PWA + Web Notifications ──
+  // openReportById dichiarata più sotto: usiamo un ref per evitare TDZ
+  const openReportByIdRef = useRef(null)
   const handleNotifClick = (data) => {
-    if (data.report_id) openReportById(data.report_id)
+    if (data.report_id) openReportByIdRef.current?.(data.report_id)
   }
   const { notifPermission, canInstall, requestPermission, promptInstall, showNotification } = usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id })
 
   // ── Deep link da email ──
   useEffect(() => {
     if (initialReportId) {
-      openReportById(initialReportId)
+      openReportByIdRef.current?.(initialReportId)
       window.history.replaceState({}, '', '/')
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialReportId])
 
   const switchTab = (id) => {
     haptic.light()
@@ -446,8 +449,11 @@ export default function MobileLayout({ initialReportId }) {
     try {
       const report = await db.getReport(reportId)
       if (report) openReport(report)
-    } catch {}
+    } catch (e) {
+      console.warn('[MobileLayout] openReportById failed', e)
+    }
   }
+  useEffect(() => { openReportByIdRef.current = openReportById })
 
   const openMachine = (machine) => navigateTo('machine-detail', machine)
 

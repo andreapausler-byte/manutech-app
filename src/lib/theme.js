@@ -305,7 +305,7 @@ const STORAGE_KEY = 'manutech_theme'
 export function saveThemePrefs(mode, accentName) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode, accentName }))
-  } catch {}
+  } catch { /* localStorage non disponibile */ }
 }
 
 export function loadThemePrefs() {

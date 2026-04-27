@@ -25,7 +25,9 @@ export function usePullToRefresh(onRefresh) {
     setPullDistance(0)
     try {
       await onRefresh()
-    } catch {}
+    } catch (e) {
+      console.warn('[usePullToRefresh] onRefresh failed', e)
+    }
     setRefreshing(false)
   }, [onRefresh, refreshing])
 

@@ -6,6 +6,7 @@
  *   <span className="count-up">{displayValue}</span>
  */
 
+/* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useRef } from 'react'
 
 export function useCountUp(target, { duration = 800, enabled = true } = {}) {

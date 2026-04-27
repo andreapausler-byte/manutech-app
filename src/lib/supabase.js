@@ -1177,7 +1177,7 @@ export const db = {
         .replace(/[^a-zA-Z0-9/_.-]/g, '_')
         .replace(/_{2,}/g, '_')
       const uniquePath = `${safeName}.${ext}`
-      const { data, error } = await supabase.storage.from(bucket).upload(uniquePath, file, {
+      const { error } = await supabase.storage.from(bucket).upload(uniquePath, file, {
         cacheControl: '3600',
         upsert: true,
         contentType: file.type || 'application/octet-stream',

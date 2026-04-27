@@ -21,8 +21,8 @@ export function useChatRealtime(userId) {
   const haptic = useHaptic()
   const toastRef = useRef(toast)
   const hapticRef = useRef(haptic)
-  toastRef.current = toast
-  hapticRef.current = haptic
+  useEffect(() => { toastRef.current = toast }, [toast])
+  useEffect(() => { hapticRef.current = haptic }, [haptic])
 
   const totalUnread = Object.values(unreadByReport).reduce((sum, n) => sum + n, 0)
 

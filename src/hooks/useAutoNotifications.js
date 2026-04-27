@@ -37,7 +37,7 @@ function wasSent(planId, type, lastLogDate) {
   return sent[key] === (lastLogDate || 'no_log')
 }
 
-export function useAutoNotifications(userId, userRole) {
+export function useAutoNotifications(userId, _userRole) {
   const checking = useRef(false)
 
   const checkDeadlines = useCallback(async () => {

@@ -32,7 +32,7 @@ export function useAutosave(key, data, setData) {
           localStorage.removeItem(storageKey)
         }
       }
-    } catch {}
+    } catch { /* ignore localStorage errors */ }
   }, [storageKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Salvataggio periodico
@@ -53,7 +53,7 @@ export function useAutosave(key, data, setData) {
           setHasDraft(true)
           setLastSaved(new Date())
         }
-      } catch {}
+      } catch { /* ignore localStorage errors */ }
     }, AUTOSAVE_INTERVAL)
 
     return () => clearInterval(timer)
@@ -65,7 +65,7 @@ export function useAutosave(key, data, setData) {
       setHasDraft(false)
       setLastSaved(null)
       prevDataRef.current = null
-    } catch {}
+    } catch { /* ignore localStorage errors */ }
   }, [storageKey])
 
   const discardDraft = useCallback((defaultData) => {

@@ -35,7 +35,7 @@ const CATEGORIES = {
 
 export default function WalletPage() {
   const { user } = useAuth()
-  const { balance, transactions, config, rewards, redemptions, loading, refresh, redeem } = useWallet(user?.id)
+  const { balance, transactions, config, rewards, redemptions, loading, redeem } = useWallet(user?.id)
   const [tab, setTab] = useState('wallet')
   const [redeeming, setRedeeming] = useState(null)
   const toast = useToast()
@@ -183,7 +183,6 @@ export default function WalletPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {rewards.map(r => {
-                const cat = CATEGORIES[r.category] || CATEGORIES.altro
                 const canAfford = balance >= r.cost
                 const isRedeeming = redeeming === r.id
                 return (

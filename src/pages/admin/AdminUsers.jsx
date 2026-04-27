@@ -260,7 +260,7 @@ export default function AdminUsers() {
       </table>`}
     <p style="margin-top:32px;font-size:11px;color:#aaa;text-align:center">Generato da ManuTech &mdash; ${today}</p>
   </div>
-  <script>window.onload=function(){window.print()}<\/script>
+  <script>window.onload=function(){window.print()}</script>
 </body>
 </html>`
 

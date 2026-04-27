@@ -5,7 +5,7 @@
  * poi chiama onComplete per procedere alla schermata successiva.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 
 export default function SuccessAnimation({ message = 'Fatto!', subtitle, onComplete, duration = 1800 }) {
   useEffect(() => {
@@ -14,6 +14,10 @@ export default function SuccessAnimation({ message = 'Fatto!', subtitle, onCompl
     }, duration)
     return () => clearTimeout(timer)
   }, [duration, onComplete])
+
+  // Genera distanze pseudo-random una sola volta (Math.random non puro in render)
+  // eslint-disable-next-line react-hooks/purity -- Math.random stabile dentro useMemo([])
+  const particleDistances = useMemo(() => Array.from({ length: 8 }, () => 60 + Math.random() * 40), [])
 
   return (
     <div className="fixed inset-0 z-[100] bg-base/95 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
@@ -66,7 +70,7 @@ export default function SuccessAnimation({ message = 'Fatto!', subtitle, onCompl
               top: '45%',
               background: i % 2 === 0 ? '#22c55e' : '#7c6aff',
               '--angle': `${i * 45}deg`,
-              '--distance': `${60 + Math.random() * 40}px`,
+              '--distance': `${particleDistances[i]}px`,
               animationDelay: `${200 + i * 50}ms`,
             }}
           />

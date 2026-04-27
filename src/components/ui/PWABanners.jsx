@@ -28,7 +28,7 @@ function wasDismissed(key) {
 }
 
 function dismiss(key) {
-  try { localStorage.setItem(key, Date.now().toString()) } catch {}
+  try { localStorage.setItem(key, Date.now().toString()) } catch { /* localStorage non disponibile */ }
 }
 
 // ── Detect Safari iOS ──

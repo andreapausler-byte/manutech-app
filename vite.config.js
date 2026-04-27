@@ -17,7 +17,6 @@ export default defineConfig({
         manualChunks: {
           'qr-scanner': ['html5-qrcode'],
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'supabase-vendor': ['@supabase/supabase-js'],
           'icons-vendor': ['lucide-react'],
           'utils-vendor': ['date-fns', 'qrcode', 'react-hot-toast'],
         },
