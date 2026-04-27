@@ -294,7 +294,7 @@ export default function ConversationView({ conversation, user, otherUser, onBack
         senderRole: user.role,
         text: msgText,
         media: hasMedia ? pendingMedia.map(m => ({ type: m.type, url: m.url, name: m.name })) : null,
-        orgId: user.org_id || 'default',
+        orgId: user.org_id,
       })
       setMessages(prev => {
         if (prev.some(m => m.id === newMsg.id)) return prev

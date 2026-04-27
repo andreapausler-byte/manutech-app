@@ -405,7 +405,7 @@ export default function MobileLayout({ initialReportId }) {
   const handleNotifClick = (data) => {
     if (data.report_id) openReportByIdRef.current?.(data.report_id)
   }
-  const { notifPermission, canInstall, requestPermission, promptInstall, showNotification } = usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id || 'default' })
+  const { notifPermission, canInstall, requestPermission, promptInstall, showNotification } = usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id })
 
   // ── Deep link da email ──
   useEffect(() => {

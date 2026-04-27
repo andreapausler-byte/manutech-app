@@ -140,7 +140,7 @@ export function usePWA(onNotificationClick, userInfo) {
         await db.savePushSubscription(userInfo.userId, {
           endpoint: subJson.endpoint,
           keys: { p256dh: subJson.keys.p256dh, auth: subJson.keys.auth },
-        }, userInfo.orgId || 'default')
+        }, userInfo.orgId)
         console.log('[PWA] Push subscription salvata nel DB (auto)')
       } catch (err) {
         console.warn('[PWA] Errore auto push subscription:', err)
@@ -204,7 +204,7 @@ export function usePWA(onNotificationClick, userInfo) {
   }, [swRegistration])
 
   // ── Sottoscrivi a Web Push (per notifiche in background) ──
-  const subscribeToPush = useCallback(async (userId, orgId = 'default') => {
+  const subscribeToPush = useCallback(async (userId, orgId) => {
     if (!swRegistration || !VAPID_PUBLIC_KEY) {
       console.log('[PWA] Push subscription skipped: no SW or VAPID key')
       return null

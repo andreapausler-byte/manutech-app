@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import { ROLES, STATUS, SEVERITY, SUPPLIER_SPECIALTIES, formatDate, timeAgo } from '../../lib/constants'
 import { Button, Modal, Input, Spinner } from '../../components/ui'
 import { useToast } from '../../hooks/useToast'
@@ -16,6 +17,7 @@ const isSupplier = (u, profileMap) =>
   !!profileMap?.[u.id] || u.email?.endsWith('@esterno.local')
 
 export default function AdminUsers() {
+  const { user: currentUser } = useAuth()
   const [users, setUsers] = useState([])
   const [profileMap, setProfileMap] = useState({}) // user_id → supplier_profile
   const [loading, setLoading] = useState(true)
@@ -151,7 +153,7 @@ export default function AdminUsers() {
           name: profileData.company_name,
           email: baseEmail,
           role: 'tecnico',
-          org_id: 'default',
+          org_id: currentUser?.org_id,
           status: 'active',
         })
         userId = createdUser.id
