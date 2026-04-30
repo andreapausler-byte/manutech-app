@@ -9,11 +9,12 @@
  *   SUPABASE_URL                — già presente (altre Edge Functions)
  *   SUPABASE_SERVICE_ROLE_KEY   — già presente
  *   IP_HASH_SALT                — NUOVO: 32+ random bytes per GDPR ip hashing
- *   SUPABASE_ENV                — NUOVO: 'production' | 'staging' | 'development'
+ *   APP_ENV                     — NUOVO: 'production' | 'staging' | 'development'
+ *                                 (NON usare SUPABASE_ENV: prefisso riservato)
  *
  * Pre-go-live checklist:
  *   • Configurare IP_HASH_SALT in Supabase Dashboard → Edge Function secrets
- *   • Configurare SUPABASE_ENV='production' (abilita HARD FAIL su missing salt)
+ *   • Configurare APP_ENV='production' (abilita HARD FAIL su missing salt)
  *   • Configurare rate limit /rest/v1/rpc/check_slug_available a 30/min/IP
  *   • Attivare email verification (Sprint 2 con Resend) — TODO
  *

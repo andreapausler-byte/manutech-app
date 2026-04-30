@@ -82,12 +82,12 @@ Configurare in **Supabase Dashboard → Edge Functions → Secrets**:
 | `SUPABASE_URL` | già esistente (altre Edge Functions) | — |
 | `SUPABASE_SERVICE_ROLE_KEY` | già esistente | — |
 | `IP_HASH_SALT` | **nuovo** | 32+ random bytes — `openssl rand -hex 32` |
-| `SUPABASE_ENV` | **nuovo** | `production` / `staging` / `development` |
+| `APP_ENV` | **nuovo** | `production` / `staging` / `development` (Supabase vieta prefisso `SUPABASE_` per secrets custom) |
 
 ### Comportamento environment-aware (Q2 decisione)
 
-- `SUPABASE_ENV=production` + `IP_HASH_SALT` mancante → **HARD FAIL** (impedisce GDPR violation)
-- `SUPABASE_ENV=development|staging` + `IP_HASH_SALT` mancante → **WARNING** + fallback salt fisso
+- `APP_ENV=production` + `IP_HASH_SALT` mancante → **HARD FAIL** (impedisce GDPR violation)
+- `APP_ENV=development|staging` + `IP_HASH_SALT` mancante → **WARNING** + fallback salt fisso
 
 ---
 
@@ -235,7 +235,7 @@ done
 ## Pre-go-live checklist
 
 - [ ] `IP_HASH_SALT` configurato (32+ bytes random)
-- [ ] `SUPABASE_ENV='production'` configurato (abilita HARD FAIL su salt mancante)
+- [ ] `APP_ENV='production'` configurato (abilita HARD FAIL su salt mancante)
 - [ ] Rate limit `/rest/v1/rpc/check_slug_available` configurato a 30/min/IP nel Dashboard
 - [ ] Email verification con Resend (Sprint 2 — TODO)
 - [ ] Audit DB-backed per signup_attempts (Sprint futuro — TODO)
