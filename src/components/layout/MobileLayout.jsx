@@ -29,9 +29,11 @@ import ConversationList from '../messaging/ConversationList'
 import ConversationView from '../messaging/ConversationView'
 
 // ── FAB Config per tab ──
+const REFINED_PRIMARY = 'linear-gradient(135deg, #4f46e5, #7c3aed)'
+const REFINED_PRIMARY_SHADOW = '0 12px 30px rgba(124,58,237,0.45)'
 const FAB_CONFIG = {
-  home: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: 'var(--gradient-primary)', shadow: 'var(--shadow-glow-primary)' },
-  reports: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: 'var(--gradient-primary)', shadow: 'var(--shadow-glow-primary)' },
+  home: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: REFINED_PRIMARY, shadow: REFINED_PRIMARY_SHADOW },
+  reports: { icon: Plus, label: 'Nuova segnalazione', action: 'report_menu', bg: REFINED_PRIMARY, shadow: REFINED_PRIMARY_SHADOW },
   machines: { icon: Plus, label: 'Nuovo macchinario', action: 'new_machine', bg: 'linear-gradient(135deg, #22c55e, #16a34a)', shadow: '0 4px 20px rgba(34,197,94,0.35)' },
   messages: { icon: PenSquare, label: 'Nuova conversazione', action: 'new_conversation', bg: 'linear-gradient(135deg, #06b6d4, #0891b2)', shadow: '0 4px 20px rgba(6,182,212,0.35)' },
 }
@@ -98,8 +100,8 @@ function ContextualFAB({ tab, onNewReport, onQuickReport, onNewConversation, onN
             className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
             style={{
               padding: '18px 24px',
-              background: 'var(--gradient-primary)',
-              boxShadow: '0 6px 28px rgba(124, 106, 255, 0.35)',
+              background: REFINED_PRIMARY,
+              boxShadow: '0 6px 28px rgba(124, 58, 237, 0.4)',
               fontSize: 17, fontWeight: 700,
             }}
           >
@@ -562,60 +564,64 @@ export default function MobileLayout({ initialReportId }) {
   return (
     <div className="min-h-screen min-h-[100dvh] flex flex-col ambient-glow bg-base"
       style={{ '--ambient-color': getAmbientColors(tab).color, '--ambient-color-2': getAmbientColors(tab).color2 }}>
-      {/* Top Bar — Design System */}
+      {/* Top Bar — Refined */}
       <header className="sticky top-0 z-40" style={{
         background: 'var(--color-surface-1)',
         borderBottom: '1px solid var(--color-border)',
-        padding: '10px 16px',
+        padding: '8px 16px 12px',
         transition: 'background 0.4s ease',
       }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div
-              style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: 'linear-gradient(135deg, var(--color-primary), #00d4ff)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <span style={{ color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: "'Outfit', sans-serif" }}>M</span>
-            </div>
-            <div>
-              <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)', display: 'block', lineHeight: 1.2 }}>ManuTech</span>
-              <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{user.name}</span>
-            </div>
+        <div className="flex items-center" style={{ gap: 12 }}>
+          <div
+            style={{
+              width: 40, height: 40, borderRadius: 12,
+              background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: 17, fontFamily: "'Outfit', sans-serif" }}>M</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)', display: 'block', lineHeight: 1.2, letterSpacing: -0.2 }}>ManuTech</span>
+            <span style={{
+              fontSize: 12, color: 'var(--color-text-muted)',
+              display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{user.name}</span>
+          </div>
+          <div className="flex items-center" style={{ gap: 8 }}>
             {/* Theme toggle ☀/☾ */}
             <button
               onClick={() => { haptic.light(); toggleMode() }}
               aria-label={isDark ? 'Passa a modalità chiara' : 'Passa a modalità scura'}
               className="press-scale"
               style={{
-                width: 40, height: 40, borderRadius: 8,
-                background: 'var(--color-surface-3)',
+                width: 36, height: 36, borderRadius: 10,
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-secondary)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: 'none', cursor: 'pointer',
-                fontSize: 18,
+                cursor: 'pointer', fontSize: 16,
               }}
             >
               {isDark ? '☀' : '☾'}
             </button>
-            <NotificationCenter userId={user.id} userRole={user.role} onOpenReport={openReportById} onNewNotifications={showNotification} />
+            <NotificationCenter userId={user.id} userRole={user.role} onOpenReport={openReportById} onNewNotifications={showNotification} variant="surface" />
             {/* Logout */}
             <button
               onClick={logout}
               aria-label="Disconnetti"
               className="press-scale"
               style={{
-                width: 40, height: 40, borderRadius: 8,
-                background: 'var(--color-surface-3)',
+                width: 36, height: 36, borderRadius: 10,
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: 'none', cursor: 'pointer',
+                cursor: 'pointer',
                 color: 'var(--color-text-secondary)',
               }}
             >
-              <LogOut size={18} />
+              <LogOut size={16} />
             </button>
           </div>
         </div>

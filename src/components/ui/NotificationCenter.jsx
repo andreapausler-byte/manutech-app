@@ -63,7 +63,7 @@ function playNotifSound() {
   }
 }
 
-export default function NotificationCenter({ userId, userRole, onOpenReport, onNewNotifications }) {
+export default function NotificationCenter({ userId, userRole, onOpenReport, onNewNotifications, variant = 'overlay' }) {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [bellShake, setBellShake] = useState(false)
@@ -208,6 +208,8 @@ export default function NotificationCenter({ userId, userRole, onOpenReport, onN
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
   }
 
+  const isSurface = variant === 'surface'
+
   return (
     <div className="relative" ref={panelRef}>
       {/* Bell button — with shake animation */}
@@ -215,18 +217,34 @@ export default function NotificationCenter({ userId, userRole, onOpenReport, onN
         onClick={toggleOpen}
         aria-label={unreadCount > 0 ? `Notifiche (${unreadCount} non lette)` : 'Notifiche'}
         aria-expanded={open}
-        className="relative w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center press-scale"
-        style={{ background: 'rgba(255,255,255,0.12)' }}
+        className={isSurface
+          ? 'relative flex items-center justify-center press-scale'
+          : 'relative w-[10vw] h-[10vw] max-w-10 max-h-10 rounded-xl flex items-center justify-center press-scale'}
+        style={isSurface
+          ? {
+              width: 36, height: 36, borderRadius: 10,
+              background: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-secondary)',
+              cursor: 'pointer',
+            }
+          : { background: 'rgba(255,255,255,0.12)' }}
       >
         <Bell
-          size={18}
-          color="rgba(255,255,255,0.9)"
+          size={isSurface ? 16 : 18}
+          color={isSurface ? 'currentColor' : 'rgba(255,255,255,0.9)'}
           className={bellShake ? 'animate-bell-shake' : ''}
         />
         {unreadCount > 0 && (
           <span
-            className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full text-[10px] font-bold text-white flex items-center justify-center px-1 animate-scale-in"
-            style={{ background: 'var(--color-danger)' }}
+            className="absolute min-w-[18px] h-[18px] rounded-full text-[10px] font-bold text-white flex items-center justify-center px-1 animate-scale-in"
+            style={{
+              top: isSurface ? -3 : -4,
+              right: isSurface ? -3 : -4,
+              background: 'var(--color-danger)',
+              border: isSurface ? '2px solid var(--color-surface-1)' : 'none',
+              boxSizing: 'content-box',
+            }}
           >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>

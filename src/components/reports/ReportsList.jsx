@@ -6,7 +6,7 @@ import { avatarGradient } from '../../hooks/usePremiumUI'
 import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, X, User, ChevronDown, ChevronRight, Clock, Layers, MessageCircle } from 'lucide-react'
+import { Search, X, User, ChevronDown, Clock, Layers, MessageCircle } from 'lucide-react'
 
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
@@ -60,30 +60,37 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
       style={{
         background: 'var(--color-card)',
         border: '1px solid var(--color-border)',
-        borderLeft: `5px solid ${severity.color}`,
         borderRadius: 14,
-        padding: '14px 14px 14px 16px',
+        padding: '12px 14px',
         cursor: 'pointer',
         transition: 'border-color 0.15s, box-shadow 0.15s',
         position: 'relative',
+        overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
         gap: 12,
       }}
     >
+      {/* Priority stripe (3px, inset top/bottom) */}
+      <span aria-hidden="true" style={{
+        position: 'absolute', left: 0, top: 12, bottom: 12, width: 3,
+        background: severity.color, borderRadius: 2,
+      }} />
+
       {/* Avatar */}
       {report.assigned_to_name ? (
         <div className="avatar-initials avatar-gradient" style={{
           background: avatarGradient(report.assigned_to_name),
           '--avatar-gradient': avatarGradient(report.assigned_to_name),
-          width: 38, height: 38, fontSize: 13,
+          width: 38, height: 38, borderRadius: 12, fontSize: 13, fontWeight: 700,
+          flexShrink: 0,
         }}>
           {report.assigned_to_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
         </div>
       ) : (
         <div className="avatar-initials" style={{
           background: 'var(--color-surface-3)', border: '1.5px dashed var(--color-border)',
-          width: 38, height: 38,
+          width: 38, height: 38, borderRadius: 12, flexShrink: 0,
         }}>
           <User size={16} style={{ color: 'var(--color-text-muted)' }} />
         </div>
@@ -91,43 +98,36 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
 
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Row 1: Title + severity */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{
-            fontSize: 16, fontWeight: 700, color: 'var(--color-text)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            flex: 1, minWidth: 0, lineHeight: 1.3,
-          }}>
-            {report.title}
-          </span>
-          <span className={isCritical ? 'badge-critical-pulse' : isAlta ? 'badge-alta-pulse' : ''} style={{
-            fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-            background: severity.bg, color: severity.color,
-            flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3,
-          }}>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: severity.color }} />
-            {severity.label}
-          </span>
+        {/* Row 1: Title (single line) */}
+        <div style={{
+          fontSize: 14, fontWeight: 600, letterSpacing: -0.1, color: 'var(--color-text)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          lineHeight: 1.3,
+        }}>
+          {report.title}
         </div>
 
-        {/* Row 2: Machine + type + time */}
+        {/* Row 2: Machine + type tag */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6, marginTop: 4,
-          fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 500,
+          minWidth: 0,
         }}>
           {report.machine && (
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '35%' }}>
+            <span style={{
+              fontSize: 11, color: 'var(--color-text-muted)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              minWidth: 0, flexShrink: 1,
+            }}>
               {report.machine}
             </span>
           )}
           <span style={{
-            fontSize: 11, padding: '1px 6px', borderRadius: 4,
-            background: reportType.bg, color: reportType.color, fontWeight: 600, flexShrink: 0,
+            fontSize: 9, padding: '2px 6px', borderRadius: 4,
+            background: reportType.color + '22', color: reportType.color,
+            fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase',
+            flexShrink: 0,
           }}>
             {reportType.label}
-          </span>
-          <span style={{ marginLeft: 'auto', fontSize: 12, flexShrink: 0, opacity: 0.7 }}>
-            {shortDate(report.updated_at || report.created_at)}
           </span>
         </div>
 
@@ -149,6 +149,23 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
         )}
       </div>
 
+      {/* Right column: severity + age */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
+        flexShrink: 0,
+      }}>
+        <span className={isCritical ? 'badge-critical-pulse' : isAlta ? 'badge-alta-pulse' : ''} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          fontSize: 10, fontWeight: 600, color: severity.color, letterSpacing: 0.1,
+        }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: severity.color }} />
+          {severity.label}
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+          {shortDate(report.updated_at || report.created_at)}
+        </span>
+      </div>
+
       {/* Unread badge */}
       {unread > 0 && (
         <span style={{
@@ -163,9 +180,6 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
           {unread > 9 ? '9+' : unread}
         </span>
       )}
-
-      {/* Chevron */}
-      <ChevronRight size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0, opacity: 0.4 }} />
     </button>
   )
 }
@@ -347,24 +361,24 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       <PullToRefreshIndicator pullDistance={pullDistance} pullProgress={pullProgress} refreshing={refreshing} activated={activated} />
 
       <div className="px-[4vw] pt-0 space-y-[3vw]">
-        {/* Search bar — pill style */}
+        {/* Search bar — card style */}
         <div className="relative">
-          <Search size={18} style={{
+          <Search size={16} style={{
             position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
             color: search ? 'var(--color-primary)' : 'var(--color-text-muted)',
             transition: 'color 0.2s',
           }} />
           <input
             type="text"
-            placeholder="Cerca segnalazione..."
+            placeholder="Cerca segnalazione…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
               width: '100%',
               background: 'var(--color-surface-2)',
-              border: '1.5px solid var(--color-border)',
-              borderRadius: 'var(--radius-full)',
-              padding: '11px 40px 11px 40px',
+              border: '1px solid var(--color-border)',
+              borderRadius: 14,
+              padding: '12px 40px 12px 38px',
               fontSize: 14,
               color: 'var(--color-text)',
               outline: 'none',
@@ -391,10 +405,10 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           )}
         </div>
 
-        {/* View toggle */}
+        {/* View toggle — segmented */}
         <div style={{
-          display: 'flex', borderRadius: 14, overflow: 'hidden',
-          background: 'var(--color-surface-2)', padding: 4,
+          display: 'flex', borderRadius: 12, padding: 4,
+          background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
         }}>
           {[
             { id: 'chrono', label: 'Recenti', icon: Clock },
@@ -403,15 +417,15 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
             <button key={v.id} onClick={() => switchView(v.id)}
               className="press-scale"
               style={{
-                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                padding: '14px 0', borderRadius: 10, fontSize: 17, fontWeight: 700,
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '9px 0', borderRadius: 9, fontSize: 13, fontWeight: 600,
                 background: viewMode === v.id ? 'var(--color-card)' : 'transparent',
                 color: viewMode === v.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
                 border: 'none', cursor: 'pointer',
                 boxShadow: viewMode === v.id ? 'var(--shadow-sm)' : 'none',
                 transition: 'all 0.2s',
               }}>
-              <v.icon size={20} /> {v.label}
+              <v.icon size={13} /> {v.label}
             </button>
           ))}
         </div>
@@ -424,29 +438,16 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
       ) : viewMode === 'chrono' ? (
         <div className="px-[4vw] pt-[2vw]">
-          <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {chronoSorted.map(report => {
-              const st = STATUS[report.status]
-              return (
-                <div key={report.id} style={{ position: 'relative' }}>
-                  {/* Status indicator dot */}
-                  <div style={{
-                    position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: st?.color || 'var(--color-text-muted)',
-                    boxShadow: `0 0 4px ${st?.color || 'transparent'}60`,
-                    zIndex: 1,
-                  }} />
-                  <div style={{ paddingLeft: 4 }}>
-                    <AccordionReportCard
-                      report={report}
-                      onSelect={onSelectReport}
-                      unread={unreadByReport[report.id] || 0}
-                    />
-                  </div>
-                </div>
-              )
-            })}
+          <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {chronoSorted.map(report => (
+              <AccordionReportCard
+                key={report.id}
+                report={report}
+                onSelect={onSelectReport}
+                unread={unreadByReport[report.id] || 0}
+                lastMessage={lastMessages[report.id]}
+              />
+            ))}
           </div>
         </div>
       ) : (
