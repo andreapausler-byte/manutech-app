@@ -302,15 +302,15 @@ UPDATE public.organizations
 
 -- Verifica: la riga seed DEVE esistere (significherebbe che 032 non è
 -- stata applicata, o che qualcuno l'ha cancellata manualmente).
+-- Patch staging: GET DIAGNOSTICS in DO block separato dall'UPDATE non
+-- traccia ROW_COUNT correttamente; uso EXISTS check diretto.
 DO $$
-DECLARE
-  _affected INT;
 BEGIN
-  GET DIAGNOSTICS _affected = ROW_COUNT;
-  IF _affected = 0 THEN
-    RAISE EXCEPTION 'Migration 033 fallita: seed org % non trovata. '
-                    'Verifica che 032 sia stata applicata.',
-                    '00000000-0000-0000-0000-000000000001';
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organizations
+    WHERE id = '00000000-0000-0000-0000-000000000001'::uuid
+  ) THEN
+    RAISE EXCEPTION 'Migration 033 fallita: seed org 00000000-0000-0000-0000-000000000001 non trovata. Verifica che 032 sia stata applicata.';
   END IF;
 END $$;
 
