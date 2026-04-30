@@ -398,7 +398,7 @@ export default function MachineDetailSheet({
   components = [],
   detailTab, setDetailTab,
   onClose, onEdit, onDelete, onDownloadQR, onOpenReport,
-  onOpenPlanForm, onDeletePlan, onOpenLogForm,
+  onOpenPlanForm, onDeletePlan, onOpenLogForm, onEditLog, onDeleteLog,
   onHandleCSVFile,
   onOpenComponentForm, onDeleteComponent,
   onUploadToMachine, onRemoveAttachment, onSaveField,
@@ -754,7 +754,7 @@ export default function MachineDetailSheet({
                   ) : (
                     <div className="space-y-2">
                       {logs.map(log => (
-                        <div key={log.id} className="flex items-start gap-3 p-4 bg-surface-2 rounded-xl">
+                        <div key={log.id} className="flex items-start gap-3 p-4 bg-surface-2 rounded-xl group">
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${log.type === 'programmata' ? 'bg-violet-500/15' : 'bg-amber-500/15'}`}>
                             {log.type === 'programmata' ? <Shield size={14} className="text-violet-400" /> : <Wrench size={14} className="text-amber-400" />}
                           </div>
@@ -772,6 +772,26 @@ export default function MachineDetailSheet({
                               {log.duration_minutes && <span>⏱ {log.duration_minutes} min</span>}
                               {log.parts_replaced && <span>🔩 {log.parts_replaced}</span>}
                             </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+                            {onEditLog && (
+                              <button
+                                onClick={() => onEditLog(log)}
+                                title="Modifica intervento"
+                                className="p-1.5 rounded-lg hover:bg-violet-500/15 text-faint hover:text-violet-400 transition-colors"
+                              >
+                                <Edit size={14} />
+                              </button>
+                            )}
+                            {onDeleteLog && (
+                              <button
+                                onClick={() => onDeleteLog(log.id)}
+                                title="Elimina intervento"
+                                className="p-1.5 rounded-lg hover:bg-red-500/15 text-faint hover:text-red-400 transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}

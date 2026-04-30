@@ -60,7 +60,8 @@ export default function AdminMachines() {
 
   // Log form
   const [showLogForm, setShowLogForm] = useState(false)
-  const [logForm, setLogForm] = useState({ title: '', description: '', duration_minutes: '', parts_replaced: '', plan_id: '', component_id: '', is_external: false, contractor_name: '', contractor_reference: '', media: [] })
+  const [editingLog, setEditingLog] = useState(null)
+  const [logForm, setLogForm] = useState({ title: '', description: '', duration_minutes: '', parts_replaced: '', plan_id: '', component_id: '', is_external: false, contractor_name: '', contractor_reference: '', media: [], performed_at: '' })
 
   // CSV
   const [showCSVImport, setShowCSVImport] = useState(false)
@@ -252,39 +253,97 @@ export default function AdminMachines() {
   const deletePlan = async (id) => { if (!confirm('Eliminare questo piano?')) return; await db.deleteMaintenancePlan(id); toast.success('Eliminato'); refreshDetail() }
 
   // ── Logs ──
-  const openLogForm = (planId = null) => {
-    const plan = planId ? plans.find(p => p.id === planId) : null
-    setLogForm({ title: plan?.name || '', description: '', duration_minutes: '', parts_replaced: '', plan_id: planId || '', component_id: '', is_external: false, contractor_name: '', contractor_reference: '', media: [] })
+  // datetime-local richiede 'YYYY-MM-DDTHH:mm' in ora locale (no offset, no secondi)
+  const toLocalDatetimeInput = (iso) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
+  const openLogForm = (planId = null, log = null) => {
+    if (log) {
+      setEditingLog(log)
+      setLogForm({
+        title: log.title || '',
+        description: log.description || '',
+        duration_minutes: log.duration_minutes != null ? String(log.duration_minutes) : '',
+        parts_replaced: log.parts_replaced || '',
+        plan_id: log.plan_id || '',
+        component_id: log.component_id || '',
+        is_external: !!log.is_external,
+        contractor_name: log.contractor_name || '',
+        contractor_reference: log.contractor_reference || '',
+        media: Array.isArray(log.media) ? log.media : [],
+        performed_at: toLocalDatetimeInput(log.performed_at),
+      })
+    } else {
+      setEditingLog(null)
+      const plan = planId ? plans.find(p => p.id === planId) : null
+      setLogForm({ title: plan?.name || '', description: '', duration_minutes: '', parts_replaced: '', plan_id: planId || '', component_id: '', is_external: false, contractor_name: '', contractor_reference: '', media: [], performed_at: '' })
+    }
     setShowLogForm(true)
   }
 
   const saveLog = async () => {
     if (!logForm.title.trim() || !sel) return
     try {
-      await db.createMaintenanceLog({
-        machine_id: sel.id,
-        plan_id: logForm.plan_id || null,
-        report_id: null,
-        component_id: logForm.component_id || null,
-        type: logForm.plan_id ? 'programmata' : 'straordinaria',
-        title: logForm.title.trim(),
-        description: logForm.description || null,
-        performed_by: user?.id,
-        performed_by_name: user?.name,
-        duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
-        parts_replaced: logForm.parts_replaced || null,
-        performed_at: new Date().toISOString(),
-        org_id: user?.org_id,
-        is_external: !!logForm.is_external,
-        contractor_name: logForm.is_external ? (logForm.contractor_name || null) : null,
-        contractor_reference: logForm.is_external ? (logForm.contractor_reference || null) : null,
-        media: Array.isArray(logForm.media) ? logForm.media : [],
-      })
-      toast.success('Intervento registrato')
+      if (editingLog) {
+        const updates = {
+          title: logForm.title.trim(),
+          description: logForm.description || null,
+          component_id: logForm.component_id || null,
+          duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
+          parts_replaced: logForm.parts_replaced || null,
+          is_external: !!logForm.is_external,
+          contractor_name: logForm.is_external ? (logForm.contractor_name || null) : null,
+          contractor_reference: logForm.is_external ? (logForm.contractor_reference || null) : null,
+          media: Array.isArray(logForm.media) ? logForm.media : [],
+        }
+        if (logForm.performed_at) {
+          const d = new Date(logForm.performed_at)
+          if (!Number.isNaN(d.getTime())) updates.performed_at = d.toISOString()
+        }
+        await db.updateMaintenanceLog(editingLog.id, updates)
+        toast.success('Intervento aggiornato')
+      } else {
+        await db.createMaintenanceLog({
+          machine_id: sel.id,
+          plan_id: logForm.plan_id || null,
+          report_id: null,
+          component_id: logForm.component_id || null,
+          type: logForm.plan_id ? 'programmata' : 'straordinaria',
+          title: logForm.title.trim(),
+          description: logForm.description || null,
+          performed_by: user?.id,
+          performed_by_name: user?.name,
+          duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
+          parts_replaced: logForm.parts_replaced || null,
+          performed_at: new Date().toISOString(),
+          org_id: user?.org_id,
+          is_external: !!logForm.is_external,
+          contractor_name: logForm.is_external ? (logForm.contractor_name || null) : null,
+          contractor_reference: logForm.is_external ? (logForm.contractor_reference || null) : null,
+          media: Array.isArray(logForm.media) ? logForm.media : [],
+        })
+        toast.success('Intervento registrato')
+      }
       setShowLogForm(false)
+      setEditingLog(null)
       await refreshDetail()
       // Avvia indicizzazione AI (biblioteca tecnica)
       triggerReindex(sel.id)
+    } catch (e) { toast.error('Errore: ' + e.message) }
+  }
+
+  const deleteLog = async (id) => {
+    if (!confirm('Eliminare questo intervento? L\'azione non è reversibile.')) return
+    try {
+      await db.deleteMaintenanceLog(id)
+      toast.success('Intervento eliminato')
+      await refreshDetail()
+      if (sel?.id) triggerReindex(sel.id)
     } catch (e) { toast.error('Errore: ' + e.message) }
   }
 
@@ -749,7 +808,7 @@ export default function AdminMachines() {
           onClose={() => setSel(null)} onEdit={openEdit} onDelete={(id) => { remove(id) }} onDownloadQR={downloadQR}
           onOpenReport={(report) => setSelectedReport(report)}
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
-          onOpenLogForm={openLogForm} onHandleCSVFile={handleCSVFile}
+          onOpenLogForm={openLogForm} onEditLog={(log) => openLogForm(null, log)} onDeleteLog={deleteLog} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
           onUploadToMachine={uploadToMachine} onRemoveAttachment={removeAttachment} onSaveField={updateMachineField}
           reindexing={reindexing}
@@ -787,8 +846,9 @@ export default function AdminMachines() {
       />
 
       <LogFormModal
-        open={showLogForm} onClose={() => setShowLogForm(false)}
+        open={showLogForm} onClose={() => { setShowLogForm(false); setEditingLog(null) }}
         form={logForm} setForm={setLogForm} plans={plans} components={components} onSave={saveLog}
+        editing={!!editingLog}
       />
 
       <CSVImportModal
