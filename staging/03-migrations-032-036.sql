@@ -8,6 +8,15 @@
 --   035: approval workflow (pending/approved/rejected)
 --   036: super_admin role + RPC list/approve/reject
 
+
+-- ─── PRE-MIGRATION FIXUP: drift schema da bundle 02 ────────
+-- dm_reads (creata in migration 016) NON ha la colonna org_id.
+-- Migration 032 in questo bundle prova a UPDATE org_id su dm_reads,
+-- quindi aggiungiamo la colonna prima.
+
+ALTER TABLE public.dm_reads
+  ADD COLUMN IF NOT EXISTS org_id TEXT NOT NULL DEFAULT 'default';
+
 -- Esegui DOPO aver applicato 01 e 02.
 -- ============================================================
 
