@@ -91,13 +91,19 @@ CREATE INDEX IF NOT EXISTS idx_chat_reads_report ON public.chat_reads(report_id)
 -- RLS
 ALTER TABLE public.chat_reads ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "chat_reads_select" ON public.chat_reads;
+
 CREATE POLICY "chat_reads_select" ON public.chat_reads
   FOR SELECT TO authenticated
   USING (user_id IN (SELECT id FROM public.users WHERE auth_id = auth.uid()));
 
+DROP POLICY IF EXISTS "chat_reads_insert" ON public.chat_reads;
+
 CREATE POLICY "chat_reads_insert" ON public.chat_reads
   FOR INSERT TO authenticated
   WITH CHECK (user_id IN (SELECT id FROM public.users WHERE auth_id = auth.uid()));
+
+DROP POLICY IF EXISTS "chat_reads_update" ON public.chat_reads;
 
 CREATE POLICY "chat_reads_update" ON public.chat_reads
   FOR UPDATE TO authenticated
@@ -145,6 +151,8 @@ END $$;
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- Migration 004 — Delete policy per reports (solo admin)
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DROP POLICY IF EXISTS "reports_delete" ON public.reports;
 
 CREATE POLICY "reports_delete" ON public.reports
   FOR DELETE TO authenticated
@@ -212,21 +220,31 @@ CREATE INDEX IF NOT EXISTS idx_mlogs_report ON public.maintenance_logs(report_id
 ALTER TABLE public.maintenance_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.maintenance_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "mplans_select" ON public.maintenance_plans;
+
 CREATE POLICY "mplans_select" ON public.maintenance_plans
   FOR SELECT TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "mplans_insert" ON public.maintenance_plans;
 CREATE POLICY "mplans_insert" ON public.maintenance_plans
   FOR INSERT TO authenticated WITH CHECK (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "mplans_update" ON public.maintenance_plans;
 CREATE POLICY "mplans_update" ON public.maintenance_plans
   FOR UPDATE TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "mplans_delete" ON public.maintenance_plans;
 CREATE POLICY "mplans_delete" ON public.maintenance_plans
   FOR DELETE TO authenticated USING (org_id = public.get_my_org_id());
 
+DROP POLICY IF EXISTS "mlogs_select" ON public.maintenance_logs;
+
 CREATE POLICY "mlogs_select" ON public.maintenance_logs
   FOR SELECT TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "mlogs_insert" ON public.maintenance_logs;
 CREATE POLICY "mlogs_insert" ON public.maintenance_logs
   FOR INSERT TO authenticated WITH CHECK (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "mlogs_update" ON public.maintenance_logs;
 CREATE POLICY "mlogs_update" ON public.maintenance_logs
   FOR UPDATE TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "mlogs_delete" ON public.maintenance_logs;
 CREATE POLICY "mlogs_delete" ON public.maintenance_logs
   FOR DELETE TO authenticated USING (org_id = public.get_my_org_id());
 
@@ -285,16 +303,19 @@ CREATE INDEX IF NOT EXISTS idx_push_sub_org  ON public.push_subscriptions(org_id
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Utenti vedono solo le proprie subscription
+DROP POLICY IF EXISTS "push_sub_select" ON public.push_subscriptions;
 CREATE POLICY "push_sub_select" ON public.push_subscriptions
   FOR SELECT TO authenticated
   USING (user_id = public.get_my_user_id());
 
 -- Utenti inseriscono solo per sé stessi
+DROP POLICY IF EXISTS "push_sub_insert" ON public.push_subscriptions;
 CREATE POLICY "push_sub_insert" ON public.push_subscriptions
   FOR INSERT TO authenticated
   WITH CHECK (user_id = public.get_my_user_id() AND org_id = public.get_my_org_id());
 
 -- Utenti cancellano solo le proprie
+DROP POLICY IF EXISTS "push_sub_delete" ON public.push_subscriptions;
 CREATE POLICY "push_sub_delete" ON public.push_subscriptions
   FOR DELETE TO authenticated
   USING (user_id = public.get_my_user_id());
@@ -333,6 +354,7 @@ CREATE TRIGGER trg_notif_prefs_updated
 ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
 
 -- Tutti vedono i default org della propria org
+DROP POLICY IF EXISTS "notif_prefs_select" ON public.notification_preferences;
 CREATE POLICY "notif_prefs_select" ON public.notification_preferences
   FOR SELECT TO authenticated
   USING (
@@ -344,6 +366,7 @@ CREATE POLICY "notif_prefs_select" ON public.notification_preferences
   );
 
 -- Utenti inseriscono le proprie preferenze
+DROP POLICY IF EXISTS "notif_prefs_insert" ON public.notification_preferences;
 CREATE POLICY "notif_prefs_insert" ON public.notification_preferences
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -355,6 +378,7 @@ CREATE POLICY "notif_prefs_insert" ON public.notification_preferences
   );
 
 -- Utenti aggiornano le proprie, admin aggiorna org defaults
+DROP POLICY IF EXISTS "notif_prefs_update" ON public.notification_preferences;
 CREATE POLICY "notif_prefs_update" ON public.notification_preferences
   FOR UPDATE TO authenticated
   USING (
@@ -366,6 +390,7 @@ CREATE POLICY "notif_prefs_update" ON public.notification_preferences
   );
 
 -- Utenti cancellano solo le proprie preferenze personali
+DROP POLICY IF EXISTS "notif_prefs_delete" ON public.notification_preferences;
 CREATE POLICY "notif_prefs_delete" ON public.notification_preferences
   FOR DELETE TO authenticated
   USING (user_id = public.get_my_user_id() AND is_org_default = false);
@@ -381,6 +406,7 @@ CREATE POLICY "notif_prefs_delete" ON public.notification_preferences
 
 -- Senza questa policy, l'upsert in savePushSubscription fallisce
 -- silenziosamente perché Supabase upsert richiede sia INSERT che UPDATE.
+DROP POLICY IF EXISTS "push_sub_update" ON public.push_subscriptions;
 CREATE POLICY "push_sub_update" ON public.push_subscriptions
   FOR UPDATE TO authenticated
   USING (user_id = public.get_my_user_id())
@@ -424,6 +450,7 @@ CREATE TABLE IF NOT EXISTS public.push_config (
 ALTER TABLE public.push_config ENABLE ROW LEVEL SECURITY;
 
 -- Admin può gestire la config
+DROP POLICY IF EXISTS "push_config_admin" ON public.push_config;
 CREATE POLICY "push_config_admin" ON public.push_config
   FOR ALL TO authenticated
   USING (public.get_my_role() = 'admin')
@@ -827,6 +854,7 @@ ALTER TABLE public.direct_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dm_reads ENABLE ROW LEVEL SECURITY;
 
 -- Conversations: solo partecipanti nella stessa org
+DROP POLICY IF EXISTS "conv_select" ON public.conversations;
 CREATE POLICY "conv_select" ON public.conversations
   FOR SELECT TO authenticated
   USING (
@@ -834,12 +862,16 @@ CREATE POLICY "conv_select" ON public.conversations
     AND (participant_1 = public.get_my_user_id() OR participant_2 = public.get_my_user_id())
   );
 
+DROP POLICY IF EXISTS "conv_insert" ON public.conversations;
+
 CREATE POLICY "conv_insert" ON public.conversations
   FOR INSERT TO authenticated
   WITH CHECK (
     org_id = public.get_my_org_id()
     AND (participant_1 = public.get_my_user_id() OR participant_2 = public.get_my_user_id())
   );
+
+DROP POLICY IF EXISTS "conv_update" ON public.conversations;
 
 CREATE POLICY "conv_update" ON public.conversations
   FOR UPDATE TO authenticated
@@ -849,6 +881,7 @@ CREATE POLICY "conv_update" ON public.conversations
   );
 
 -- Direct messages: solo partecipanti della conversazione
+DROP POLICY IF EXISTS "dm_select" ON public.direct_messages;
 CREATE POLICY "dm_select" ON public.direct_messages
   FOR SELECT TO authenticated
   USING (
@@ -859,6 +892,8 @@ CREATE POLICY "dm_select" ON public.direct_messages
     )
   );
 
+DROP POLICY IF EXISTS "dm_insert" ON public.direct_messages;
+
 CREATE POLICY "dm_insert" ON public.direct_messages
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -867,13 +902,18 @@ CREATE POLICY "dm_insert" ON public.direct_messages
   );
 
 -- DM reads: solo le proprie
+DROP POLICY IF EXISTS "dm_reads_select" ON public.dm_reads;
 CREATE POLICY "dm_reads_select" ON public.dm_reads
   FOR SELECT TO authenticated
   USING (user_id = public.get_my_user_id());
 
+DROP POLICY IF EXISTS "dm_reads_upsert" ON public.dm_reads;
+
 CREATE POLICY "dm_reads_upsert" ON public.dm_reads
   FOR INSERT TO authenticated
   WITH CHECK (user_id = public.get_my_user_id());
+
+DROP POLICY IF EXISTS "dm_reads_update" ON public.dm_reads;
 
 CREATE POLICY "dm_reads_update" ON public.dm_reads
   FOR UPDATE TO authenticated
@@ -906,17 +946,25 @@ DROP POLICY IF EXISTS "mplans_delete" ON public.maintenance_plans;
 
 ALTER TABLE public.maintenance_plans ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "mplans_select" ON public.maintenance_plans;
+
 CREATE POLICY "mplans_select" ON public.maintenance_plans
   FOR SELECT TO authenticated
   USING (org_id = public.get_my_org_id());
+
+DROP POLICY IF EXISTS "mplans_insert" ON public.maintenance_plans;
 
 CREATE POLICY "mplans_insert" ON public.maintenance_plans
   FOR INSERT TO authenticated
   WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() IN ('admin', 'tecnico'));
 
+DROP POLICY IF EXISTS "mplans_update" ON public.maintenance_plans;
+
 CREATE POLICY "mplans_update" ON public.maintenance_plans
   FOR UPDATE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() IN ('admin', 'tecnico'));
+
+DROP POLICY IF EXISTS "mplans_delete" ON public.maintenance_plans;
 
 CREATE POLICY "mplans_delete" ON public.maintenance_plans
   FOR DELETE TO authenticated
@@ -1049,14 +1097,18 @@ ALTER TABLE public.reward_catalog ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reward_redemptions ENABLE ROW LEVEL SECURITY;
 
 -- token_config: admin read/write, altri read
+DROP POLICY IF EXISTS "tc_select" ON public.token_config;
 CREATE POLICY "tc_select" ON public.token_config
   FOR SELECT TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "tc_insert" ON public.token_config;
 CREATE POLICY "tc_insert" ON public.token_config
   FOR INSERT TO authenticated WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "tc_update" ON public.token_config;
 CREATE POLICY "tc_update" ON public.token_config
   FOR UPDATE TO authenticated USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
 
 -- token_transactions: tutti vedono le proprie, admin vede tutte dell'org
+DROP POLICY IF EXISTS "tt_select_own" ON public.token_transactions;
 CREATE POLICY "tt_select_own" ON public.token_transactions
   FOR SELECT TO authenticated USING (
     org_id = public.get_my_org_id() AND (
@@ -1066,16 +1118,21 @@ CREATE POLICY "tt_select_own" ON public.token_transactions
   );
 
 -- reward_catalog: tutti leggono, admin gestisce
+DROP POLICY IF EXISTS "rc_select" ON public.reward_catalog;
 CREATE POLICY "rc_select" ON public.reward_catalog
   FOR SELECT TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "rc_insert" ON public.reward_catalog;
 CREATE POLICY "rc_insert" ON public.reward_catalog
   FOR INSERT TO authenticated WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "rc_update" ON public.reward_catalog;
 CREATE POLICY "rc_update" ON public.reward_catalog
   FOR UPDATE TO authenticated USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "rc_delete" ON public.reward_catalog;
 CREATE POLICY "rc_delete" ON public.reward_catalog
   FOR DELETE TO authenticated USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
 
 -- reward_redemptions: proprie + admin tutte
+DROP POLICY IF EXISTS "rr_select" ON public.reward_redemptions;
 CREATE POLICY "rr_select" ON public.reward_redemptions
   FOR SELECT TO authenticated USING (
     org_id = public.get_my_org_id() AND (
@@ -1083,8 +1140,10 @@ CREATE POLICY "rr_select" ON public.reward_redemptions
       OR public.get_my_role() = 'admin'
     )
   );
+DROP POLICY IF EXISTS "rr_insert" ON public.reward_redemptions;
 CREATE POLICY "rr_insert" ON public.reward_redemptions
   FOR INSERT TO authenticated WITH CHECK (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "rr_update" ON public.reward_redemptions;
 CREATE POLICY "rr_update" ON public.reward_redemptions
   FOR UPDATE TO authenticated USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
 
@@ -1238,17 +1297,25 @@ DROP POLICY IF EXISTS "mlogs_delete" ON public.maintenance_logs;
 
 ALTER TABLE public.maintenance_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "mlogs_select" ON public.maintenance_logs;
+
 CREATE POLICY "mlogs_select" ON public.maintenance_logs
   FOR SELECT TO authenticated
   USING (org_id = public.get_my_org_id());
+
+DROP POLICY IF EXISTS "mlogs_insert" ON public.maintenance_logs;
 
 CREATE POLICY "mlogs_insert" ON public.maintenance_logs
   FOR INSERT TO authenticated
   WITH CHECK (org_id = public.get_my_org_id());
 
+DROP POLICY IF EXISTS "mlogs_update" ON public.maintenance_logs;
+
 CREATE POLICY "mlogs_update" ON public.maintenance_logs
   FOR UPDATE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() IN ('admin', 'tecnico'));
+
+DROP POLICY IF EXISTS "mlogs_delete" ON public.maintenance_logs;
 
 CREATE POLICY "mlogs_delete" ON public.maintenance_logs
   FOR DELETE TO authenticated
@@ -1336,17 +1403,25 @@ CREATE INDEX idx_components_org ON public.machine_components(org_id);
 -- RLS
 ALTER TABLE public.machine_components ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "comp_select" ON public.machine_components;
+
 CREATE POLICY "comp_select" ON public.machine_components
   FOR SELECT TO authenticated
   USING (org_id = public.get_my_org_id());
+
+DROP POLICY IF EXISTS "comp_insert" ON public.machine_components;
 
 CREATE POLICY "comp_insert" ON public.machine_components
   FOR INSERT TO authenticated
   WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
 
+DROP POLICY IF EXISTS "comp_update" ON public.machine_components;
+
 CREATE POLICY "comp_update" ON public.machine_components
   FOR UPDATE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+
+DROP POLICY IF EXISTS "comp_delete" ON public.machine_components;
 
 CREATE POLICY "comp_delete" ON public.machine_components
   FOR DELETE TO authenticated
@@ -1465,37 +1540,48 @@ ALTER TABLE public.spare_part_compatibility ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.spare_part_orders ENABLE ROW LEVEL SECURITY;
 
 -- spare_parts
+DROP POLICY IF EXISTS "sp_select" ON public.spare_parts;
 CREATE POLICY "sp_select" ON public.spare_parts
   FOR SELECT TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "sp_insert" ON public.spare_parts;
 CREATE POLICY "sp_insert" ON public.spare_parts
   FOR INSERT TO authenticated
   WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "sp_update" ON public.spare_parts;
 CREATE POLICY "sp_update" ON public.spare_parts
   FOR UPDATE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "sp_delete" ON public.spare_parts;
 CREATE POLICY "sp_delete" ON public.spare_parts
   FOR DELETE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
 
 -- spare_part_compatibility
+DROP POLICY IF EXISTS "spc_select" ON public.spare_part_compatibility;
 CREATE POLICY "spc_select" ON public.spare_part_compatibility
   FOR SELECT TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "spc_insert" ON public.spare_part_compatibility;
 CREATE POLICY "spc_insert" ON public.spare_part_compatibility
   FOR INSERT TO authenticated
   WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "spc_delete" ON public.spare_part_compatibility;
 CREATE POLICY "spc_delete" ON public.spare_part_compatibility
   FOR DELETE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
 
 -- spare_part_orders (tecnici possono vedere, admin può tutto)
+DROP POLICY IF EXISTS "spo_select" ON public.spare_part_orders;
 CREATE POLICY "spo_select" ON public.spare_part_orders
   FOR SELECT TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "spo_insert" ON public.spare_part_orders;
 CREATE POLICY "spo_insert" ON public.spare_part_orders
   FOR INSERT TO authenticated
   WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "spo_update" ON public.spare_part_orders;
 CREATE POLICY "spo_update" ON public.spare_part_orders
   FOR UPDATE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "spo_delete" ON public.spare_part_orders;
 CREATE POLICY "spo_delete" ON public.spare_part_orders
   FOR DELETE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
@@ -1566,14 +1652,19 @@ CREATE INDEX idx_areas_org ON public.areas(org_id);
 
 ALTER TABLE public.areas ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "areas_select" ON public.areas;
+
 CREATE POLICY "areas_select" ON public.areas
   FOR SELECT TO authenticated USING (org_id = public.get_my_org_id());
+DROP POLICY IF EXISTS "areas_insert" ON public.areas;
 CREATE POLICY "areas_insert" ON public.areas
   FOR INSERT TO authenticated
   WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "areas_update" ON public.areas;
 CREATE POLICY "areas_update" ON public.areas
   FOR UPDATE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
+DROP POLICY IF EXISTS "areas_delete" ON public.areas;
 CREATE POLICY "areas_delete" ON public.areas
   FOR DELETE TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
@@ -3302,18 +3393,22 @@ CREATE TRIGGER trg_supplier_profiles_updated
 ALTER TABLE public.supplier_profiles ENABLE ROW LEVEL SECURITY;
 
 -- Admin: full access nell'organizzazione
+DROP POLICY IF EXISTS "sp_admin_all" ON public.supplier_profiles;
 CREATE POLICY "sp_admin_all" ON public.supplier_profiles
   FOR ALL TO authenticated
   USING (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin')
   WITH CHECK (org_id = public.get_my_org_id() AND public.get_my_role() = 'admin');
 
 -- Fornitore: vede e aggiorna solo il proprio profilo
+DROP POLICY IF EXISTS "sp_self_select" ON public.supplier_profiles;
 CREATE POLICY "sp_self_select" ON public.supplier_profiles
   FOR SELECT TO authenticated
   USING (
     org_id = public.get_my_org_id() AND
     user_id = (SELECT id FROM public.users WHERE auth_id = auth.uid() LIMIT 1)
   );
+
+DROP POLICY IF EXISTS "sp_self_update" ON public.supplier_profiles;
 
 CREATE POLICY "sp_self_update" ON public.supplier_profiles
   FOR UPDATE TO authenticated
@@ -3323,6 +3418,7 @@ CREATE POLICY "sp_self_update" ON public.supplier_profiles
   );
 
 -- Tecnici/operatori: read-only (per mostrare info fornitore assegnato su report)
+DROP POLICY IF EXISTS "sp_read_assigned" ON public.supplier_profiles;
 CREATE POLICY "sp_read_assigned" ON public.supplier_profiles
   FOR SELECT TO authenticated
   USING (org_id = public.get_my_org_id());
