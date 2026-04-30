@@ -4,7 +4,7 @@ import { Building, Plus, FileText, Image as ImageIcon, Trash2, ExternalLink, Upl
 import { db } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
 
-export default function LogFormModal({ open, onClose, form, setForm, plans, components, onSave }) {
+export default function LogFormModal({ open, onClose, form, setForm, plans, components, onSave, editing = false }) {
   const [uploading, setUploading] = useState(false)
   const media = Array.isArray(form.media) ? form.media : []
 
@@ -41,7 +41,7 @@ export default function LogFormModal({ open, onClose, form, setForm, plans, comp
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Registra Intervento" size="md">
+    <Modal open={open} onClose={onClose} title={editing ? 'Modifica Intervento' : 'Registra Intervento'} size="md">
       <div className="space-y-4">
         {/* Toggle Intervento esterno */}
         <button
@@ -127,6 +127,15 @@ export default function LogFormModal({ open, onClose, form, setForm, plans, comp
           />
         </div>
 
+        {editing && (
+          <Input
+            label="Data e ora intervento"
+            type="datetime-local"
+            value={form.performed_at || ''}
+            onChange={e => setForm(f => ({ ...f, performed_at: e.target.value }))}
+          />
+        )}
+
         {/* Allegati (rapporti PDF, foto) */}
         <div>
           <label className="block text-[11px] text-faint uppercase tracking-wider mb-1.5">
@@ -178,7 +187,7 @@ export default function LogFormModal({ open, onClose, form, setForm, plans, comp
           size="lg"
           disabled={!form.title.trim() || (form.is_external && !(form.contractor_name || '').trim())}
         >
-          Registra intervento
+          {editing ? 'Salva modifiche' : 'Registra intervento'}
         </Button>
       </div>
     </Modal>

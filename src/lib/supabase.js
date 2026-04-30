@@ -872,6 +872,16 @@ export const db = {
     }
   },
 
+  async updateMaintenanceLog(id, updates) {
+    if (supabase) {
+      const { data, error } = await supabase.from('maintenance_logs')
+        .update(updates).eq('id', id).select().single()
+      if (error) throw error
+      return data
+    }
+    return { id, ...updates }
+  },
+
   async deleteMaintenanceLog(id) {
     if (supabase) {
       const { error } = await supabase.from('maintenance_logs').delete().eq('id', id)
