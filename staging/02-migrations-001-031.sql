@@ -94,9 +94,12 @@ CREATE POLICY "chat_reads_update" ON public.chat_reads
   USING (user_id IN (SELECT id FROM public.users WHERE auth_id = auth.uid()));
 
 -- Abilita Realtime sulla tabella comments
-ALTER PUBLICATION supabase_realtime ADD TABLE public.comments;
-
-
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables
+    WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='comments') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.comments;
+  END IF;
+END $$;
 -- ────────────────────────────────────────────────────────────
 -- 004-enable-realtime.sql
 -- ────────────────────────────────────────────────────────────
@@ -109,11 +112,19 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.comments;
 -- receive instant notifications without polling.
 
 -- Enable Realtime for notifications table
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
-
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables
+    WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='notifications') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+  END IF;
+END $$;
 -- Enable Realtime for comments table (chat)
-ALTER PUBLICATION supabase_realtime ADD TABLE public.comments;
-
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables
+    WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='comments') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.comments;
+  END IF;
+END $$;
 -- Verify:
 -- SELECT * FROM pg_publication_tables WHERE pubname = 'supabase_realtime';
 
@@ -859,9 +870,12 @@ CREATE POLICY "dm_reads_update" ON public.dm_reads
   USING (user_id = public.get_my_user_id());
 
 -- ── REALTIME ──────────────────────────────────────────────────
-ALTER PUBLICATION supabase_realtime ADD TABLE public.direct_messages;
-
-
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables
+    WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='direct_messages') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.direct_messages;
+  END IF;
+END $$;
 -- ────────────────────────────────────────────────────────────
 -- 017_fix_maintenance_plans_rls.sql
 -- ────────────────────────────────────────────────────────────
