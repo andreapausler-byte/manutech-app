@@ -4,15 +4,18 @@
  * Salva solo SHA-256(ip + IP_HASH_SALT) come chiave di rate limiting.
  * L'IP grezzo non viene mai persistito o loggato.
  *
- * Configurazione SUPABASE_ENV-aware (Q2 decisione):
+ * Configurazione APP_ENV-aware (Q2 decisione):
  *   • production → HARD FAIL se IP_HASH_SALT manca (impedisce GDPR violation)
  *   • dev/staging → WARN + fallback fisso documentato (sviluppo non blocca)
+ *
+ * Nota: il nome è APP_ENV e non SUPABASE_ENV perché Supabase Edge Functions
+ * vieta secrets custom con prefisso SUPABASE_ (riservato a system secrets).
  */
 
 const FALLBACK_SALT = 'manutech-dev-only-DO-NOT-USE-IN-PROD-c8b3e1a4'
 
 function isProduction(): boolean {
-  return Deno.env.get('SUPABASE_ENV') === 'production'
+  return Deno.env.get('APP_ENV') === 'production'
 }
 
 function getSalt(): string {

@@ -113,7 +113,7 @@ Bloccata in attesa di **3 risposte utente**:
 5. Apply migrations su staging IN ORDINE: 032 → 033 → 034
 6. Verifica: SELECT * FROM organizations WHERE slug='amarcord' (deve esistere, plan='enterprise')
 7. Deploy Edge Function signup-org su staging
-8. Configura secrets staging: IP_HASH_SALT, SUPABASE_ENV='staging'
+8. Configura secrets staging: IP_HASH_SALT, APP_ENV='staging'
 9. Smoke test signup nuova org (vedi README signup-org §Test manuale)
 10. Smoke test login admin Amarcord (regressione)
 11. Test DOWN scripts: 034_down → 033_down → restore backup → verifica
@@ -141,7 +141,7 @@ Sezioni da aggiungere/modificare:
   - Comment "stessa transazione" in provision.ts:Step C → "sequential consistency"
   - Orphan auth user cleanup cron (caso rollback Step C fallito)
   - Method check ritorna 400 invece di 405 (semantica HTTP corretta)
-- **Nuova sezione "Pre go-live checklist"** — IP_HASH_SALT, SUPABASE_ENV, rate limit /rpc/check_slug_available, email verification Sprint 2
+- **Nuova sezione "Pre go-live checklist"** — IP_HASH_SALT, APP_ENV, rate limit /rpc/check_slug_available, email verification Sprint 2
 
 ---
 
