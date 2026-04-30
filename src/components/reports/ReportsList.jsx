@@ -65,7 +65,6 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
         cursor: 'pointer',
         transition: 'border-color 0.15s, box-shadow 0.15s',
         position: 'relative',
-        overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
         gap: 12,
@@ -440,13 +439,14 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         <div className="px-[4vw] pt-[2vw]">
           <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {chronoSorted.map(report => (
-              <AccordionReportCard
-                key={report.id}
-                report={report}
-                onSelect={onSelectReport}
-                unread={unreadByReport[report.id] || 0}
-                lastMessage={lastMessages[report.id]}
-              />
+              <div key={report.id}>
+                <AccordionReportCard
+                  report={report}
+                  onSelect={onSelectReport}
+                  unread={unreadByReport[report.id] || 0}
+                  lastMessage={lastMessages[report.id]}
+                />
+              </div>
             ))}
           </div>
         </div>
