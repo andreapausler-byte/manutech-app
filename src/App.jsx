@@ -11,6 +11,9 @@ const OperatorApp = lazy(() => import('./pages/operator/OperatorApp'))
 const GuestChatPage = lazy(() => import('./components/guest/GuestChatPage'))
 const AcceptInvitePage = lazy(() => import('./components/layout/AcceptInvitePage'))
 const DesignPreview = lazy(() => import('./pages/DesignPreview'))
+const PendingApprovalScreen = lazy(() => import('./components/layout/PendingApprovalScreen'))
+const RejectedScreen = lazy(() => import('./components/layout/RejectedScreen'))
+const SuperAdminPendingOrgs = lazy(() => import('./pages/super-admin/SuperAdminPendingOrgs'))
 
 function AppLoader({ label = 'Caricamento ManuTech...' }) {
   return (
@@ -66,6 +69,25 @@ function AuthenticatedApp() {
   if (loading) return <AppLoader />
 
   if (!user) return <Suspense fallback={<AppLoader />}><LoginPage /></Suspense>
+
+  // Super-admin: console moderazione, bypassa il flow di approval
+  // (super_admin gestisce le approvazioni, non le subisce).
+  if (user.role === 'super_admin') {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <SuperAdminPendingOrgs />
+      </Suspense>
+    )
+  }
+
+  // Org in attesa o rifiutata: blocca l'accesso all'app reale finché
+  // un super_admin non approva. La schermata permette il logout.
+  if (user.org_approval_status === 'pending') {
+    return <Suspense fallback={<AppLoader />}><PendingApprovalScreen /></Suspense>
+  }
+  if (user.org_approval_status === 'rejected') {
+    return <Suspense fallback={<AppLoader />}><RejectedScreen /></Suspense>
+  }
 
   if (user.role === 'admin') {
     if (adminLayout === 'classic') {

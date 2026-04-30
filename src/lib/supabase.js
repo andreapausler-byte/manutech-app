@@ -371,6 +371,52 @@ export const db = {
     setStore('manutech_supplier_profiles', profiles)
   },
 
+  // ─── SUPER-ADMIN MODERATION (mig. 036) ───
+  async listPendingOrgs() {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('list_pending_orgs')
+      if (error) throw new Error(error.message)
+      return data || []
+    }
+    // Demo mode: legge le org localStorage in stato 'pending'
+    const orgs = JSON.parse(localStorage.getItem('manutech_organizations') || '[]')
+    return orgs.filter(o => (o.approval_status || 'pending') === 'pending')
+  },
+
+  async approveOrg(orgId) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('approve_org', { _org_id: orgId })
+      if (error) throw new Error(error.message)
+      return data
+    }
+    const orgs = JSON.parse(localStorage.getItem('manutech_organizations') || '[]')
+    const org = orgs.find(o => o.id === orgId)
+    if (!org) throw new Error('Organizzazione non trovata')
+    org.approval_status = 'approved'
+    org.approved_at = new Date().toISOString()
+    org.rejection_reason = null
+    localStorage.setItem('manutech_organizations', JSON.stringify(orgs))
+    return org
+  },
+
+  async rejectOrg(orgId, reason) {
+    const trimmed = (reason || '').trim()
+    if (trimmed.length < 3) throw new Error('Motivo del rifiuto richiesto (min 3 caratteri)')
+    if (supabase) {
+      const { data, error } = await supabase.rpc('reject_org', { _org_id: orgId, _reason: trimmed })
+      if (error) throw new Error(error.message)
+      return data
+    }
+    const orgs = JSON.parse(localStorage.getItem('manutech_organizations') || '[]')
+    const org = orgs.find(o => o.id === orgId)
+    if (!org) throw new Error('Organizzazione non trovata')
+    org.approval_status = 'rejected'
+    org.approved_at = new Date().toISOString()
+    org.rejection_reason = trimmed
+    localStorage.setItem('manutech_organizations', JSON.stringify(orgs))
+    return org
+  },
+
   async getSession() {
     if (supabase) {
       const { data: { session } } = await supabase.auth.getSession()

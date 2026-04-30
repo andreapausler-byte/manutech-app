@@ -27,6 +27,7 @@ export type ErrorCode =
 // ── Warning non bloccanti (Q3 decisione: Step D fail = warning, no rollback) ──
 export type WarningCode =
   | 'owner_user_id_update_failed'  // org creata, user creato, ma owner_user_id NULL
+  | 'notification_email_failed'    // signup ok ma email super_admin non inviata
 
 // ── Response success (HTTP 201) ──
 export interface SignupSuccess {

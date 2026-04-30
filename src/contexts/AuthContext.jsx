@@ -38,8 +38,21 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
+  // Refresh profilo dopo cambio stato lato server (es. super_admin che approva
+  // la propria org, demo mode che modifica localStorage). Riusa la stessa
+  // resolve_my_profile RPC che dà org_approval_status aggiornato.
+  const refreshProfile = async () => {
+    try {
+      const session = await db.getSession()
+      setUser(session)
+      return session
+    } catch {
+      return null
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, acceptInvite, signupOrganization, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, acceptInvite, signupOrganization, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

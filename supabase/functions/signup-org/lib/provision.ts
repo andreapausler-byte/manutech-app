@@ -16,6 +16,7 @@
 
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import type { SignupRequest, WarningCode } from './types.ts'
+import { sendNewSignupNotification } from './email.ts'
 
 const TRIAL_DAYS = 30
 
@@ -41,6 +42,8 @@ export async function provisionOrganization(
   let userId: string | null = null
 
   // ── Step A: INSERT organizations ────────────────────────────
+  // approval_status='pending' (default mig. 035): le nuove org entrano
+  // in coda moderazione. Un super_admin le approva via console.
   const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString()
   const { data: orgData, error: orgErr } = await supabase
     .from('organizations')
@@ -49,6 +52,7 @@ export async function provisionOrganization(
       slug: input.org_slug,
       plan: 'trial',
       status: 'trial',
+      approval_status: 'pending',
       trial_ends_at: trialEndsAt,
       owner_user_id: null,  // settato in Step D
     })
@@ -163,6 +167,20 @@ export async function provisionOrganization(
     console.warn('[signup-org] Step D failed (non-blocking):', ownerErr.message,
       { org_id: orgId, user_id: userId })
     warnings.push('owner_user_id_update_failed')
+  }
+
+  // ── Step E: notifica email super_admin (non bloccante) ──
+  // Il signup è già committato; se l'email fallisce, l'org è comunque
+  // visibile nella coda /super-admin/pending-orgs. Warning loggato.
+  const emailRes = await sendNewSignupNotification({
+    orgId,
+    orgName: input.org_name,
+    orgSlug: input.org_slug,
+    ownerEmail: input.admin_email,
+    ownerName: input.admin_full_name,
+  })
+  if (!emailRes.ok) {
+    warnings.push('notification_email_failed')
   }
 
   return {
