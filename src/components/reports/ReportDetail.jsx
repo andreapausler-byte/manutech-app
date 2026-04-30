@@ -13,8 +13,12 @@ import ShareGuestLink from '../chat/ShareGuestLink'
 import SimilarReportsPanel from './SimilarReportsPanel'
 import {
   ArrowLeft, MessageCircle, Video, Mic, Expand, Image, Clock,
-  ChevronDown, Check, User, Wrench, Factory
+  ChevronDown, Check, User
 } from 'lucide-react'
+
+// ── Refined design tokens (allinea a MobileLayout v7.0) ──
+const REFINED_PRIMARY = 'linear-gradient(135deg, #4f46e5, #7c3aed)'
+const REFINED_PRIMARY_SHADOW = '0 8px 24px rgba(124,58,237,0.35)'
 
 // ── Status Stepper ──
 const STEPPER_STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'risolta']
@@ -159,43 +163,67 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-base flex flex-col">
-      {/* ═══ Hero Header with severity accent ═══ */}
+      {/* ═══ Refined Header — sleek, no severity tint ═══ */}
       <header style={{
-        background: `linear-gradient(180deg, ${severity.color}12 0%, transparent 100%)`,
+        background: 'var(--color-surface-1)',
         borderBottom: '1px solid var(--color-border)',
         position: 'sticky', top: 0, zIndex: 40,
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
       }}>
-        <div className="flex items-center gap-[2vw] px-[3vw] py-[2.5vw]">
-          <button onClick={onBack} className="w-[12vw] h-[12vw] max-w-12 max-h-12 rounded-xl flex items-center justify-center active:bg-white/10 text-muted press-scale shrink-0">
-            <ArrowLeft size={26} />
+        <div className="flex items-center px-4 pt-3 pb-2" style={{ gap: 10 }}>
+          <button
+            onClick={onBack}
+            aria-label="Indietro"
+            className="press-scale shrink-0"
+            style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-secondary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <ArrowLeft size={18} />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-themed truncate">{report.title}</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-              <Clock size={12} style={{ color: 'var(--color-text-muted)' }} />
-              <span className="text-sm text-faint">{timeAgo(report.created_at)}</span>
+            <h1 style={{
+              fontSize: 15, fontWeight: 600, lineHeight: 1.25, letterSpacing: -0.2,
+              color: 'var(--color-text)',
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}>
+              {report.title}
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+              <Clock size={11} style={{ color: 'var(--color-text-muted)' }} />
+              <span style={{
+                fontSize: 11, color: 'var(--color-text-muted)',
+                fontFamily: '"JetBrains Mono", monospace', letterSpacing: -0.2,
+              }}>
+                {timeAgo(report.created_at)}
+              </span>
             </div>
           </div>
           {/* Share guest link (admin/tecnico only) */}
           {(user.role === 'admin' || user.role === 'tecnico') && (
             <ShareGuestLink reportId={report.id} reportTitle={report.title} />
           )}
-          {/* Status pill with pulse */}
+          {/* Status pill — compact */}
           <span style={{
-            fontSize: 12, padding: '6px 12px', borderRadius: 'var(--radius-full)',
+            fontSize: 11, padding: '5px 10px', borderRadius: 999,
             fontWeight: 700, color: status.color, background: status.bg,
-            border: `1.5px solid ${status.color}40`,
-            whiteSpace: 'nowrap', letterSpacing: '0.02em',
-            boxShadow: `0 0 12px ${status.color}20`,
+            border: `1px solid ${status.color}33`,
+            whiteSpace: 'nowrap', letterSpacing: 0.2,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
           }}>
-            {status.icon} {status.label}
+            <span style={{ fontSize: 10 }}>{status.icon}</span>
+            {status.label}
           </span>
         </div>
 
         {/* Status stepper */}
-        <div style={{ padding: '4px 16px 14px' }}>
+        <div style={{ padding: '6px 14px 12px' }}>
           <StatusStepper currentStatus={report.status} />
         </div>
       </header>
@@ -221,10 +249,10 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           onClick={() => setShowInfo(!showInfo)}
           className="w-full flex items-center justify-between px-[4vw] py-[2.5vw] active:bg-white/[0.02]"
         >
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
             Dettagli
           </span>
-          <ChevronDown size={18} className="text-faint transition-transform duration-200" style={{ transform: showInfo ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+          <ChevronDown size={16} className="text-faint transition-transform duration-200" style={{ transform: showInfo ? 'rotate(180deg)' : 'rotate(0deg)' }} />
         </button>
 
         <div style={{
@@ -233,24 +261,37 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           transition: 'max-height 0.3s ease',
         }}>
           <div className="px-[4vw] pb-[4vw] space-y-[3vw]">
-            {/* Assignment card */}
+            {/* Assignment card — Refined indigo/violet */}
             {report.assigned_to_name && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 12,
-                background: 'rgba(139, 92, 246, 0.08)',
-                border: '1px solid rgba(139, 92, 246, 0.2)',
-                borderRadius: 16, padding: '12px 16px',
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 14, padding: '10px 12px',
+                position: 'relative', overflow: 'hidden',
               }}>
+                <span aria-hidden="true" style={{
+                  position: 'absolute', left: 0, top: 10, bottom: 10, width: 3,
+                  background: REFINED_PRIMARY, borderRadius: 2,
+                }} />
                 <div style={{
-                  width: 40, height: 40, borderRadius: '50%',
-                  background: 'rgba(139, 92, 246, 0.2)',
+                  width: 36, height: 36, borderRadius: 10,
+                  background: REFINED_PRIMARY,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  marginLeft: 6,
                 }}>
-                  <User size={18} style={{ color: '#8b5cf6' }} />
+                  <User size={16} style={{ color: '#fff' }} />
                 </div>
-                <div>
-                  <p style={{ fontSize: 11, color: 'rgba(139, 92, 246, 0.7)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Assegnata a</p>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>{report.assigned_to_name}</p>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{
+                    fontSize: 9, color: 'var(--color-text-muted)',
+                    textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700,
+                  }}>
+                    Assegnata a
+                  </p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', letterSpacing: -0.1 }}>
+                    {report.assigned_to_name}
+                  </p>
                 </div>
               </div>
             )}
@@ -258,10 +299,10 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             {/* Description */}
             <div style={{
               background: 'var(--color-surface-2)',
-              borderRadius: 16, padding: '14px 16px',
+              borderRadius: 14, padding: '12px 14px',
               border: '1px solid var(--color-border)',
             }}>
-              <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+              <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.55 }}>
                 {report.description}
               </p>
             </div>
@@ -318,45 +359,53 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             {report.extra_data?.closure_hours != null && (
               <div style={{
                 background: 'var(--color-surface-2)',
-                borderRadius: 16, padding: '16px',
+                borderRadius: 14, padding: '14px',
                 border: '1px solid var(--color-border)',
               }}>
-                <p className="label-section tracking-wider" style={{ marginBottom: 12 }}>Dati Chiusura</p>
+                <p style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                  textTransform: 'uppercase', color: 'var(--color-text-muted)',
+                  marginBottom: 10,
+                }}>Dati Chiusura</p>
                 <div className="grid grid-cols-2 gap-[2vw]">
-                  <div style={{ background: 'var(--color-surface-3)', borderRadius: 12, padding: '10px 12px' }}>
-                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Ore lavoro</p>
-                    <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>{report.extra_data.closure_hours}h</p>
+                  <div style={{ background: 'var(--color-surface-3)', borderRadius: 10, padding: '9px 11px' }}>
+                    <p style={{ fontSize: 10, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>Ore lavoro</p>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', fontFamily: '"JetBrains Mono", monospace' }}>{report.extra_data.closure_hours}h</p>
                   </div>
                   {report.extra_data.closure_parts && (
-                    <div style={{ background: 'var(--color-surface-3)', borderRadius: 12, padding: '10px 12px' }}>
-                      <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Ricambi</p>
+                    <div style={{ background: 'var(--color-surface-3)', borderRadius: 10, padding: '9px 11px' }}>
+                      <p style={{ fontSize: 10, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>Ricambi</p>
                       <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{report.extra_data.closure_parts}</p>
                     </div>
                   )}
                 </div>
                 {report.extra_data.closure_root_cause && (
-                  <div style={{ background: 'var(--color-surface-3)', borderRadius: 12, padding: '10px 12px', marginTop: 8 }}>
-                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Causa radice</p>
+                  <div style={{ background: 'var(--color-surface-3)', borderRadius: 10, padding: '9px 11px', marginTop: 8 }}>
+                    <p style={{ fontSize: 10, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>Causa radice</p>
                     <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{report.extra_data.closure_root_cause}</p>
                   </div>
                 )}
                 {report.extra_data.closure_action && (
-                  <div style={{ background: 'var(--color-surface-3)', borderRadius: 12, padding: '10px 12px', marginTop: 8 }}>
-                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Azione correttiva</p>
+                  <div style={{ background: 'var(--color-surface-3)', borderRadius: 10, padding: '9px 11px', marginTop: 8 }}>
+                    <p style={{ fontSize: 10, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>Azione correttiva</p>
                     <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{report.extra_data.closure_action}</p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Status Actions — Modern compact grid */}
+            {/* Status Actions — Refined compact grid */}
             {canUpdateStatus && (
               <div style={{
                 background: 'var(--color-surface-2)',
-                borderRadius: 16, padding: '16px',
+                borderRadius: 14, padding: '14px',
                 border: '1px solid var(--color-border)',
               }}>
-                <p className="label-section tracking-wider" style={{ marginBottom: 12 }}>Aggiorna Stato</p>
+                <p style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                  textTransform: 'uppercase', color: 'var(--color-text-muted)',
+                  marginBottom: 10,
+                }}>Aggiorna Stato</p>
                 <div className="grid grid-cols-3 gap-[2vw]">
                   {Object.entries(STATUS).map(([key, { label, color }]) => {
                     const isActive = report.status === key
@@ -367,26 +416,26 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                         className="press-scale"
                         style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                          padding: '12px 6px', borderRadius: 14,
-                          background: isActive ? color + '18' : 'var(--color-surface-3)',
-                          border: `2px solid ${isActive ? color : 'transparent'}`,
+                          padding: '11px 6px', borderRadius: 12,
+                          background: isActive ? color + '14' : 'var(--color-surface-3)',
+                          border: `1.5px solid ${isActive ? color : 'transparent'}`,
                           cursor: isActive ? 'default' : 'pointer',
                           opacity: (updatingStatus && !isActive && !isUpdating) ? 0.4 : 1,
                           transition: 'all 0.15s',
                         }}>
                         <div style={{
-                          width: 24, height: 24, borderRadius: '50%',
+                          width: 22, height: 22, borderRadius: '50%',
                           background: isActive ? color : 'transparent',
-                          border: `2.5px solid ${color}`,
+                          border: `2px solid ${color}`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
-                          {isUpdating && <div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'pulse 0.6s linear infinite' }} />}
-                          {isActive && <Check size={12} style={{ color: '#fff' }} />}
+                          {isUpdating && <div style={{ width: 9, height: 9, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'pulse 0.6s linear infinite' }} />}
+                          {isActive && <Check size={11} style={{ color: '#fff' }} />}
                         </div>
                         <span style={{
                           fontSize: 11, fontWeight: isActive ? 700 : 600,
                           color: isActive ? color : 'var(--color-text-secondary)',
-                          textAlign: 'center', lineHeight: 1.2,
+                          textAlign: 'center', lineHeight: 1.2, letterSpacing: -0.1,
                         }}>{label}</span>
                       </button>
                     )
@@ -474,12 +523,13 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
               <button onClick={submitClosure} disabled={!!updatingStatus}
                 className="press-scale"
                 style={{
-                  width: '100%', padding: 14, borderRadius: 14,
-                  background: 'var(--color-success)',
-                  color: '#000', fontSize: 15, fontWeight: 700,
+                  width: '100%', padding: 14, borderRadius: 12,
+                  background: REFINED_PRIMARY,
+                  color: '#fff', fontSize: 15, fontWeight: 700,
                   border: 'none', cursor: 'pointer',
                   opacity: updatingStatus ? 0.5 : 1,
-                  boxShadow: '0 4px 16px rgba(61, 220, 132, 0.3)',
+                  boxShadow: REFINED_PRIMARY_SHADOW,
+                  letterSpacing: -0.1,
                 }}>
                 {updatingStatus ? '...' : '✓ Conferma Chiusura'}
               </button>
@@ -495,24 +545,36 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         </div>
       )}
 
-      {/* ═══ Pill toggle: Chat / Timeline ═══ */}
-      <div className="pill-toggle shrink-0" style={{ margin: '0 4vw', marginTop: 4 }}>
-        <button
-          onClick={() => setActiveSection('chat')}
-          className={`pill-toggle-btn ${activeSection === 'chat' ? 'active' : ''}`}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <MessageCircle size={16} /> Chat
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveSection('timeline')}
-          className={`pill-toggle-btn ${activeSection === 'timeline' ? 'active' : ''}`}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Clock size={16} /> Cronologia
-          </span>
-        </button>
+      {/* ═══ Segmented toggle: Chat / Cronologia — Refined ═══ */}
+      <div className="shrink-0" style={{
+        margin: '0 4vw', marginTop: 4,
+        display: 'flex', borderRadius: 12, padding: 4,
+        background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+      }}>
+        {[
+          { id: 'chat', label: 'Chat', icon: MessageCircle },
+          { id: 'timeline', label: 'Cronologia', icon: Clock },
+        ].map(t => {
+          const active = activeSection === t.id
+          return (
+            <button
+              key={t.id}
+              onClick={() => setActiveSection(t.id)}
+              className="press-scale"
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '9px 0', borderRadius: 9, fontSize: 13, fontWeight: 600,
+                background: active ? 'var(--color-card)' : 'transparent',
+                color: active ? 'var(--color-text)' : 'var(--color-text-muted)',
+                border: 'none', cursor: 'pointer',
+                boxShadow: active ? 'var(--shadow-sm)' : 'none',
+                transition: 'all 0.2s',
+              }}
+            >
+              <t.icon size={14} style={{ color: active ? '#7c3aed' : 'currentColor' }} /> {t.label}
+            </button>
+          )
+        })}
       </div>
 
       {/* ═══ Content area ═══ */}
