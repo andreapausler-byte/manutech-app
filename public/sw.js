@@ -8,8 +8,9 @@
  *  4. Background sync placeholder per future funzionalità offline
  */
 
-// Bump ad ogni release per invalidare la cache (deve restare allineato a package.json version)
-const CACHE_NAME = 'manutech-v5.7.0'
+// Bump ad ogni release per invalidare la cache.
+// Allineato all'ultima release ship-pata (v7.2 = restyle Tecnico Refined).
+const CACHE_NAME = 'manutech-v7.2.0'
 const APP_SHELL = [
   '/',
   '/manifest.json',
