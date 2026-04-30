@@ -539,14 +539,19 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('attachments', 'attachments', true)
 ON CONFLICT (id) DO NOTHING;
 
+-- Storage policies idempotenti: DROP SCHEMA public CASCADE non rimuove
+-- le policy storage (vivono in storage.objects, schema separato).
+DROP POLICY IF EXISTS "attach_upload" ON storage.objects;
 CREATE POLICY "attach_upload" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'attachments');
 
+DROP POLICY IF EXISTS "attach_read" ON storage.objects;
 CREATE POLICY "attach_read" ON storage.objects
   FOR SELECT TO public
   USING (bucket_id = 'attachments');
 
+DROP POLICY IF EXISTS "attach_delete" ON storage.objects;
 CREATE POLICY "attach_delete" ON storage.objects
   FOR DELETE TO authenticated
   USING (bucket_id = 'attachments');
