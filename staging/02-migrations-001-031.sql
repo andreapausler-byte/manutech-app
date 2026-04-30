@@ -6,6 +6,16 @@
 -- ============================================================
 
 
+-- ─── PRE-MIGRATION FIXUP: drift schema.sql ─────────────────
+-- schema.sql (bundle 01) crea maintenance_logs SENZA report_id.
+-- Migration 005 lo aggiungerebbe ma usa CREATE TABLE IF NOT EXISTS
+-- (no-op se tabella esiste). Aggiungo esplicitamente qui per
+-- evitare che CREATE INDEX successivo fallisca.
+
+ALTER TABLE public.maintenance_logs
+  ADD COLUMN IF NOT EXISTS report_id UUID REFERENCES public.reports(id) ON DELETE SET NULL;
+
+
 -- ────────────────────────────────────────────────────────────
 -- 001_add_media_to_comments.sql
 -- ────────────────────────────────────────────────────────────
