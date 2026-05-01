@@ -417,26 +417,58 @@ export default function MobileLayout({ initialReportId }) {
     }
   }, [initialReportId])
 
+  // ── History stack per gesto "back" Android (swipe-from-edge) ──
+  // Ogni livello di navigazione push una entry in window.history e registra
+  // una close fn. Sia il gesto Android (popstate) sia i bottoni back UI
+  // (history.back) finiscono nello stesso handler: pop top of stack + esegui.
+  const navStackRef = useRef([])
+
+  const pushNavLayer = (closeFn) => {
+    window.history.pushState({ manutech: Date.now() }, '')
+    navStackRef.current = [...navStackRef.current, closeFn]
+  }
+
+  useEffect(() => {
+    const onPop = () => {
+      const stack = navStackRef.current
+      if (stack.length === 0) return
+      const closeFn = stack[stack.length - 1]
+      navStackRef.current = stack.slice(0, -1)
+      try { closeFn() } catch (e) { console.warn('[MobileLayout] nav close failed:', e) }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  const popNavLayer = () => {
+    if (navStackRef.current.length === 0) return
+    window.history.back()
+  }
+
   const switchTab = (id) => {
     haptic.light()
     setTab(id)
-    setShowNewConversation(false)
+    if (showNewConversation) popNavLayer()
   }
 
   // ── Navigazione con transizioni fluide ──
-  const navigateTo = (screenName, data = null) => {
+  const navigateTo = (screenName, data = null, extraCleanup = null) => {
     haptic.medium()
     setTransitionClass('page-slide-in')
     setSelectedReport(data)
     setScreen(screenName)
+    pushNavLayer(() => {
+      setTransitionClass('page-slide-back')
+      setTimeout(() => {
+        setScreen(null)
+        setSelectedReport(null)
+        if (extraCleanup) extraCleanup()
+      }, 50)
+    })
   }
 
   const goBack = () => {
-    setTransitionClass('page-slide-back')
-    setTimeout(() => {
-      setScreen(null)
-      setSelectedReport(null)
-    }, 50)
+    popNavLayer()
   }
 
   const openNewReport = () => navigateTo('new-report')
@@ -462,7 +494,7 @@ export default function MobileLayout({ initialReportId }) {
   const openConversation = (conv) => {
     setSelectedConversation(conv)
     markDMAsRead(conv.id)
-    navigateTo('conversation-detail')
+    navigateTo('conversation-detail', null, () => setSelectedConversation(null))
   }
 
   const [showNewConversation, setShowNewConversation] = useState(false)
@@ -470,6 +502,11 @@ export default function MobileLayout({ initialReportId }) {
   const handleNewConversation = () => {
     haptic.medium()
     setShowNewConversation(true)
+    pushNavLayer(() => setShowNewConversation(false))
+  }
+
+  const closeNewConversation = () => {
+    if (showNewConversation) popNavLayer()
   }
 
   const handleNewMachine = () => {
@@ -525,7 +562,7 @@ export default function MobileLayout({ initialReportId }) {
           user={user}
           otherUser={selectedConversation.otherUser}
           variant="mobile"
-          onBack={() => { goBack(); setSelectedConversation(null) }}
+          onBack={goBack}
           onMessageSent={() => markDMAsRead(selectedConversation.id)}
         />
       </div>
@@ -653,7 +690,7 @@ export default function MobileLayout({ initialReportId }) {
           {tab === 'messages' && (
             <ConversationList
               user={user}
-              onSelectConversation={(conv) => { setShowNewConversation(false); openConversation(conv) }}
+              onSelectConversation={(conv) => { closeNewConversation(); openConversation(conv) }}
               unreadByConversation={unreadByConversation}
               openNewChat={showNewConversation}
             />
