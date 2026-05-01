@@ -18,11 +18,13 @@ import {
   Package,
   Sparkles,
   Terminal,
+  TrendingUp,
 } from 'lucide-react'
 import { FEATURES } from './features'
 
 const BASE_NAV = [
   { id: 'dashboard',     icon: LayoutDashboard, label: 'Dashboard',    desc: 'Panoramica generale' },
+  { id: 'optimization',  icon: TrendingUp,      label: 'Ottimizzazione', desc: 'KPI e insight per ridurre fermi macchina' },
   { id: 'reports',       icon: ClipboardList,   label: 'Segnalazioni', desc: 'Gestisci interventi' },
   { id: 'assistant',     icon: Sparkles,        label: 'Assistente AI', desc: 'Cerca soluzioni nello storico' },
   { id: 'machines',      icon: Cog,             label: 'Macchinari',   desc: 'Anagrafica impianti' },

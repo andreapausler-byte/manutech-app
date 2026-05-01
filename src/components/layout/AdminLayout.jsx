@@ -12,6 +12,7 @@ import { Spinner } from '../ui'
 import { NAV } from '../../lib/adminNav'
 
 const AdminDashboard = lazy(() => import('../../pages/admin/AdminDashboard'))
+const AdminOptimization = lazy(() => import('../../pages/admin/AdminOptimization'))
 const AdminReports = lazy(() => import('../../pages/admin/AdminReports'))
 const AdminMachines = lazy(() => import('../../pages/admin/AdminMachines'))
 const AdminMaintenance = lazy(() => import('../../pages/admin/AdminMaintenance'))
@@ -66,6 +67,7 @@ export default function AdminLayout({ initialReportId, onSwitchToV6 }) {
   const renderPage = () => {
     switch (tab) {
       case 'dashboard': return <AdminDashboard onNavigate={setTab} />
+      case 'optimization': return <AdminOptimization onNavigate={setTab} />
       case 'reports': return <AdminReports initialReportId={initialReportId} />
       case 'assistant': return <AdminAssistantPage onOpenReport={() => setTab('reports')} />
       case 'machines': return <AdminMachines />

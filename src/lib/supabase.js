@@ -21,6 +21,7 @@ import { notifications } from './db/notifications'
 import { guest } from './db/guest'
 import { messaging } from './db/messaging'
 import { wallet } from './db/wallet'
+import { analytics } from './db/analytics'
 
 export const db = {
   ...auth,
@@ -34,4 +35,5 @@ export const db = {
   ...guest,
   ...messaging,
   ...wallet,
+  ...analytics,
 }
