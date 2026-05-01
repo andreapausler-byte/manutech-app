@@ -24,7 +24,8 @@ src/
 ├── contexts/           # AuthContext, ThemeContext (React Context, NO Redux)
 ├── hooks/              # 13 custom hooks (useWallet, useKPIStats, usePWA, ...)
 ├── lib/
-│   ├── supabase.js     # Layer DB unico (1350+ righe) — pattern: if(supabase){...}else{localStorage}
+│   ├── supabase.js     # Facade DB: riesporta supabase + compone `db` dai moduli db/
+│   ├── db/             # Moduli DB per dominio (auth, reports, machines, wallet, ...)
 │   ├── constants.js    # ROLES, STATUS, SEVERITY, QUICK_TEMPLATES, formatDate, timeAgo
 │   ├── theme.js        # Engine temi: 6 accent presets, dark/light/auto, 50+ CSS vars
 │   └── notifPreferences.js  # Preferenze notifiche per ruolo con cache 60s
@@ -86,7 +87,6 @@ src/
 
 ## Debito tecnico
 - Query N+1 in AdminDashboard e AdminMaintenance
-- supabase.js: pattern demo/prod duplicato 20+ volte
 - Componenti grandi (600+ LOC): AdminMachines, AdminReports, AdminDashboard
 - Zero test, zero accessibilità (aria-*)
 - Error handling inconsistente (.catch silenti)
