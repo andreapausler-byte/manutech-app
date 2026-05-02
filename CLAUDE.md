@@ -31,9 +31,10 @@ src/
 │   └── notifPreferences.js  # Preferenze notifiche per ruolo con cache 60s
 ├── pages/
 │   ├── admin/          # 10+ pagine (Dashboard, Reports, Machines, Leaderboard, Rewards...)
+│   ├── manutech-v6/    # V6App: layout admin unico (industrial dark)
 │   └── mobile/         # MobileDashboard, ProfilePage, WalletPage
 ├── styles/index.css    # Design system: CSS vars, animazioni, utility classes (750+ righe)
-└── App.jsx             # Routing: admin→AdminLayout, altri→MobileLayout, guest→GuestChatPage
+└── App.jsx             # Routing: admin→V6App, altri→MobileLayout, guest→GuestChatPage
 ```
 
 ## Ruoli e flusso

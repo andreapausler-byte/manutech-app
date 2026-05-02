@@ -1,11 +1,10 @@
-import { useMemo, useState, lazy, Suspense } from 'react'
+import { useMemo, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { Spinner } from './components/ui'
 
 const LoginPage = lazy(() => import('./components/layout/LoginPage'))
 const MobileLayout = lazy(() => import('./components/layout/MobileLayout'))
-const AdminLayout = lazy(() => import('./components/layout/AdminLayout'))
 const V6App = lazy(() => import('./pages/manutech-v6/V6App'))
 const OperatorApp = lazy(() => import('./pages/operator/OperatorApp'))
 const GuestChatPage = lazy(() => import('./components/guest/GuestChatPage'))
@@ -51,21 +50,6 @@ function AuthenticatedApp() {
     return match ? match[1] : null
   }, [])
 
-  // Admin desktop layout preference: 'v6' (default) | 'classic'
-  // Persist on localStorage so l'utente può tornare al classico.
-  const [adminLayout, setAdminLayout] = useState(() => {
-    try {
-      const stored = localStorage.getItem('manutech_admin_layout')
-      if (stored === 'classic' || stored === 'v6') return stored
-    } catch { /* noop */ }
-    return 'v6'
-  })
-
-  const switchAdminLayout = (next) => {
-    setAdminLayout(next)
-    try { localStorage.setItem('manutech_admin_layout', next) } catch { /* noop */ }
-  }
-
   if (loading) return <AppLoader />
 
   if (!user) return <Suspense fallback={<AppLoader />}><LoginPage /></Suspense>
@@ -90,23 +74,9 @@ function AuthenticatedApp() {
   }
 
   if (user.role === 'admin') {
-    if (adminLayout === 'classic') {
-      return (
-        <Suspense fallback={<AppLoader />}>
-          <AdminLayout
-            initialReportId={initialReportId}
-            onSwitchToV6={() => switchAdminLayout('v6')}
-          />
-        </Suspense>
-      )
-    }
     return (
       <Suspense fallback={<AppLoader />}>
-        <V6App
-          userName={user.name}
-          initialReportId={initialReportId}
-          onExit={() => switchAdminLayout('classic')}
-        />
+        <V6App userName={user.name} initialReportId={initialReportId} />
       </Suspense>
     )
   }

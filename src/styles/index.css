@@ -1258,7 +1258,7 @@ h1, h2, h3, h4 {
   border-radius: 999px;
 }
 
-/* Evita che i glow ambient dell'AdminLayout si riscaldino sul verde */
+/* Smorza i glow ambient dentro lo scope V6 (più sobrio, industrial) */
 .mt-scope .ambient-glow::before,
 .mt-scope .ambient-glow::after {
   opacity: 0.5;

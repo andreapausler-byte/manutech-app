@@ -9,8 +9,8 @@
  */
 
 // Bump ad ogni release per invalidare la cache.
-// v7.3.1 = pagina Ottimizzazione anche su layout V6
-const CACHE_NAME = 'manutech-v7.3.1'
+// v7.4.0 = V6 unico layout admin (rimosso Classic)
+const CACHE_NAME = 'manutech-v7.4.0'
 const APP_SHELL = [
   '/',
   '/manifest.json',
