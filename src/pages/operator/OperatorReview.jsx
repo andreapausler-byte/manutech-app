@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
+import VoiceMediaPicker from '../../components/voice/VoiceMediaPicker'
 
 const PRIORITY_OPTIONS = [
   { value: '', label: '— Priorità —' },
@@ -40,6 +41,7 @@ export default function OperatorReview({
     area: fields?.area || '',
   }))
   const [text, setText] = useState(transcription || '')
+  const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
   const update = (patch) => setForm(prev => ({ ...prev, ...patch }))
@@ -62,6 +64,7 @@ export default function OperatorReview({
           summary: form.summary.trim(),
         },
         finalText: text.trim(),
+        finalMedia: media,
         user,
       })
       toast.success('Ticket inviato')
@@ -164,6 +167,15 @@ export default function OperatorReview({
           onChange={(e) => update({ area: e.target.value })}
           maxLength={80}
           placeholder="Es. Linea 2, imbottigliamento"
+        />
+      </div>
+
+      <div className="op-field">
+        <VoiceMediaPicker
+          media={media}
+          setMedia={setMedia}
+          uploadPath={`voice-tickets/${user?.id || 'op'}`}
+          disabled={loading}
         />
       </div>
 

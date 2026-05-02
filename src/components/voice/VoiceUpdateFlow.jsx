@@ -106,6 +106,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
     note_tecniche: fields?.note_tecniche || '',
     tempo_intervento_minuti: fields?.tempo_intervento_minuti != null ? String(fields.tempo_intervento_minuti) : '',
   }))
+  const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
   const update = (patch) => setForm(prev => ({ ...prev, ...patch }))
@@ -175,6 +176,10 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       }
 
       const commentText = (form.note_tecniche.trim() || transcription || form.diagnosi_confermata || 'Aggiornamento vocale')
+      const allMedia = [
+        ...media,
+        ...(audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-update.webm' }] : []),
+      ]
       await db.addComment(report.id, {
         text: commentText,
         user_id: user.id,
@@ -188,7 +193,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
           transcription: transcription || null,
         },
         confidence: fields?.confidence ?? null,
-        media: audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-update.webm' }] : null,
+        media: allMedia.length > 0 ? allMedia : null,
       })
 
       // 3. Activity per l'update vocale (non solo status)
@@ -221,6 +226,9 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       onSubmit={handleSubmit}
       submitLabel="Salva aggiornamento"
       confidence={fields?.confidence}
+      media={media}
+      setMedia={setMedia}
+      mediaUploadPath={`voice-updates/${report.id}`}
     >
       <Field label="Diagnosi confermata">
         <textarea

@@ -146,6 +146,7 @@ function ReviewForm({ machines, fields, transcription, setTranscription, audioBl
     ricambi_potenziali: Array.isArray(fields?.ricambi_potenziali) ? fields.ricambi_potenziali : [],
     note_tecniche: fields?.note_tecniche || '',
   }))
+  const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
   const update = (patch) => setForm(prev => ({ ...prev, ...patch }))
@@ -180,6 +181,7 @@ function ReviewForm({ machines, fields, transcription, setTranscription, audioBl
         created_by: user.id,
         created_by_name: user.name,
         is_quick: false,
+        media: media.length > 0 ? media : [],
         extra_data: {
           source: 'voice_tech',
           ai_priority: form.priority || null,
@@ -258,6 +260,9 @@ function ReviewForm({ machines, fields, transcription, setTranscription, audioBl
       submitLabel="Crea ticket"
       submitDisabled={!form.summary.trim()}
       confidence={fields?.confidence}
+      media={media}
+      setMedia={setMedia}
+      mediaUploadPath={`voice-tickets/${user?.id || 'tech'}`}
     >
       {/* Titolo */}
       <Field label="Titolo ticket *">

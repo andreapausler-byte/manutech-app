@@ -50,7 +50,7 @@ export function useVoiceTicket(machines = []) {
 
   const machinesMemo = useMemo(() => machines, [machines])
 
-  const submitTicket = useCallback(async ({ finalFields, finalText, user }) => {
+  const submitTicket = useCallback(async ({ finalFields, finalText, finalMedia, user }) => {
     if (!user) throw new Error('Utente non valido')
     if (!finalFields?.summary?.trim()) throw new Error('Titolo obbligatorio')
 
@@ -70,6 +70,7 @@ export function useVoiceTicket(machines = []) {
       created_by: user.id,
       created_by_name: user.name,
       is_quick: false,
+      media: Array.isArray(finalMedia) && finalMedia.length > 0 ? finalMedia : [],
       extra_data: {
         source: 'voice',
         ai_priority: finalFields.priority || null,

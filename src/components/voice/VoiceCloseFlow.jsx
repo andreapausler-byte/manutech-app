@@ -92,6 +92,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
     closure_action: fields?.closure_action || '',
     test_eseguiti: fields?.test_eseguiti || '',
   }))
+  const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
   const update = (patch) => setForm(prev => ({ ...prev, ...patch }))
@@ -161,6 +162,10 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       }
 
       const commentText = `Chiusura vocale: ${closureData.closure_root_cause}\n${closureData.closure_action}`
+      const allMedia = [
+        ...media,
+        ...(audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-close.webm' }] : []),
+      ]
       await db.addComment(report.id, {
         text: commentText,
         user_id: user.id,
@@ -174,7 +179,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
           transcription: transcription || null,
         },
         confidence: fields?.confidence ?? null,
-        media: audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-close.webm' }] : null,
+        media: allMedia.length > 0 ? allMedia : null,
       })
 
       toast.success('Ticket chiuso')
@@ -198,6 +203,9 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       submitLabel="Chiudi ticket"
       submitDisabled={!isValid}
       confidence={fields?.confidence}
+      media={media}
+      setMedia={setMedia}
+      mediaUploadPath={`voice-close/${report.id}`}
     >
       <Field label="Causa radice *" required>
         <textarea
