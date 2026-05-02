@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { ROLES, STATUS, SEVERITY, SUPPLIER_SPECIALTIES, formatDate, timeAgo } from '../../lib/constants'
 import { Button, Modal, Input, Spinner } from '../../components/ui'
 import { useToast } from '../../hooks/useToast'
-import { Trash2, Search, Truck, Printer, Mail, Copy, Clock, XCircle, MessageCircle, Send, Share2, Phone, MapPin } from 'lucide-react'
+import { Trash2, Search, Truck, Printer, Mail, Copy, Clock, XCircle, MessageCircle, Send, Share2, Phone, MapPin, UserCog } from 'lucide-react'
 import PageHeader from '../../components/layout/PageHeader'
 import SupplierFormModal from '../../components/SupplierFormModal'
 import SupplierDetailModal from '../../components/SupplierDetailModal'
@@ -34,6 +34,10 @@ export default function AdminUsers() {
   const [supplierFormMode, setSupplierFormMode] = useState('create') // 'create' | 'edit'
   const [selectedSupplier, setSelectedSupplier] = useState(null)
   const [savingSupplier, setSavingSupplier] = useState(false)
+
+  // Role change flow
+  const [roleEditUser, setRoleEditUser] = useState(null)
+  const [savingRole, setSavingRole] = useState(false)
   const toast = useToast()
 
   const load = async () => {
@@ -121,6 +125,32 @@ export default function AdminUsers() {
     } catch (err) {
       toast.error(err.message || 'Errore revoca invito')
     }
+  }
+
+  const changeRole = async (newRole) => {
+    if (!roleEditUser) return
+    if (roleEditUser.role === newRole) {
+      setRoleEditUser(null)
+      return
+    }
+    // Safety: previene di rimanere senza admin nell'org
+    if (roleEditUser.role === 'admin' && newRole !== 'admin') {
+      const adminCount = users.filter(u => u.role === 'admin' && u.status !== 'disabled').length
+      if (adminCount <= 1) {
+        toast.error('Impossibile rimuovere l\'ultimo amministratore dell\'organizzazione')
+        return
+      }
+    }
+    setSavingRole(true)
+    try {
+      await db.updateUser(roleEditUser.id, { role: newRole })
+      toast.success(`Ruolo aggiornato: ${ROLES[newRole]?.label || newRole}`)
+      setRoleEditUser(null)
+      load()
+    } catch (err) {
+      toast.error(err.message || 'Errore cambio ruolo')
+    }
+    setSavingRole(false)
   }
 
   const openNewSupplier = () => {
@@ -445,6 +475,13 @@ export default function AdminUsers() {
                             ? <div className="w-4 h-4 border-2 border-violet-400/30 border-t-blue-400 rounded-full animate-spin" />
                             : <Printer size={15} />}
                         </button>
+                        {u.id !== 'admin-1' && !isSup && u.id !== currentUser?.id && (
+                          <button onClick={e => { e.stopPropagation(); setRoleEditUser(u) }}
+                            className="p-2 rounded-lg hover:bg-blue-500/20 text-muted hover:text-blue-400 transition-all"
+                            title="Cambia ruolo">
+                            <UserCog size={15} />
+                          </button>
+                        )}
                         {u.id !== 'admin-1' && !isSup && (
                           <button onClick={e => { e.stopPropagation(); remove(u.id) }}
                             className="p-2 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
@@ -552,6 +589,45 @@ export default function AdminUsers() {
         onEdit={() => selectedSupplier && openEditSupplier(selectedSupplier)}
         onDelete={() => selectedSupplier && handleDeleteSupplier(selectedSupplier)}
       />
+
+      {/* Modal: Cambia ruolo utente */}
+      <Modal open={!!roleEditUser} onClose={() => !savingRole && setRoleEditUser(null)} title="Cambia ruolo">
+        {roleEditUser && (
+          <div className="space-y-4">
+            <div className="rounded-xl p-3" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}>
+              <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{roleEditUser.name}</p>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{roleEditUser.email}</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                Ruolo attuale: <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{ROLES[roleEditUser.role]?.label || roleEditUser.role}</span>
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Nuovo ruolo</label>
+              <div className="flex gap-2">
+                {Object.entries(ROLES).map(([key, { label, icon }]) => {
+                  const current = roleEditUser.role === key
+                  return (
+                    <button key={key} onClick={() => changeRole(key)}
+                      disabled={savingRole || current}
+                      className={`flex-1 p-4 rounded-xl border text-center transition-all press-scale ${
+                        current
+                          ? 'border-violet-500 bg-violet-500/10 text-white opacity-60 cursor-not-allowed'
+                          : 'border-token text-muted hover:border-violet-500 hover:bg-violet-500/5'
+                      }`}>
+                      <div className="text-2xl mb-1.5">{icon}</div>
+                      <div className="text-sm font-medium">{label}</div>
+                      {current && <div className="text-[10px] mt-1 text-violet-400">Attuale</div>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              Il cambio è immediato. L'utente vedrà la nuova interfaccia al prossimo accesso o refresh.
+            </p>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
