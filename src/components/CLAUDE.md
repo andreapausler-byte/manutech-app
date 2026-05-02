@@ -18,9 +18,12 @@ import { Badge, Button, Input, Modal, Spinner, EmptyState, SkeletonDashboard } f
 NON creare componenti UI duplicati. Controlla prima `ui/index.jsx`.
 
 ## layout/ — Layout principali
-- `AdminLayout`: sidebar collassabile, 10 tab nella NAV, glass-morphism
 - `MobileLayout`: bottom nav con tab per ruolo, FAB per nuovo report, transizioni pagina
 - `LoginPage`: form login/registrazione
+
+Per il layout admin desktop vedi `src/pages/manutech-v6/V6App.jsx` —
+è l'unico layout admin (industrial dark). Aggiungere lì le nuove rotte
+con un nuovo `case route.name === 'xxx'`.
 
 ## reports/ — Segnalazioni
 - `NewReport`: form completo (titolo, macchina, severità, tipo, descrizione, foto)

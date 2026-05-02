@@ -1,8 +1,8 @@
 /**
- * Admin NAV — struttura condivisa tra AdminLayout e PageHeader
+ * Admin NAV — struttura condivisa tra layout admin e PageHeader.
  *
- * Estratta per evitare duplicazione del titolo/descrizione pagina
- * tra il layout (sidebar) e l'header locale di ogni pagina.
+ * Ordine: dashboard → ottimizzazione → operatività (segnalazioni / assistente)
+ * → gestione macchine/manutenzione/ricambi → persone → comunicazione → setup.
  */
 import {
   LayoutDashboard,
@@ -17,12 +17,10 @@ import {
   Gift,
   Package,
   Sparkles,
-  Terminal,
   TrendingUp,
 } from 'lucide-react'
-import { FEATURES } from './features'
 
-const BASE_NAV = [
+export const NAV = [
   { id: 'dashboard',     icon: LayoutDashboard, label: 'Dashboard',    desc: 'Panoramica generale' },
   { id: 'optimization',  icon: TrendingUp,      label: 'Ottimizzazione', desc: 'KPI e insight per ridurre fermi macchina' },
   { id: 'reports',       icon: ClipboardList,   label: 'Segnalazioni', desc: 'Gestisci interventi' },
@@ -37,15 +35,6 @@ const BASE_NAV = [
   { id: 'messages',      icon: MessageCircle,   label: 'Messaggi',     desc: 'Chat diretta con il team' },
   { id: 'notifications', icon: Bell,            label: 'Notifiche',    desc: 'Preferenze notifiche per ruolo' },
 ]
-
-const V6_NAV_ITEM = {
-  id: 'v6',
-  icon: Terminal,
-  label: 'Layout v6',
-  desc: 'Torna alla console v6 (dark industriale)',
-}
-
-export const NAV = FEATURES.manutechV6 ? [...BASE_NAV, V6_NAV_ITEM] : BASE_NAV
 
 export function findNavItem(id) {
   return NAV.find(n => n.id === id)

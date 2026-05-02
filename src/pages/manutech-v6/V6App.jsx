@@ -76,7 +76,7 @@ function AdminPageFrame({ title, crumbs, children }) {
   )
 }
 
-export default function V6App({ onExit, userName, initialReportId }) {
+export default function V6App({ userName, initialReportId }) {
   const { user, logout } = useAuth()
   const { toggleMode, isDark } = useTheme()
   const [route, setRoute] = useState(() =>
@@ -141,9 +141,6 @@ export default function V6App({ onExit, userName, initialReportId }) {
       <Shell
         activeRoute={route.name}
         onNavigate={(r) => navigate(r)}
-        onExit={onExit}
-        exitLabel="CLASSIC"
-        exitTitle="Passa al layout classico"
         userName={userName || user?.name}
         userSubtitle={user ? `${(user.role || '').toUpperCase()} · ${user?.org_name || 'MANUTECH'}` : 'ADMIN · MANUTECH'}
         navItems={navItems}
