@@ -9,8 +9,8 @@
  */
 
 // Bump ad ogni release per invalidare la cache.
-// Allineato all'ultima release ship-pata (v7.2 = restyle Tecnico Refined).
-const CACHE_NAME = 'manutech-v7.2.0'
+// v7.3.0 = release Ottimizzazione (KPI dashboard)
+const CACHE_NAME = 'manutech-v7.3.0'
 const APP_SHELL = [
   '/',
   '/manifest.json',
