@@ -39,8 +39,9 @@ export const auth = {
 
   async updateUser(id, updates) {
     if (supabase) {
-      const { data, error } = await supabase.from('users').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+      const { data, error } = await supabase.from('users').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().maybeSingle()
       if (error) throw error
+      if (!data) throw new Error('Permessi insufficienti: impossibile aggiornare questo utente (RLS)')
       return data
     }
     const users = getStore(KEYS.users)
