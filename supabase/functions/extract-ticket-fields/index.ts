@@ -65,6 +65,89 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// FUZZY MACHINE MATCHING — fallback quando Claude non identifica la macchina
+// ──────────────────────────────────────────────────────────────────────────
+// Token "rumore" da ignorare: parole comuni che non identificano una macchina.
+const STOPWORDS = new Set([
+  'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'un\'',
+  'di', 'del', 'della', 'dei', 'delle', 'da', 'dal', 'dalla',
+  'a', 'al', 'alla', 'ai', 'alle', 'in', 'nel', 'nella', 'nei', 'nelle',
+  'su', 'sul', 'sulla', 'con', 'per', 'tra', 'fra', 'e', 'o', 'ma',
+  'che', 'chi', 'cui', 'non', 'si', 'ci', 'vi', 'ne',
+  'ha', 'ho', 'hai', 'hanno', 'sono', 'e\'', 'era', 'sia',
+  'macchina', 'macchinario', 'numero', 'linea', 'ticket', 'problema',
+  'problemi', 'guasto', 'cosa', 'questo', 'quello',
+])
+
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // strip diacritici
+    .replace(/[^a-z0-9\s-]/g, ' ')   // pulisci punteggiatura
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function tokenize(s: string): string[] {
+  return normalize(s)
+    .split(/[\s-]+/)
+    .filter(t => t.length >= 2 && !STOPWORDS.has(t))
+}
+
+/**
+ * Cerca la macchina più "matchabile" nel testo trascritto.
+ *
+ * Strategia: per ogni macchina, calcola uno score basato su quanti
+ * token significativi del nome (e matricola/location) compaiono nel
+ * testo. Il match più alto sopra una soglia minima vince.
+ *
+ * Utile quando Claude non identifica la macchina perché:
+ *  - il nome del DB ha più parole del riferimento parlato (es. utente
+ *    dice "AMS" ma in DB è "Tappatrice AMS Linea 2")
+ *  - Whisper sbaglia leggermente parte del nome
+ *
+ * Soglia: almeno 1 token "forte" (>= 3 caratteri) deve matchare e lo
+ * score deve essere >= 0.4 (40% dei token significativi del nome).
+ */
+function fuzzyMatchMachine(
+  transcription: string,
+  claudeMachineName: string | null | undefined,
+  machines: MachineInput[],
+): { id: string; name: string } | null {
+  const haystack = normalize(`${transcription} ${claudeMachineName || ''}`)
+  if (!haystack) return null
+
+  let best: { id: string; name: string; score: number; strongHits: number } | null = null
+
+  for (const m of machines) {
+    if (!m?.id || !m?.name) continue
+    const tokens = tokenize(`${m.name} ${m.serial_number || ''} ${m.location || ''}`)
+    if (tokens.length === 0) continue
+
+    let hits = 0
+    let strongHits = 0
+    for (const t of tokens) {
+      // boundary match (evita "ams" che matcha "trasamicina")
+      const re = new RegExp(`(^|[^a-z0-9])${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`, 'i')
+      if (re.test(haystack)) {
+        hits++
+        if (t.length >= 3) strongHits++
+      }
+    }
+    const score = hits / tokens.length
+    if (!best || score > best.score) {
+      best = { id: m.id, name: m.name, score, strongHits }
+    }
+  }
+
+  if (!best) return null
+  if (best.strongHits === 0) return null
+  if (best.score < 0.4) return null
+  return { id: best.id, name: best.name }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // SYSTEM PROMPTS — uno per ogni context
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -594,12 +677,22 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ confidence: 0, _fallback: true, _raw_text: text.slice(0, 200) })
     }
 
-    // Validazione machine_id contro lista reale (solo per context con macchine)
+    // Validazione machine_id contro lista reale + fuzzy fallback
+    // (solo per context con macchine)
     if (context === 'operator_new_ticket' || context === 'tech_new_ticket') {
       const f = fields as { machine_id?: string | null; machine_name?: string | null; summary?: string }
       if (f.machine_id && !machines.some(m => m.id === f.machine_id)) {
         f.machine_id = null
         f.machine_name = null
+      }
+      // Fuzzy fallback: se Claude non ha matchato, cerca direttamente nel
+      // testo trascritto i token significativi del nome macchina.
+      if (!f.machine_id && machines.length > 0) {
+        const fuzzy = fuzzyMatchMachine(text, f.machine_name, machines)
+        if (fuzzy) {
+          f.machine_id = fuzzy.id
+          f.machine_name = fuzzy.name
+        }
       }
       if (!f.summary) f.summary = text.slice(0, 80)
     }
