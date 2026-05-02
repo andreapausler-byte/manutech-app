@@ -7,7 +7,6 @@ import { db } from '../../lib/supabase'
 import PageHeader from '../../components/layout/PageHeader'
 import { findNavItem } from '../../lib/adminNav'
 import { Spinner, EmptyState } from '../../components/ui'
-import { CountUp } from '../../hooks/usePremiumUI'
 
 const NAV_ITEM = findNavItem('optimization') || { label: 'Ottimizzazione', desc: 'KPI e insight per ridurre fermi macchina' }
 
@@ -244,8 +243,10 @@ export default function AdminOptimization({ onNavigate }) {
     async function load() {
       try {
         const d = await db.getOptimizationDashboard()
-        if (!cancelled) setData(d)
+        console.log('[Optimization] payload ricevuto:', d)
+        if (!cancelled) setData(d || {})
       } catch (e) {
+        console.error('[Optimization] errore RPC:', e)
         if (!cancelled) setError(e.message || 'Errore caricamento KPI')
       } finally {
         if (!cancelled) setLoading(false)
@@ -282,8 +283,10 @@ export default function AdminOptimization({ onNavigate }) {
     )
   }
 
-  const totalInterventions = (data.preventive_count || 0) + (data.corrective_count || 0)
-  const hasData = totalInterventions > 0 || (data.top_machines || []).length > 0
+  const totalInterventions = (data?.preventive_count ?? 0) + (data?.corrective_count ?? 0)
+  const topMachines = Array.isArray(data?.top_machines) ? data.top_machines : []
+  const topCauses = Array.isArray(data?.top_root_causes) ? data.top_root_causes : []
+  const hasData = totalInterventions > 0 || topMachines.length > 0
 
   if (!hasData) {
     return (
@@ -307,11 +310,19 @@ export default function AdminOptimization({ onNavigate }) {
     ? Math.round(((trend.corrective_now - trend.corrective_prev) / trend.corrective_prev) * 100)
     : null
 
+  const openCritical = data.open_critical ?? 0
+  const openHigh = data.open_high ?? 0
+  const overduePlans = data.overdue_plans ?? 0
+  const preventiveCount = data.preventive_count ?? 0
+  const correctiveCount = data.corrective_count ?? 0
+  const totalMachines = data.total_machines ?? 0
+  const windowDays = data.window_days ?? 90
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="stagger-children">
       <PageHeader
         title={NAV_ITEM.label}
-        description={`Finestra ${data.window_days || 90}gg · ${totalInterventions} interventi · ${data.total_machines} macchinari`}
+        description={`Finestra ${windowDays}gg · ${totalInterventions} interventi · ${totalMachines} macchinari`}
       />
 
       {/* ── Riga 1: KPI principali ── */}
@@ -334,16 +345,16 @@ export default function AdminOptimization({ onNavigate }) {
         />
         <KpiCard
           label="Preventiva"
-          subtitle={`${data.preventive_count} programmati / ${data.corrective_count} guasti`}
-          value={`${(data.preventive_ratio_pct || 0).toFixed(0)}%`}
+          subtitle={`${preventiveCount} programmati / ${correctiveCount} guasti`}
+          value={`${(data.preventive_ratio_pct ?? 0).toFixed(0)}%`}
           icon={Wrench}
           color="#22c55e"
           delta={ratioDelta}
         />
         <KpiCard
           label="Aperti urgenti"
-          subtitle={`${data.open_critical} critici · ${data.open_high} alta priorità · ${data.overdue_plans} piani scaduti`}
-          value={<CountUp value={data.open_critical + data.open_high} />}
+          subtitle={`${openCritical} critici · ${openHigh} alta priorità · ${overduePlans} piani scaduti`}
+          value={openCritical + openHigh}
           icon={AlertTriangle}
           color="#ef4444"
         />
@@ -375,8 +386,8 @@ export default function AdminOptimization({ onNavigate }) {
 
       {/* ── Riga 3: Top macchine + Top cause ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 16 }}>
-        <TopMachinesPanel machines={data.top_machines || []} onNavigate={onNavigate} />
-        <TopCausesPanel causes={data.top_root_causes || []} />
+        <TopMachinesPanel machines={topMachines} onNavigate={onNavigate} />
+        <TopCausesPanel causes={topCauses} />
       </div>
 
       {/* ── Riga 4: Trend 30gg ── */}
