@@ -9,8 +9,8 @@
  */
 
 // Bump ad ogni release per invalidare la cache.
-// v7.3.0 = release Ottimizzazione (KPI dashboard)
-const CACHE_NAME = 'manutech-v7.3.0'
+// v7.3.1 = pagina Ottimizzazione anche su layout V6
+const CACHE_NAME = 'manutech-v7.3.1'
 const APP_SHELL = [
   '/',
   '/manifest.json',
