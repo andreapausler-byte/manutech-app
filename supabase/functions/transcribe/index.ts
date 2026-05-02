@@ -8,7 +8,12 @@
  * Secrets necessari (Supabase Dashboard → Edge Functions → Secrets):
  *   GROQ_API_KEY — chiave API Groq (gsk_...)
  *
- * Body: multipart/form-data con campo "audio" (Blob).
+ * Body: multipart/form-data con:
+ *   audio       — Blob audio (obbligatorio)
+ *   vocabulary  — string opzionale, hint vocabolari per Whisper
+ *                 (nomi macchine, componenti tecnici, brand fornitori,
+ *                 ecc.). Whisper accetta max ~244 token: tronchiamo a
+ *                 800 caratteri per sicurezza.
  *
  * Response:
  *   { text: string } oppure { error: string }
@@ -23,6 +28,8 @@ const corsHeaders = {
 const GROQ_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
 // whisper-large-v3-turbo: fastest, identical quality for short clips
 const WHISPER_MODEL = 'whisper-large-v3-turbo'
+// Whisper accetta circa 244 token per il prompt; ~800 caratteri sono safe
+const MAX_VOCAB_CHARS = 800
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -45,6 +52,14 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Campo "audio" mancante o non valido' }, 400)
     }
 
+    // Vocabulary hint opzionale (nomi macchine, termini tecnici).
+    // Migliora drasticamente la trascrizione di termini specifici di dominio
+    // (es. "tappatrice", "pasteurizzatrice", "DN65", brand SKF/Festo).
+    const vocabularyRaw = inbound.get('vocabulary')
+    const vocabulary = typeof vocabularyRaw === 'string'
+      ? vocabularyRaw.trim().slice(0, MAX_VOCAB_CHARS)
+      : ''
+
     // Re-forward to Groq with the shape it expects (OpenAI-compatible)
     const outbound = new FormData()
     const filename = (audio as File).name || 'recording.webm'
@@ -53,6 +68,9 @@ Deno.serve(async (req: Request) => {
     outbound.append('language', 'it')
     outbound.append('response_format', 'json')
     outbound.append('temperature', '0')
+    if (vocabulary) {
+      outbound.append('prompt', vocabulary)
+    }
 
     const res = await fetch(GROQ_URL, {
       method: 'POST',
