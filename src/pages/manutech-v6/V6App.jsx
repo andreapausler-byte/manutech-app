@@ -9,6 +9,7 @@ import SettingsPanel from '../../components/ui/SettingsPanel'
 import { Spinner } from '../../components/ui'
 
 const AdminDashboard = lazy(() => import('../admin/AdminDashboard'))
+const AdminOptimization = lazy(() => import('../admin/AdminOptimization'))
 const AdminReports = lazy(() => import('../admin/AdminReports'))
 const AdminMachines = lazy(() => import('../admin/AdminMachines'))
 const AdminMaintenance = lazy(() => import('../admin/AdminMaintenance'))
@@ -154,6 +155,7 @@ export default function V6App({ onExit, userName, initialReportId }) {
           crumbs={user?.org_name || 'ManuTech · Console'}
         >
           {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
+          {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
           {route.name === 'reports' && <AdminReports initialReportId={initialReportId} />}
           {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} />}
           {route.name === 'machines' && <AdminMachines />}
