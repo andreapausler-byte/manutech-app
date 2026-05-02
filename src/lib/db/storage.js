@@ -25,4 +25,16 @@ export const storage = {
       reader.readAsDataURL(file)
     })
   },
+
+  // Upload audio vocale (webm/opus) nel bucket attachments.
+  // Naming: voice-updates/{ticketId}/{timestamp}-{userId}.webm
+  // Ritorna l'URL pubblico (o data:URL in demo mode).
+  async uploadVoiceAudio(blob, ticketId, userId) {
+    const ts = Date.now()
+    const safeTicket = (ticketId || 'unknown').toString().replace(/[^a-zA-Z0-9_-]/g, '_')
+    const safeUser = (userId || 'unknown').toString().replace(/[^a-zA-Z0-9_-]/g, '_')
+    const file = new File([blob], `voice-${ts}.webm`, { type: 'audio/webm' })
+    const path = `voice-updates/${safeTicket}/${ts}-${safeUser}`
+    return this.uploadFile('attachments', path, file)
+  },
 }

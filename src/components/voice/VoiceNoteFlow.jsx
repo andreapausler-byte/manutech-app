@@ -1,0 +1,182 @@
+import { useEffect, useState } from 'react'
+import { db } from '../../lib/supabase'
+import { useVoiceCapture } from '../../hooks/useVoiceCapture'
+import { useToast } from '../../hooks/useToast'
+import { useHaptic } from '../../hooks/useHaptic'
+import VoiceRecorder from './VoiceRecorder'
+import VoiceReviewShell from './VoiceReviewShell'
+
+const DEFAULT_FIELDS = { nota_tecnica: '', tag: null, confidence: 0 }
+
+/**
+ * VoiceNoteFlow — nota rapida vocale a un ticket esistente.
+ * Non cambia lo stato del ticket. Solo aggiunge un commento con
+ * kind='voice_note' e l'audio originale.
+ */
+export default function VoiceNoteFlow({ report, user, onClose, onApplied }) {
+  const toast = useToast()
+  const haptic = useHaptic()
+
+  const voice = useVoiceCapture({
+    context: 'tech_note',
+    contextPayload: {
+      ticket_id: report.id,
+      ticket_title: report.title,
+      machine_name: report.machine,
+    },
+    defaultFields: DEFAULT_FIELDS,
+  })
+
+  useEffect(() => {
+    if (voice.state === 'idle' && voice.supportsMediaRecorder) {
+      voice.startRecording()
+    } else if (voice.state === 'idle' && !voice.supportsMediaRecorder) {
+      voice.openManual()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (voice.state === 'idle' && voice.error) {
+      toast.error(voice.error)
+      onClose?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.state, voice.error])
+
+  if (voice.state === 'recording' || voice.state === 'transcribing') {
+    return (
+      <VoiceRecorder
+        state={voice.state}
+        elapsedMs={voice.elapsedMs}
+        onStop={voice.stopRecording}
+        onCancel={onClose}
+        title="Nota vocale"
+        hint="Aggiungi un'osservazione, un aggiornamento, una info."
+      />
+    )
+  }
+
+  if (voice.state === 'review') {
+    return (
+      <ReviewForm
+        fields={voice.fields || DEFAULT_FIELDS}
+        transcription={voice.transcription}
+        setTranscription={voice.setTranscription}
+        audioBlob={voice.audioBlob}
+        error={voice.error}
+        report={report}
+        user={user}
+        onCancel={onClose}
+        onSubmitted={onApplied}
+        haptic={haptic}
+        toast={toast}
+      />
+    )
+  }
+
+  return null
+}
+
+function ReviewForm({ fields, transcription, setTranscription, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
+  const [text, setText] = useState(() => fields?.nota_tecnica || transcription || '')
+  const [tag, setTag] = useState(() => fields?.tag || '')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async () => {
+    const finalText = (text || '').trim()
+    if (!finalText) {
+      toast.error('La nota è vuota')
+      return
+    }
+    setLoading(true)
+    haptic.medium()
+    try {
+      let audioUrl = null
+      if (audioBlob) {
+        try {
+          audioUrl = await db.uploadVoiceAudio(audioBlob, report.id, user.id)
+        } catch (e) {
+          console.warn('[voice_note] audio upload failed:', e?.message)
+        }
+      }
+      await db.addComment(report.id, {
+        text: finalText,
+        user_id: user.id,
+        user_name: user.name,
+        user_role: user.role,
+        kind: 'voice_note',
+        extra_data: {
+          source: 'voice',
+          tag: tag || null,
+          transcription: transcription || null,
+        },
+        confidence: fields?.confidence ?? null,
+        media: audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-note.webm' }] : null,
+      })
+      toast.success('Nota aggiunta')
+      haptic.success?.()
+      onSubmitted?.()
+    } catch (err) {
+      toast.error('Errore: ' + (err?.message || 'riprova'))
+      setLoading(false)
+    }
+  }
+
+  return (
+    <VoiceReviewShell
+      title="Nota vocale"
+      transcription={transcription}
+      setTranscription={setTranscription}
+      error={error}
+      loading={loading}
+      onCancel={onCancel}
+      onSubmit={handleSubmit}
+      submitLabel="Aggiungi nota"
+      submitDisabled={!text.trim()}
+      confidence={fields?.confidence}
+    >
+      <div style={{ marginBottom: 14 }}>
+        <label style={labelStyle}>Testo nota *</label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={4}
+          maxLength={500}
+          placeholder="Es. Cliente richiede di intervenire dopo le 18"
+          style={{ ...inputStyle, resize: 'vertical', minHeight: 90 }}
+        />
+        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'right', marginTop: 4 }}>
+          {text.length}/500
+        </div>
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <label style={labelStyle}>Tag (opzionale)</label>
+        <input
+          type="text"
+          value={tag}
+          onChange={(e) => setTag(e.target.value)}
+          maxLength={50}
+          placeholder="Es. fornitore, ricambio, pianificazione…"
+          style={inputStyle}
+        />
+      </div>
+    </VoiceReviewShell>
+  )
+}
+
+const inputStyle = {
+  width: '100%',
+  padding: '12px 14px',
+  background: 'var(--color-surface-2)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 12,
+  color: 'var(--color-text)',
+  fontSize: 14,
+  fontFamily: 'inherit',
+}
+
+const labelStyle = {
+  display: 'block', fontSize: 13, fontWeight: 700,
+  color: 'var(--color-text)', marginBottom: 6,
+}
