@@ -143,7 +143,44 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
         ordered_by: user.id,
       })
 
-      // 2. Activity sul ticket
+      // 2. Aggiorna stato ticket a 'in_attesa_ricambi' (se non gia' in stato
+      // terminale). L'admin lo trovera' nella sezione "Reports in attesa
+      // ricambi" della pagina Ricambi.
+      let updatedReport = null
+      const oldStatus = report.status
+      const TERMINAL_OR_WAITING = new Set(['in_attesa_ricambi', 'risolta', 'chiuso'])
+      if (!TERMINAL_OR_WAITING.has(oldStatus)) {
+        try {
+          updatedReport = await db.updateReport(report.id, { status: 'in_attesa_ricambi' })
+          db.addActivity(report.id, {
+            type: 'status_change',
+            from_status: oldStatus,
+            to_status: 'in_attesa_ricambi',
+            user_id: user.id,
+            user_name: user.name,
+            detail: `Voce: richiesta ${form.articolo} x${form.quantita}`,
+          }).catch(e => console.warn('[voice_spare] activity status failed:', e?.message))
+          // Notifiche al creatore + assegnatario diversi dal mittente
+          const recipients = new Set()
+          if (report.created_by) recipients.add(report.created_by)
+          if (report.assigned_to) recipients.add(report.assigned_to)
+          recipients.delete(user.id)
+          for (const targetId of recipients) {
+            db.addNotification({
+              type: 'status_change',
+              title: `In attesa ricambi: ${report.title}`,
+              body: `${user.name} ha richiesto ${form.articolo} x${form.quantita}`,
+              report_id: report.id,
+              from_user: user.id,
+              target_user: targetId,
+            }).catch(e => console.warn('[voice_spare] notif failed:', e?.message))
+          }
+        } catch (e) {
+          console.warn('[voice_spare] updateReport status failed:', e?.message)
+        }
+      }
+
+      // 3. Activity sul ticket per la richiesta in se'
       db.addActivity(report.id, {
         type: 'spare_requested',
         user_id: user.id,
@@ -151,7 +188,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
         detail: `Richiesta vocale: ${form.articolo} x${form.quantita} (${form.urgenza})`,
       }).catch(e => console.warn('[voice_spare] activity failed:', e?.message))
 
-      // 3. Upload audio + comment di tracking
+      // 4. Upload audio + comment di tracking
       let audioUrl = null
       if (audioBlob) {
         try {
@@ -187,9 +224,9 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
         media: allMedia.length > 0 ? allMedia : null,
       })
 
-      toast.success('Ricambio richiesto')
+      toast.success(updatedReport ? 'Ricambio richiesto · ticket in attesa' : 'Ricambio richiesto')
       haptic.success?.()
-      onSubmitted?.()
+      onSubmitted?.(updatedReport)
     } catch (err) {
       toast.error('Errore: ' + (err?.message || 'riprova'))
       setLoading(false)
