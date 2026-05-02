@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
-import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save, Camera, Paperclip, FileText, Sparkles } from 'lucide-react'
+import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save, Camera, Paperclip, FileText, Sparkles, Mic } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useToast } from '../../hooks/useToast'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
@@ -19,6 +19,7 @@ import ReportsList from '../reports/ReportsList'
 import NewReport from '../reports/NewReport'
 import QuickReport from '../reports/QuickReport'
 import ReportDetail from '../reports/ReportDetail'
+import VoiceNewTicketFlow from '../voice/VoiceNewTicketFlow'
 import MobileMachinesList from '../machines/MobileMachinesList'
 import MobileMachineDetail from '../machines/MobileMachineDetail'
 import ProfilePage from '../../pages/mobile/ProfilePage'
@@ -39,7 +40,7 @@ const FAB_CONFIG = {
 }
 
 // ── FAB contestuale ──
-function ContextualFAB({ tab, onNewReport, onQuickReport, onNewConversation, onNewMachine }) {
+function ContextualFAB({ tab, userRole, onNewReport, onQuickReport, onNewConversation, onNewMachine, onVoiceNewTicket }) {
   const [open, setOpen] = useState(false)
   const haptic = useHaptic()
 
@@ -47,6 +48,7 @@ function ContextualFAB({ tab, onNewReport, onQuickReport, onNewConversation, onN
   if (!config) return null
 
   const FabIcon = config.icon
+  const isTechnician = userRole === 'tecnico'
 
   const handleFABClick = () => {
     haptic.medium()
@@ -82,32 +84,67 @@ function ContextualFAB({ tab, onNewReport, onQuickReport, onNewConversation, onN
         <div className={`fixed left-0 right-0 bottom-[140px] z-[49] flex flex-col items-center gap-[14px] px-[6vw] transition-all duration-300 ${
           open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
         }`}>
-          <button
-            onClick={() => handleAction(onQuickReport)}
-            className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
-            style={{
-              padding: '18px 24px',
-              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-              boxShadow: '0 6px 28px rgba(245, 158, 11, 0.35)',
-              fontSize: 17, fontWeight: 700,
-            }}
-          >
-            <Zap size={24} strokeWidth={2.5} />
-            Report Rapido
-          </button>
-          <button
-            onClick={() => handleAction(onNewReport)}
-            className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
-            style={{
-              padding: '18px 24px',
-              background: REFINED_PRIMARY,
-              boxShadow: '0 6px 28px rgba(124, 58, 237, 0.4)',
-              fontSize: 17, fontWeight: 700,
-            }}
-          >
-            <ClipboardList size={24} strokeWidth={2.5} />
-            Report Completo
-          </button>
+          {isTechnician ? (
+            <>
+              <button
+                onClick={() => handleAction(onVoiceNewTicket)}
+                className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
+                style={{
+                  padding: '18px 24px',
+                  background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                  boxShadow: '0 6px 28px rgba(124, 58, 237, 0.4)',
+                  fontSize: 17, fontWeight: 700,
+                }}
+              >
+                <Mic size={24} strokeWidth={2.5} />
+                Crea con voce
+              </button>
+              <button
+                onClick={() => handleAction(onNewReport)}
+                className="w-full flex items-center justify-center gap-4 rounded-2xl press-scale"
+                style={{
+                  padding: '18px 24px',
+                  background: 'var(--color-surface-1)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text)',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.2)',
+                  fontSize: 17, fontWeight: 700,
+                }}
+              >
+                <ClipboardList size={24} strokeWidth={2.5} />
+                Crea manualmente
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => handleAction(onQuickReport)}
+                className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
+                style={{
+                  padding: '18px 24px',
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  boxShadow: '0 6px 28px rgba(245, 158, 11, 0.35)',
+                  fontSize: 17, fontWeight: 700,
+                }}
+              >
+                <Zap size={24} strokeWidth={2.5} />
+                Report Rapido
+              </button>
+              <button
+                onClick={() => handleAction(onNewReport)}
+                className="w-full flex items-center justify-center gap-4 text-white rounded-2xl press-scale"
+                style={{
+                  padding: '18px 24px',
+                  background: REFINED_PRIMARY,
+                  boxShadow: '0 6px 28px rgba(124, 58, 237, 0.4)',
+                  fontSize: 17, fontWeight: 700,
+                }}
+              >
+                <ClipboardList size={24} strokeWidth={2.5} />
+                Report Completo
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -597,6 +634,21 @@ export default function MobileLayout({ initialReportId }) {
       </div>
     )
   }
+  if (screen === 'voice-new-ticket') {
+    return (
+      <div className={transitionClass}>
+        <VoiceNewTicketFlow
+          user={user}
+          onBack={goBack}
+          onCreated={(report) => {
+            goBack()
+            if (report) setTimeout(() => openReport(report), 100)
+            else setTimeout(() => setTab('reports'), 100)
+          }}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen min-h-[100dvh] flex flex-col ambient-glow bg-base"
@@ -701,10 +753,12 @@ export default function MobileLayout({ initialReportId }) {
 
       <ContextualFAB
         tab={tab}
+        userRole={user?.role}
         onNewReport={openNewReport}
         onQuickReport={() => openQuickReport()}
         onNewConversation={handleNewConversation}
         onNewMachine={handleNewMachine}
+        onVoiceNewTicket={() => navigateTo('voice-new-ticket')}
       />
 
       {/* Settings Panel */}

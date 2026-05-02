@@ -15,7 +15,12 @@ import {
   Check, X, AlertTriangle, ArrowRight, Zap, Clock as ClockIcon,
   CheckCircle2, XCircle, Wrench, MessageCircle, History,
   Image as ImageIcon, Video, Mic as MicIcon, Expand, Plus,
+  FileEdit, ClipboardCheck, Package,
 } from 'lucide-react'
+import VoiceUpdateFlow from '../voice/VoiceUpdateFlow'
+import VoiceCloseFlow from '../voice/VoiceCloseFlow'
+import VoiceNoteFlow from '../voice/VoiceNoteFlow'
+import VoiceSpareRequestFlow from '../voice/VoiceSpareRequestFlow'
 
 // ─────────────────────────────────────────────────────────────
 // Design tokens — Compact variant (handoff Dettaglio Segnalazione)
@@ -391,6 +396,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [sendingQuick, setSendingQuick] = useState(false)
   const [chatCount, setChatCount] = useState(0)
   const [historyCount, setHistoryCount] = useState(0)
+  const [voiceFlow, setVoiceFlow] = useState(null) // null|'update'|'close'|'note'|'spare'
 
   const toast = useToast()
   const haptic = useHaptic()
@@ -402,6 +408,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const canUpdate = user.role === 'tecnico' || user.role === 'admin'
   const isMine = report.assigned_to === user.id
   const showTakeOver = canUpdate && (report.status === 'aperta' || (!isMine && report.assigned_to == null))
+  const showTechActions = (user.role === 'tecnico' && (isMine || !report.assigned_to)) || user.role === 'admin'
 
   // Conta messaggi e attività per i badge dei tab
   useEffect(() => {
@@ -909,6 +916,11 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         </div>
       )}
 
+      {/* ═══ Tech voice action bar (solo Dettagli, ticket non chiuso) ═══ */}
+      {showTechActions && activeTab === 'details' && report.status !== 'chiuso' && (
+        <TechActionBar onAction={(id) => { haptic.medium(); setVoiceFlow(id) }} />
+      )}
+
       {/* ═══ Pinned composer (solo Dettagli/Cronologia) ═══ */}
       {(activeTab === 'details' || activeTab === 'history') && (
         <ComposerBar onSend={handleQuickSend} sending={sendingQuick} />
@@ -937,6 +949,97 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           onClose={() => setLightboxIndex(null)}
         />
       )}
+
+      {/* ═══ Voice flows (overlay fullscreen) ═══ */}
+      {voiceFlow === 'update' && (
+        <VoiceUpdateFlow
+          report={report}
+          user={user}
+          onClose={() => setVoiceFlow(null)}
+          onApplied={(updated) => {
+            if (updated) setReport(r => ({ ...r, ...updated }))
+            setChatCount(c => c + 1)
+            setHistoryCount(h => h + 1)
+            setVoiceFlow(null)
+          }}
+        />
+      )}
+      {voiceFlow === 'close' && (
+        <VoiceCloseFlow
+          report={report}
+          user={user}
+          onClose={() => setVoiceFlow(null)}
+          onApplied={(updated) => {
+            if (updated) setReport(r => ({ ...r, ...updated }))
+            setChatCount(c => c + 1)
+            setHistoryCount(h => h + 1)
+            setVoiceFlow(null)
+          }}
+        />
+      )}
+      {voiceFlow === 'note' && (
+        <VoiceNoteFlow
+          report={report}
+          user={user}
+          onClose={() => setVoiceFlow(null)}
+          onApplied={() => {
+            setChatCount(c => c + 1)
+            setVoiceFlow(null)
+          }}
+        />
+      )}
+      {voiceFlow === 'spare' && (
+        <VoiceSpareRequestFlow
+          report={report}
+          user={user}
+          onClose={() => setVoiceFlow(null)}
+          onApplied={() => {
+            setChatCount(c => c + 1)
+            setHistoryCount(h => h + 1)
+            setVoiceFlow(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tech action bar — 4 azioni vocali per il Tecnico
+// ─────────────────────────────────────────────────────────────
+function TechActionBar({ onAction }) {
+  const items = [
+    { id: 'update', label: 'Aggiorna', icon: FileEdit, color: '#06b6d4' },
+    { id: 'close', label: 'Chiudi', icon: ClipboardCheck, color: '#10b981' },
+    { id: 'note', label: 'Nota', icon: Mic, color: '#a78bfa' },
+    { id: 'spare', label: 'Ricambio', icon: Package, color: '#f59e0b' },
+  ]
+  return (
+    <div style={{
+      flexShrink: 0,
+      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+      gap: 6, padding: '8px 10px',
+      background: D.composer, borderTop: `1px solid ${D.raised}`,
+    }}>
+      {items.map(it => (
+        <button
+          key={it.id}
+          onClick={() => onAction(it.id)}
+          aria-label={`Voce: ${it.label}`}
+          className="press-scale"
+          style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            padding: '10px 4px', borderRadius: 10,
+            background: D.raised, border: 'none', cursor: 'pointer',
+            color: it.color,
+          }}
+        >
+          <it.icon size={18} strokeWidth={2.2} />
+          <span style={{ fontSize: 10, fontWeight: 600, color: D.textSecondary, letterSpacing: 0.2 }}>
+            {it.label}
+          </span>
+        </button>
+      ))}
     </div>
   )
 }
