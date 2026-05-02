@@ -81,6 +81,7 @@ export default function VoiceNoteFlow({ report, user, onClose, onApplied }) {
 function ReviewForm({ fields, transcription, setTranscription, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
   const [text, setText] = useState(() => fields?.nota_tecnica || transcription || '')
   const [tag, setTag] = useState(() => fields?.tag || '')
+  const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async () => {
@@ -100,6 +101,10 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
           console.warn('[voice_note] audio upload failed:', e?.message)
         }
       }
+      const allMedia = [
+        ...media,
+        ...(audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-note.webm' }] : []),
+      ]
       await db.addComment(report.id, {
         text: finalText,
         user_id: user.id,
@@ -112,7 +117,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
           transcription: transcription || null,
         },
         confidence: fields?.confidence ?? null,
-        media: audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-note.webm' }] : null,
+        media: allMedia.length > 0 ? allMedia : null,
       })
       toast.success('Nota aggiunta')
       haptic.success?.()
@@ -135,6 +140,9 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       submitLabel="Aggiungi nota"
       submitDisabled={!text.trim()}
       confidence={fields?.confidence}
+      media={media}
+      setMedia={setMedia}
+      mediaUploadPath={`voice-notes/${report.id}`}
     >
       <div style={{ marginBottom: 14 }}>
         <label style={labelStyle}>Testo nota *</label>

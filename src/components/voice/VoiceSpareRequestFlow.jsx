@@ -101,6 +101,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
     deadline_giorni: fields?.deadline_giorni != null ? String(fields.deadline_giorni) : '',
     note: fields?.note || '',
   }))
+  const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
   const update = (patch) => setForm(prev => ({ ...prev, ...patch }))
@@ -161,6 +162,10 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       }
 
       const commentText = `Richiesta ricambio: ${form.articolo} x${form.quantita}${form.fornitore ? ` (${form.fornitore})` : ''} — urgenza: ${form.urgenza}`
+      const allMedia = [
+        ...media,
+        ...(audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-spare.webm' }] : []),
+      ]
       await db.addComment(report.id, {
         text: commentText,
         user_id: user.id,
@@ -179,7 +184,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
           transcription: transcription || null,
         },
         confidence: fields?.confidence ?? null,
-        media: audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-spare.webm' }] : null,
+        media: allMedia.length > 0 ? allMedia : null,
       })
 
       toast.success('Ricambio richiesto')
@@ -203,6 +208,9 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       submitLabel="Richiedi ricambio"
       submitDisabled={!isValid}
       confidence={fields?.confidence}
+      media={media}
+      setMedia={setMedia}
+      mediaUploadPath={`voice-spare/${report.id}`}
     >
       <Field label="Articolo *">
         <input

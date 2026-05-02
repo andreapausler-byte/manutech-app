@@ -397,6 +397,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [chatCount, setChatCount] = useState(0)
   const [historyCount, setHistoryCount] = useState(0)
   const [voiceFlow, setVoiceFlow] = useState(null) // null|'update'|'close'|'note'|'spare'
+  const [addingMedia, setAddingMedia] = useState(false)
 
   const toast = useToast()
   const haptic = useHaptic()
@@ -482,6 +483,43 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const handleClosureSubmit = async (closureData) => {
     const ok = await updateStatus('risolta', closureData, closureData)
     if (ok) setClosureSheetOpen(false)
+  }
+
+  // ─── Aggiungi foto al ticket esistente ────────────────
+  const handleAddPhoto = (kind = 'camera') => {
+    if (addingMedia) return
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.accept = 'image/*'
+    if (kind === 'camera') input.capture = 'environment'
+    input.onchange = async (e) => {
+      const files = Array.from(e.target.files || [])
+      if (files.length === 0) return
+      setAddingMedia(true)
+      try {
+        const uploaded = []
+        for (const file of files) {
+          const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+          const path = `reports/${report.id}/${Date.now()}-${safe}`
+          const url = await db.uploadFile('attachments', path, file)
+          uploaded.push({
+            type: file.type.startsWith('image/') ? 'photo' : 'document',
+            name: file.name,
+            url,
+          })
+        }
+        const newMedia = [...(report.media || []), ...uploaded]
+        const updated = await db.updateReport(report.id, { media: newMedia })
+        setReport(r => ({ ...r, ...updated, media: newMedia }))
+        haptic.success?.()
+        toast.success(uploaded.length === 1 ? 'Foto aggiunta' : `${uploaded.length} foto aggiunte`)
+      } catch (err) {
+        toast.error('Errore upload: ' + (err.message || 'riprova'))
+      }
+      setAddingMedia(false)
+    }
+    input.click()
   }
 
   // ─── Quick reply (composer pinato) ────────────────────
@@ -760,7 +798,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           )}
 
           {/* Foto */}
-          {photos.length > 0 && (
+          {(photos.length > 0 || canUpdate) && (
             <div style={{ marginBottom: 12 }}>
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -775,13 +813,30 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                   <ImageIcon size={11} /> Foto · {photos.length}
                 </div>
                 {canUpdate && (
-                  <button className="press-scale" style={{
-                    background: 'transparent', border: 'none',
-                    color: D.accentLight, fontSize: 11, fontWeight: 600,
-                    cursor: 'pointer', padding: 0,
-                    display: 'inline-flex', alignItems: 'center', gap: 3,
-                  }}>
-                    <Plus size={12} /> Aggiungi
+                  <button
+                    onClick={() => handleAddPhoto('camera')}
+                    disabled={addingMedia}
+                    className="press-scale"
+                    style={{
+                      background: 'transparent', border: 'none',
+                      color: D.accentLight, fontSize: 11, fontWeight: 600,
+                      cursor: addingMedia ? 'not-allowed' : 'pointer',
+                      padding: 0,
+                      display: 'inline-flex', alignItems: 'center', gap: 3,
+                      opacity: addingMedia ? 0.5 : 1,
+                    }}>
+                    {addingMedia ? (
+                      <span style={{
+                        width: 12, height: 12, borderRadius: '50%',
+                        border: `2px solid ${D.accentLight}40`,
+                        borderTopColor: D.accentLight,
+                        display: 'inline-block',
+                        animation: 'spin 1s linear infinite',
+                      }} />
+                    ) : (
+                      <Plus size={12} />
+                    )}
+                    {addingMedia ? 'Caricamento…' : 'Aggiungi'}
                   </button>
                 )}
               </div>

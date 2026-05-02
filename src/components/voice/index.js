@@ -1,6 +1,7 @@
 export { default as VoiceRecorder } from './VoiceRecorder'
 export { default as VoiceReviewShell } from './VoiceReviewShell'
 export { default as VoiceWaveform } from './VoiceWaveform'
+export { default as VoiceMediaPicker } from './VoiceMediaPicker'
 export { default as VoiceNewTicketFlow } from './VoiceNewTicketFlow'
 export { default as VoiceUpdateFlow } from './VoiceUpdateFlow'
 export { default as VoiceCloseFlow } from './VoiceCloseFlow'

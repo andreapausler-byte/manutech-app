@@ -1,4 +1,5 @@
 import { Sparkles, PenLine, ArrowLeft } from 'lucide-react'
+import VoiceMediaPicker from './VoiceMediaPicker'
 
 /**
  * VoiceReviewShell — guscio review condiviso per i flow vocali.
@@ -35,7 +36,11 @@ export default function VoiceReviewShell({
   submitDisabled = false,
   confidence,
   children,
+  media,
+  setMedia,
+  mediaUploadPath = 'voice-attachments',
 }) {
+  const showMedia = !!setMedia
   const isManual = !transcription
   const showConfidence = typeof confidence === 'number' && transcription
 
@@ -168,6 +173,18 @@ export default function VoiceReviewShell({
 
         {/* Slot per i campi specifici per context */}
         {children}
+
+        {/* Media picker (foto/allegati) — opzionale */}
+        {showMedia && (
+          <div style={{ marginTop: 8, marginBottom: 4 }}>
+            <VoiceMediaPicker
+              media={media || []}
+              setMedia={setMedia}
+              uploadPath={mediaUploadPath}
+              disabled={loading}
+            />
+          </div>
+        )}
       </div>
 
       {/* Sticky action row */}
