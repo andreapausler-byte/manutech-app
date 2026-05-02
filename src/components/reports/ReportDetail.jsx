@@ -1048,7 +1048,8 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           report={report}
           user={user}
           onClose={() => setVoiceFlow(null)}
-          onApplied={() => {
+          onApplied={(updated) => {
+            if (updated) setReport(r => ({ ...r, ...updated }))
             setChatCount(c => c + 1)
             setHistoryCount(h => h + 1)
             setVoiceFlow(null)
