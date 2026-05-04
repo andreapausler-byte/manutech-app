@@ -9,8 +9,8 @@
  */
 
 // Bump ad ogni release per invalidare la cache.
-// v7.4.0 = V6 unico layout admin (rimosso Classic)
-const CACHE_NAME = 'manutech-v7.4.0'
+// v7.5.0 = TechActionBar visibile a tutti i tecnici dell'org
+const CACHE_NAME = 'manutech-v7.5.0'
 const APP_SHELL = [
   '/',
   '/manifest.json',
