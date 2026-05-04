@@ -11,6 +11,11 @@
  *   - machines.maintenance_instructions (testo libero)
  *   - maintenance_logs (inclusi esterni): title + description + contractor
  *     e allegati media[] PDF
+ *   - reports CHIUSI (status risolta|chiuso) con la loro chat: titolo +
+ *     descrizione iniziale + closure_root_cause + closure_action +
+ *     closure_parts + tutti i commenti. La conversazione che ha portato
+ *     alla risoluzione diventa memoria permanente, ricercabile semantica-
+ *     mente per ticket futuri simili.
  *
  * Pipeline per ogni sorgente:
  *   1. Estrai testo (PDF via unpdf, testo diretto per campi)
@@ -47,7 +52,7 @@ const MAX_DOC_CHARS = 500_000        // safety: non indicizzare manuali >500k ca
 
 // ─── Tipi ────────────────────────────────────────────────────────
 interface Chunk {
-  source_kind: 'attachment' | 'usage_instructions' | 'maintenance_instructions' | 'maintenance_log'
+  source_kind: 'attachment' | 'usage_instructions' | 'maintenance_instructions' | 'maintenance_log' | 'report_chat'
   source_ref: string | null
   source_label: string
   category: string | null
@@ -74,6 +79,29 @@ interface MaintenanceLog {
   is_external: boolean | null
   performed_at: string | null
   media: Attachment[] | null
+}
+
+interface ClosedReport {
+  id: string
+  title: string | null
+  description: string | null
+  severity: string | null
+  type: string | null
+  status: string | null
+  closure_root_cause: string | null
+  closure_action: string | null
+  closure_parts: string | null
+  closure_hours: number | null
+  closed_at: string | null
+  created_at: string | null
+}
+
+interface ReportComment {
+  report_id: string
+  user_name: string | null
+  user_role: string | null
+  text: string | null
+  created_at: string | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
@@ -229,6 +257,38 @@ Deno.serve(async (req: Request) => {
       .order('performed_at', { ascending: false })
     if (lErr) console.warn('logs fetch error:', lErr.message)
 
+    // ── Fetch reports CHIUSI della macchina + relativi commenti ──
+    // Indicizziamo solo i ticket gia' risolti: la conversazione che ha
+    // portato alla soluzione e' la conoscenza piu' preziosa per i futuri
+    // guasti simili.
+    const { data: closedReports, error: rErr } = await adminSupabase
+      .from('reports')
+      .select('id, title, description, severity, type, status, closure_root_cause, closure_action, closure_parts, closure_hours, closed_at, created_at')
+      .eq('machine_id', machineId)
+      .eq('org_id', orgId)
+      .in('status', ['risolta', 'chiuso'])
+      .order('closed_at', { ascending: false })
+      .limit(200)  // safety: max 200 ticket chiusi per macchina
+    if (rErr) console.warn('closed reports fetch error:', rErr.message)
+
+    const closedReportIds = (closedReports || []).map(r => r.id)
+    let commentsByReport: Record<string, ReportComment[]> = {}
+    if (closedReportIds.length > 0) {
+      const { data: comments, error: cErr } = await adminSupabase
+        .from('comments')
+        .select('report_id, user_name, user_role, text, created_at')
+        .in('report_id', closedReportIds)
+        .order('created_at', { ascending: true })
+      if (cErr) {
+        console.warn('comments fetch error:', cErr.message)
+      } else {
+        commentsByReport = (comments || []).reduce<Record<string, ReportComment[]>>((acc, c) => {
+          (acc[c.report_id] = acc[c.report_id] || []).push(c as ReportComment)
+          return acc
+        }, {})
+      }
+    }
+
     // ── Costruisci lista di chunks da indicizzare ──
     const allChunks: Chunk[] = []
 
@@ -336,6 +396,53 @@ Deno.serve(async (req: Request) => {
           page_number: null,
         }))
         mediaIdx++
+      }
+    }
+
+    // 5) reports chiusi + chat (memoria permanente da conversazioni risolutive)
+    for (const r of (closedReports || []) as ClosedReport[]) {
+      const closedDate = r.closed_at
+        ? new Date(r.closed_at).toLocaleDateString('it-IT')
+        : ''
+      const sourceLabel = `Ticket risolto — ${r.title || '(senza titolo)'} (${closedDate})`
+
+      const parts: string[] = []
+      parts.push(`# Ticket: ${r.title || '(senza titolo)'}`)
+      if (r.severity) parts.push(`Severita': ${r.severity}`)
+      if (r.type) parts.push(`Tipo: ${r.type}`)
+      if (r.description) parts.push(`\nProblema iniziale:\n${r.description}`)
+
+      // Verdetto finale (i campi piu' preziosi: cosa era e cosa hanno fatto)
+      if (r.closure_root_cause) parts.push(`\nCausa radice individuata: ${r.closure_root_cause}`)
+      if (r.closure_action) parts.push(`Azione risolutiva: ${r.closure_action}`)
+      if (r.closure_parts) parts.push(`Ricambi utilizzati: ${r.closure_parts}`)
+      if (r.closure_hours != null) parts.push(`Durata intervento: ${r.closure_hours}h`)
+
+      // Conversazione: la chat dei tecnici che ha portato alla soluzione
+      const reportComments = commentsByReport[r.id] || []
+      if (reportComments.length > 0) {
+        parts.push(`\nDiscussione del team (${reportComments.length} messaggi):`)
+        reportComments.forEach(c => {
+          const who = c.user_name || 'Utente'
+          const role = c.user_role ? ` (${c.user_role})` : ''
+          const txt = (c.text || '').trim()
+          if (!txt) return
+          parts.push(`- ${who}${role}: ${txt}`)
+        })
+      }
+
+      const reportText = parts.join('\n').trim()
+      if (reportText.length > 50) {
+        const pieces = chunkText(reportText.slice(0, MAX_DOC_CHARS))
+        pieces.forEach((c, i) => allChunks.push({
+          source_kind: 'report_chat',
+          source_ref: r.id,
+          source_label: sourceLabel,
+          category: 'ticket_risolto',
+          chunk_index: i,
+          content: c,
+          page_number: null,
+        }))
       }
     }
 

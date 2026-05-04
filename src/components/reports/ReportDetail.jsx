@@ -501,7 +501,16 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
 
   const handleClosureSubmit = async (closureData) => {
     const ok = await updateStatus('risolta', closureData, closureData)
-    if (ok) setClosureSheetOpen(false)
+    if (ok) {
+      setClosureSheetOpen(false)
+      // Triggera reindex knowledge base della macchina (fire-and-forget):
+      // il ticket appena chiuso, con la sua chat e closure, diventa
+      // memoria permanente per ticket futuri simili.
+      if (report.machine_id) {
+        db.queueMachineReindex(report.machine_id)
+          .catch(e => console.warn('[ManuTech] reindex post-closure failed:', e?.message))
+      }
+    }
   }
 
   // ─── Aggiungi foto al ticket esistente ────────────────
