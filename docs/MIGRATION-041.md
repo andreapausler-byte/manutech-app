@@ -1,4 +1,4 @@
-# Migration 038 — Knowledge base ticket risolti
+# Migration 041 — Knowledge base ticket risolti
 
 > **Cosa fa**: estende il `CHECK` constraint sulla colonna `source_kind` di `document_chunks` per ammettere il nuovo tipo `'report_chat'`. Senza questa migration, l'edge function `ingest-knowledge` fallisce con `violates check constraint` quando prova a inserire chunks da ticket chiusi.
 >
@@ -11,13 +11,13 @@
 ## 1. Cosa serve
 
 - Accesso al Dashboard Supabase del progetto ManuTech (Owner o Admin)
-- Il file `supabase/migrations/038_document_chunks_report_chat.sql` aperto da qualche parte (repo locale o GitHub web)
+- Il file `supabase/migrations/041_document_chunks_report_chat.sql` aperto da qualche parte (repo locale o GitHub web)
 
 ---
 
 ## 2. Esegui la migration
 
-1. Apri `supabase/migrations/038_document_chunks_report_chat.sql` dal repo
+1. Apri `supabase/migrations/041_document_chunks_report_chat.sql` dal repo
 2. Copia tutto il contenuto (pochissime righe)
 3. Vai su **app.supabase.com** → progetto ManuTech (per **prod**, ricordati di fare prima staging)
 4. Menu sinistra → **SQL Editor** → bottone **New query**
@@ -80,7 +80,7 @@ curl -X POST 'https://<project>.supabase.co/functions/v1/ingest-knowledge' \
 ## 5. Rollback (se serve)
 
 ```sql
--- File: supabase/migrations/038_document_chunks_report_chat_down.sql
+-- File: supabase/migrations/041_document_chunks_report_chat_down.sql
 DELETE FROM public.document_chunks WHERE source_kind = 'report_chat';
 
 ALTER TABLE public.document_chunks DROP CONSTRAINT IF EXISTS document_chunks_source_kind_check;

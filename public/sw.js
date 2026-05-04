@@ -9,8 +9,8 @@
  */
 
 // Bump ad ogni release per invalidare la cache.
-// v7.6.0 = AI legge chat ticket + memoria permanente ticket risolti
-const CACHE_NAME = 'manutech-v7.6.0'
+// v7.6.1 = AI legge anche voice updates con dati strutturati (extra_data)
+const CACHE_NAME = 'manutech-v7.6.1'
 const APP_SHELL = [
   '/',
   '/manifest.json',
