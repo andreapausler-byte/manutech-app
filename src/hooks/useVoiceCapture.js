@@ -36,14 +36,20 @@ const TRANSCRIPTION_TIMEOUT_MS = 15000
 const MIN_AUDIO_BYTES = 5000
 const MAX_VOCAB_CHARS = 800
 
-// Vocabolario tecnico statico per il dominio manutenzione industriale.
-// Whisper accetta ~244 token come prompt: questo va concatenato ai nomi
-// macchine reali, totale tronco a 800 caratteri.
+// Vocabolario tecnico statico per il dominio manutenzione industriale
+// (settore birrificio / linea imbottigliamento). Whisper accetta ~244 token
+// come prompt: questo va concatenato ai nomi macchine reali, totale tronco
+// a 800 caratteri.
+//
+// Aggiungere termini quando l'orecchio di Whisper sbaglia ricorrentemente
+// nomi di dominio (es. "imbottigliatrice" → "imbobiliatrice", "Kosme" →
+// "Cogna").
 const STATIC_VOCAB_TECH = [
   'Trascrizione di un tecnico/operatore di manutenzione di birrificio.',
-  'Componenti: valvola DN65, pistoncino, guarnizione OR, cuscinetto, encoder, sonda PT100, elettrovalvola, attuatore, premitreccia.',
-  'Brand ricambi: SKF, Festo, SMC, Burkert, Endress, Siemens, Comac, GEA, Krones.',
-  'Termini intervento: smontaggio, lubrificazione, sostituzione, taratura, calibrazione, lappatura.',
+  'Macchine tipo: imbottigliatrice, riempitrice, tappatrice, etichettatrice, sciacquatrice, depalettizzatore, palettizzatore, capsulatrice, pasteurizzatrice tunnel.',
+  'Componenti: valvola DN65, pistoncino, guarnizione OR, cuscinetto, encoder, sonda PT100, elettrovalvola, attuatore, premitreccia, rubinetto, ugello.',
+  'Brand: Kosme, GAI, Bertolaso, Sidel, KHS, Krones, Comac, GEA, Cimaer, Bardi, BBM, SKF, Festo, SMC, Burkert, Endress, Siemens.',
+  'Termini: smontaggio, lubrificazione, sostituzione, taratura, calibrazione, lappatura, service line.',
 ].join(' ')
 
 function buildVocabulary(machines, vocabularyHints) {
