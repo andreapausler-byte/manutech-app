@@ -277,12 +277,24 @@ Deno.serve(async (req: Request) => {
     const closedReportIds = (closedReports || []).map(r => r.id)
     let commentsByReport: Record<string, ReportComment[]> = {}
     if (closedReportIds.length > 0) {
-      const { data: comments, error: cErr } = await adminSupabase
+      // Fallback graceful: se migration 042 non applicata, deleted_at/edited_at
+      // non esistono. Ritentiamo senza i campi/filtro extra.
+      let { data: comments, error: cErr } = await adminSupabase
         .from('comments')
         .select('report_id, user_name, user_role, text, created_at, kind, extra_data, edited_at')
         .in('report_id', closedReportIds)
         .is('deleted_at', null)
         .order('created_at', { ascending: true })
+      if (cErr) {
+        console.warn('[ingest-knowledge] extended comments select failed, retry base:', cErr.message)
+        const retry = await adminSupabase
+          .from('comments')
+          .select('report_id, user_name, user_role, text, created_at')
+          .in('report_id', closedReportIds)
+          .order('created_at', { ascending: true })
+        comments = retry.data
+        cErr = retry.error
+      }
       if (cErr) {
         console.warn('comments fetch error:', cErr.message)
       } else {
