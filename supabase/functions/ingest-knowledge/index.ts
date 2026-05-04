@@ -104,6 +104,7 @@ interface ReportComment {
   created_at: string | null
   kind: string | null
   extra_data: Record<string, unknown> | null
+  edited_at: string | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
@@ -278,8 +279,9 @@ Deno.serve(async (req: Request) => {
     if (closedReportIds.length > 0) {
       const { data: comments, error: cErr } = await adminSupabase
         .from('comments')
-        .select('report_id, user_name, user_role, text, created_at, kind, extra_data')
+        .select('report_id, user_name, user_role, text, created_at, kind, extra_data, edited_at')
         .in('report_id', closedReportIds)
+        .is('deleted_at', null)
         .order('created_at', { ascending: true })
       if (cErr) {
         console.warn('comments fetch error:', cErr.message)
@@ -430,9 +432,10 @@ Deno.serve(async (req: Request) => {
           const who = c.user_name || 'Utente'
           const role = c.user_role ? ` (${c.user_role})` : ''
           const kindTag = c.kind && c.kind !== 'chat' ? ` [${c.kind}]` : ''
+          const editedTag = c.edited_at ? ' [modificato]' : ''
           const txt = (c.text || '').trim()
           if (txt) {
-            parts.push(`- ${who}${role}${kindTag}: ${txt}`)
+            parts.push(`- ${who}${role}${kindTag}${editedTag}: ${txt}`)
           }
           if (c.extra_data && typeof c.extra_data === 'object') {
             const extras: string[] = []

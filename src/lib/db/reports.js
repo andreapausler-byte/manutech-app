@@ -68,12 +68,12 @@ export const reports = {
   // ─── COMMENTS ───
   async getComments(reportId) {
     if (supabase) {
-      const { data, error } = await supabase.from('comments').select('*, user:users(name, role)').eq('report_id', reportId).order('created_at', { ascending: true })
+      const { data, error } = await supabase.from('comments').select('*, user:users(name, role)').eq('report_id', reportId).is('deleted_at', null).order('created_at', { ascending: true })
       if (error) throw error
       return data || []
     }
     const report = getStore(KEYS.reports).find(r => r.id === reportId)
-    return report?.comments || []
+    return (report?.comments || []).filter(c => !c.deleted_at)
   },
 
   async getLastCommentsByReports(reportIds) {
@@ -116,5 +116,62 @@ export const reports = {
     list[idx].comments = [...(list[idx].comments || []), newComment]
     setStore(KEYS.reports, list)
     return newComment
+  },
+
+  // Modifica testo di un commento esistente. Solo autore o admin via RPC.
+  // L'audio + extra_data + media restano intatti, si aggiorna solo `text`
+  // e si traccia la modifica in edit_history + edited_at + original_text.
+  async updateComment(commentId, newText) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('update_comment', {
+        _comment_id: commentId,
+        _new_text: newText,
+      })
+      if (error) throw new Error(error.message)
+      return data
+    }
+    // Demo fallback: cerca il commento in tutti i report e aggiornalo
+    const list = getStore(KEYS.reports)
+    for (const report of list) {
+      const idx = (report.comments || []).findIndex(c => c.id === commentId)
+      if (idx !== -1) {
+        const c = report.comments[idx]
+        const now = new Date().toISOString()
+        if (c.text !== newText) {
+          c.edit_history = [
+            ...(c.edit_history || []),
+            { text: c.text, edited_at: c.edited_at || c.created_at, edited_by_name: 'demo' },
+          ]
+          c.original_text = c.original_text || c.text
+          c.text = newText
+          c.edited_at = now
+        }
+        setStore(KEYS.reports, list)
+        return c
+      }
+    }
+    throw new Error('Commento non trovato')
+  },
+
+  // Soft delete di un commento (set deleted_at + deleted_by).
+  async deleteComment(commentId) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('delete_comment', {
+        _comment_id: commentId,
+      })
+      if (error) throw new Error(error.message)
+      return data
+    }
+    const list = getStore(KEYS.reports)
+    for (const report of list) {
+      const idx = (report.comments || []).findIndex(c => c.id === commentId)
+      if (idx !== -1) {
+        report.comments[idx].deleted_at = new Date().toISOString()
+        report.comments[idx].deleted_by = 'demo'
+        setStore(KEYS.reports, list)
+        return report.comments[idx]
+      }
+    }
+    throw new Error('Commento non trovato')
   },
 }

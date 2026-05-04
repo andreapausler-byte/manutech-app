@@ -231,6 +231,7 @@ interface CurrentTicketComment {
   kind: string | null         // 'chat' | 'voice_update' | 'voice_close' | 'voice_note' | 'voice_spare_request' | 'voice_new_ticket'
   extra_data: Record<string, unknown> | null  // dati strutturati estratti da Claude per i voice_*
   confidence: number | null
+  edited_at: string | null    // se != null il messaggio e' stato corretto dopo l'invio
 }
 
 // ── Prompt builder ──
@@ -446,10 +447,11 @@ function buildCurrentTicketChatBlock(comments: CurrentTicketComment[]): string {
     const role = c.user_role ? ` (${c.user_role})` : ''
     const when = c.created_at ? new Date(c.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
     const kindTag = c.kind && c.kind !== 'chat' ? ` [${c.kind}]` : ''
+    const editedTag = c.edited_at ? ' [modificato]' : ''
     const text = (c.text || '').trim()
     const truncated = text.length > 600 ? text.slice(0, 600) + '…' : text
     if (truncated) {
-      lines.push(`[${when}] ${who}${role}${kindTag}: ${truncated}`)
+      lines.push(`[${when}] ${who}${role}${kindTag}${editedTag}: ${truncated}`)
     }
     // Dati strutturati estratti dall'AI sul voice update (se presenti)
     if (c.extra_data && typeof c.extra_data === 'object') {
@@ -736,10 +738,14 @@ Deno.serve(async (req: Request) => {
       reportId
         ? (async () => {
             console.info(`[current-chat] fetching comments for report_id=${reportId}`)
+            // Esclude commenti soft-deleted. Tenta select esteso (kind/extra_data/
+            // confidence/edited_at). Se quei campi non esistono in quel DB
+            // (migration vecchia), ripiega su select base.
             let res = await supabase
               .from('comments')
-              .select('user_name, user_role, text, media, created_at, kind, extra_data, confidence')
+              .select('user_name, user_role, text, media, created_at, kind, extra_data, confidence, edited_at, deleted_at')
               .eq('report_id', reportId)
+              .is('deleted_at', null)
               .order('created_at', { ascending: true })
               .limit(20)
             if (res.error) {
