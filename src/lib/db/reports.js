@@ -68,8 +68,15 @@ export const reports = {
   // ─── COMMENTS ───
   async getComments(reportId) {
     if (supabase) {
-      const { data, error } = await supabase.from('comments').select('*, user:users(name, role)').eq('report_id', reportId).is('deleted_at', null).order('created_at', { ascending: true })
-      if (error) throw error
+      // Fallback graceful: se la migration 042 non e' applicata, la colonna
+      // deleted_at non esiste e il filtro fallisce. Ritentiamo senza filtro.
+      let { data, error } = await supabase.from('comments').select('*, user:users(name, role)').eq('report_id', reportId).is('deleted_at', null).order('created_at', { ascending: true })
+      if (error) {
+        console.warn('[ManuTech] getComments con filtro deleted_at fallito, retry base:', error.message)
+        const retry = await supabase.from('comments').select('*, user:users(name, role)').eq('report_id', reportId).order('created_at', { ascending: true })
+        if (retry.error) throw retry.error
+        data = retry.data
+      }
       return data || []
     }
     const report = getStore(KEYS.reports).find(r => r.id === reportId)
