@@ -31,7 +31,7 @@ import MediaLightbox from '../media/MediaLightbox'
 import {
   Send, MessageCircle, Camera, Video, Mic, Image,
   Square, X, Paperclip, Play, Pause, FileVideo, FileAudio,
-  Download, ArrowDownToLine
+  Download, ArrowDownToLine, Pencil, Trash2, Check
 } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────
@@ -427,6 +427,9 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
           comments.map((c, i) => {
             const showDate = shouldShowDateSeparator(comments, i)
             const showHeader = shouldShowHeader(comments, i)
+            const canEdit = !guestMode && (
+              c.user_id === user?.id || user?.role === 'admin'
+            )
             return (
               <div key={c.id}>
                 {showDate && <DateSeparator date={c.created_at} />}
@@ -434,8 +437,37 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
                   comment={c}
                   showHeader={showHeader}
                   isMobile={isMobile}
+                  canEdit={canEdit}
                   onPhotoClick={(idx) => openLightbox(c, idx)}
                   onDownload={downloadFile}
+                  onEdit={async (newText) => {
+                    try {
+                      const updated = await db.updateComment(c.id, newText)
+                      setComments(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x))
+                      toast.success('Messaggio modificato')
+                      // Se il ticket e' chiuso, riindicizza la macchina (memoria AI)
+                      if (report?.machine_id && ['risolta', 'chiuso'].includes(report?.status)) {
+                        db.queueMachineReindex(report.machine_id)
+                          .catch(e => console.warn('[chat-edit] reindex fail:', e?.message))
+                      }
+                    } catch (e) {
+                      toast.error(e?.message || 'Errore modifica')
+                      throw e
+                    }
+                  }}
+                  onDelete={async () => {
+                    try {
+                      await db.deleteComment(c.id)
+                      setComments(prev => prev.filter(x => x.id !== c.id))
+                      toast.success('Messaggio eliminato')
+                      if (report?.machine_id && ['risolta', 'chiuso'].includes(report?.status)) {
+                        db.queueMachineReindex(report.machine_id)
+                          .catch(e => console.warn('[chat-delete] reindex fail:', e?.message))
+                      }
+                    } catch (e) {
+                      toast.error(e?.message || 'Errore eliminazione')
+                    }
+                  }}
                   toast={toast}
                 />
               </div>
@@ -614,7 +646,7 @@ function ChatSkeleton({ isMobile }) {
 
 // ── DiscordMessage — Single message in Discord style ─────
 
-function DiscordMessage({ comment: c, showHeader, isMobile, onPhotoClick, onDownload, toast }) {
+function DiscordMessage({ comment: c, showHeader, isMobile, canEdit, onPhotoClick, onDownload, onEdit, onDelete, toast }) {
   const color = ROLE_COLORS[c.user_role] || '#6b7280'
   const media = c.media || []
   const photos = media.filter(m => m.type === 'photo')
@@ -622,6 +654,11 @@ function DiscordMessage({ comment: c, showHeader, isMobile, onPhotoClick, onDown
   const audios = media.filter(m => m.type === 'audio')
   const hasMedia = media.length > 0
   const isMediaOnly = hasMedia && (!c.text || c.text.startsWith('📷') || c.text.startsWith('🎥') || c.text.startsWith('🎤') || c.text.startsWith('📎'))
+  const isEdited = !!c.edited_at
+
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(c.text || '')
+  const [saving, setSaving] = useState(false)
 
   const handleDownload = async (url, name, type) => {
     toast?.info?.(`Download ${type} in corso...`)
@@ -629,12 +666,67 @@ function DiscordMessage({ comment: c, showHeader, isMobile, onPhotoClick, onDown
     if (ok) toast?.success?.(`${type} scaricato!`)
   }
 
+  const startEdit = () => {
+    setDraft(c.text || '')
+    setEditing(true)
+  }
+
+  const cancelEdit = () => {
+    setEditing(false)
+    setDraft(c.text || '')
+  }
+
+  const submitEdit = async () => {
+    const trimmed = draft.trim()
+    if (!trimmed || trimmed === c.text || saving) {
+      cancelEdit()
+      return
+    }
+    setSaving(true)
+    try {
+      await onEdit(trimmed)
+      setEditing(false)
+    } catch {
+      // toast gia' mostrato dal parent
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = () => {
+    if (!confirm('Eliminare questo messaggio? L\'audio e gli allegati saranno mantenuti nello storico.')) return
+    onDelete?.()
+  }
+
   return (
-    <div className={`group flex gap-3 rounded-lg transition-colors hover:bg-surface-1/30 ${
+    <div className={`group relative flex gap-3 rounded-lg transition-colors hover:bg-surface-1/30 ${
       showHeader
         ? (isMobile ? 'px-[2vw] pt-[2.5vw] pb-[1vw] mt-[1vw]' : 'px-3 pt-2.5 pb-1 mt-1')
         : (isMobile ? 'px-[2vw] py-[0.5vw]' : 'px-3 py-0.5')
     }`}>
+      {/* ── Action toolbar (visibile su hover desktop / sempre mobile se canEdit) ── */}
+      {canEdit && !editing && (
+        <div className={`absolute top-1 right-2 flex gap-1 ${
+          isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        } transition-opacity z-10`}>
+          <button
+            onClick={startEdit}
+            title="Modifica"
+            aria-label="Modifica messaggio"
+            className="w-7 h-7 rounded-md bg-surface-2 hover:bg-surface-3 text-faint hover:text-themed flex items-center justify-center cursor-pointer border border-border-subtle"
+          >
+            <Pencil size={12} />
+          </button>
+          <button
+            onClick={handleDelete}
+            title="Elimina"
+            aria-label="Elimina messaggio"
+            className="w-7 h-7 rounded-md bg-surface-2 hover:bg-red-500/20 text-faint hover:text-red-400 flex items-center justify-center cursor-pointer border border-border-subtle"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      )}
       {/* Avatar or spacer */}
       <div className={`shrink-0 ${isMobile ? 'w-10' : 'w-9'}`}>
         {showHeader ? (
@@ -675,13 +767,56 @@ function DiscordMessage({ comment: c, showHeader, isMobile, onPhotoClick, onDown
           </div>
         )}
 
-        {/* Text */}
-        {c.text && !isMediaOnly && (
-          <p className={`text-themed leading-relaxed whitespace-pre-wrap break-words ${
-            isMobile ? 'text-[15px]' : 'text-[14px]'
-          }`}>
-            {c.text}
-          </p>
+        {/* Text — modalita' edit OR display */}
+        {editing ? (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') cancelEdit()
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitEdit()
+              }}
+              disabled={saving}
+              className={`w-full bg-surface-2 border border-border-active rounded-lg p-2 text-themed leading-relaxed resize-none outline-none focus:border-primary ${
+                isMobile ? 'text-[15px]' : 'text-[14px]'
+              }`}
+              rows={Math.min(6, Math.max(2, draft.split('\n').length + 1))}
+            />
+            <div className="flex items-center gap-2 text-[11px]">
+              <button
+                onClick={submitEdit}
+                disabled={saving || !draft.trim()}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary text-white font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <Check size={11} /> Salva
+              </button>
+              <button
+                onClick={cancelEdit}
+                disabled={saving}
+                className="px-2.5 py-1 rounded-md text-faint hover:text-themed cursor-pointer"
+              >
+                Annulla
+              </button>
+              <span className="text-faint">
+                {isMobile ? 'Esc per annullare' : 'Cmd+Enter per salvare · Esc per annullare'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          c.text && !isMediaOnly && (
+            <p className={`text-themed leading-relaxed whitespace-pre-wrap break-words ${
+              isMobile ? 'text-[15px]' : 'text-[14px]'
+            }`}>
+              {c.text}
+              {isEdited && (
+                <span className="ml-1.5 text-faint text-[10px] italic" title={`Modificato il ${new Date(c.edited_at).toLocaleString('it-IT')}`}>
+                  (modificato)
+                </span>
+              )}
+            </p>
+          )
         )}
 
         {/* ── PHOTOS with download overlay (desktop) ── */}
