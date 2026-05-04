@@ -234,6 +234,31 @@ interface CurrentTicketComment {
   edited_at: string | null    // se != null il messaggio e' stato corretto dopo l'invio
 }
 
+interface SupplierOpenReport {
+  report_id: string
+  title: string | null
+  severity: string | null
+  status: string | null
+  machine: string | null
+  age_hours: number | null
+}
+
+interface SupplierOverview {
+  kind: 'registered' | 'shadow'
+  user_id?: string
+  supplier_name: string
+  referent_name?: string | null
+  specialties?: string[] | null
+  city?: string | null
+  user_status?: string | null
+  open_count: number
+  open_reports: SupplierOpenReport[]
+  resolved_12m: number
+  interventions_total: number
+  last_intervention_at?: string | null
+  machines?: string[] | null
+}
+
 interface CurrentReport {
   id: string
   title: string | null
@@ -268,10 +293,12 @@ Fonti che puoi ricevere nel contesto:
 6. **Discussione corrente sul ticket** — solo se l'utente sta guardando un ticket specifico: messaggi recenti dei tecnici/operatori in chat (incluse note vocali trascritte). È la fonte più AGGIORNATA: dice cosa il team ha già provato, ipotesi correnti, dettagli che NON sono nel titolo né nella descrizione iniziale
 7. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
 8. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne), certificati della macchina, e **conversazioni dei ticket gia' risolti** (titolo + descrizione iniziale + causa radice + azione + chat dei tecnici che hanno trovato la soluzione)
+9. **Fornitori esterni** — anagrafica completa delle ditte esterne dell'org: nome, specialita', referente, ticket aperti correnti (con titolo/severita'/macchina/giorni aperti), conteggio interventi storici, ultimo intervento. Distingue tra fornitori registrati (con account) e "ombra" (presenti solo nello storico interventi)
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
 - Per domande ANAGRAFICHE ("matricole", "modelli", "produttori", "quali macchine abbiamo"): usa Anagrafica macchinari; presenta i dati in elenco o tabella compatta
+- Per domande sui FORNITORI ("cosa pendente con X", "storico interventi di Y", "chi si occupa di Z", "quali ditte esterne abbiamo"): usa il blocco Fornitori esterni. Se l'utente nomina un fornitore preciso (es. "PTS"), trova il match nella lista (anche fuzzy: "PTS S.R.L" matcha "PTS") e dai dettaglio: ticket aperti specifici (titolo/severita'/macchina/giorni), conteggi storici, ultimo intervento. Se NON c'e' nessun match, dichiaralo esplicitamente ("non trovo nessun fornitore con questo nome nell'anagrafica") e proponi i fornitori piu' attivi attualmente
 - Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa Statistiche, Anagrafica e Segnalazioni aperte
 - Per domande STRATEGICHE / MANAGERIALI ("su cosa concentrarmi", "come riduco i fermi", "priorità", "cosa sta peggiorando", "dove perdo tempo"): usa Insight strategici come fonte principale; proponi 2-4 azioni concrete ordinate per impatto, citando numeri (matricole, MTTR, giorni di ritardo)
 - Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili, Storia macchina e Biblioteca tecnica
@@ -451,6 +478,50 @@ function buildInventoryBlock(items: MachineInventoryItem[]): string {
     lines.push(parts.join(' '))
   })
   return lines.join('\n')
+}
+
+// ── Builder: anagrafica fornitori esterni ──
+// Lista completa dei fornitori dell'org (registrati + ombra) con
+// ticket aperti correnti, storico interventi, ultimo intervento.
+// Permette domande tipo "cosa pendente con PTS?" o "storico Manara".
+function buildSuppliersBlock(suppliers: SupplierOverview[]): string {
+  if (!suppliers || suppliers.length === 0) return ''
+  const lines: string[] = []
+  lines.push(`Fornitori esterni dell'organizzazione (${suppliers.length}):`)
+  lines.push('')
+  suppliers.forEach((s, i) => {
+    const tag = s.kind === 'shadow' ? ' [solo in storico, no account]' : ''
+    const stats: string[] = []
+    if (s.open_count > 0) stats.push(`${s.open_count} ticket aperti`)
+    if (s.resolved_12m > 0) stats.push(`${s.resolved_12m} risolti 12m`)
+    if (s.interventions_total > 0) stats.push(`${s.interventions_total} interventi storici`)
+    const statsLabel = stats.length ? ` — ${stats.join(' · ')}` : ''
+    lines.push(`${i + 1}. ${s.supplier_name}${tag}${statsLabel}`)
+
+    const detail: string[] = []
+    if (s.specialties?.length) detail.push(`specialita': ${s.specialties.join(', ')}`)
+    if (s.referent_name) detail.push(`referente: ${s.referent_name}`)
+    if (s.city) detail.push(`citta': ${s.city}`)
+    if (s.user_status && s.user_status !== 'active') detail.push(`status: ${s.user_status}`)
+    if (s.last_intervention_at) detail.push(`ultimo intervento: ${s.last_intervention_at.slice(0, 10)}`)
+    if (s.machines?.length) detail.push(`macchine: ${s.machines.slice(0, 4).join(', ')}`)
+    if (detail.length > 0) lines.push(`   ${detail.join(' · ')}`)
+
+    // Ticket aperti dettagliati (max 8 per fornitore per non gonfiare)
+    if (s.open_reports?.length > 0) {
+      const reports = s.open_reports.slice(0, 8)
+      reports.forEach(r => {
+        const age = r.age_hours != null
+          ? r.age_hours < 24 ? `${r.age_hours}h` : `${Math.floor(r.age_hours / 24)}g`
+          : '—'
+        lines.push(`   - [${r.severity || '?'}/${r.status || '?'}] ${r.title || '(senza titolo)'} su ${r.machine || '—'} (aperto ${age})`)
+      })
+      if (s.open_reports.length > 8) {
+        lines.push(`   - ... +${s.open_reports.length - 8} altri ticket aperti`)
+      }
+    }
+  })
+  return lines.join('\n').trim()
 }
 
 // ── Builder: report corrente (descrizione + dati aggiuntivi) ──
@@ -778,7 +849,7 @@ Deno.serve(async (req: Request) => {
     const [
       similarRes, statsRes, openRes, historyRes,
       knowledgeRes, inventoryRes, strategicRes,
-      currentReportRes, currentChatRes,
+      currentReportRes, currentChatRes, suppliersRes,
     ] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
@@ -861,6 +932,15 @@ Deno.serve(async (req: Request) => {
             console.info(`[current-chat] no report_id, skipping`)
             return { data: null, error: null }
           })(),
+      // Anagrafica fornitori esterni dell'org. Sempre caricata: e' utile
+      // anche per domande generiche tipo "quali fornitori abbiamo?" o
+      // "cosa pendente con PTS?". Costo token contenuto (~30 fornitori
+      // medi). Fallback graceful se la migration 043 non e' applicata.
+      (async () => {
+        const res = await supabase.rpc('get_assistant_suppliers_overview')
+        console.info(`[suppliers] count=${Array.isArray(res.data) ? res.data.length : 0} error=${res.error?.message ?? 'none'}`)
+        return res
+      })(),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
@@ -872,6 +952,7 @@ Deno.serve(async (req: Request) => {
     if (strategicRes.error) console.warn('get_assistant_strategic_insights error:', strategicRes.error.message)
     if (currentChatRes.error) console.warn('comments(current ticket) error:', currentChatRes.error.message)
     if (currentReportRes.error) console.warn('current report fetch error:', currentReportRes.error.message)
+    if (suppliersRes.error) console.warn('get_assistant_suppliers_overview error:', suppliersRes.error.message)
 
     const similar: SimilarReport[] = similarRes.data || []
     const orgStats: OrgStats | null = statsRes.data || null
@@ -882,6 +963,7 @@ Deno.serve(async (req: Request) => {
     const strategic: StrategicInsights | null = strategicRes.data || null
     const currentReport: CurrentReport | null = (currentReportRes.data as CurrentReport | null) || null
     const currentChat: CurrentTicketComment[] = (currentChatRes.data as CurrentTicketComment[]) || []
+    const suppliers: SupplierOverview[] = Array.isArray(suppliersRes.data) ? (suppliersRes.data as SupplierOverview[]) : []
 
     // ── Diagnostic trace: retrieval summary ──
     console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} currentChat=${currentChat.length}`)
@@ -940,6 +1022,12 @@ Deno.serve(async (req: Request) => {
 
     const openBlock = buildOpenReportsBlock(openReports, hasMachineContext)
     if (openBlock) sections.push(`## Segnalazioni aperte\n\n${openBlock}`)
+
+    // Anagrafica fornitori esterni: serve per domande tipo "cosa pendente
+    // con PTS?", "storico Manara", "quali fornitori abbiamo per
+    // l'elettronica?". Sempre incluso, e' utile come overview globale.
+    const suppliersBlock = buildSuppliersBlock(suppliers)
+    if (suppliersBlock) sections.push(`## Fornitori esterni\n\n${suppliersBlock}`)
 
     const historyBlock = buildMachineHistoryBlock(machineHistory)
     if (historyBlock) sections.push(`## Storia macchina\n\n${historyBlock}`)
