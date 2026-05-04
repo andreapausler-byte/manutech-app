@@ -234,6 +234,27 @@ interface CurrentTicketComment {
   edited_at: string | null    // se != null il messaggio e' stato corretto dopo l'invio
 }
 
+interface CurrentReport {
+  id: string
+  title: string | null
+  description: string | null
+  severity: string | null
+  status: string | null
+  type: string | null
+  machine: string | null
+  machine_id: string | null
+  created_by_name: string | null
+  assigned_to_name: string | null
+  is_quick: boolean | null
+  extra_data: Record<string, unknown> | null
+  closure_root_cause: string | null
+  closure_action: string | null
+  closure_parts: string | null
+  closure_hours: number | null
+  created_at: string | null
+  closed_at: string | null
+}
+
 // ── Prompt builder ──
 function buildSystemPrompt(): string {
   return `Sei il "cervello operativo" di ManuTech: un assistente AI esperto di manutenzione industriale che guida tecnici, operatori e manager di un'azienda manifatturiera. Il tuo obiettivo strategico è aiutare l'organizzazione a ridurre i tempi di riparazione e a prevenire i fermi macchina straordinari (che impattano direttamente il fatturato). Per farlo attingi alle fonti dati dell'organizzazione che ti vengono fornite ad ogni richiesta.
@@ -260,7 +281,9 @@ Regole di risposta:
 - Le conversazioni dei ticket gia' risolti (source_kind ticket_risolto) contengono spesso la SOLUZIONE TROVATA SUL CAMPO: causa radice reale, azione che ha funzionato, ricambi usati. Trattatela con priorita' alta per le domande diagnostiche
 - Se ci sono segnalazioni aperte simili a quella in corso, segnalalo (possibile duplicato o collega già al lavoro)
 - Se TUTTE le sezioni sono vuote o non pertinenti, ammettilo e chiedi più dettagli
-- Quando ti viene fornita la "Discussione corrente sul ticket", LEGGILA PER PRIMA: contiene quello che il team sta dicendo proprio ora. NON suggerire azioni che sono gia' state tentate o citate in chat. Se nei messaggi recenti emergono dettagli (codici errore, ricambi gia' sostituiti, sintomi specifici), incorporali nel ragionamento e citali esplicitamente
+- Quando ti viene fornita la sezione "Report corrente", e' il PUNTO DI PARTENZA del ragionamento: descrizione iniziale del problema, severita', tipo, dati aggiuntivi (note tecniche, diagnosi iniziale, ricambi potenziali, motivazione priorita'). Cita SEMPRE almeno un dato specifico da qui prima di andare oltre
+- Quando ti viene fornita la "Discussione corrente sul ticket", leggila DOPO il report corrente: contiene quello che il team sta dicendo proprio ora. NON suggerire azioni che sono gia' state tentate o citate in chat. Se nei messaggi recenti emergono dettagli (codici errore, ricambi gia' sostituiti, sintomi specifici), incorporali nel ragionamento e citali esplicitamente
+- ORDINE DI LETTURA per ticket aperti: 1) Report corrente (problema + dati aggiuntivi) -> 2) Discussione corrente (cosa hanno gia' provato/detto) -> 3) Storia macchina + Biblioteca tecnica -> 4) Report storici simili. La risposta deve mostrare un percorso coerente da 1 a 4
 - Per domande diagnostiche struttura la risposta: "Probabile causa → Passi suggeriti → Ricambi/Strumenti"
 - Per domande strategiche struttura: "Situazione → Priorità → Azioni concrete"
 - Massimo 300 parole, vai al sodo. Per liste anagrafiche puoi essere più compatto (usa tabelle/bullet)
@@ -428,6 +451,62 @@ function buildInventoryBlock(items: MachineInventoryItem[]): string {
     lines.push(parts.join(' '))
   })
   return lines.join('\n')
+}
+
+// ── Builder: report corrente (descrizione + dati aggiuntivi) ──
+// Fornisce all'AI il contesto del ticket che l'utente sta guardando:
+// titolo, descrizione iniziale completa, severita', tipo, dati strutturati
+// estratti dal voice_new_ticket (note_tecniche, diagnosi_iniziale,
+// ricambi_potenziali, motivazione_priorita, ecc.) e — se chiuso — la
+// chiusura. E' il PUNTO DI PARTENZA del ragionamento, prima della chat.
+function buildCurrentReportBlock(r: CurrentReport | null): string {
+  if (!r) return ''
+  const lines: string[] = []
+  lines.push(`Titolo: ${r.title || '(senza titolo)'}`)
+  if (r.severity || r.type || r.status) {
+    const meta: string[] = []
+    if (r.severity) meta.push(`severita': ${r.severity}`)
+    if (r.type) meta.push(`tipo: ${r.type}`)
+    if (r.status) meta.push(`stato: ${r.status}`)
+    lines.push(meta.join(' · '))
+  }
+  if (r.machine) lines.push(`Macchina: ${r.machine}`)
+  if (r.created_by_name) lines.push(`Aperto da: ${r.created_by_name}`)
+  if (r.assigned_to_name) lines.push(`Assegnato a: ${r.assigned_to_name}`)
+  if (r.description?.trim()) {
+    lines.push('')
+    lines.push(`Descrizione iniziale del problema:`)
+    lines.push(r.description.trim())
+  }
+  // Dati strutturati estratti dall'AI alla creazione (voice_new_ticket)
+  // o aggiunti manualmente: note_tecniche, diagnosi_iniziale, ricambi_potenziali, ecc.
+  if (r.extra_data && typeof r.extra_data === 'object') {
+    const extras: string[] = []
+    for (const [k, v] of Object.entries(r.extra_data)) {
+      if (v == null) continue
+      if (k === 'transcription' || k === 'source' || k === 'confidence') continue
+      const val = Array.isArray(v) ? v.filter(x => x != null && String(x).trim()).join(', ')
+                 : typeof v === 'object' ? JSON.stringify(v)
+                 : String(v).trim()
+      if (val) extras.push(`- ${k}: ${val.slice(0, 400)}`)
+    }
+    if (extras.length > 0) {
+      lines.push('')
+      lines.push('Dati aggiuntivi del report:')
+      lines.push(...extras)
+    }
+  }
+  // Se il ticket e' gia' stato chiuso (ma l'utente sta riguardando
+  // lo storico per imparare), riportiamo anche la chiusura.
+  if (r.closure_root_cause || r.closure_action) {
+    lines.push('')
+    lines.push('Esito chiusura:')
+    if (r.closure_root_cause) lines.push(`- causa radice: ${r.closure_root_cause}`)
+    if (r.closure_action) lines.push(`- azione risolutiva: ${r.closure_action}`)
+    if (r.closure_parts) lines.push(`- ricambi: ${r.closure_parts}`)
+    if (r.closure_hours != null) lines.push(`- ore intervento: ${r.closure_hours}`)
+  }
+  return lines.join('\n').trim()
 }
 
 // ── Builder: discussione corrente sul ticket (chat + voice updates) ──
@@ -698,7 +777,8 @@ Deno.serve(async (req: Request) => {
     // ancora deployata) logghiamo e proseguiamo con il blocco vuoto.
     const [
       similarRes, statsRes, openRes, historyRes,
-      knowledgeRes, inventoryRes, strategicRes, currentChatRes,
+      knowledgeRes, inventoryRes, strategicRes,
+      currentReportRes, currentChatRes,
     ] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
@@ -735,6 +815,23 @@ Deno.serve(async (req: Request) => {
       // Fallback graceful: se le colonne kind/extra_data/confidence non
       // esistono (migration voice_updates non applicata), ripiega su
       // query base.
+      // Report corrente: descrizione + dati aggiuntivi (extra_data) +
+      // eventuale chiusura. Punto di partenza del ragionamento dell'AI.
+      reportId
+        ? (async () => {
+            console.info(`[current-report] fetching report ${reportId}`)
+            const res = await supabase
+              .from('reports')
+              .select('id, title, description, severity, status, type, machine, machine_id, created_by_name, assigned_to_name, is_quick, extra_data, closure_root_cause, closure_action, closure_parts, closure_hours, created_at, closed_at')
+              .eq('id', reportId)
+              .maybeSingle()
+            console.info(`[current-report] found=${res.data ? 'Y' : 'N'} error=${res.error?.message ?? 'none'}`)
+            return res
+          })()
+        : (async () => {
+            console.info(`[current-report] no report_id, skipping`)
+            return { data: null, error: null }
+          })(),
       reportId
         ? (async () => {
             console.info(`[current-chat] fetching comments for report_id=${reportId}`)
@@ -774,6 +871,7 @@ Deno.serve(async (req: Request) => {
     if (inventoryRes.error) console.warn('get_machines_inventory error:', inventoryRes.error.message)
     if (strategicRes.error) console.warn('get_assistant_strategic_insights error:', strategicRes.error.message)
     if (currentChatRes.error) console.warn('comments(current ticket) error:', currentChatRes.error.message)
+    if (currentReportRes.error) console.warn('current report fetch error:', currentReportRes.error.message)
 
     const similar: SimilarReport[] = similarRes.data || []
     const orgStats: OrgStats | null = statsRes.data || null
@@ -782,6 +880,7 @@ Deno.serve(async (req: Request) => {
     const knowledgeChunks: KnowledgeChunk[] = knowledgeRes.data || []
     const inventory: MachineInventoryItem[] = inventoryRes.data || []
     const strategic: StrategicInsights | null = strategicRes.data || null
+    const currentReport: CurrentReport | null = (currentReportRes.data as CurrentReport | null) || null
     const currentChat: CurrentTicketComment[] = (currentChatRes.data as CurrentTicketComment[]) || []
 
     // ── Diagnostic trace: retrieval summary ──
@@ -844,6 +943,13 @@ Deno.serve(async (req: Request) => {
 
     const historyBlock = buildMachineHistoryBlock(machineHistory)
     if (historyBlock) sections.push(`## Storia macchina\n\n${historyBlock}`)
+
+    // Report corrente: il PUNTO DI PARTENZA del ragionamento. Contiene la
+    // descrizione iniziale del problema + dati aggiuntivi (note tecniche,
+    // diagnosi iniziale, ricambi potenziali, motivazione priorita') che
+    // sono spesso la base da cui partire prima di guardare la chat.
+    const currentReportBlock = buildCurrentReportBlock(currentReport)
+    if (currentReportBlock) sections.push(`## Report corrente (ticket che l'utente sta guardando)\n\n${currentReportBlock}`)
 
     // Discussione corrente del ticket: il pezzo piu' aggiornato di contesto.
     // La piazziamo PRIMA dei report storici simili cosi' Claude la legge per
