@@ -48,9 +48,35 @@ const STATIC_VOCAB_TECH = [
   'Trascrizione di un tecnico/operatore di manutenzione di birrificio.',
   'Macchine tipo: imbottigliatrice, riempitrice, tappatrice, etichettatrice, sciacquatrice, depalettizzatore, palettizzatore, capsulatrice, pasteurizzatrice tunnel.',
   'Componenti: valvola DN65, pistoncino, guarnizione OR, cuscinetto, encoder, sonda PT100, elettrovalvola, attuatore, premitreccia, rubinetto, ugello.',
-  'Brand: Kosme, GAI, Bertolaso, Sidel, KHS, Krones, Comac, GEA, Cimaer, Bardi, BBM, SKF, Festo, SMC, Burkert, Endress, Siemens.',
+  // Ripeti i brand "difficili" per Whisper (K iniziale viene italianizzata in C).
+  'Brand: Kosme, Kosme, Kosme, GAI, Bertolaso, Sidel, KHS, Krones, Comac, GEA, Cimaer, Bardi, BBM, SKF, Festo, SMC, Burkert, Endress, Siemens.',
   'Termini: smontaggio, lubrificazione, sostituzione, taratura, calibrazione, lappatura, service line.',
 ].join(' ')
+
+// Correzioni post-trascrizione per pattern noti di Whisper italiano.
+// Whisper a volte italianizza nomi propri o inventa parole foneticamente
+// vicine. Queste sostituzioni vengono applicate al testo PRIMA di passarlo
+// a Claude e PRIMA di mostrarlo all'utente.
+//
+// Regola: aggiungere SOLO pattern dove il falso positivo e' improbabile
+// (es. "Cogna" e "Cosme" non sono brand reali nel settore birrificio).
+const TRANSCRIPTION_CORRECTIONS = [
+  // Kosme: Whisper italianizza la K iniziale in C, oppure non riconosce
+  // "Kosme" e cerca parole comuni (es. "Cogna").
+  { pattern: /\b[ck]osm[ei]\b/gi, replacement: 'Kosme' },
+  { pattern: /\bcogna\b/gi, replacement: 'Kosme' },
+  // imbottigliatrice: parola lunga e tecnica, Whisper inventa varianti.
+  { pattern: /\bimbo[bv][ie]l[ie]atric[ei]\b/gi, replacement: 'imbottigliatrice' },
+]
+
+function applyCorrections(text) {
+  if (!text) return text
+  let corrected = text
+  for (const { pattern, replacement } of TRANSCRIPTION_CORRECTIONS) {
+    corrected = corrected.replace(pattern, replacement)
+  }
+  return corrected
+}
 
 function buildVocabulary(machines, vocabularyHints) {
   const parts = [STATIC_VOCAB_TECH]
@@ -198,7 +224,10 @@ export function useVoiceCapture({
         'trascrizione',
       )
       if (transcribeResp.error) throw transcribeResp.error
-      const text = (transcribeResp.data?.text || '').toString().trim()
+      const rawText = (transcribeResp.data?.text || '').toString().trim()
+      // Post-processing: correggi sostituzioni note che Whisper italiano
+      // sbaglia ricorrentemente (es. "Cosme" → "Kosme").
+      const text = applyCorrections(rawText)
       setTranscription(text)
 
       if (!text) {
