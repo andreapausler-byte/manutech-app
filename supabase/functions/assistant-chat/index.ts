@@ -730,14 +730,34 @@ Deno.serve(async (req: Request) => {
       // Discussione corrente sul ticket: chat + note vocali (salvate come
       // commenti con campo audio). Carichiamo gli ultimi 20 in ordine
       // cronologico per dare all'AI il contesto piu' aggiornato.
+      // Fallback graceful: se le colonne kind/extra_data/confidence non
+      // esistono (migration voice_updates non applicata), ripiega su
+      // query base.
       reportId
-        ? supabase
-            .from('comments')
-            .select('user_name, user_role, text, media, created_at, kind, extra_data, confidence')
-            .eq('report_id', reportId)
-            .order('created_at', { ascending: true })
-            .limit(20)
-        : Promise.resolve({ data: null, error: null }),
+        ? (async () => {
+            console.info(`[current-chat] fetching comments for report_id=${reportId}`)
+            let res = await supabase
+              .from('comments')
+              .select('user_name, user_role, text, media, created_at, kind, extra_data, confidence')
+              .eq('report_id', reportId)
+              .order('created_at', { ascending: true })
+              .limit(20)
+            if (res.error) {
+              console.warn(`[current-chat] extended select failed (${res.error.message}), retry basic`)
+              res = await supabase
+                .from('comments')
+                .select('user_name, user_role, text, media, created_at')
+                .eq('report_id', reportId)
+                .order('created_at', { ascending: true })
+                .limit(20)
+            }
+            console.info(`[current-chat] result: ${res.data?.length ?? 0} comments, error=${res.error?.message ?? 'none'}`)
+            return res
+          })()
+        : (async () => {
+            console.info(`[current-chat] no report_id, skipping`)
+            return { data: null, error: null }
+          })(),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
@@ -759,7 +779,11 @@ Deno.serve(async (req: Request) => {
     const currentChat: CurrentTicketComment[] = (currentChatRes.data as CurrentTicketComment[]) || []
 
     // ── Diagnostic trace: retrieval summary ──
-    console.info(`[retrieval] query="${query.slice(0, 80)}" | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} currentChat=${currentChat.length}`)
+    console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} currentChat=${currentChat.length}`)
+    if (currentChat.length > 0) {
+      const preview = currentChat.slice(0, 3).map(c => `${c.user_name || '?'}: ${(c.text || '').slice(0, 60)}`).join(' | ')
+      console.info(`[current-chat-preview] ${preview}`)
+    }
 
     // ── 5. Identità utente ──
     const { data: { user }, error: userErr } = await supabase.auth.getUser()
