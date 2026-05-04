@@ -9,8 +9,8 @@
  */
 
 // Bump ad ogni release per invalidare la cache.
-// v7.7.1 = hotfix chat sparita su DB senza migration 042
-const CACHE_NAME = 'manutech-v7.7.1'
+// v7.8.0 = AI vede anagrafica fornitori (migration 043)
+const CACHE_NAME = 'manutech-v7.8.0'
 const APP_SHELL = [
   '/',
   '/manifest.json',
