@@ -9,8 +9,8 @@
  */
 
 // Bump ad ogni release per invalidare la cache.
-// v7.6.1 = AI legge anche voice updates con dati strutturati (extra_data)
-const CACHE_NAME = 'manutech-v7.6.1'
+// v7.7.0 = chat editabile (modifica/elimina commenti)
+const CACHE_NAME = 'manutech-v7.7.0'
 const APP_SHELL = [
   '/',
   '/manifest.json',
