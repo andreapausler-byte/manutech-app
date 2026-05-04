@@ -228,6 +228,9 @@ interface CurrentTicketComment {
   text: string | null
   media: unknown
   created_at: string | null
+  kind: string | null         // 'chat' | 'voice_update' | 'voice_close' | 'voice_note' | 'voice_spare_request' | 'voice_new_ticket'
+  extra_data: Record<string, unknown> | null  // dati strutturati estratti da Claude per i voice_*
+  confidence: number | null
 }
 
 // ── Prompt builder ──
@@ -426,10 +429,13 @@ function buildInventoryBlock(items: MachineInventoryItem[]): string {
   return lines.join('\n')
 }
 
-// ── Builder: discussione corrente sul ticket (chat + note vocali trascritte) ──
+// ── Builder: discussione corrente sul ticket (chat + voice updates) ──
 // I commenti del ticket aperto sono spesso il pezzo di contesto piu' aggiornato:
 // "abbiamo gia' provato X", "il sensore e' stato sostituito ieri", ecc.
-// Includerli evita all'AI di ripetere suggerimenti gia' tentati.
+// Per i voice_* (note vocali, update, close, spare_request, new_ticket) ci
+// sono anche dati strutturati in extra_data estratti da Claude (azioni
+// eseguite, ricambi, stato proposto). Li includiamo cosi' l'AI vede sia
+// la trascrizione grezza sia i fatti sintetizzati.
 function buildCurrentTicketChatBlock(comments: CurrentTicketComment[]): string {
   if (!comments || comments.length === 0) return ''
   const lines: string[] = []
@@ -439,10 +445,26 @@ function buildCurrentTicketChatBlock(comments: CurrentTicketComment[]): string {
     const who = c.user_name || 'Utente'
     const role = c.user_role ? ` (${c.user_role})` : ''
     const when = c.created_at ? new Date(c.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+    const kindTag = c.kind && c.kind !== 'chat' ? ` [${c.kind}]` : ''
     const text = (c.text || '').trim()
-    if (!text) return
     const truncated = text.length > 600 ? text.slice(0, 600) + '…' : text
-    lines.push(`[${when}] ${who}${role}: ${truncated}`)
+    if (truncated) {
+      lines.push(`[${when}] ${who}${role}${kindTag}: ${truncated}`)
+    }
+    // Dati strutturati estratti dall'AI sul voice update (se presenti)
+    if (c.extra_data && typeof c.extra_data === 'object') {
+      const extras: string[] = []
+      for (const [k, v] of Object.entries(c.extra_data)) {
+        if (v == null) continue
+        const val = Array.isArray(v) ? v.filter(x => x != null && String(x).trim()).join(', ')
+                   : typeof v === 'object' ? JSON.stringify(v)
+                   : String(v).trim()
+        if (val) extras.push(`${k}: ${val}`)
+      }
+      if (extras.length > 0) {
+        lines.push(`   ↳ Dati estratti dalla nota vocale: ${extras.join(' · ')}`)
+      }
+    }
   })
   return lines.join('\n').trim()
 }
@@ -711,7 +733,7 @@ Deno.serve(async (req: Request) => {
       reportId
         ? supabase
             .from('comments')
-            .select('user_name, user_role, text, media, created_at')
+            .select('user_name, user_role, text, media, created_at, kind, extra_data, confidence')
             .eq('report_id', reportId)
             .order('created_at', { ascending: true })
             .limit(20)

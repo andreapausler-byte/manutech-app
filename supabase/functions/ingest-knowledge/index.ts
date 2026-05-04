@@ -102,6 +102,8 @@ interface ReportComment {
   user_role: string | null
   text: string | null
   created_at: string | null
+  kind: string | null
+  extra_data: Record<string, unknown> | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
@@ -276,7 +278,7 @@ Deno.serve(async (req: Request) => {
     if (closedReportIds.length > 0) {
       const { data: comments, error: cErr } = await adminSupabase
         .from('comments')
-        .select('report_id, user_name, user_role, text, created_at')
+        .select('report_id, user_name, user_role, text, created_at, kind, extra_data')
         .in('report_id', closedReportIds)
         .order('created_at', { ascending: true })
       if (cErr) {
@@ -418,16 +420,33 @@ Deno.serve(async (req: Request) => {
       if (r.closure_parts) parts.push(`Ricambi utilizzati: ${r.closure_parts}`)
       if (r.closure_hours != null) parts.push(`Durata intervento: ${r.closure_hours}h`)
 
-      // Conversazione: la chat dei tecnici che ha portato alla soluzione
+      // Conversazione: la chat dei tecnici che ha portato alla soluzione.
+      // Include sia i commenti normali (kind=chat) sia i voice updates con
+      // i loro dati strutturati estratti da Claude (extra_data).
       const reportComments = commentsByReport[r.id] || []
       if (reportComments.length > 0) {
         parts.push(`\nDiscussione del team (${reportComments.length} messaggi):`)
         reportComments.forEach(c => {
           const who = c.user_name || 'Utente'
           const role = c.user_role ? ` (${c.user_role})` : ''
+          const kindTag = c.kind && c.kind !== 'chat' ? ` [${c.kind}]` : ''
           const txt = (c.text || '').trim()
-          if (!txt) return
-          parts.push(`- ${who}${role}: ${txt}`)
+          if (txt) {
+            parts.push(`- ${who}${role}${kindTag}: ${txt}`)
+          }
+          if (c.extra_data && typeof c.extra_data === 'object') {
+            const extras: string[] = []
+            for (const [k, v] of Object.entries(c.extra_data)) {
+              if (v == null) continue
+              const val = Array.isArray(v) ? v.filter(x => x != null && String(x).trim()).join(', ')
+                         : typeof v === 'object' ? JSON.stringify(v)
+                         : String(v).trim()
+              if (val) extras.push(`${k}: ${val}`)
+            }
+            if (extras.length > 0) {
+              parts.push(`  ↳ ${extras.join(' · ')}`)
+            }
+          }
         })
       }
 
