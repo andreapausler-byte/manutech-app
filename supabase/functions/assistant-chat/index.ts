@@ -222,6 +222,14 @@ interface KnowledgeChunk {
   similarity: number
 }
 
+interface CurrentTicketComment {
+  user_name: string | null
+  user_role: string | null
+  text: string | null
+  media: unknown
+  created_at: string | null
+}
+
 // ── Prompt builder ──
 function buildSystemPrompt(): string {
   return `Sei il "cervello operativo" di ManuTech: un assistente AI esperto di manutenzione industriale che guida tecnici, operatori e manager di un'azienda manifatturiera. Il tuo obiettivo strategico è aiutare l'organizzazione a ridurre i tempi di riparazione e a prevenire i fermi macchina straordinari (che impattano direttamente il fatturato). Per farlo attingi alle fonti dati dell'organizzazione che ti vengono fornite ad ogni richiesta.
@@ -232,8 +240,9 @@ Fonti che puoi ricevere nel contesto:
 3. **Insight strategici** — macchine più a rischio (ranking), manutenzioni preventive scadute, pattern di guasto ricorrenti a livello org (ultimi 90gg), riparazioni lunghe (outlier ore)
 4. **Segnalazioni aperte** — guasti attualmente non risolti, con stato, severità ed eventuale tecnico assegnato
 5. **Storia macchina** — solo se l'utente sta guardando una specifica macchina: anagrafica completa, tipi guasto ricorrenti, MTTR, manutenzioni recenti/in scadenza, ricambi più usati
-6. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
-7. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne) e certificati della macchina
+6. **Discussione corrente sul ticket** — solo se l'utente sta guardando un ticket specifico: messaggi recenti dei tecnici/operatori in chat (incluse note vocali trascritte). È la fonte più AGGIORNATA: dice cosa il team ha già provato, ipotesi correnti, dettagli che NON sono nel titolo né nella descrizione iniziale
+7. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
+8. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne) e certificati della macchina
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
@@ -246,6 +255,7 @@ Regole di risposta:
 - Quando citi un documento usa formato [Titolo documento, categoria]. Quando citi un intervento usa [Ditta X, data] o [Intervento interno, data]
 - Se ci sono segnalazioni aperte simili a quella in corso, segnalalo (possibile duplicato o collega già al lavoro)
 - Se TUTTE le sezioni sono vuote o non pertinenti, ammettilo e chiedi più dettagli
+- Quando ti viene fornita la "Discussione corrente sul ticket", LEGGILA PER PRIMA: contiene quello che il team sta dicendo proprio ora. NON suggerire azioni che sono gia' state tentate o citate in chat. Se nei messaggi recenti emergono dettagli (codici errore, ricambi gia' sostituiti, sintomi specifici), incorporali nel ragionamento e citali esplicitamente
 - Per domande diagnostiche struttura la risposta: "Probabile causa → Passi suggeriti → Ricambi/Strumenti"
 - Per domande strategiche struttura: "Situazione → Priorità → Azioni concrete"
 - Massimo 300 parole, vai al sodo. Per liste anagrafiche puoi essere più compatto (usa tabelle/bullet)
@@ -413,6 +423,27 @@ function buildInventoryBlock(items: MachineInventoryItem[]): string {
     lines.push(parts.join(' '))
   })
   return lines.join('\n')
+}
+
+// ── Builder: discussione corrente sul ticket (chat + note vocali trascritte) ──
+// I commenti del ticket aperto sono spesso il pezzo di contesto piu' aggiornato:
+// "abbiamo gia' provato X", "il sensore e' stato sostituito ieri", ecc.
+// Includerli evita all'AI di ripetere suggerimenti gia' tentati.
+function buildCurrentTicketChatBlock(comments: CurrentTicketComment[]): string {
+  if (!comments || comments.length === 0) return ''
+  const lines: string[] = []
+  lines.push(`Discussione recente nella chat del ticket (${comments.length} messaggi, dal piu' vecchio al piu' recente):`)
+  lines.push('')
+  comments.forEach(c => {
+    const who = c.user_name || 'Utente'
+    const role = c.user_role ? ` (${c.user_role})` : ''
+    const when = c.created_at ? new Date(c.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+    const text = (c.text || '').trim()
+    if (!text) return
+    const truncated = text.length > 600 ? text.slice(0, 600) + '…' : text
+    lines.push(`[${when}] ${who}${role}: ${truncated}`)
+  })
+  return lines.join('\n').trim()
 }
 
 // ── Builder: insight strategici (KPI manageriali) ──
@@ -642,7 +673,7 @@ Deno.serve(async (req: Request) => {
     // ancora deployata) logghiamo e proseguiamo con il blocco vuoto.
     const [
       similarRes, statsRes, openRes, historyRes,
-      knowledgeRes, inventoryRes, strategicRes,
+      knowledgeRes, inventoryRes, strategicRes, currentChatRes,
     ] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
@@ -673,6 +704,17 @@ Deno.serve(async (req: Request) => {
       shouldFetchStrategic
         ? supabase.rpc('get_assistant_strategic_insights')
         : Promise.resolve({ data: null, error: null }),
+      // Discussione corrente sul ticket: chat + note vocali (salvate come
+      // commenti con campo audio). Carichiamo gli ultimi 20 in ordine
+      // cronologico per dare all'AI il contesto piu' aggiornato.
+      reportId
+        ? supabase
+            .from('comments')
+            .select('user_name, user_role, text, media, created_at')
+            .eq('report_id', reportId)
+            .order('created_at', { ascending: true })
+            .limit(20)
+        : Promise.resolve({ data: null, error: null }),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
@@ -682,6 +724,7 @@ Deno.serve(async (req: Request) => {
     if (knowledgeRes.error) console.warn('search_knowledge error:', knowledgeRes.error.message, JSON.stringify(knowledgeRes.error))
     if (inventoryRes.error) console.warn('get_machines_inventory error:', inventoryRes.error.message)
     if (strategicRes.error) console.warn('get_assistant_strategic_insights error:', strategicRes.error.message)
+    if (currentChatRes.error) console.warn('comments(current ticket) error:', currentChatRes.error.message)
 
     const similar: SimilarReport[] = similarRes.data || []
     const orgStats: OrgStats | null = statsRes.data || null
@@ -690,9 +733,10 @@ Deno.serve(async (req: Request) => {
     const knowledgeChunks: KnowledgeChunk[] = knowledgeRes.data || []
     const inventory: MachineInventoryItem[] = inventoryRes.data || []
     const strategic: StrategicInsights | null = strategicRes.data || null
+    const currentChat: CurrentTicketComment[] = (currentChatRes.data as CurrentTicketComment[]) || []
 
     // ── Diagnostic trace: retrieval summary ──
-    console.info(`[retrieval] query="${query.slice(0, 80)}" | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'}`)
+    console.info(`[retrieval] query="${query.slice(0, 80)}" | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} currentChat=${currentChat.length}`)
 
     // ── 5. Identità utente ──
     const { data: { user }, error: userErr } = await supabase.auth.getUser()
@@ -747,6 +791,12 @@ Deno.serve(async (req: Request) => {
 
     const historyBlock = buildMachineHistoryBlock(machineHistory)
     if (historyBlock) sections.push(`## Storia macchina\n\n${historyBlock}`)
+
+    // Discussione corrente del ticket: il pezzo piu' aggiornato di contesto.
+    // La piazziamo PRIMA dei report storici simili cosi' Claude la legge per
+    // prima e capisce subito cosa il team ha gia' provato.
+    const currentChatBlock = buildCurrentTicketChatBlock(currentChat)
+    if (currentChatBlock) sections.push(`## Discussione corrente sul ticket\n\n${currentChatBlock}`)
 
     const contextBlock = buildContextBlock(similar)
     sections.push(`## Report storici simili\n\n${contextBlock}`)
