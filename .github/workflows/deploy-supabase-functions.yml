@@ -70,7 +70,9 @@ jobs:
         run: |
           FUNCS="${{ github.event.inputs.functions }}"
           if [ -z "$FUNCS" ] || [ "$FUNCS" = "all" ]; then
-            FUNCS="transcribe,extract-ticket-fields"
+            # "all" = scopri dinamicamente tutte le directory in supabase/functions/
+            FUNCS=$(ls -1d supabase/functions/*/ 2>/dev/null | sed 's|supabase/functions/||;s|/$||' | paste -sd ',')
+            echo "ℹ Deploying tutte le funzioni: $FUNCS"
           fi
           IFS=',' read -ra LIST <<< "$FUNCS"
           for fn in "${LIST[@]}"; do

@@ -1,5 +1,5 @@
 /**
- * Edge Function: assistant-chat
+ * Edge Function: assistant-chat (v2 — chat-aware)
  *
  * Assistente AI per tecnici ManuTech. Riceve una domanda (+ context
  * opzionale machine_id / report_id) e costruisce un prompt per Claude
