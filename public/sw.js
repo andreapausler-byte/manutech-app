@@ -9,8 +9,8 @@
  */
 
 // Bump ad ogni release per invalidare la cache.
-// v7.7.0 = chat editabile (modifica/elimina commenti)
-const CACHE_NAME = 'manutech-v7.7.0'
+// v7.7.1 = hotfix chat sparita su DB senza migration 042
+const CACHE_NAME = 'manutech-v7.7.1'
 const APP_SHELL = [
   '/',
   '/manifest.json',
