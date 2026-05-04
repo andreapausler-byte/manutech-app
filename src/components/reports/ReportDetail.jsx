@@ -408,8 +408,14 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const reportType = report.type ? REPORT_TYPES[report.type] : null
   const canUpdate = user.role === 'tecnico' || user.role === 'admin'
   const isMine = report.assigned_to === user.id
-  const showTakeOver = canUpdate && (report.status === 'aperta' || (!isMine && report.assigned_to == null))
-  const showTechActions = (user.role === 'tecnico' && (isMine || !report.assigned_to)) || user.role === 'admin'
+  const isClosed = report.status === 'risolta' || report.status === 'chiuso'
+  // Tutti i tecnici dell'org possono prendere in carico una segnalazione
+  // (anche se è già assegnata a qualcun altro): l'assegnazione cambia, la
+  // cronologia traccia il passaggio.
+  const showTakeOver = canUpdate && !isMine && !isClosed
+  // Tutti i tecnici dell'org vedono la barra vocale: ownership tracciato
+  // da assigned_to per accountability/notifiche, ma non blocca l'editing.
+  const showTechActions = canUpdate
 
   // Conta messaggi e attività per i badge dei tab
   useEffect(() => {
@@ -473,11 +479,24 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const handleTakeOver = async () => {
     if (updating) return
     haptic.medium()
+    const wasAssignedToOther = !!report.assigned_to && report.assigned_to !== user.id
+    const previousAssignee = report.assigned_to_name
     const ok = await updateStatus('in_lavorazione', {
       assigned_to: user.id,
       assigned_to_name: user.name,
     })
-    if (ok) toast.success('Hai preso in carico la segnalazione')
+    if (ok) {
+      if (wasAssignedToOther) {
+        toast.success(`Riassegnata a te (era di ${previousAssignee || 'altro tecnico'})`)
+        db.addActivity(report.id, {
+          type: 'reassignment',
+          user_id: user.id, user_name: user.name,
+          detail: `Riassegnata da ${previousAssignee || 'altro tecnico'} a ${user.name}`,
+        }).catch(e => console.warn('Side effect failed:', e.message))
+      } else {
+        toast.success('Hai preso in carico la segnalazione')
+      }
+    }
   }
 
   const handleClosureSubmit = async (closureData) => {
@@ -708,7 +727,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                 whiteSpace: 'nowrap',
               }}
             >
-              {updating ? '...' : 'Prendi in carico'}
+              {updating ? '...' : (report.assigned_to ? 'Prendi tu' : 'Prendi in carico')}
             </button>
           )}
         </div>
