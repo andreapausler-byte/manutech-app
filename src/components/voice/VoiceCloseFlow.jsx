@@ -56,8 +56,8 @@ export default function VoiceCloseFlow({ report, user, onClose, onApplied }) {
         state={voice.state}
         elapsedMs={voice.elapsedMs}
         onStop={voice.stopRecording}
-        onCancel={onClose}
-        title="Chiusura ticket"
+        onCancel={() => { voice.cancelRecording(); onClose?.() }}
+        title="Completa ticket"
         hint="Cause del guasto, azione correttiva, ricambi usati, tempo, test eseguiti."
       />
     )

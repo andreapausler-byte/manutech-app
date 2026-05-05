@@ -64,7 +64,7 @@ export default function VoiceSpareRequestFlow({ report, user, onClose, onApplied
         state={voice.state}
         elapsedMs={voice.elapsedMs}
         onStop={voice.stopRecording}
-        onCancel={onClose}
+        onCancel={() => { voice.cancelRecording(); onClose?.() }}
         title="Richiesta ricambio"
         hint="Articolo, quantità, fornitore, urgenza, deadline."
       />
