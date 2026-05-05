@@ -147,6 +147,7 @@ export function useVoiceCapture({
   const chunksRef = useRef([])
   const startedAtRef = useRef(0)
   const tickRef = useRef(null)
+  const mimeTypeRef = useRef('audio/webm')
 
   const supportsMediaRecorder = typeof window !== 'undefined'
     && typeof window.MediaRecorder !== 'undefined'
@@ -172,7 +173,25 @@ export function useVoiceCapture({
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream)
+      // Firefox mobile preferisce audio/ogg;codecs=opus, Chrome/Safari audio/webm.
+      // Selezione del mimeType piu' adatto fra quelli supportati dal browser.
+      let mimeType = ''
+      const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+        'audio/mp4',
+      ]
+      for (const c of candidates) {
+        if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(c)) {
+          mimeType = c
+          break
+        }
+      }
+      const recorderOptions = mimeType ? { mimeType } : {}
+      const recorder = new MediaRecorder(stream, recorderOptions)
+      mimeTypeRef.current = mimeType || recorder.mimeType || 'audio/webm'
       chunksRef.current = []
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data)
@@ -184,7 +203,10 @@ export function useVoiceCapture({
       tickRef.current = setInterval(() => {
         setElapsedMs(Date.now() - startedAtRef.current)
       }, 200)
-      recorder.start()
+      // Timeslice esplicito: alcuni browser (Firefox mobile) non emettono
+      // dataavailable senza timeslice. 1s e' un buon compromesso.
+      recorder.start(1000)
+      console.info('[voice] recording started, mimeType=', mimeTypeRef.current)
       setState('recording')
     } catch (err) {
       console.warn('[voice] getUserMedia failed:', err)
@@ -239,13 +261,18 @@ export function useVoiceCapture({
   }, [])
 
   const handleStop = async () => {
-    const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+    const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current || 'audio/webm' })
     setAudioBlob(blob)
 
-    // Soglia DOPPIA: bytes E durata. La durata in ms e' piu' affidabile per
-    // capire se c'e' stata vera registrazione (silenzio breve puo' superare
-    // la soglia bytes per via dell'header webm).
-    const durationMs = elapsedMs
+    // Calcoliamo la durata DALL'OROLOGIO (ref, sempre fresh) invece che dallo
+    // state React. Su Firefox mobile lo state elapsedMs puo' essere ancora 0
+    // perche' setInterval scatta ogni 200ms e React batcha gli update,
+    // mentre startedAtRef.current viene popolato sincrono in startRecording.
+    const durationMs = startedAtRef.current > 0
+      ? Date.now() - startedAtRef.current
+      : elapsedMs
+    console.info(`[voice] handleStop: durationMs=${durationMs} blob.size=${blob.size} mimeType=${mimeTypeRef.current} chunks=${chunksRef.current.length}`)
+
     if (blob.size < MIN_AUDIO_BYTES || durationMs < MIN_AUDIO_MS) {
       setError(durationMs < MIN_AUDIO_MS
         ? `Registrazione troppo breve (${(durationMs / 1000).toFixed(1)}s). Tieni premuto almeno ${MIN_AUDIO_MS / 1000}s.`
@@ -267,7 +294,12 @@ export function useVoiceCapture({
 
     try {
       const form = new FormData()
-      form.append('audio', blob, 'recording.webm')
+      // Estensione coerente con il mimeType usato dal MediaRecorder (utile
+      // per Firefox mobile che produce ogg/opus).
+      const ext = (mimeTypeRef.current || '').includes('ogg') ? 'ogg'
+                : (mimeTypeRef.current || '').includes('mp4') ? 'mp4'
+                : 'webm'
+      form.append('audio', blob, `recording.${ext}`)
       // Vocabulary hint per Whisper: nomi macchine + termini tecnici.
       // Riduce drasticamente trascrizioni errate di parole di dominio
       // (es. "tappatrice" non diventa "tapatrice").
