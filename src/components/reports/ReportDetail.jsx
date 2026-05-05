@@ -1094,7 +1094,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
 function TechActionBar({ onAction }) {
   const items = [
     { id: 'update', label: 'Aggiorna', icon: FileEdit, color: '#06b6d4' },
-    { id: 'close', label: 'Chiudi', icon: ClipboardCheck, color: '#10b981' },
+    { id: 'close', label: 'Completa', icon: ClipboardCheck, color: '#10b981' },
     { id: 'note', label: 'Nota', icon: Mic, color: '#a78bfa' },
     { id: 'spare', label: 'Ricambio', icon: Package, color: '#f59e0b' },
   ]
