@@ -34,7 +34,35 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 const TRANSCRIPTION_TIMEOUT_MS = 15000
 const MIN_AUDIO_BYTES = 5000
+const MIN_AUDIO_MS = 1500     // sotto 1.5s consideriamo l'audio non utile
 const MAX_VOCAB_CHARS = 800
+
+// Detection di Whisper hallucination su silenzio o rumore. Il modello a volte
+// inventa parole random in altre lingue ("Brandi naivowi, Nordili Rock
+// Теперь...") quando l'audio non contiene voce comprensibile. Heuristic:
+// - Caratteri non latini (cirillico, asiatico, ecc.) -> hallucination quasi certa
+// - Tante parole MAIUSCOLE corte (sigle inventate tipo "ABplS, CBT15") -> sospetto
+// - Frasi senza verbi italiani comuni e con molte virgole -> sospetto
+function looksLikeHallucination(text) {
+  if (!text || typeof text !== 'string') return false
+  const t = text.trim()
+  if (t.length < 10) return false  // troppo corto per giudicare
+  // Caratteri non latini (cirillico, kanji, ecc.)
+  if (/[Ѐ-ӿ֐-׿؀-ۿ぀-ヿ一-鿿]/.test(t)) {
+    return true
+  }
+  // Sigle MAIUSCOLE/MISTE corte separate da virgole tipo "ABplS, CBT15, HVB"
+  const tokens = t.split(/[\s,.\-]+/).filter(Boolean)
+  if (tokens.length >= 6) {
+    const acronymish = tokens.filter(w =>
+      w.length >= 3 && w.length <= 8 &&
+      /[A-Z]/.test(w) && /[a-z0-9]/.test(w) &&
+      !/^[A-Z][a-z]+$/.test(w)  // escludi capitalizzazione normale
+    )
+    if (acronymish.length / tokens.length > 0.35) return true
+  }
+  return false
+}
 
 // Vocabolario tecnico statico per il dominio manutenzione industriale
 // (settore birrificio / linea imbottigliamento). Whisper accetta ~244 token
@@ -190,14 +218,41 @@ export function useVoiceCapture({
     setState('transcribing')
   }, [])
 
+  // Annulla la registrazione: ferma mediarecorder + tracks, scarta i chunks
+  // raccolti, NON triggera trascrizione, resetta lo stato a idle. Usato
+  // dal pulsante X dei flow vocali quando l'utente vuole desistere.
+  const cancelRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current
+    stopTicker()
+    // Sgancia il listener onstop prima di fermare per evitare handleStop
+    if (recorder) {
+      try { recorder.onstop = null } catch { /* noop */ }
+      try { if (recorder.state !== 'inactive') recorder.stop() } catch { /* noop */ }
+      try { recorder.stream?.getTracks().forEach(t => t.stop()) } catch { /* noop */ }
+    }
+    chunksRef.current = []
+    mediaRecorderRef.current = null
+    setAudioBlob(null)
+    setTranscription('')
+    setError(null)
+    setState('idle')
+  }, [])
+
   const handleStop = async () => {
     const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
     setAudioBlob(blob)
 
-    if (blob.size < MIN_AUDIO_BYTES) {
-      setError('Audio troppo breve. Tieni premuto più a lungo.')
+    // Soglia DOPPIA: bytes E durata. La durata in ms e' piu' affidabile per
+    // capire se c'e' stata vera registrazione (silenzio breve puo' superare
+    // la soglia bytes per via dell'header webm).
+    const durationMs = elapsedMs
+    if (blob.size < MIN_AUDIO_BYTES || durationMs < MIN_AUDIO_MS) {
+      setError(durationMs < MIN_AUDIO_MS
+        ? `Registrazione troppo breve (${(durationMs / 1000).toFixed(1)}s). Tieni premuto almeno ${MIN_AUDIO_MS / 1000}s.`
+        : 'Audio troppo breve. Tieni premuto più a lungo.')
       setState('idle')
       setAudioBlob(null)
+      chunksRef.current = []
       return
     }
 
@@ -228,6 +283,19 @@ export function useVoiceCapture({
       // Post-processing: correggi sostituzioni note che Whisper italiano
       // sbaglia ricorrentemente (es. "Cosme" → "Kosme").
       const text = applyCorrections(rawText)
+
+      // Hallucination check: se Whisper ha inventato parole random
+      // (succede su silenzio o rumore), scarta e chiedi di riprovare.
+      if (looksLikeHallucination(text)) {
+        console.warn('[voice] hallucination detected, raw text:', text.slice(0, 200))
+        setTranscription('')
+        setFields(defaultFields)
+        setAudioBlob(null)
+        setError('Audio non chiaro: il sistema ha rilevato voci o parole non riconoscibili. Riprova parlando più vicino al microfono.')
+        setState('idle')
+        return
+      }
+
       setTranscription(text)
 
       if (!text) {
@@ -296,6 +364,7 @@ export function useVoiceCapture({
     supportsMediaRecorder,
     startRecording,
     stopRecording,
+    cancelRecording,
     openManual,
     reset,
   }

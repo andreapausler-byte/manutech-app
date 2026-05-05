@@ -104,7 +104,7 @@ export default function VoiceNewTicketFlow({ user, onBack, onCreated }) {
         state={voice.state}
         elapsedMs={voice.elapsedMs}
         onStop={voice.stopRecording}
-        onCancel={onBack}
+        onCancel={() => { voice.cancelRecording(); onBack?.() }}
         title="Nuovo ticket vocale"
         hint="Descrivi cosa hai notato: macchina, componente, problema, urgenza."
       />
