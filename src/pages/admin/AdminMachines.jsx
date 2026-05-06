@@ -855,7 +855,7 @@ export default function AdminMachines({ onOpenAssistant }) {
           onOpenLogForm={openLogForm} onEditLog={(log) => openLogForm(null, log)} onDeleteLog={deleteLog} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
           onUploadToMachine={uploadToMachine} onUploadFileToMachine={uploadFileToMachine} onRemoveAttachment={removeAttachment} onToggleFavoriteAttachment={toggleFavoriteAttachment} onSaveField={updateMachineField}
-          onOpenAssistant={onOpenAssistant ? () => { setSel(null); onOpenAssistant() } : undefined}
+          onOpenAssistant={onOpenAssistant ? () => { const id = sel?.id; setSel(null); onOpenAssistant(id) } : undefined}
           reindexing={reindexing}
         />
       )}
