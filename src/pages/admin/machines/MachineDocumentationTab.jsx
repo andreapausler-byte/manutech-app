@@ -654,12 +654,24 @@ function PreviewPanel({ attachment, attachmentsAll, onRemove, onToggleFavorite, 
 // ──────────────────────────────────────────────────────────────
 // MAIN
 // ──────────────────────────────────────────────────────────────
-export default function MachineDocumentationTab({ sel, onUpload, onUploadFile, onRemoveAttachment, onToggleFavorite, onSaveField, onOpenAssistant, reindexing = false }) {
+export default function MachineDocumentationTab({
+  sel, onUpload, onUploadFile, onRemoveAttachment, onToggleFavorite, onSaveField, onOpenAssistant, reindexing = false,
+  // Stato controllato dal parent (left-rail tree). Se non passato, fallback
+  // a state interno per riuso standalone.
+  currentFolder: controlledFolder,
+  onChangeFolder,
+  typeFilter: controlledTypeFilter,
+  onChangeTypeFilter,
+}) {
   const attachments = useMemo(() => sel.attachments || [], [sel.attachments])
 
-  const [currentFolder, setCurrentFolder] = useState(null)
+  const [innerFolder, setInnerFolder] = useState(null)
+  const [innerTypeFilter, setInnerTypeFilter] = useState('all')
+  const currentFolder = onChangeFolder ? (controlledFolder ?? null) : innerFolder
+  const typeFilter = onChangeTypeFilter ? (controlledTypeFilter ?? 'all') : innerTypeFilter
+  const setCurrentFolder = onChangeFolder || setInnerFolder
+  const setTypeFilter = onChangeTypeFilter || setInnerTypeFilter
   const [searchQuery, setSearchQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState('all')
   const [viewMode, setViewMode] = useState('list')
   const [dragOver, setDragOver] = useState(false)
   const dragCounter = useRef(0)

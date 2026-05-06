@@ -7,7 +7,8 @@ import {
   Edit, Trash2, FileText, Video, Cog, X, QrCode, Download, Camera,
   Calendar, Hash, Factory, Building, ClipboardList, ChevronRight,
   Wrench, Shield, Plus, Play, Upload, Activity, LayoutDashboard,
-  AlertTriangle, Clock, Filter, Package, FolderOpen
+  AlertTriangle, Clock, Filter, Package, FolderOpen,
+  Star, Sparkles, BookOpen, Image as ImageIcon, FileSignature, ShieldCheck,
 } from 'lucide-react'
 import MachineDocumentationTab from './MachineDocumentationTab'
 
@@ -383,6 +384,163 @@ function OverviewTab({
   )
 }
 
+// ──────────────────────────────────────────────────────────────
+// DocsLeftTree: tree inline nel left-rail della scheda macchina.
+// Mostra le 7 cartelle (con count + icona-folder colorata) + 3 filtri
+// rapidi (Preferiti / Recenti / Indicizzati AI). Click su un nodo
+// porta al tab Documentazione filtrato. Tree e' sempre visibile, la
+// selezione si evidenzia solo quando il tab attivo e' 'docs'.
+// ──────────────────────────────────────────────────────────────
+const DOCS_TREE_ITEMS = [
+  { id: 'foto', label: 'Galleria Foto', frontColor: '#5b8eff', backColor: '#3b6ad9' },
+  { id: 'scheda_tecnica', label: 'Schede Tecniche', frontColor: '#e0a82e', backColor: '#b58220' },
+  { id: 'manuale_uso', label: "Istruzioni d'Uso", frontColor: '#3ddc84', backColor: '#2aa564' },
+  { id: 'manuale_manutenzione', label: 'Manutenzione', frontColor: '#ff8a3d', backColor: '#cc5e1d' },
+  { id: 'intervento_esterno', label: 'Ditta Esterna', frontColor: '#8b6ff5', backColor: '#6a52c4' },
+  { id: 'contratto_manutenzione', label: 'Contratti Manut.', frontColor: '#e85d75', backColor: '#a73a4d' },
+  { id: 'certificato', label: 'Certificati', frontColor: '#5dd3b8', backColor: '#36a187' },
+]
+const F_MONO = "'DM Mono', 'JetBrains Mono', ui-monospace, monospace"
+const GOLD = '#e0a82e'
+
+// Folder icon mini (14×11) per il tree del left-rail.
+function FolderMini({ frontColor, backColor, empty }) {
+  return (
+    <span className="relative w-3.5 h-[11px] inline-block shrink-0" style={{ opacity: empty ? 0.45 : 1 }}>
+      <span style={{
+        inset: '1px 0 0 0', position: 'absolute',
+        background: empty ? '#3d3017' : backColor,
+        clipPath: 'polygon(0 0, 38% 0, 44% 22%, 100% 22%, 100% 100%, 0 100%)',
+      }} />
+      <span style={{
+        inset: '3px 0 0 0', position: 'absolute',
+        background: empty ? '#5a4520' : frontColor,
+      }} />
+    </span>
+  )
+}
+
+function DocsLeftTree({ attachments, detailTab, docsFolder, docsTypeFilter, onSelectFolder, onSelectFilter }) {
+  // Conteggi per cartella (foto legacy senza category vanno in 'foto')
+  const counts = {}
+  for (const item of DOCS_TREE_ITEMS) counts[item.id] = 0
+  for (const a of attachments) {
+    const id = a.category || (a.type === 'image' ? 'foto' : null)
+    if (id && counts[id] != null) counts[id]++
+  }
+  const favoritesCount = attachments.filter(a => a.is_favorite).length
+  const recentsCount = attachments.filter(a => a.uploaded_at).length
+  const indexedCount = attachments.filter(a => a.type === 'pdf').length
+  const isDocsTab = detailTab === 'docs'
+
+  return (
+    <div className="flex flex-col mt-0.5 ml-1.5 pl-0.5"
+      style={{ borderLeft: '1px dashed var(--color-border)' }}>
+      {/* "Tutto" — root */}
+      <button
+        onClick={() => onSelectFilter('all')}
+        className={`flex items-center gap-1.5 px-1.5 py-1 cursor-pointer transition-colors text-left ${
+          isDocsTab && !docsFolder && docsTypeFilter === 'all' ? 'border-l-2' : 'border-l-2 border-transparent'
+        }`}
+        style={{
+          fontFamily: "'Barlow Condensed', system-ui, sans-serif",
+          fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.4px',
+          color: isDocsTab && !docsFolder && docsTypeFilter === 'all' ? GOLD : 'var(--color-text)',
+          background: isDocsTab && !docsFolder && docsTypeFilter === 'all' ? 'var(--color-surface-2)' : 'transparent',
+          borderLeftColor: isDocsTab && !docsFolder && docsTypeFilter === 'all' ? GOLD : 'transparent',
+        }}
+      >
+        <span className="w-2 text-[9px]" style={{ fontFamily: F_MONO, color: 'var(--color-text-faint)' }}>▾</span>
+        <FolderMini frontColor="#e0a82e" backColor="#b58220" empty={attachments.length === 0} />
+        <span className="flex-1 truncate">Tutto</span>
+        <span className="text-[9px] px-1.5 py-px"
+          style={{
+            fontFamily: F_MONO,
+            background: attachments.length > 0 ? 'rgba(42,157,110,0.18)' : 'transparent',
+            color: attachments.length > 0 ? 'var(--color-primary-light, #3db685)' : 'var(--color-text-faint)',
+            borderRadius: 8, minWidth: 14, textAlign: 'center',
+          }}>{attachments.length}</span>
+      </button>
+
+      {/* Sub-cartelle */}
+      <div className="flex flex-col pl-2.5">
+        {DOCS_TREE_ITEMS.map(item => {
+          const active = isDocsTab && docsFolder === item.id
+          const count = counts[item.id] || 0
+          return (
+            <button key={item.id}
+              onClick={() => onSelectFolder(item.id)}
+              className="flex items-center gap-1.5 px-1.5 py-1 cursor-pointer transition-colors text-left"
+              style={{
+                fontSize: 11,
+                color: active ? GOLD : 'var(--color-text-muted)',
+                background: active ? 'var(--color-surface-2)' : 'transparent',
+                borderLeft: active ? `2px solid ${GOLD}` : '2px solid transparent',
+              }}
+              onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'var(--color-surface-1)'; e.currentTarget.style.color = 'var(--color-text)' } }}
+              onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-muted)' } }}>
+              <span className="w-2 text-[9px]" style={{ fontFamily: F_MONO, color: 'var(--color-text-faint)' }}>·</span>
+              <FolderMini frontColor={item.frontColor} backColor={item.backColor} empty={count === 0} />
+              <span className="flex-1 truncate">{item.label}</span>
+              <span className="text-[9px] px-1 py-px"
+                style={{
+                  fontFamily: F_MONO,
+                  background: count > 0 ? 'rgba(42,157,110,0.18)' : 'transparent',
+                  color: count > 0 ? 'var(--color-primary-light, #3db685)' : 'var(--color-text-faint)',
+                  borderRadius: 8, minWidth: 14, textAlign: 'center',
+                }}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Filtri rapidi */}
+      <div className="flex flex-col gap-0.5 mt-1.5 pt-1.5"
+        style={{ borderTop: '1px dashed var(--color-border)' }}>
+        <div className="px-1.5 text-[9px] uppercase tracking-[0.1em]"
+          style={{ fontFamily: F_MONO, color: 'var(--color-text-faint)' }}>
+          Filtri rapidi
+        </div>
+        {[
+          { id: 'favorites', label: 'Preferiti', count: favoritesCount, icon: <Star size={10} fill={GOLD} stroke={GOLD} />,
+            color: GOLD, bg: 'rgba(224,168,46,0.18)' },
+          { id: 'all', label: 'Recenti', count: recentsCount, icon: <Clock size={10} className="text-emerald-400" />,
+            color: 'var(--color-primary-light, #3db685)', bg: 'rgba(42,157,110,0.18)' },
+          { id: 'pdf', label: 'Indicizzati AI', count: indexedCount, icon: <Sparkles size={10} className="text-violet-400" fill="currentColor" />,
+            color: '#8b6ff5', bg: 'rgba(139,111,245,0.18)' },
+        ].map(f => {
+          // active solo se siamo nel tab docs E nessuna cartella E typeFilter combacia
+          const active = isDocsTab && !docsFolder && docsTypeFilter === f.id
+          return (
+            <button key={f.label}
+              onClick={() => onSelectFilter(f.id)}
+              className="flex items-center gap-1.5 px-1.5 py-1 cursor-pointer transition-colors text-left"
+              style={{
+                fontSize: 10,
+                color: active ? f.color : 'var(--color-text-muted)',
+                background: active ? 'var(--color-surface-2)' : 'transparent',
+                borderLeft: active ? `2px solid ${f.color}` : '2px solid transparent',
+              }}
+              onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'var(--color-surface-1)'; e.currentTarget.style.color = 'var(--color-text)' } }}
+              onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-muted)' } }}>
+              <span className="w-2" />
+              {f.icon}
+              <span className="flex-1 truncate">{f.label}</span>
+              <span className="text-[9px] px-1 py-px"
+                style={{
+                  fontFamily: F_MONO,
+                  background: f.count > 0 ? f.bg : 'transparent',
+                  color: f.count > 0 ? f.color : 'var(--color-text-faint)',
+                  borderRadius: 8, minWidth: 14, textAlign: 'center',
+                }}>{f.count}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // Piccolo helper SVG per la checkmark nel last log card
 function CheckCircleIcon() {
   return (
@@ -443,6 +601,14 @@ export default function MachineDetailSheet({
 
   // Report status filter
   const [reportFilter, setReportFilter] = useState('all')
+
+  // Stato del tab Documentazione, lifted qui cosi' il tree nel left-rail
+  // puo' guidare la navigazione del pannello docs (cartella corrente +
+  // filter chip attivo: 'all' | 'pdf' | 'image' | 'favorites').
+  const [docsFolder, setDocsFolder] = useState(null)
+  const [docsTypeFilter, setDocsTypeFilter] = useState('all')
+  const handleDocsFolder = (id) => { setDocsFolder(id); setDocsTypeFilter('all'); setDetailTab('docs') }
+  const handleDocsFilter = (filter) => { setDocsFolder(null); setDocsTypeFilter(filter); setDetailTab('docs') }
   const filteredReports = useMemo(() => {
     if (reportFilter === 'all') return machineReports
     return machineReports.filter(r => r.status === reportFilter)
@@ -613,17 +779,30 @@ export default function MachineDetailSheet({
               </div>
             </div>
 
-            {/* Documentazione */}
+            {/* Documentazione + tree cartelle */}
             <div className="space-y-2">
               <p className="text-[10px] text-faint uppercase tracking-wider font-semibold px-1">Documentazione</p>
               <button
-                onClick={() => setDetailTab('docs')}
-                className="w-full flex items-center gap-2.5 p-3 bg-surface-2/50 rounded-2xl border border-token text-left hover:bg-surface-3 transition-all group"
+                onClick={() => { setDetailTab('docs'); setDocsFolder(null); setDocsTypeFilter('all') }}
+                className={`w-full flex items-center gap-2.5 p-3 rounded-2xl border text-left transition-all ${
+                  detailTab === 'docs' && !docsFolder && docsTypeFilter === 'all'
+                    ? 'bg-surface-3 border-amber-500/40'
+                    : 'bg-surface-2/50 border-token hover:bg-surface-3'
+                }`}
               >
-                <FolderOpen size={16} className="text-amber-400 shrink-0" />
+                <FolderOpen size={16} className="text-amber-400 shrink-0" fill="currentColor" />
                 <span className="text-xs font-bold text-themed flex-1">Documentazione</span>
-                <span className="text-[10px] text-faint">{sel.attachments?.length || 0}</span>
+                <span className="text-[10px] font-mono text-faint">{sel.attachments?.length || 0}</span>
               </button>
+
+              <DocsLeftTree
+                attachments={sel.attachments || []}
+                detailTab={detailTab}
+                docsFolder={docsFolder}
+                docsTypeFilter={docsTypeFilter}
+                onSelectFolder={handleDocsFolder}
+                onSelectFilter={handleDocsFilter}
+              />
             </div>
           </div>
 
@@ -862,6 +1041,10 @@ export default function MachineDetailSheet({
                   onSaveField={onSaveField}
                   onOpenAssistant={onOpenAssistant}
                   reindexing={reindexing}
+                  currentFolder={docsFolder}
+                  onChangeFolder={setDocsFolder}
+                  typeFilter={docsTypeFilter}
+                  onChangeTypeFilter={setDocsTypeFilter}
                 />
               )}
 
