@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Camera, FileText, Plus, Trash2, ExternalLink, Save, X,
   BookOpen, Wrench, Image, ChevronDown, ChevronUp, Building,
-  ShieldCheck, Sparkles, Loader2
+  ShieldCheck, Sparkles, Loader2, FileSignature
 } from 'lucide-react'
 import { db } from '../../../lib/supabase'
 
@@ -225,6 +225,7 @@ export default function MachineDocumentationTab({ sel, onUpload, onRemoveAttachm
   const usageManuals = attachments.filter(a => a.category === 'manuale_uso')
   const maintenanceManuals = attachments.filter(a => a.category === 'manuale_manutenzione')
   const externalReports = attachments.filter(a => a.category === 'intervento_esterno')
+  const maintenanceContracts = attachments.filter(a => a.category === 'contratto_manutenzione')
   const certificates = attachments.filter(a => a.category === 'certificato')
   const otherDocs = attachments.filter(a =>
     !a.category || (
@@ -233,6 +234,7 @@ export default function MachineDocumentationTab({ sel, onUpload, onRemoveAttachm
       a.category !== 'manuale_uso' &&
       a.category !== 'manuale_manutenzione' &&
       a.category !== 'intervento_esterno' &&
+      a.category !== 'contratto_manutenzione' &&
       a.category !== 'certificato' &&
       a.type !== 'image'
     )
@@ -376,6 +378,30 @@ export default function MachineDocumentationTab({ sel, onUpload, onRemoveAttachm
           <p className="text-[10px] text-faint">
             Suggerimento: per legare un intervento esterno a data/ricambi, registralo anche come "Intervento" con toggle "Ditta esterna".
           </p>
+        </div>
+      </Section>
+
+      {/* ═══ CONTRATTI DI MANUTENZIONE ═══ */}
+      <Section
+        icon={FileSignature}
+        title="Contratti di Manutenzione"
+        color="#0ea5e9"
+        count={maintenanceContracts.length}
+        defaultOpen={maintenanceContracts.length > 0}
+      >
+        <div className="space-y-2">
+          {maintenanceContracts.map((doc, i) => (
+            <AttachmentItem key={i} attachment={doc} index={getIndex(doc)} onRemove={onRemoveAttachment} />
+          ))}
+          {maintenanceContracts.length === 0 && (
+            <p className="text-xs text-faint text-center py-2">
+              Contratti di manutenzione, accordi quadro, offerte commerciali firmate
+            </p>
+          )}
+          <button onClick={() => onUpload('pdf', 'contratto_manutenzione')}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-token/40 text-sm text-faint hover:border-sky-500/40 hover:text-sky-400 hover:bg-sky-500/5 transition-all">
+            <Plus size={14} /> Carica contratto di manutenzione
+          </button>
         </div>
       </Section>
 
