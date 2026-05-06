@@ -210,6 +210,42 @@ interface StrategicInsights {
   long_repairs: StrategicLongRepair[]
 }
 
+interface MaintenancePlanItem {
+  plan_name: string
+  frequency_days: number
+  current_status: string
+  assigned_to_name: string | null
+  machine_name: string
+  serial_number: string | null
+  department: string | null
+  next_due_label: string | null
+  days_to_due: number | null
+  last_performed_at_label: string | null
+}
+
+interface MaintenancePlansByGroup {
+  status?: string
+  frequency_days?: number
+  count: number
+}
+
+interface MaintenancePlansPerMachine {
+  machine_id: string | null
+  machine_name: string
+  serial_number: string | null
+  department: string | null
+  plans_count: number
+}
+
+interface MaintenancePlansOverview {
+  total: number
+  machines_with_plans: number
+  by_status: MaintenancePlansByGroup[]
+  by_frequency: MaintenancePlansByGroup[]
+  per_machine: MaintenancePlansPerMachine[]
+  plans: MaintenancePlanItem[]
+}
+
 interface KnowledgeChunk {
   id: string
   machine_id: string | null
@@ -288,12 +324,13 @@ Fonti che puoi ricevere nel contesto:
 1. **Anagrafica macchinari** — lista delle macchine dell'org con matricola (serial number), modello, produttore, anno, reparto, ubicazione, stato operativo, criticità
 2. **Statistiche organizzazione** — totali e classifica macchinari per numero di segnalazioni
 3. **Insight strategici** — macchine più a rischio (ranking), manutenzioni preventive scadute, pattern di guasto ricorrenti a livello org (ultimi 90gg), riparazioni lunghe (outlier ore)
-4. **Segnalazioni aperte** — guasti attualmente non risolti, con stato, severità ed eventuale tecnico assegnato
-5. **Storia macchina** — solo se l'utente sta guardando una specifica macchina: anagrafica completa, tipi guasto ricorrenti, MTTR, manutenzioni recenti/in scadenza, ricambi più usati
-6. **Discussione corrente sul ticket** — solo se l'utente sta guardando un ticket specifico: messaggi recenti dei tecnici/operatori in chat (incluse note vocali trascritte). È la fonte più AGGIORNATA: dice cosa il team ha già provato, ipotesi correnti, dettagli che NON sono nel titolo né nella descrizione iniziale
-7. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
-8. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne), certificati della macchina, e **conversazioni dei ticket gia' risolti** (titolo + descrizione iniziale + causa radice + azione + chat dei tecnici che hanno trovato la soluzione)
-9. **Fornitori esterni** — anagrafica completa delle ditte esterne dell'org: nome, specialita', referente, ticket aperti correnti (con titolo/severita'/macchina/giorni aperti), conteggio interventi storici, ultimo intervento. Distingue tra fornitori registrati (con account) e "ombra" (presenti solo nello storico interventi)
+4. **Piani di manutenzione (overview)** — censimento completo dei piani di manutenzione attivi nell'org: totale, distribuzione per stato/frequenza, raggruppamento per macchina e lista dettagliata con prossima scadenza calcolata. Da usare per "quanti piani abbiamo", "quali piani per macchina X", "che cadenza hanno i piani", a complemento degli insight strategici (che mostrano solo i piani scaduti/in scadenza imminente)
+5. **Segnalazioni aperte** — guasti attualmente non risolti, con stato, severità ed eventuale tecnico assegnato
+6. **Storia macchina** — solo se l'utente sta guardando una specifica macchina: anagrafica completa, tipi guasto ricorrenti, MTTR, manutenzioni recenti/in scadenza, ricambi più usati
+7. **Discussione corrente sul ticket** — solo se l'utente sta guardando un ticket specifico: messaggi recenti dei tecnici/operatori in chat (incluse note vocali trascritte). È la fonte più AGGIORNATA: dice cosa il team ha già provato, ipotesi correnti, dettagli che NON sono nel titolo né nella descrizione iniziale
+8. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
+9. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne), certificati della macchina, e **conversazioni dei ticket gia' risolti** (titolo + descrizione iniziale + causa radice + azione + chat dei tecnici che hanno trovato la soluzione)
+10. **Fornitori esterni** — anagrafica completa delle ditte esterne dell'org: nome, specialita', referente, ticket aperti correnti (con titolo/severita'/macchina/giorni aperti), conteggio interventi storici, ultimo intervento. Distingue tra fornitori registrati (con account) e "ombra" (presenti solo nello storico interventi)
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
@@ -301,6 +338,7 @@ Regole di risposta:
 - Per domande sui FORNITORI ("cosa pendente con X", "storico interventi di Y", "chi si occupa di Z", "quali ditte esterne abbiamo"): usa il blocco Fornitori esterni. Se l'utente nomina un fornitore preciso (es. "PTS"), trova il match nella lista (anche fuzzy: "PTS S.R.L" matcha "PTS") e dai dettaglio: ticket aperti specifici (titolo/severita'/macchina/giorni), conteggi storici, ultimo intervento. Se NON c'e' nessun match, dichiaralo esplicitamente ("non trovo nessun fornitore con questo nome nell'anagrafica") e proponi i fornitori piu' attivi attualmente
 - Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa Statistiche, Anagrafica e Segnalazioni aperte
 - Per domande STRATEGICHE / MANAGERIALI ("su cosa concentrarmi", "come riduco i fermi", "priorità", "cosa sta peggiorando", "dove perdo tempo"): usa Insight strategici come fonte principale; proponi 2-4 azioni concrete ordinate per impatto, citando numeri (matricole, MTTR, giorni di ritardo)
+- Per domande sui PIANI DI MANUTENZIONE ("quanti piani abbiamo", "che cadenza hanno i piani", "quali piani sono attivi", "piani per macchina X", "manutenzioni programmate"): usa il blocco "Piani di manutenzione (overview)" come fonte primaria. Riporta totale piani, numero di macchine coperte, distribuzione per stato/frequenza, e — se richiesto — il dettaglio per macchina. Distingui chiaramente fra "piani attivi" (l'overview) e "piani scaduti / in scadenza" (Insight strategici). Se la domanda riguarda una macchina specifica e nell'overview non risulta, dichiaralo esplicitamente
 - Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili, Storia macchina e Biblioteca tecnica
 - Per domande DOCUMENTALI ("che dice il manuale", "coppia di serraggio", "specifica", "come si monta"): usa PRIMA la Biblioteca tecnica; privilegia il manuale ufficiale
 - Quando citi una macchina includi nome e matricola se disponibile (es. "Imbottigliatrice [matricola IMB-023]")
@@ -677,11 +715,66 @@ function buildStrategicBlock(s: StrategicInsights | null): string {
   return lines.join('\n').trim()
 }
 
+// ── Builder: overview piani di manutenzione ──
+// Censimento completo dei piani attivi nell'org. Complementa il blocco
+// "Insight strategici" (che mostra solo piani scaduti / in scadenza
+// entro 7 giorni). Risponde a: "quanti piani abbiamo?", "che cadenza
+// hanno i piani?", "quali macchine hanno piani?".
+function buildMaintenancePlansBlock(o: MaintenancePlansOverview | null): string {
+  if (!o || !o.total || o.total === 0) return ''
+  const lines: string[] = []
+  lines.push(`Piani di manutenzione attivi nell'organizzazione: ${o.total} (su ${o.machines_with_plans} macchine)`)
+
+  if (o.by_status?.length) {
+    const parts = o.by_status.map(s => `${s.status}: ${s.count}`)
+    lines.push(`Per stato: ${parts.join(' · ')}`)
+  }
+
+  if (o.by_frequency?.length) {
+    const parts = o.by_frequency
+      .slice(0, 8)
+      .map(f => `${f.frequency_days}gg: ${f.count}`)
+    lines.push(`Per frequenza: ${parts.join(' · ')}`)
+  }
+
+  if (o.per_machine?.length) {
+    lines.push('')
+    lines.push('Piani per macchina:')
+    o.per_machine.forEach(pm => {
+      const sn = pm.serial_number ? ` [${pm.serial_number}]` : ''
+      const dept = pm.department ? ` (${pm.department})` : ''
+      lines.push(`- ${pm.machine_name}${sn}${dept}: ${pm.plans_count} pian${pm.plans_count === 1 ? 'o' : 'i'}`)
+    })
+  }
+
+  if (o.plans?.length) {
+    lines.push('')
+    lines.push(`Dettaglio piani (${o.plans.length}, ordinati per prossima scadenza):`)
+    o.plans.forEach(p => {
+      const sn = p.serial_number ? ` [${p.serial_number}]` : ''
+      let due = ''
+      if (p.days_to_due == null) {
+        due = p.next_due_label ? ` — prossima ${p.next_due_label}` : ''
+      } else if (p.days_to_due < 0) {
+        due = ` — SCADUTA da ${Math.abs(p.days_to_due)}gg (era ${p.next_due_label})`
+      } else {
+        due = ` — tra ${p.days_to_due}gg (prossima ${p.next_due_label})`
+      }
+      const last = p.last_performed_at_label ? ` · ultima ${p.last_performed_at_label}` : ' · mai eseguita'
+      const who = p.assigned_to_name ? ` · ${p.assigned_to_name}` : ''
+      const status = p.current_status && p.current_status !== 'da_eseguire' ? ` [${p.current_status}]` : ''
+      lines.push(`- ${p.plan_name} su ${p.machine_name}${sn} (ogni ${p.frequency_days}gg)${due}${last}${who}${status}`)
+    })
+  }
+
+  return lines.join('\n')
+}
+
 // ── Heuristic: classifica il tipo di domanda ──
 // Decide se caricare: anagrafica, statistiche, segnalazioni aperte,
 // aspetti diagnostici, biblioteca tecnica (documentale), insight
-// strategici. Una query può essere mista. Default conservativo:
-// includi tutto.
+// strategici, piani di manutenzione. Una query può essere mista.
+// Default conservativo: includi tutto.
 function classifyQuery(query: string): {
   wantStats: boolean
   wantOpen: boolean
@@ -689,6 +782,7 @@ function classifyQuery(query: string): {
   wantKnowledge: boolean
   wantInventory: boolean
   wantStrategic: boolean
+  wantMaintenancePlans: boolean
 } {
   const q = query.toLowerCase()
   const metaKW = ['quale', 'quali', 'quanti', 'quante', 'top', 'classifica', 'classific', 'media', 'totale', 'totali', 'statistic', 'percentuale', 'più segnalazion', 'piu segnalazion', 'più guast', 'piu guast', 'meglio', 'peggio', 'frequent']
@@ -697,6 +791,9 @@ function classifyQuery(query: string): {
   const knowKW = ['manuale', 'manuali', 'istruzion', 'specifica', 'specifich', 'coppia', 'serraggio', 'come si monta', 'come si smonta', 'come si cambia', 'come si sostituisc', 'tensione', 'amperaggio', 'potenza', 'dimension', 'tolleranz', 'catalogo', 'scheda tecnica', 'datasheet', 'taratura', 'calibrazion', 'certificato', 'conformità', 'conformita', 'ditta esterna', 'ditta ester', 'contractor', 'bolla', 'fattura ', 'capitolato', 'revision', 'ispezion']
   const invKW = ['matricol', 'serial', 'modello', 'modelli', 'produttor', 'marca', 'marche', 'anagrafic', 'inventario', 'elenco macchin', 'lista macchin', 'quali macchine', 'quali macchinar', 'reparto', 'reparti', 'ubicazion', 'macchine abbiamo', 'macchinari abbiamo', 'dismess', 'fuori servizio']
   const stratKW = ['priorit', 'concentrar', 'focus', 'focalizz', 'ridurr', 'riduzione', 'ottimizz', 'migliorar', 'pianific', 'strategi', 'fermo macchina', 'fermi macchina', 'downtime', 'imprevist', 'dove perdo', 'perdo tempo', 'perdo di più', 'cosa sta peggiorando', 'sta peggiorando', 'cosa dovrei', 'su cosa', 'quali interventi', 'rischio', 'a rischio', 'scadut', 'scadenz', 'pattern', 'ricorrent', 'azioni concret', 'raccomand']
+  // Domande sui piani di manutenzione (overview completo, non solo i
+  // piani scaduti coperti da Insight strategici).
+  const mplanKW = ['piano di manuten', 'piani di manuten', 'piani manuten', 'piano manuten', 'manutenzione preventiva', 'manutenzioni preventive', 'manutenzione programmata', 'manutenzioni programmate', 'cadenza', 'frequenza manuten', 'piani attivi', 'piano attivo', 'piani di lavoro', 'preventiv', 'routine', 'tagliando', 'tagliand']
 
   const wantStats = metaKW.some(k => q.includes(k))
   const wantOpen = openKW.some(k => q.includes(k))
@@ -704,15 +801,31 @@ function classifyQuery(query: string): {
   const wantKnowledge = knowKW.some(k => q.includes(k))
   const wantInventory = invKW.some(k => q.includes(k))
   const wantStrategic = stratKW.some(k => q.includes(k))
+  const wantMaintenancePlans = mplanKW.some(k => q.includes(k))
+  // "piani" da solo è ambiguo (può essere "piani di lavoro" o ufficio
+  // tecnico). Lo accettiamo solo se compare in un contesto chiaro
+  // (es. "quanti piani", "i piani", "tutti i piani", "piani sono",
+  // "piani per", "piani della/del").
+  const looseMplan = (
+    /\b(quanti|quante|quali|tutti|alcuni|i|gli|nostri|miei|attivi|attivo)\s+piani\b/.test(q) ||
+    /\bpiani\s+(per|della|del|delle|degli|attivi|attivo|programmati|programmate|sono|abbiamo)\b/.test(q)
+  )
+
+  const finalWantMaintenance = wantMaintenancePlans || looseMplan
 
   // Se non matcha nulla, includi tutto (default conservativo)
-  if (!wantStats && !wantOpen && !wantDiagnostic && !wantKnowledge && !wantInventory && !wantStrategic) {
+  if (!wantStats && !wantOpen && !wantDiagnostic && !wantKnowledge && !wantInventory && !wantStrategic && !finalWantMaintenance) {
     return {
       wantStats: true, wantOpen: true, wantDiagnostic: true,
       wantKnowledge: true, wantInventory: true, wantStrategic: true,
+      wantMaintenancePlans: true,
     }
   }
-  return { wantStats, wantOpen, wantDiagnostic, wantKnowledge, wantInventory, wantStrategic }
+  return {
+    wantStats, wantOpen, wantDiagnostic, wantKnowledge,
+    wantInventory, wantStrategic,
+    wantMaintenancePlans: finalWantMaintenance,
+  }
 }
 
 // ── Voyage embedding della query utente ──
@@ -838,6 +951,13 @@ Deno.serve(async (req: Request) => {
     // Insight strategici: solo se domanda strategica o meta.
     const shouldFetchStrategic =
       classify.wantStrategic || classify.wantStats
+    // Overview piani di manutenzione: caricato per domande dirette sui
+    // piani e per domande strategiche (i piani sono complemento
+    // naturale degli insight). NON caricato se l'utente sta guardando
+    // una macchina specifica: in quel caso i piani della macchina
+    // arrivano già da get_machine_history.
+    const shouldFetchMaintenancePlans =
+      !hasMachineContext && (classify.wantMaintenancePlans || classify.wantStrategic)
     const voyageKey = Deno.env.get('VOYAGE_API_KEY')
     let queryEmbedding: number[] | null = null
     if (shouldFetchKnowledge && voyageKey) {
@@ -850,6 +970,7 @@ Deno.serve(async (req: Request) => {
       similarRes, statsRes, openRes, historyRes,
       knowledgeRes, inventoryRes, strategicRes,
       currentReportRes, currentChatRes, suppliersRes,
+      maintenancePlansRes,
     ] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
@@ -941,6 +1062,20 @@ Deno.serve(async (req: Request) => {
         console.info(`[suppliers] count=${Array.isArray(res.data) ? res.data.length : 0} error=${res.error?.message ?? 'none'}`)
         return res
       })(),
+      // Overview piani di manutenzione attivi. Necessario per rispondere
+      // a "quanti piani abbiamo?" o "quali piani per macchina X?": gli
+      // Insight strategici mostrano solo i piani scaduti / in scadenza
+      // entro 7 giorni e quindi non danno la fotografia completa.
+      // Fallback graceful se la migration 045 non e' applicata.
+      shouldFetchMaintenancePlans
+        ? (async () => {
+            const res = await supabase.rpc('get_assistant_maintenance_plans_overview')
+            const total = (res.data && typeof res.data === 'object' && 'total' in res.data)
+              ? (res.data as { total: number }).total : 0
+            console.info(`[maintenance-plans] total=${total} error=${res.error?.message ?? 'none'}`)
+            return res
+          })()
+        : Promise.resolve({ data: null, error: null }),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
@@ -953,6 +1088,7 @@ Deno.serve(async (req: Request) => {
     if (currentChatRes.error) console.warn('comments(current ticket) error:', currentChatRes.error.message)
     if (currentReportRes.error) console.warn('current report fetch error:', currentReportRes.error.message)
     if (suppliersRes.error) console.warn('get_assistant_suppliers_overview error:', suppliersRes.error.message)
+    if (maintenancePlansRes.error) console.warn('get_assistant_maintenance_plans_overview error:', maintenancePlansRes.error.message)
 
     const similar: SimilarReport[] = similarRes.data || []
     const orgStats: OrgStats | null = statsRes.data || null
@@ -964,9 +1100,11 @@ Deno.serve(async (req: Request) => {
     const currentReport: CurrentReport | null = (currentReportRes.data as CurrentReport | null) || null
     const currentChat: CurrentTicketComment[] = (currentChatRes.data as CurrentTicketComment[]) || []
     const suppliers: SupplierOverview[] = Array.isArray(suppliersRes.data) ? (suppliersRes.data as SupplierOverview[]) : []
+    const maintenancePlans: MaintenancePlansOverview | null =
+      (maintenancePlansRes.data as MaintenancePlansOverview | null) || null
 
     // ── Diagnostic trace: retrieval summary ──
-    console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} currentChat=${currentChat.length}`)
+    console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} wantMplan=${classify.wantMaintenancePlans} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} mplans=${maintenancePlans?.total ?? 'N'} currentChat=${currentChat.length}`)
     if (currentChat.length > 0) {
       const preview = currentChat.slice(0, 3).map(c => `${c.user_name || '?'}: ${(c.text || '').slice(0, 60)}`).join(' | ')
       console.info(`[current-chat-preview] ${preview}`)
@@ -1013,6 +1151,12 @@ Deno.serve(async (req: Request) => {
 
     const strategicBlock = buildStrategicBlock(strategic)
     if (strategicBlock) sections.push(`## Insight strategici (governance manutenzione)\n\n${strategicBlock}`)
+
+    // Censimento completo dei piani di manutenzione attivi. Distinto
+    // dagli Insight strategici, che mostrano solo i piani scaduti o
+    // in scadenza imminente.
+    const maintenancePlansBlock = buildMaintenancePlansBlock(maintenancePlans)
+    if (maintenancePlansBlock) sections.push(`## Piani di manutenzione (overview)\n\n${maintenancePlansBlock}`)
 
     const knowledgeBlock = buildKnowledgeBlock(knowledgeChunks)
     if (knowledgeBlock) sections.push(`## Biblioteca tecnica (manuali, schede, interventi)\n\n${knowledgeBlock}`)
