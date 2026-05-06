@@ -196,7 +196,12 @@ export default function AdminMachines() {
       const f = e.target.files[0]; if (!f || !sel) return
       try {
         const url = await db.uploadFile('attachments', `${sel.id}/${category}-${Date.now()}`, f)
-        const newAttachments = [...(sel.attachments || []), { type, category, name: f.name, url }]
+        const newAttachment = {
+          type, category, name: f.name, url,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by_name: user?.name || null,
+        }
+        const newAttachments = [...(sel.attachments || []), newAttachment]
         const updated = await db.updateMachine(sel.id, { attachments: newAttachments })
         setSel(prev => ({ ...prev, ...updated }))
         toast.success('File caricato')
@@ -205,6 +210,32 @@ export default function AdminMachines() {
       } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) }
     }
     input.click()
+  }
+
+  // Upload diretto da File (drag & drop). Stessa logica di uploadToMachine
+  // ma riceve gia' il File invece di aprire un input picker.
+  const uploadFileToMachine = async (file, category) => {
+    if (!file || !sel) return
+    const isImage = file.type.startsWith('image/')
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    if (!isImage && !isPdf) {
+      toast.error('Formato non supportato. Carica PDF o immagini.')
+      return
+    }
+    const type = isImage ? 'image' : 'pdf'
+    try {
+      const url = await db.uploadFile('attachments', `${sel.id}/${category}-${Date.now()}`, file)
+      const newAttachment = {
+        type, category, name: file.name, url,
+        uploaded_at: new Date().toISOString(),
+        uploaded_by_name: user?.name || null,
+      }
+      const newAttachments = [...(sel.attachments || []), newAttachment]
+      const updated = await db.updateMachine(sel.id, { attachments: newAttachments })
+      setSel(prev => ({ ...prev, ...updated }))
+      toast.success('File caricato')
+      if (type === 'pdf') triggerReindex(sel.id)
+    } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) }
   }
 
   const removeAttachment = async (index) => {
@@ -810,7 +841,7 @@ export default function AdminMachines() {
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
           onOpenLogForm={openLogForm} onEditLog={(log) => openLogForm(null, log)} onDeleteLog={deleteLog} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
-          onUploadToMachine={uploadToMachine} onRemoveAttachment={removeAttachment} onSaveField={updateMachineField}
+          onUploadToMachine={uploadToMachine} onUploadFileToMachine={uploadFileToMachine} onRemoveAttachment={removeAttachment} onSaveField={updateMachineField}
           reindexing={reindexing}
         />
       )}

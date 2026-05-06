@@ -401,7 +401,7 @@ export default function MachineDetailSheet({
   onOpenPlanForm, onDeletePlan, onOpenLogForm, onEditLog, onDeleteLog,
   onHandleCSVFile,
   onOpenComponentForm, onDeleteComponent,
-  onUploadToMachine, onRemoveAttachment, onSaveField,
+  onUploadToMachine, onUploadFileToMachine, onRemoveAttachment, onSaveField,
   reindexing = false,
 }) {
   const machineReports = useMemo(() =>
@@ -855,6 +855,7 @@ export default function MachineDetailSheet({
                 <MachineDocumentationTab
                   sel={sel}
                   onUpload={onUploadToMachine}
+                  onUploadFile={onUploadFileToMachine}
                   onRemoveAttachment={onRemoveAttachment}
                   onSaveField={onSaveField}
                   reindexing={reindexing}
