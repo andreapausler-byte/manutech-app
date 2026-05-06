@@ -238,6 +238,19 @@ export default function AdminMachines() {
     } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) }
   }
 
+  // Toggle stella preferito su un attachment (UI cosmetic — nessun
+  // re-indexing richiesto, e' solo un flag is_favorite nel JSONB).
+  const toggleFavoriteAttachment = async (index) => {
+    if (!sel) return
+    const list = [...(sel.attachments || [])]
+    if (!list[index]) return
+    list[index] = { ...list[index], is_favorite: !list[index].is_favorite }
+    try {
+      const updated = await db.updateMachine(sel.id, { attachments: list })
+      setSel(prev => ({ ...prev, ...updated }))
+    } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
+  }
+
   const removeAttachment = async (index) => {
     if (!sel) return
     const removed = (sel.attachments || [])[index]
@@ -841,7 +854,7 @@ export default function AdminMachines() {
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
           onOpenLogForm={openLogForm} onEditLog={(log) => openLogForm(null, log)} onDeleteLog={deleteLog} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
-          onUploadToMachine={uploadToMachine} onUploadFileToMachine={uploadFileToMachine} onRemoveAttachment={removeAttachment} onSaveField={updateMachineField}
+          onUploadToMachine={uploadToMachine} onUploadFileToMachine={uploadFileToMachine} onRemoveAttachment={removeAttachment} onToggleFavoriteAttachment={toggleFavoriteAttachment} onSaveField={updateMachineField}
           reindexing={reindexing}
         />
       )}
