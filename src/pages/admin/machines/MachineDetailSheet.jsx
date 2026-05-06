@@ -402,6 +402,7 @@ export default function MachineDetailSheet({
   onHandleCSVFile,
   onOpenComponentForm, onDeleteComponent,
   onUploadToMachine, onUploadFileToMachine, onRemoveAttachment, onToggleFavoriteAttachment, onSaveField,
+  onOpenAssistant,
   reindexing = false,
 }) {
   const machineReports = useMemo(() =>
@@ -859,6 +860,7 @@ export default function MachineDetailSheet({
                   onRemoveAttachment={onRemoveAttachment}
                   onToggleFavorite={onToggleFavoriteAttachment}
                   onSaveField={onSaveField}
+                  onOpenAssistant={onOpenAssistant}
                   reindexing={reindexing}
                 />
               )}

@@ -17,7 +17,7 @@ import { isAssistantAvailable, listConversations } from '../../lib/assistant'
 
 const NAV_ITEM = findNavItem('assistant')
 
-export default function AdminAssistantPage({ onOpenReport }) {
+export default function AdminAssistantPage({ onOpenReport, initialMachineId }) {
   const available = isAssistantAvailable()
   const [convs, setConvs] = useState([])
   const [convsLoaded, setConvsLoaded] = useState(false)
@@ -142,6 +142,7 @@ export default function AdminAssistantPage({ onOpenReport }) {
           <AssistantChat
             key={chatKey}
             initialConversationId={selectedId}
+            machineId={selectedId ? undefined : initialMachineId}
             onSourceClick={onOpenReport}
             fillParent
           />
