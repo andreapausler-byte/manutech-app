@@ -39,7 +39,7 @@ const CATEGORY_BY_ID = Object.fromEntries(CATEGORIES.map(c => [c.id, c]))
 // ──────────────────────────────────────────────────────────────
 // AiBar: banner compatto in 1 riga (icona · testo · stats · bottone)
 // ──────────────────────────────────────────────────────────────
-function AiBar({ machineId, reindexing, totalFiles, indexedFiles }) {
+function AiBar({ machineId, reindexing, totalFiles, indexedFiles, onOpenAssistant }) {
   const [stats, setStats] = useState(null)
   const prevReindexing = useRef(reindexing)
 
@@ -108,10 +108,14 @@ function AiBar({ machineId, reindexing, totalFiles, indexedFiles }) {
           </div>
         ))}
       </div>
-      <button className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white transition-colors"
+      <button
+        onClick={onOpenAssistant}
+        disabled={!onOpenAssistant}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         style={{ background: '#8b6ff5', fontFamily: F_DISPLAY, borderRadius: 2 }}
-        onMouseEnter={(e) => e.currentTarget.style.background = '#9a7eff'}
-        onMouseLeave={(e) => e.currentTarget.style.background = '#8b6ff5'}>
+        onMouseEnter={(e) => { if (onOpenAssistant) e.currentTarget.style.background = '#9a7eff' }}
+        onMouseLeave={(e) => { if (onOpenAssistant) e.currentTarget.style.background = '#8b6ff5' }}
+        title={onOpenAssistant ? "Vai all'Assistente AI" : 'Assistente non disponibile in questo contesto'}>
         <MessageCircle size={11} />
         Chiedi
       </button>
@@ -650,7 +654,7 @@ function PreviewPanel({ attachment, attachmentsAll, onRemove, onToggleFavorite, 
 // ──────────────────────────────────────────────────────────────
 // MAIN
 // ──────────────────────────────────────────────────────────────
-export default function MachineDocumentationTab({ sel, onUpload, onUploadFile, onRemoveAttachment, onToggleFavorite, onSaveField, reindexing = false }) {
+export default function MachineDocumentationTab({ sel, onUpload, onUploadFile, onRemoveAttachment, onToggleFavorite, onSaveField, onOpenAssistant, reindexing = false }) {
   const attachments = useMemo(() => sel.attachments || [], [sel.attachments])
 
   const [currentFolder, setCurrentFolder] = useState(null)
@@ -739,7 +743,7 @@ export default function MachineDocumentationTab({ sel, onUpload, onUploadFile, o
       {/* Layout: main + preview side (preview compare ≥lg) */}
       <div className="flex">
         <main className="flex-1 min-w-0 px-1 lg:pr-3.5 max-h-[78vh] overflow-y-auto">
-          <AiBar machineId={sel?.id} reindexing={reindexing} totalFiles={totalFiles} indexedFiles={indexedFiles} />
+          <AiBar machineId={sel?.id} reindexing={reindexing} totalFiles={totalFiles} indexedFiles={indexedFiles} onOpenAssistant={onOpenAssistant} />
 
           {/* Toolbar compatta */}
           <div className="flex items-center gap-2 mb-2.5 flex-wrap">

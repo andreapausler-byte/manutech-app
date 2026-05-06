@@ -25,7 +25,7 @@ import {
 
 const NAV_ITEM = findNavItem('machines')
 
-export default function AdminMachines() {
+export default function AdminMachines({ onOpenAssistant }) {
   const { user } = useAuth()
   const toast = useToast()
   const [machines, setMachines] = useState([])
@@ -855,6 +855,7 @@ export default function AdminMachines() {
           onOpenLogForm={openLogForm} onEditLog={(log) => openLogForm(null, log)} onDeleteLog={deleteLog} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
           onUploadToMachine={uploadToMachine} onUploadFileToMachine={uploadFileToMachine} onRemoveAttachment={removeAttachment} onToggleFavoriteAttachment={toggleFavoriteAttachment} onSaveField={updateMachineField}
+          onOpenAssistant={onOpenAssistant ? () => { setSel(null); onOpenAssistant() } : undefined}
           reindexing={reindexing}
         />
       )}

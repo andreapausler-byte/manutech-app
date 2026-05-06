@@ -155,7 +155,7 @@ export default function V6App({ userName, initialReportId }) {
           {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
           {route.name === 'reports' && <AdminReports initialReportId={initialReportId} />}
           {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} />}
-          {route.name === 'machines' && <AdminMachines />}
+          {route.name === 'machines' && <AdminMachines onOpenAssistant={() => navigate('assistant')} />}
           {route.name === 'maintenance' && <AdminMaintenance />}
           {route.name === 'spare-parts' && <AdminSpareParts />}
           {route.name === 'technicians' && <AdminTechnicians />}
