@@ -102,17 +102,83 @@ export const spareParts = {
       if (error) throw error
       return data
     }
+    // ── Demo fallback: replica logica RPC migration 046 ──
     const orders = getStore('manutech_spare_orders')
     const idx = orders.findIndex(o => o.id === orderId)
     if (idx === -1) throw new Error('Ordine non trovato')
-    orders[idx] = { ...orders[idx], status: 'ricevuto', received_at: new Date().toISOString() }
+    const order = { ...orders[idx], status: 'ricevuto', received_at: new Date().toISOString() }
+    orders[idx] = order
     setStore('manutech_spare_orders', orders)
-    if (orders[idx].spare_part_id) {
+
+    // Stock catalogo
+    if (order.spare_part_id) {
       const parts = getStore('manutech_spare_parts')
-      const pi = parts.findIndex(p => p.id === orders[idx].spare_part_id)
-      if (pi >= 0) { parts[pi].stock_qty = (parts[pi].stock_qty || 0) + orders[idx].quantity; setStore('manutech_spare_parts', parts) }
+      const pi = parts.findIndex(p => p.id === order.spare_part_id)
+      if (pi >= 0) {
+        parts[pi].stock_qty = (parts[pi].stock_qty || 0) + order.quantity
+        setStore('manutech_spare_parts', parts)
+      }
     }
-    return orders[idx]
+
+    // Sblocca report solo se non ci sono altri ordini aperti
+    let reportUnlocked = false
+    let reportCreatedBy = null
+    if (order.report_id) {
+      const otherOpen = orders.some(o =>
+        o.id !== order.id &&
+        o.report_id === order.report_id &&
+        ['richiesto', 'ordinato', 'spedito'].includes(o.status)
+      )
+      const reports = getStore('manutech_reports')
+      const ri = reports.findIndex(r => r.id === order.report_id)
+      if (ri >= 0) {
+        reportCreatedBy = reports[ri].created_by || null
+        if (!otherOpen && reports[ri].status === 'in_attesa_ricambi') {
+          reports[ri].status = 'in_lavorazione'
+          reports[ri].updated_at = new Date().toISOString()
+          setStore('manutech_reports', reports)
+          reportUnlocked = true
+        }
+      }
+
+      // Notifiche: requested_by + report.created_by (dedupe)
+      const session = (() => { try { return JSON.parse(localStorage.getItem('manutech_session') || 'null') } catch { return null } })()
+      const adminId = session?.id || null
+      const recipients = []
+      if (order.requested_by && order.requested_by !== adminId) recipients.push(order.requested_by)
+      if (reportCreatedBy && reportCreatedBy !== adminId && !recipients.includes(reportCreatedBy)) {
+        recipients.push(reportCreatedBy)
+      }
+      if (recipients.length > 0) {
+        const notifs = getStore('manutech_notifications')
+        for (const target of recipients) {
+          notifs.push({
+            id: `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            type: 'spare_received',
+            title: `Ricambio arrivato: ${order.spare_part_name || 'ricambio'}`,
+            body: reportUnlocked
+              ? "Il ricambio è disponibile, puoi riprendere l'intervento."
+              : 'Pezzo ricevuto. Altri ricambi ancora in attesa.',
+            report_id: order.report_id,
+            from_user: adminId,
+            target_user: target,
+            read: false,
+            created_at: new Date().toISOString(),
+          })
+        }
+        setStore('manutech_notifications', notifs)
+      }
+    }
+    return order
+  },
+
+  async confirmSparePartOrder(id, { supplier_id = null, supplier = null, expected_at = null, unit_cost = null } = {}) {
+    const updates = { status: 'ordinato' }
+    if (supplier_id !== undefined) updates.supplier_id = supplier_id
+    if (supplier !== undefined) updates.supplier = supplier
+    if (expected_at !== undefined) updates.expected_at = expected_at
+    if (unit_cost !== undefined) updates.unit_cost = unit_cost
+    return this.updateSparePartOrder(id, updates)
   },
 
   async deleteSparePartOrder(id) {

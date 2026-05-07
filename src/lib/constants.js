@@ -28,10 +28,18 @@ export const SEVERITY = {
 }
 
 export const ORDER_STATUS = {
-  ordinato: { label: 'Ordinato', color: '#ffaa2c', bg: 'rgba(255,170,44,0.10)' },
+  richiesto: { label: 'Da elaborare', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  ordinato: { label: 'Ordinato', color: '#06b6d4', bg: 'rgba(6,182,212,0.10)' },
   spedito: { label: 'Spedito', color: '#7c6aff', bg: 'rgba(124,106,255,0.10)' },
   ricevuto: { label: 'Ricevuto', color: '#3ddc84', bg: 'rgba(61,220,132,0.10)' },
   installato: { label: 'Installato', color: '#22c55e', bg: 'rgba(34,197,94,0.10)' },
+}
+
+export const SPARE_URGENCY = {
+  bassa:   { label: 'Bassa',   color: '#9ca3af', bg: 'rgba(156,163,175,0.10)' },
+  media:   { label: 'Media',   color: '#06b6d4', bg: 'rgba(6,182,212,0.10)' },
+  alta:    { label: 'Alta',    color: '#f59e0b', bg: 'rgba(245,158,11,0.10)' },
+  urgente: { label: 'Urgente', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 }
 
 // ── Anagrafica fornitori esterni ──
