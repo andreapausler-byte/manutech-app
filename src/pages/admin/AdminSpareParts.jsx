@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { db } from '../../lib/supabase'
-import { ORDER_STATUS, SPARE_URGENCY, formatDate, timeAgo } from '../../lib/constants'
+import { ORDER_STATUS, SPARE_URGENCY, ORDER_STAGES, orderStageIndex, formatDate, timeAgo } from '../../lib/constants'
 import { Button, Input, Modal, Badge, Spinner, EmptyState } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
@@ -18,14 +18,24 @@ import {
   Package, Plus, Edit, Trash2, Search, AlertTriangle,
   ShoppingCart, Check, Truck, MapPin, Hash, X,
   ArrowRight, Clock, Factory, ChevronRight, Archive,
-  Phone, MessageCircle, Mail, Inbox, Image as ImageIcon, User
+  Phone, MessageCircle, Mail, Inbox, Image as ImageIcon, User,
+  Send, FileText, ChevronDown, Euro
 } from 'lucide-react'
 
 const NAV_ITEM = findNavItem('spare-parts')
 
 const TABS = [
-  { id: 'magazzino', label: 'Magazzino', icon: Package },
   { id: 'ordini', label: 'Ordini', icon: ShoppingCart },
+  { id: 'magazzino', label: 'Magazzino', icon: Package },
+]
+
+// Sezioni kanban verticale del tab Ordini.
+// Ogni sezione raggruppa uno o più status interni.
+const ORDER_SECTIONS = [
+  { id: 'richiesto',  label: 'Da elaborare',         statuses: ['richiesto'],              color: '#f59e0b' },
+  { id: 'preventivo', label: 'Preventivo richiesto', statuses: ['preventivo'],             color: '#fbbf24' },
+  { id: 'ordinato',   label: 'Ordinato',             statuses: ['ordinato', 'spedito'],    color: '#06b6d4' },
+  { id: 'ricevuto',   label: 'Ricevuto',             statuses: ['ricevuto', 'installato'], color: '#3ddc84' },
 ]
 
 const emptyPartForm = { name: '', code: '', manufacturer: '', unit_cost: '', stock_qty: 0, min_stock: 0, location: '', notes: '' }
@@ -38,7 +48,7 @@ export default function AdminSpareParts() {
   const { user } = useAuth()
   const toast = useToast()
 
-  const [tab, setTab] = useState('magazzino')
+  const [tab, setTab] = useState('ordini')
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
@@ -59,9 +69,10 @@ export default function AdminSpareParts() {
   const [showOrderForm, setShowOrderForm] = useState(false)
   const [orderForm, setOrderForm] = useState(emptyOrderForm)
 
-  // Process request modal
-  const [processingOrder, setProcessingOrder] = useState(null)
-  const [photoLightbox, setPhotoLightbox] = useState(null) // { url, all, idx }
+  // Modali ordini
+  const [processingOrder, setProcessingOrder] = useState(null)   // 'richiesto' → richiedi preventivi
+  const [quotingOrder, setQuotingOrder] = useState(null)         // 'preventivo' → gestisci quotes
+  const [photoLightbox, setPhotoLightbox] = useState(null)       // { url, all, idx }
 
   const load = async () => {
     setLoading(true)
@@ -210,15 +221,42 @@ export default function AdminSpareParts() {
   const getReport = (id) => reports.find(r => r.id === id)
   const getMachineName = (id) => machines.find(m => m.id === id)?.name || '—'
   const getUserName = (id) => users.find(u => u.id === id)?.name || '—'
-  const getSupplierProfile = (id) => supplierProfiles.find(s => s.user_id === id) || null
   const isOverdue = (o) => o.expected_at && new Date(o.expected_at) < new Date() && (o.status === 'ordinato' || o.status === 'spedito')
 
-  // ── Conferma richiesta tecnico → ordinato ──
-  const confirmRequest = async (orderId, payload) => {
+  // ── Richiedi preventivi: richiesto → preventivo (multi-fornitore) ──
+  const requestQuotes = async (orderId, quotes) => {
+    try {
+      await db.requestSparePartQuotes(orderId, quotes)
+      toast.success(`Preventivo richiesto a ${quotes.length} ${quotes.length === 1 ? 'fornitore' : 'fornitori'}`)
+      setProcessingOrder(null)
+      load()
+    } catch (e) { toast.error('Errore: ' + (e?.message || 'riprova')) }
+  }
+
+  // ── Bypass preventivo: ordina direttamente (uso vecchia "Conferma ordine") ──
+  const directOrder = async (orderId, payload) => {
     try {
       await db.confirmSparePartOrder(orderId, payload)
       toast.success('Ordine confermato')
       setProcessingOrder(null)
+      load()
+    } catch (e) { toast.error('Errore: ' + (e?.message || 'riprova')) }
+  }
+
+  // ── Aggiorna risposta fornitore (quote) ──
+  const updateQuote = async (orderId, quoteId, patch) => {
+    try {
+      await db.updateSparePartQuote(orderId, quoteId, patch)
+      load()
+    } catch (e) { toast.error('Errore: ' + (e?.message || 'riprova')) }
+  }
+
+  // ── Accetta preventivo: preventivo → ordinato + notifica tecnico ──
+  const acceptQuote = async (orderId, quoteId, payload) => {
+    try {
+      await db.acceptSparePartQuote(orderId, quoteId, payload)
+      toast.success('Preventivo accettato · ordine in corso')
+      setQuotingOrder(null)
       load()
     } catch (e) { toast.error('Errore: ' + (e?.message || 'riprova')) }
   }
@@ -358,29 +396,49 @@ export default function AdminSpareParts() {
             )
           )}
 
-          {/* ═══ ORDINI TAB ═══ */}
+          {/* ═══ ORDINI TAB — kanban verticale ═══ */}
           {tab === 'ordini' && (
             filteredOrders.length === 0 ? (
-              <EmptyState icon="🛒" title="Nessun ordine" subtitle="Registra un ordine ricambio" />
+              <EmptyState icon="🛒" title="Nessun ordine" subtitle="Le richieste dei tecnici appariranno qui" />
             ) : (
-              <div className="space-y-3">
-                {filteredOrders.map(order => (
-                  <OrderCard
-                    key={order.id}
-                    order={order}
-                    isRequested={order.status === 'richiesto'}
-                    overdue={isOverdue(order)}
-                    getReportTitle={getReportTitle}
-                    getMachineName={getMachineName}
-                    getUserName={getUserName}
-                    onPhotoClick={(idx, all) => setPhotoLightbox({ idx, all })}
-                    onProcess={() => setProcessingOrder(order)}
-                    onShipped={() => markShipped(order)}
-                    onReceived={() => markReceived(order)}
-                    onInstalled={() => markInstalled(order)}
-                    onDelete={() => deleteOrder(order.id)}
-                  />
-                ))}
+              <div className="space-y-5">
+                {ORDER_SECTIONS.map(section => {
+                  const items = filteredOrders.filter(o => section.statuses.includes(o.status))
+                  if (items.length === 0) return null
+                  return (
+                    <section key={section.id}>
+                      <div className="flex items-center gap-2 mb-2.5 px-1">
+                        <span
+                          className="w-2 h-2 rounded-full"
+                          style={{ background: section.color }}
+                        />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-secondary">
+                          {section.label}
+                        </h3>
+                        <span className="text-xs text-faint font-mono">{items.length}</span>
+                      </div>
+                      <div className="space-y-3">
+                        {items.map(order => (
+                          <OrderCard
+                            key={order.id}
+                            order={order}
+                            overdue={isOverdue(order)}
+                            getReportTitle={getReportTitle}
+                            getMachineName={getMachineName}
+                            getUserName={getUserName}
+                            onPhotoClick={(idx, all) => setPhotoLightbox({ idx, all })}
+                            onProcess={() => setProcessingOrder(order)}
+                            onManageQuotes={() => setQuotingOrder(order)}
+                            onShipped={() => markShipped(order)}
+                            onReceived={() => markReceived(order)}
+                            onInstalled={() => markInstalled(order)}
+                            onDelete={() => deleteOrder(order.id)}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )
+                })}
               </div>
             )
           )}
@@ -488,17 +546,32 @@ export default function AdminSpareParts() {
         </div>
       </Modal>
 
-      {/* ═══ PROCESS REQUEST MODAL ═══ */}
+      {/* ═══ PROCESS REQUEST MODAL — 'richiesto' → richiedi preventivi ═══ */}
       <ProcessRequestModal
         order={processingOrder}
         onClose={() => setProcessingOrder(null)}
-        onConfirm={confirmRequest}
+        onRequestQuotes={requestQuotes}
+        onDirectOrder={directOrder}
         onPhotoClick={(idx, all) => setPhotoLightbox({ idx, all })}
         report={processingOrder ? getReport(processingOrder.report_id) : null}
         requesterName={processingOrder ? getUserName(processingOrder.requested_by) : ''}
         machineName={processingOrder ? getMachineName(processingOrder.machine_id) : ''}
         supplierProfiles={supplierProfiles}
-        getSupplierProfile={getSupplierProfile}
+      />
+
+      {/* ═══ MANAGE QUOTES MODAL — 'preventivo' → gestisci risposte fornitori ═══ */}
+      <ManageQuotesModal
+        order={quotingOrder}
+        onClose={() => setQuotingOrder(null)}
+        onUpdateQuote={updateQuote}
+        onAcceptQuote={acceptQuote}
+        onAddQuotes={requestQuotes}
+        onPhotoClick={(idx, all) => setPhotoLightbox({ idx, all })}
+        report={quotingOrder ? getReport(quotingOrder.report_id) : null}
+        requesterName={quotingOrder ? getUserName(quotingOrder.requested_by) : ''}
+        machineName={quotingOrder ? getMachineName(quotingOrder.machine_id) : ''}
+        supplierProfiles={supplierProfiles}
+        getUserName={getUserName}
       />
 
       {/* ═══ PHOTO LIGHTBOX ═══ */}
@@ -518,19 +591,32 @@ export default function AdminSpareParts() {
 // OrderCard — variante richiesto vs ordini esistenti
 // ─────────────────────────────────────────────────────────────
 function OrderCard({
-  order, isRequested, overdue,
+  order, overdue,
   getReportTitle, getMachineName, getUserName,
-  onPhotoClick, onProcess, onShipped, onReceived, onInstalled, onDelete,
+  onPhotoClick, onProcess, onManageQuotes, onShipped, onReceived, onInstalled, onDelete,
 }) {
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.ordinato
   const urg = order.urgency ? SPARE_URGENCY[order.urgency] : null
   const images = Array.isArray(order.images) ? order.images : []
   const hasPhotos = images.length > 0
+  const quotes = Array.isArray(order.quotes) ? order.quotes : []
+  const pendingQuotes = quotes.filter(q => q.status === 'pending').length
+  const receivedQuotes = quotes.filter(q => q.status === 'received').length
+
+  const isRequested = order.status === 'richiesto'
+  const isQuoting = order.status === 'preventivo'
+  const stage = orderStageIndex(order.status)
+
+  const ringClass = overdue
+    ? 'ring-1 ring-red-500/30'
+    : isRequested ? 'ring-1 ring-orange-500/30'
+    : isQuoting ? 'ring-1 ring-amber-400/30'
+    : ''
 
   return (
-    <div className={`card-elevated rounded-xl p-4 transition-all ${overdue ? 'ring-1 ring-red-500/30' : ''} ${isRequested ? 'ring-1 ring-orange-500/30' : ''}`}>
+    <div className={`card-elevated rounded-xl p-4 transition-all ${ringClass}`}>
       <div className="flex items-start gap-3">
-        {/* Icon o thumbnail principale */}
+        {/* Foto principale o icona stato */}
         {hasPhotos ? (
           <button
             onClick={() => onPhotoClick(0, images)}
@@ -545,8 +631,9 @@ function OrderCard({
             )}
           </button>
         ) : (
-          <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${overdue ? 'bg-red-500/15' : isRequested ? 'bg-orange-500/15' : 'bg-surface-2'}`}>
+          <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${overdue ? 'bg-red-500/15' : isRequested ? 'bg-orange-500/15' : isQuoting ? 'bg-amber-500/15' : 'bg-surface-2'}`}>
             {isRequested && <Inbox size={20} className="text-orange-400" />}
+            {isQuoting && <FileText size={20} className="text-amber-300" />}
             {order.status === 'ordinato' && <Clock size={20} className={overdue ? 'text-red-400' : 'text-cyan-400'} />}
             {order.status === 'spedito' && <Truck size={20} className="text-violet-400" />}
             {order.status === 'ricevuto' && <Check size={20} className="text-emerald-400" />}
@@ -559,7 +646,7 @@ function OrderCard({
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-bold text-themed">{order.spare_part_name}</p>
             <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ background: st.bg, color: st.color }}>{st.label}</span>
-            {isRequested && urg && (
+            {(isRequested || isQuoting) && urg && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide" style={{ background: urg.bg, color: urg.color }}>
                 {urg.label}
               </span>
@@ -569,10 +656,10 @@ function OrderCard({
           </div>
 
           <div className="flex items-center gap-3 mt-1.5 text-xs text-faint flex-wrap">
-            {isRequested && order.requested_by && (
+            {(isRequested || isQuoting) && order.requested_by && (
               <span className="flex items-center gap-1"><User size={11} />{getUserName(order.requested_by)}</span>
             )}
-            {!isRequested && order.supplier && <span>Fornitore: {order.supplier}</span>}
+            {!isRequested && !isQuoting && order.supplier && <span>Fornitore: {order.supplier}</span>}
             {order.machine_id && <span>Macchina: {getMachineName(order.machine_id)}</span>}
             {order.report_id && <span className="text-amber-400">Report: {getReportTitle(order.report_id)}</span>}
           </div>
@@ -580,14 +667,33 @@ function OrderCard({
           <div className="flex items-center gap-3 mt-1 text-[11px] text-faint">
             {isRequested
               ? <span>Richiesto: {timeAgo(order.created_at || order.ordered_at)}</span>
-              : <span>Ordinato: {formatDate(order.ordered_at)}</span>}
-            {order.expected_at && !isRequested && <span>Previsto: {formatDate(order.expected_at)}</span>}
+              : isQuoting
+                ? <span>Preventivo: {timeAgo(order.updated_at || order.created_at)}</span>
+                : <span>Ordinato: {formatDate(order.ordered_at)}</span>}
+            {order.expected_at && !isRequested && !isQuoting && <span>Previsto: {formatDate(order.expected_at)}</span>}
             {order.received_at && <span className="text-emerald-400">Ricevuto: {formatDate(order.received_at)}</span>}
           </div>
 
+          {/* Riepilogo quotes per stato preventivo */}
+          {isQuoting && quotes.length > 0 && (
+            <div className="mt-2 flex items-center gap-2 text-[11px] flex-wrap">
+              <span className="text-secondary font-medium">{quotes.length} preventiv{quotes.length === 1 ? 'o' : 'i'}:</span>
+              {pendingQuotes > 0 && (
+                <span className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded font-medium">
+                  {pendingQuotes} in attesa
+                </span>
+              )}
+              {receivedQuotes > 0 && (
+                <span className="text-emerald-300 bg-emerald-500/10 px-1.5 py-0.5 rounded font-medium">
+                  {receivedQuotes} ricevut{receivedQuotes === 1 ? 'o' : 'i'}
+                </span>
+              )}
+            </div>
+          )}
+
           {order.notes && <p className="text-[11px] text-secondary mt-1.5 leading-relaxed line-clamp-2">{order.notes}</p>}
 
-          {/* Strip foto extra (oltre la 1ª) */}
+          {/* Strip foto extra */}
           {hasPhotos && images.length > 1 && (
             <div className="flex gap-1.5 mt-2">
               {images.slice(1, 5).map((img, i) => (
@@ -610,6 +716,9 @@ function OrderCard({
               )}
             </div>
           )}
+
+          {/* Mini progress bar 4 stadi */}
+          <ProgressStepper stage={stage} />
         </div>
 
         {/* Actions */}
@@ -617,6 +726,11 @@ function OrderCard({
           {isRequested && (
             <button onClick={onProcess} className="flex items-center gap-1 px-3 py-2 bg-orange-600/20 hover:bg-orange-600/30 text-orange-300 rounded-lg text-xs font-bold transition-all">
               <ArrowRight size={13} /> Elabora
+            </button>
+          )}
+          {isQuoting && (
+            <button onClick={onManageQuotes} className="flex items-center gap-1 px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-lg text-xs font-bold transition-all">
+              <FileText size={13} /> Gestisci
             </button>
           )}
           {order.status === 'ordinato' && (
@@ -647,12 +761,133 @@ function OrderCard({
 }
 
 // ─────────────────────────────────────────────────────────────
+// ProgressStepper — 4 stadi visivi (Nuova → Preventivo → Ordinato → Ricevuto)
+// ─────────────────────────────────────────────────────────────
+export function ProgressStepper({ stage = 0, compact = false }) {
+  return (
+    <div className={`flex items-center gap-1 ${compact ? 'mt-1.5' : 'mt-2.5'}`}>
+      {ORDER_STAGES.map((s, i) => {
+        const done = i < stage
+        const active = i === stage
+        return (
+          <div key={s.key} className="flex-1 flex items-center gap-1">
+            <div
+              className="h-1 rounded-full flex-1 transition-all"
+              style={{
+                background: done || active
+                  ? (i === 3 ? '#3ddc84' : i === 2 ? '#06b6d4' : i === 1 ? '#fbbf24' : '#f59e0b')
+                  : 'rgba(255,255,255,0.08)',
+                opacity: active ? 1 : done ? 0.7 : 1,
+              }}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// OrderSummaryHeader — header riusabile (foto + sommario + note tecnico)
+// ─────────────────────────────────────────────────────────────
+function OrderSummaryHeader({ order, requesterName, machineName, report, onPhotoClick }) {
+  const images = Array.isArray(order.images) ? order.images : []
+  const urg = order.urgency ? SPARE_URGENCY[order.urgency] : null
+  return (
+    <>
+      {images.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {images.map((img, i) => (
+            <button
+              key={i}
+              onClick={() => onPhotoClick(i, images)}
+              className="press-scale shrink-0 w-24 h-24 rounded-xl overflow-hidden border border-token relative"
+            >
+              <img src={img.url} alt="" className="w-full h-full object-cover" />
+              {i === 0 && (
+                <span className="absolute bottom-1 left-1 right-1 text-[8px] font-bold tracking-wide text-amber-400 bg-black/75 rounded text-center py-0.5">
+                  TARGHETTA
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="bg-surface-2 rounded-xl p-3 space-y-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-base font-bold text-themed">{order.spare_part_name}</p>
+          {urg && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" style={{ background: urg.bg, color: urg.color }}>
+              {urg.label}
+            </span>
+          )}
+          <span className="text-xs text-faint">x{order.quantity}</span>
+        </div>
+        <p className="text-xs text-faint">
+          Richiesto da <span className="text-secondary font-medium">{requesterName}</span>
+          {' · '}{timeAgo(order.created_at || order.ordered_at)}
+        </p>
+        {report && (
+          <p className="text-xs text-amber-400">
+            Ticket: {report.title}{machineName && machineName !== '—' && ` · ${machineName}`}
+          </p>
+        )}
+        {order.notes && (
+          <div className="mt-2 pt-2 border-t border-token">
+            <p className="text-[10px] uppercase tracking-wider text-faint mb-1">Note del tecnico</p>
+            <p className="text-sm text-themed leading-relaxed whitespace-pre-wrap">{order.notes}</p>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// ContactButtons — chiama / WhatsApp / Email da supplier_profile
+// ─────────────────────────────────────────────────────────────
+function ContactButtons({ supplier, subject = '' }) {
+  if (!supplier) return null
+  const tel = supplier.phone?.replace(/\s+/g, '')
+  const wa = supplier.whatsapp?.replace(/[^0-9]/g, '')
+  const email = supplier.email_public
+  if (!tel && !wa && !email) return null
+  return (
+    <div className="flex gap-2 mt-2">
+      {tel && (
+        <a href={`tel:${tel}`}
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-cyan-600/15 hover:bg-cyan-600/25 text-cyan-400 rounded-lg text-xs font-medium transition-all">
+          <Phone size={13} /> Chiama
+        </a>
+      )}
+      {wa && (
+        <a href={`https://wa.me/${wa}${subject ? '?text=' + encodeURIComponent(subject) : ''}`} target="_blank" rel="noopener noreferrer"
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 rounded-lg text-xs font-medium transition-all">
+          <MessageCircle size={13} /> WhatsApp
+        </a>
+      )}
+      {email && (
+        <a href={`mailto:${email}${subject ? '?subject=' + encodeURIComponent(subject) : ''}`}
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-violet-600/15 hover:bg-violet-600/25 text-violet-400 rounded-lg text-xs font-medium transition-all">
+          <Mail size={13} /> Email
+        </a>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
 // ProcessRequestModal — admin elabora una richiesta del tecnico
+//
+// Il flusso primario è: scegli 1+ fornitori → richiedi preventivi.
+// Esiste un secondo flusso "salta preventivo" per quando l'admin sa già
+// da chi comprare (es. ricambio standardizzato): fornitore singolo +
+// data/costo → ordine direttamente in 'ordinato'.
 // ─────────────────────────────────────────────────────────────
 function ProcessRequestModal({
-  order, onClose, onConfirm, onPhotoClick,
-  report, requesterName, machineName,
-  supplierProfiles, getSupplierProfile,
+  order, onClose, onRequestQuotes, onDirectOrder, onPhotoClick,
+  report, requesterName, machineName, supplierProfiles,
 }) {
   if (!order) return null
   return (
@@ -660,153 +895,486 @@ function ProcessRequestModal({
       key={order.id}
       order={order}
       onClose={onClose}
-      onConfirm={onConfirm}
+      onRequestQuotes={onRequestQuotes}
+      onDirectOrder={onDirectOrder}
       onPhotoClick={onPhotoClick}
       report={report}
       requesterName={requesterName}
       machineName={machineName}
       supplierProfiles={supplierProfiles}
-      getSupplierProfile={getSupplierProfile}
     />
   )
 }
 
 function ProcessRequestModalBody({
-  order, onClose, onConfirm, onPhotoClick,
-  report, requesterName, machineName,
-  supplierProfiles, getSupplierProfile,
+  order, onClose, onRequestQuotes, onDirectOrder, onPhotoClick,
+  report, requesterName, machineName, supplierProfiles,
 }) {
-  const [supplierId, setSupplierId] = useState(order.supplier_id || '')
-  const [supplierText, setSupplierText] = useState(order.supplier || '')
-  const [expectedAt, setExpectedAt] = useState(order.expected_at ? order.expected_at.slice(0, 10) : '')
-  const [unitCost, setUnitCost] = useState(order.unit_cost || '')
+  const [mode, setMode] = useState('quote') // 'quote' | 'direct'
+  const [selectedIds, setSelectedIds] = useState([])  // user_id dei fornitori selezionati
+  const [extraName, setExtraName] = useState('')      // nome libero opzionale
+  const [globalNote, setGlobalNote] = useState('')
+  // direct mode
+  const [directSupplierId, setDirectSupplierId] = useState('')
+  const [directSupplierText, setDirectSupplierText] = useState('')
+  const [directExpectedAt, setDirectExpectedAt] = useState('')
+  const [directUnitCost, setDirectUnitCost] = useState('')
+
   const [submitting, setSubmitting] = useState(false)
 
-  const images = Array.isArray(order.images) ? order.images : []
-  const urg = order.urgency ? SPARE_URGENCY[order.urgency] : null
-  const selectedSupplier = supplierId ? getSupplierProfile(supplierId) : null
+  const toggleSupplier = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
 
-  const handleConfirm = async () => {
+  const directSupplier = directSupplierId ? supplierProfiles.find(s => s.user_id === directSupplierId) : null
+
+  const handleRequestQuotes = async () => {
+    const items = selectedIds.map(id => {
+      const s = supplierProfiles.find(p => p.user_id === id)
+      return { supplier_id: id, supplier_name: s?.company_name || '—', note: globalNote || null }
+    })
+    if (extraName.trim()) {
+      items.push({ supplier_id: null, supplier_name: extraName.trim(), note: globalNote || null })
+    }
+    if (items.length === 0) return
     setSubmitting(true)
-    await onConfirm(order.id, {
-      supplier_id: supplierId || null,
-      supplier: selectedSupplier?.company_name || supplierText.trim() || null,
-      expected_at: expectedAt ? new Date(expectedAt).toISOString() : null,
-      unit_cost: unitCost ? parseFloat(unitCost) : 0,
+    await onRequestQuotes(order.id, items)
+    setSubmitting(false)
+  }
+
+  const handleDirectOrder = async () => {
+    setSubmitting(true)
+    await onDirectOrder(order.id, {
+      supplier_id: directSupplierId || null,
+      supplier: directSupplier?.company_name || directSupplierText.trim() || null,
+      expected_at: directExpectedAt ? new Date(directExpectedAt).toISOString() : null,
+      unit_cost: directUnitCost ? parseFloat(directUnitCost) : 0,
     })
     setSubmitting(false)
   }
 
+  const canRequestQuotes = selectedIds.length > 0 || extraName.trim().length > 0
+  const canDirectOrder = directSupplierId || directSupplierText.trim().length > 0
+
   return (
     <Modal open={true} onClose={onClose} title="Elabora richiesta ricambio" size="lg">
       <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-        {/* Foto strip */}
-        {images.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {images.map((img, i) => (
-              <button
-                key={i}
-                onClick={() => onPhotoClick(i, images)}
-                className="press-scale shrink-0 w-24 h-24 rounded-xl overflow-hidden border border-token relative"
-              >
-                <img src={img.url} alt="" className="w-full h-full object-cover" />
-                {i === 0 && (
-                  <span className="absolute bottom-1 left-1 right-1 text-[8px] font-bold tracking-wide text-amber-400 bg-black/75 rounded text-center py-0.5">
-                    TARGHETTA
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+        <OrderSummaryHeader
+          order={order}
+          requesterName={requesterName}
+          machineName={machineName}
+          report={report}
+          onPhotoClick={onPhotoClick}
+        />
+
+        {/* Tab interno: chiedi preventivi vs ordina diretto */}
+        <div className="flex bg-surface-2 rounded-xl p-1">
+          <button onClick={() => setMode('quote')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'quote' ? 'bg-amber-500/20 text-amber-300' : 'text-faint hover:text-secondary'}`}>
+            <FileText size={13} /> Richiedi preventivi
+          </button>
+          <button onClick={() => setMode('direct')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'direct' ? 'bg-cyan-500/20 text-cyan-300' : 'text-faint hover:text-secondary'}`}>
+            <Send size={13} /> Salta, ordina diretto
+          </button>
+        </div>
+
+        {mode === 'quote' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-secondary mb-1.5">
+                Fornitori da contattare ({selectedIds.length} selezionati)
+              </label>
+              {supplierProfiles.length === 0 ? (
+                <p className="text-xs text-faint italic bg-surface-2 rounded-xl p-3">
+                  Nessun fornitore in anagrafica. Aggiungine uno da Admin → Fornitori, oppure usa il nome libero qui sotto.
+                </p>
+              ) : (
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {supplierProfiles.map(s => {
+                    const checked = selectedIds.includes(s.user_id)
+                    return (
+                      <label key={s.user_id}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${checked ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'bg-surface-2 hover:bg-surface-3'}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSupplier(s.user_id)}
+                          className="w-4 h-4 accent-amber-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-themed truncate">{s.company_name}</p>
+                          {s.specialties?.length > 0 && (
+                            <p className="text-[11px] text-faint truncate">{s.specialties.slice(0, 3).join(' · ')}</p>
+                          )}
+                        </div>
+                        {checked && <ContactButtonsCompact supplier={s} subject={`Richiesta preventivo: ${order.spare_part_name}`} />}
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <Input
+              label="Aggiungi un fornitore non in anagrafica (opzionale)"
+              placeholder="es. Comac S.p.A."
+              value={extraName}
+              onChange={e => setExtraName(e.target.value)}
+            />
+
+            <div>
+              <label className="block text-xs font-medium text-secondary mb-1.5">Nota per i preventivi (opzionale)</label>
+              <textarea
+                className="w-full bg-surface-2 border border-token rounded-xl px-3 py-2.5 text-sm text-themed placeholder:text-faint focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50 outline-none resize-none"
+                rows={2}
+                placeholder="es. Risposta entro venerdì, urgenza alta, alternative ammesse..."
+                value={globalNote}
+                onChange={e => setGlobalNote(e.target.value)}
+              />
+            </div>
+
+            <Button onClick={handleRequestQuotes} disabled={!canRequestQuotes || submitting} className="w-full">
+              {submitting ? 'Invio…' : `Richiedi preventiv${(selectedIds.length + (extraName.trim() ? 1 : 0)) === 1 ? 'o' : 'i'} (${selectedIds.length + (extraName.trim() ? 1 : 0)})`}
+            </Button>
+          </>
         )}
 
-        {/* Sommario richiesta */}
-        <div className="bg-surface-2 rounded-xl p-3 space-y-1.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-base font-bold text-themed">{order.spare_part_name}</p>
-            {urg && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" style={{ background: urg.bg, color: urg.color }}>
-                {urg.label}
-              </span>
-            )}
-            <span className="text-xs text-faint">x{order.quantity}</span>
-          </div>
-          <p className="text-xs text-faint">
-            Richiesto da <span className="text-secondary font-medium">{requesterName}</span>
-            {' · '}{timeAgo(order.created_at || order.ordered_at)}
-          </p>
-          {report && (
-            <p className="text-xs text-amber-400">
-              Ticket: {report.title}{machineName !== '—' && ` · ${machineName}`}
-            </p>
-          )}
-          {order.notes && (
-            <div className="mt-2 pt-2 border-t border-token">
-              <p className="text-[10px] uppercase tracking-wider text-faint mb-1">Note del tecnico</p>
-              <p className="text-sm text-themed leading-relaxed whitespace-pre-wrap">{order.notes}</p>
+        {mode === 'direct' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-secondary mb-1.5">Fornitore</label>
+              {supplierProfiles.length > 0 && (
+                <select
+                  className="w-full bg-surface-2 border border-token rounded-xl px-3 py-2.5 text-sm text-themed focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 outline-none mb-2"
+                  value={directSupplierId}
+                  onChange={e => setDirectSupplierId(e.target.value)}
+                >
+                  <option value="">— Seleziona dall'anagrafica —</option>
+                  {supplierProfiles.map(s => (
+                    <option key={s.user_id} value={s.user_id}>
+                      {s.company_name}{s.specialties?.length ? ` · ${s.specialties.slice(0, 2).join(', ')}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Input
+                label=""
+                placeholder={supplierProfiles.length > 0 ? 'Oppure inserisci nome libero' : 'Nome fornitore'}
+                value={directSupplierText}
+                onChange={e => setDirectSupplierText(e.target.value)}
+              />
+              <ContactButtons supplier={directSupplier} subject={`Ordine: ${order.spare_part_name}`} />
             </div>
-          )}
-        </div>
 
-        {/* Fornitore */}
-        <div>
-          <label className="block text-xs font-medium text-secondary mb-1.5">Fornitore</label>
-          {supplierProfiles.length > 0 ? (
-            <select
-              className="w-full bg-surface-2 border border-token rounded-xl px-3 py-2.5 text-sm text-themed focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 outline-none mb-2"
-              value={supplierId}
-              onChange={e => setSupplierId(e.target.value)}
-            >
-              <option value="">— Seleziona dall'anagrafica —</option>
-              {supplierProfiles.map(s => (
-                <option key={s.user_id} value={s.user_id}>
-                  {s.company_name}{s.specialties?.length ? ` · ${s.specialties.slice(0, 2).join(', ')}` : ''}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <Input
-            label=""
-            placeholder={supplierProfiles.length > 0 ? 'Oppure inserisci nome libero' : 'Nome fornitore'}
-            value={supplierText}
-            onChange={e => setSupplierText(e.target.value)}
-          />
-
-          {/* Bottoni contatto */}
-          {selectedSupplier && (
-            <div className="flex gap-2 mt-2">
-              {selectedSupplier.phone && (
-                <a href={`tel:${selectedSupplier.phone.replace(/\s+/g, '')}`}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-cyan-600/15 hover:bg-cyan-600/25 text-cyan-400 rounded-lg text-xs font-medium transition-all">
-                  <Phone size={13} /> Chiama
-                </a>
-              )}
-              {selectedSupplier.whatsapp && (
-                <a href={`https://wa.me/${selectedSupplier.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 rounded-lg text-xs font-medium transition-all">
-                  <MessageCircle size={13} /> WhatsApp
-                </a>
-              )}
-              {selectedSupplier.email_public && (
-                <a href={`mailto:${selectedSupplier.email_public}?subject=${encodeURIComponent('Richiesta: ' + order.spare_part_name)}`}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-violet-600/15 hover:bg-violet-600/25 text-violet-400 rounded-lg text-xs font-medium transition-all">
-                  <Mail size={13} /> Email
-                </a>
-              )}
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Data arrivo prevista" type="date" value={directExpectedAt} onChange={e => setDirectExpectedAt(e.target.value)} />
+              <Input label="Costo unitario (€)" type="number" step="0.01" value={directUnitCost} onChange={e => setDirectUnitCost(e.target.value)} placeholder="0.00" />
             </div>
-          )}
-        </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Data arrivo prevista" type="date" value={expectedAt} onChange={e => setExpectedAt(e.target.value)} />
-          <Input label="Costo unitario (€)" type="number" step="0.01" value={unitCost} onChange={e => setUnitCost(e.target.value)} placeholder="0.00" />
-        </div>
-
-        <Button onClick={handleConfirm} disabled={submitting} className="w-full">
-          {submitting ? 'Conferma…' : 'Conferma ordine al fornitore'}
-        </Button>
+            <Button onClick={handleDirectOrder} disabled={!canDirectOrder || submitting} className="w-full">
+              {submitting ? 'Conferma…' : 'Conferma ordine al fornitore'}
+            </Button>
+          </>
+        )}
       </div>
     </Modal>
+  )
+}
+
+// Versione compatta dei contact buttons usata nelle righe della lista fornitori
+function ContactButtonsCompact({ supplier, subject = '' }) {
+  if (!supplier) return null
+  const tel = supplier.phone?.replace(/\s+/g, '')
+  const wa = supplier.whatsapp?.replace(/[^0-9]/g, '')
+  const email = supplier.email_public
+  return (
+    <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+      {tel && (
+        <a href={`tel:${tel}`} className="press-scale w-8 h-8 rounded-lg bg-cyan-600/15 text-cyan-400 flex items-center justify-center" aria-label="Chiama">
+          <Phone size={13} />
+        </a>
+      )}
+      {wa && (
+        <a href={`https://wa.me/${wa}${subject ? '?text=' + encodeURIComponent(subject) : ''}`} target="_blank" rel="noopener noreferrer" className="press-scale w-8 h-8 rounded-lg bg-emerald-600/15 text-emerald-400 flex items-center justify-center" aria-label="WhatsApp">
+          <MessageCircle size={13} />
+        </a>
+      )}
+      {email && (
+        <a href={`mailto:${email}${subject ? '?subject=' + encodeURIComponent(subject) : ''}`} className="press-scale w-8 h-8 rounded-lg bg-violet-600/15 text-violet-400 flex items-center justify-center" aria-label="Email">
+          <Mail size={13} />
+        </a>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// ManageQuotesModal — gestisce un ordine in stato 'preventivo'
+// ─────────────────────────────────────────────────────────────
+function ManageQuotesModal({
+  order, onClose, onUpdateQuote, onAcceptQuote, onAddQuotes, onPhotoClick,
+  report, requesterName, machineName, supplierProfiles, getUserName,
+}) {
+  if (!order) return null
+  return (
+    <ManageQuotesModalBody
+      key={order.id}
+      order={order}
+      onClose={onClose}
+      onUpdateQuote={onUpdateQuote}
+      onAcceptQuote={onAcceptQuote}
+      onAddQuotes={onAddQuotes}
+      onPhotoClick={onPhotoClick}
+      report={report}
+      requesterName={requesterName}
+      machineName={machineName}
+      supplierProfiles={supplierProfiles}
+      getUserName={getUserName}
+    />
+  )
+}
+
+function ManageQuotesModalBody({
+  order, onClose, onUpdateQuote, onAcceptQuote, onAddQuotes, onPhotoClick,
+  report, requesterName, machineName, supplierProfiles,
+}) {
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newSupplierIds, setNewSupplierIds] = useState([])
+  const [newExtraName, setNewExtraName] = useState('')
+  const [newNote, setNewNote] = useState('')
+  const [acceptingId, setAcceptingId] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const quotes = Array.isArray(order.quotes) ? order.quotes : []
+  // Esclude fornitori già contattati dall'elenco "aggiungi"
+  const alreadyAskedIds = new Set(quotes.map(q => q.supplier_id).filter(Boolean))
+  const availableSuppliers = supplierProfiles.filter(s => !alreadyAskedIds.has(s.user_id))
+
+  const handleQuotePatch = (quoteId, patch) => onUpdateQuote(order.id, quoteId, patch)
+
+  const handleAddMore = async () => {
+    const items = newSupplierIds.map(id => {
+      const s = supplierProfiles.find(p => p.user_id === id)
+      return { supplier_id: id, supplier_name: s?.company_name || '—', note: newNote || null }
+    })
+    if (newExtraName.trim()) {
+      items.push({ supplier_id: null, supplier_name: newExtraName.trim(), note: newNote || null })
+    }
+    if (items.length === 0) return
+    setSubmitting(true)
+    await onAddQuotes(order.id, items)
+    setNewSupplierIds([]); setNewExtraName(''); setNewNote(''); setShowAddForm(false)
+    setSubmitting(false)
+  }
+
+  return (
+    <Modal open={true} onClose={onClose} title="Preventivi richiesti" size="lg">
+      <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+        <OrderSummaryHeader
+          order={order}
+          requesterName={requesterName}
+          machineName={machineName}
+          report={report}
+          onPhotoClick={onPhotoClick}
+        />
+
+        <div>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-secondary mb-2">
+            {quotes.length} preventiv{quotes.length === 1 ? 'o' : 'i'}
+          </h4>
+          {quotes.length === 0 && (
+            <p className="text-xs text-faint italic bg-surface-2 rounded-xl p-3">
+              Nessun preventivo. Strano — questo ordine è in stato &quot;preventivo&quot;.
+            </p>
+          )}
+          <div className="space-y-2.5">
+            {quotes.map(q => {
+              const supplier = q.supplier_id ? supplierProfiles.find(s => s.user_id === q.supplier_id) : null
+              const isAccepted = q.status === 'accepted'
+              const isRejected = q.status === 'rejected'
+              const isAcceptingThis = acceptingId === q.id
+              return (
+                <div key={q.id}
+                  className={`rounded-xl p-3 transition-all ${
+                    isAccepted ? 'bg-emerald-500/10 ring-1 ring-emerald-500/40'
+                    : isRejected ? 'bg-surface-2 opacity-60'
+                    : 'bg-surface-2'
+                  }`}>
+                  <div className="flex items-start gap-2 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-themed">{q.supplier_name}</p>
+                      <p className="text-[11px] text-faint">
+                        Chiesto: {timeAgo(q.asked_at)}
+                        {q.note && <> · <span className="italic">{q.note}</span></>}
+                      </p>
+                    </div>
+                    <QuoteStatusBadge status={q.status} />
+                    {!isAccepted && !isRejected && supplier && (
+                      <ContactButtonsCompact supplier={supplier} subject={`Preventivo: ${order.spare_part_name}`} />
+                    )}
+                  </div>
+
+                  {/* Form risposta fornitore: prezzo + lead time */}
+                  {!isAccepted && !isRejected && (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="relative">
+                        <Euro size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+                        <input
+                          type="number" step="0.01"
+                          placeholder="Prezzo"
+                          defaultValue={q.quoted_price || ''}
+                          onBlur={e => {
+                            const v = parseFloat(e.target.value)
+                            handleQuotePatch(q.id, {
+                              quoted_price: Number.isFinite(v) ? v : null,
+                              status: Number.isFinite(v) || q.quoted_lead_time_days ? 'received' : 'pending',
+                              received_at: Number.isFinite(v) ? new Date().toISOString() : q.received_at,
+                            })
+                          }}
+                          className="w-full bg-surface-3 border border-token rounded-lg pl-7 pr-2 py-1.5 text-xs text-themed outline-none focus:border-amber-500/50"
+                        />
+                      </div>
+                      <input
+                        type="number"
+                        placeholder="Giorni"
+                        defaultValue={q.quoted_lead_time_days || ''}
+                        onBlur={e => {
+                          const v = parseInt(e.target.value, 10)
+                          handleQuotePatch(q.id, {
+                            quoted_lead_time_days: Number.isFinite(v) ? v : null,
+                            status: Number.isFinite(v) || q.quoted_price ? 'received' : 'pending',
+                            received_at: Number.isFinite(v) ? new Date().toISOString() : q.received_at,
+                          })
+                        }}
+                        className="w-full bg-surface-3 border border-token rounded-lg px-2 py-1.5 text-xs text-themed outline-none focus:border-amber-500/50"
+                      />
+                    </div>
+                  )}
+
+                  {(q.quoted_price || q.quoted_lead_time_days) && (
+                    <div className="mt-2 flex gap-3 text-[11px]">
+                      {q.quoted_price && <span className="text-emerald-300 font-mono">€ {parseFloat(q.quoted_price).toFixed(2)}</span>}
+                      {q.quoted_lead_time_days && <span className="text-cyan-300 font-mono">{q.quoted_lead_time_days}gg</span>}
+                    </div>
+                  )}
+
+                  {/* Azioni accetta/rifiuta */}
+                  {!isAccepted && !isRejected && (
+                    <div className="flex gap-2 mt-2.5">
+                      {isAcceptingThis ? (
+                        <AcceptQuoteForm
+                          quote={q}
+                          onCancel={() => setAcceptingId(null)}
+                          onConfirm={async (payload) => {
+                            setSubmitting(true)
+                            await onAcceptQuote(order.id, q.id, payload)
+                            setAcceptingId(null); setSubmitting(false)
+                          }}
+                          submitting={submitting}
+                        />
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setAcceptingId(q.id)}
+                            className="press-scale flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-lg text-xs font-bold">
+                            <Check size={13} /> Accetta
+                          </button>
+                          <button
+                            onClick={() => handleQuotePatch(q.id, { status: 'rejected', decided_at: new Date().toISOString() })}
+                            className="press-scale px-3 py-2 bg-red-600/15 hover:bg-red-600/25 text-red-400 rounded-lg text-xs font-medium">
+                            Rifiuta
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Aggiungi un altro fornitore */}
+        {!showAddForm ? (
+          <button onClick={() => setShowAddForm(true)}
+            className="press-scale w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-surface-2 hover:bg-surface-3 border border-dashed border-token rounded-xl text-xs font-medium text-secondary">
+            <Plus size={14} /> Chiedi a un altro fornitore
+          </button>
+        ) : (
+          <div className="bg-surface-2 rounded-xl p-3 space-y-2">
+            <p className="text-xs font-bold text-themed">Aggiungi richiesta preventivo</p>
+            {availableSuppliers.length > 0 && (
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {availableSuppliers.map(s => {
+                  const checked = newSupplierIds.includes(s.user_id)
+                  return (
+                    <label key={s.user_id}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer ${checked ? 'bg-amber-500/10' : 'hover:bg-surface-3'}`}>
+                      <input type="checkbox" checked={checked}
+                        onChange={() => setNewSupplierIds(prev => prev.includes(s.user_id) ? prev.filter(x => x !== s.user_id) : [...prev, s.user_id])}
+                        className="w-4 h-4 accent-amber-500"
+                      />
+                      <span className="text-xs text-themed truncate flex-1">{s.company_name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+            <Input label="" placeholder="Oppure nome libero" value={newExtraName} onChange={e => setNewExtraName(e.target.value)} />
+            <Input label="" placeholder="Nota (opzionale)" value={newNote} onChange={e => setNewNote(e.target.value)} />
+            <div className="flex gap-2">
+              <Button onClick={handleAddMore} disabled={(newSupplierIds.length === 0 && !newExtraName.trim()) || submitting} className="flex-1">
+                {submitting ? '...' : 'Richiedi'}
+              </Button>
+              <button onClick={() => { setShowAddForm(false); setNewSupplierIds([]); setNewExtraName(''); setNewNote('') }}
+                className="px-4 py-2 text-xs text-faint">Annulla</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+function QuoteStatusBadge({ status }) {
+  const map = {
+    pending:  { label: 'In attesa', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)' },
+    received: { label: 'Ricevuto',  color: '#3ddc84', bg: 'rgba(61,220,132,0.15)' },
+    accepted: { label: 'Accettato', color: '#22c55e', bg: 'rgba(34,197,94,0.20)' },
+    rejected: { label: 'Rifiutato', color: '#9ca3af', bg: 'rgba(156,163,175,0.10)' },
+  }
+  const m = map[status] || map.pending
+  return (
+    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0"
+      style={{ background: m.bg, color: m.color }}>
+      {m.label}
+    </span>
+  )
+}
+
+function AcceptQuoteForm({ quote, onCancel, onConfirm, submitting }) {
+  const [eta, setEta] = useState(() => quote.quoted_lead_time_days
+    ? new Date(Date.now() + quote.quoted_lead_time_days * 86400000).toISOString().slice(0, 10)
+    : '')
+  const [cost, setCost] = useState(quote.quoted_price || '')
+  return (
+    <div className="flex-1 grid grid-cols-2 gap-2">
+      <input type="date" value={eta} onChange={e => setEta(e.target.value)}
+        className="bg-surface-3 border border-token rounded-lg px-2 py-1.5 text-xs text-themed outline-none focus:border-emerald-500/50" />
+      <input type="number" step="0.01" value={cost} onChange={e => setCost(e.target.value)}
+        placeholder="Prezzo finale (€)"
+        className="bg-surface-3 border border-token rounded-lg px-2 py-1.5 text-xs text-themed outline-none focus:border-emerald-500/50" />
+      <button onClick={() => onConfirm({
+        expected_at: eta ? new Date(eta).toISOString() : null,
+        unit_cost: cost ? parseFloat(cost) : 0,
+      })}
+        disabled={submitting}
+        className="press-scale flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold col-span-2">
+        <Check size={13} /> {submitting ? 'Conferma…' : 'Conferma & ordina'}
+      </button>
+      <button onClick={onCancel} className="text-[11px] text-faint col-span-2 -mt-1">Annulla</button>
+    </div>
   )
 }
 
