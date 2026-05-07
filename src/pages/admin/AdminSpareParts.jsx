@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { db } from '../../lib/supabase'
-import { ORDER_STATUS, formatDate } from '../../lib/constants'
+import { ORDER_STATUS, SPARE_URGENCY, formatDate, timeAgo } from '../../lib/constants'
 import { Button, Input, Modal, Badge, Spinner, EmptyState } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
@@ -17,7 +17,8 @@ import { findNavItem } from '../../lib/adminNav'
 import {
   Package, Plus, Edit, Trash2, Search, AlertTriangle,
   ShoppingCart, Check, Truck, MapPin, Hash, X,
-  ArrowRight, Clock, Factory, ChevronRight, Archive
+  ArrowRight, Clock, Factory, ChevronRight, Archive,
+  Phone, MessageCircle, Mail, Inbox, Image as ImageIcon, User
 } from 'lucide-react'
 
 const NAV_ITEM = findNavItem('spare-parts')
@@ -29,6 +30,9 @@ const TABS = [
 
 const emptyPartForm = { name: '', code: '', manufacturer: '', unit_cost: '', stock_qty: 0, min_stock: 0, location: '', notes: '' }
 const emptyOrderForm = { spare_part_name: '', spare_part_id: '', report_id: '', machine_id: '', component_id: '', quantity: 1, unit_cost: '', supplier: '', expected_at: '', notes: '' }
+
+const URGENCY_RANK = { urgente: 0, alta: 1, media: 2, bassa: 3 }
+const STATUS_RANK = { richiesto: 0, ordinato: 1, spedito: 2, ricevuto: 3, installato: 4 }
 
 export default function AdminSpareParts() {
   const { user } = useAuth()
@@ -43,6 +47,8 @@ export default function AdminSpareParts() {
   const [orders, setOrders] = useState([])
   const [reports, setReports] = useState([])
   const [machines, setMachines] = useState([])
+  const [users, setUsers] = useState([])
+  const [supplierProfiles, setSupplierProfiles] = useState([])
 
   // Part form
   const [showPartForm, setShowPartForm] = useState(false)
@@ -53,16 +59,22 @@ export default function AdminSpareParts() {
   const [showOrderForm, setShowOrderForm] = useState(false)
   const [orderForm, setOrderForm] = useState(emptyOrderForm)
 
+  // Process request modal
+  const [processingOrder, setProcessingOrder] = useState(null)
+  const [photoLightbox, setPhotoLightbox] = useState(null) // { url, all, idx }
+
   const load = async () => {
     setLoading(true)
     try {
-      const [p, o, r, m] = await Promise.all([
+      const [p, o, r, m, u, sp] = await Promise.all([
         db.getSpareParts(),
         db.getSparePartOrders(),
         db.getReports(),
         db.getMachines(),
+        db.getUsers().catch(() => []),
+        db.getSupplierProfiles().catch(() => []),
       ])
-      setParts(p); setOrders(o); setReports(r); setMachines(m)
+      setParts(p); setOrders(o); setReports(r); setMachines(m); setUsers(u); setSupplierProfiles(sp)
     } catch (e) { console.error(e) }
     setLoading(false)
   }
@@ -70,7 +82,8 @@ export default function AdminSpareParts() {
 
   // ── Stats ──
   const lowStockParts = useMemo(() => parts.filter(p => p.stock_qty <= p.min_stock && p.min_stock > 0), [parts])
-  const activeOrders = useMemo(() => orders.filter(o => o.status === 'ordinato' || o.status === 'spedito'), [orders])
+  const requestedOrders = useMemo(() => orders.filter(o => o.status === 'richiesto'), [orders])
+  const activeOrders = useMemo(() => orders.filter(o => ['richiesto', 'ordinato', 'spedito'].includes(o.status)), [orders])
   const overdueOrders = useMemo(() => activeOrders.filter(o => o.expected_at && new Date(o.expected_at) < new Date()), [activeOrders])
 
   // ── Search ──
@@ -81,11 +94,24 @@ export default function AdminSpareParts() {
       p.location?.toLowerCase().includes(search.toLowerCase())
     ), [parts, search])
 
+  // Sort: richiesto in cima (più urgenti prima), poi per data desc
   const filteredOrders = useMemo(() =>
-    orders.filter(o => !search ||
-      o.spare_part_name?.toLowerCase().includes(search.toLowerCase()) ||
-      o.supplier?.toLowerCase().includes(search.toLowerCase())
-    ), [orders, search])
+    orders
+      .filter(o => !search ||
+        o.spare_part_name?.toLowerCase().includes(search.toLowerCase()) ||
+        o.supplier?.toLowerCase().includes(search.toLowerCase()) ||
+        o.notes?.toLowerCase().includes(search.toLowerCase())
+      )
+      .sort((a, b) => {
+        const sd = (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99)
+        if (sd !== 0) return sd
+        if (a.status === 'richiesto') {
+          const ud = (URGENCY_RANK[a.urgency] ?? 9) - (URGENCY_RANK[b.urgency] ?? 9)
+          if (ud !== 0) return ud
+        }
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0)
+      })
+    , [orders, search])
 
   // ── Part CRUD ──
   const openPartForm = (part = null) => {
@@ -181,8 +207,21 @@ export default function AdminSpareParts() {
 
   // ── Helpers ──
   const getReportTitle = (id) => reports.find(r => r.id === id)?.title || '—'
+  const getReport = (id) => reports.find(r => r.id === id)
   const getMachineName = (id) => machines.find(m => m.id === id)?.name || '—'
+  const getUserName = (id) => users.find(u => u.id === id)?.name || '—'
+  const getSupplierProfile = (id) => supplierProfiles.find(s => s.user_id === id) || null
   const isOverdue = (o) => o.expected_at && new Date(o.expected_at) < new Date() && (o.status === 'ordinato' || o.status === 'spedito')
+
+  // ── Conferma richiesta tecnico → ordinato ──
+  const confirmRequest = async (orderId, payload) => {
+    try {
+      await db.confirmSparePartOrder(orderId, payload)
+      toast.success('Ordine confermato')
+      setProcessingOrder(null)
+      load()
+    } catch (e) { toast.error('Errore: ' + (e?.message || 'riprova')) }
+  }
 
   // ── waitingReports: reports in_attesa_ricambi ──
   const waitingReports = useMemo(() => reports.filter(r => r.status === 'in_attesa_ricambi'), [reports])
@@ -213,6 +252,26 @@ export default function AdminSpareParts() {
           <p className="text-[10px] text-faint uppercase tracking-wider mt-0.5">In Ritardo</p>
         </div>
       </div>
+
+      {/* ── Richieste tecnici da elaborare ── */}
+      {requestedOrders.length > 0 && (
+        <button
+          onClick={() => setTab('ordini')}
+          className="w-full press-scale text-left bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 flex items-center gap-3 hover:bg-orange-500/15 transition-all"
+        >
+          <Inbox size={20} className="text-orange-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-orange-400">
+              {requestedOrders.length} {requestedOrders.length === 1 ? 'richiesta da elaborare' : 'richieste da elaborare'}
+            </p>
+            <p className="text-xs text-faint mt-0.5 truncate">
+              Dai tecnici: {requestedOrders.slice(0, 3).map(o => o.spare_part_name).join(', ')}
+              {requestedOrders.length > 3 && ` e altre ${requestedOrders.length - 3}`}
+            </p>
+          </div>
+          <ChevronRight size={18} className="text-orange-400 shrink-0" />
+        </button>
+      )}
 
       {/* ── Waiting Reports Alert ── */}
       {waitingReports.length > 0 && (
@@ -305,64 +364,23 @@ export default function AdminSpareParts() {
               <EmptyState icon="🛒" title="Nessun ordine" subtitle="Registra un ordine ricambio" />
             ) : (
               <div className="space-y-3">
-                {filteredOrders.map(order => {
-                  const st = ORDER_STATUS[order.status] || ORDER_STATUS.ordinato
-                  const overdue = isOverdue(order)
-                  return (
-                    <div key={order.id} className={`card-elevated rounded-xl p-4 transition-all ${overdue ? 'ring-1 ring-red-500/30' : ''}`}>
-                      <div className="flex items-start gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${overdue ? 'bg-red-500/15' : 'bg-surface-2'}`}>
-                          {order.status === 'ordinato' && <Clock size={18} className={overdue ? 'text-red-400' : 'text-amber-400'} />}
-                          {order.status === 'spedito' && <Truck size={18} className="text-violet-400" />}
-                          {order.status === 'ricevuto' && <Check size={18} className="text-emerald-400" />}
-                          {order.status === 'installato' && <Check size={18} className="text-green-400" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-bold text-themed">{order.spare_part_name}</p>
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ background: st.bg, color: st.color }}>{st.label}</span>
-                            {overdue && <span className="text-[10px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">In ritardo</span>}
-                            <span className="text-xs text-faint">x{order.quantity}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1.5 text-xs text-faint flex-wrap">
-                            {order.supplier && <span>Fornitore: {order.supplier}</span>}
-                            {order.machine_id && <span>Macchina: {getMachineName(order.machine_id)}</span>}
-                            {order.report_id && <span className="text-amber-400">Report: {getReportTitle(order.report_id)}</span>}
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 text-[11px] text-faint">
-                            <span>Ordinato: {formatDate(order.ordered_at)}</span>
-                            {order.expected_at && <span>Previsto: {formatDate(order.expected_at)}</span>}
-                            {order.received_at && <span className="text-emerald-400">Ricevuto: {formatDate(order.received_at)}</span>}
-                          </div>
-                          {order.notes && <p className="text-[11px] text-faint mt-1 italic">{order.notes}</p>}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {order.status === 'ordinato' && (
-                            <>
-                              <button onClick={() => markShipped(order)} className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600/15 hover:bg-violet-600/25 text-violet-400 rounded-lg text-xs font-medium transition-all" title="Segna come spedito">
-                                <Truck size={13} /> Spedito
-                              </button>
-                              <button onClick={() => markReceived(order)} className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 rounded-lg text-xs font-medium transition-all" title="Segna come ricevuto">
-                                <Check size={13} /> Ricevuto
-                              </button>
-                            </>
-                          )}
-                          {order.status === 'spedito' && (
-                            <button onClick={() => markReceived(order)} className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 rounded-lg text-xs font-medium transition-all">
-                              <Check size={13} /> Ricevuto
-                            </button>
-                          )}
-                          {order.status === 'ricevuto' && (
-                            <button onClick={() => markInstalled(order)} className="flex items-center gap-1 px-2.5 py-1.5 bg-green-600/15 hover:bg-green-600/25 text-green-400 rounded-lg text-xs font-medium transition-all">
-                              <Check size={13} /> Installato
-                            </button>
-                          )}
-                          <button onClick={() => deleteOrder(order.id)} className="p-2 rounded-lg hover:bg-red-500/20 text-faint hover:text-red-400"><Trash2 size={14} /></button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+                {filteredOrders.map(order => (
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    isRequested={order.status === 'richiesto'}
+                    overdue={isOverdue(order)}
+                    getReportTitle={getReportTitle}
+                    getMachineName={getMachineName}
+                    getUserName={getUserName}
+                    onPhotoClick={(idx, all) => setPhotoLightbox({ idx, all })}
+                    onProcess={() => setProcessingOrder(order)}
+                    onShipped={() => markShipped(order)}
+                    onReceived={() => markReceived(order)}
+                    onInstalled={() => markInstalled(order)}
+                    onDelete={() => deleteOrder(order.id)}
+                  />
+                ))}
               </div>
             )
           )}
@@ -469,6 +487,390 @@ export default function AdminSpareParts() {
           </Button>
         </div>
       </Modal>
+
+      {/* ═══ PROCESS REQUEST MODAL ═══ */}
+      <ProcessRequestModal
+        order={processingOrder}
+        onClose={() => setProcessingOrder(null)}
+        onConfirm={confirmRequest}
+        onPhotoClick={(idx, all) => setPhotoLightbox({ idx, all })}
+        report={processingOrder ? getReport(processingOrder.report_id) : null}
+        requesterName={processingOrder ? getUserName(processingOrder.requested_by) : ''}
+        machineName={processingOrder ? getMachineName(processingOrder.machine_id) : ''}
+        supplierProfiles={supplierProfiles}
+        getSupplierProfile={getSupplierProfile}
+      />
+
+      {/* ═══ PHOTO LIGHTBOX ═══ */}
+      {photoLightbox && (
+        <PhotoLightbox
+          key={`${photoLightbox.idx}-${photoLightbox.all?.length || 0}`}
+          initialIdx={photoLightbox.idx || 0}
+          all={photoLightbox.all || []}
+          onClose={() => setPhotoLightbox(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// OrderCard — variante richiesto vs ordini esistenti
+// ─────────────────────────────────────────────────────────────
+function OrderCard({
+  order, isRequested, overdue,
+  getReportTitle, getMachineName, getUserName,
+  onPhotoClick, onProcess, onShipped, onReceived, onInstalled, onDelete,
+}) {
+  const st = ORDER_STATUS[order.status] || ORDER_STATUS.ordinato
+  const urg = order.urgency ? SPARE_URGENCY[order.urgency] : null
+  const images = Array.isArray(order.images) ? order.images : []
+  const hasPhotos = images.length > 0
+
+  return (
+    <div className={`card-elevated rounded-xl p-4 transition-all ${overdue ? 'ring-1 ring-red-500/30' : ''} ${isRequested ? 'ring-1 ring-orange-500/30' : ''}`}>
+      <div className="flex items-start gap-3">
+        {/* Icon o thumbnail principale */}
+        {hasPhotos ? (
+          <button
+            onClick={() => onPhotoClick(0, images)}
+            className="press-scale shrink-0 w-14 h-14 rounded-xl overflow-hidden border border-token relative"
+            aria-label="Apri foto targhetta"
+          >
+            <img src={images[0].url} alt="" className="w-full h-full object-cover" />
+            {images.length > 1 && (
+              <span className="absolute bottom-0 right-0 text-[9px] font-bold px-1 py-0.5 bg-black/70 text-white rounded-tl">
+                +{images.length - 1}
+              </span>
+            )}
+          </button>
+        ) : (
+          <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${overdue ? 'bg-red-500/15' : isRequested ? 'bg-orange-500/15' : 'bg-surface-2'}`}>
+            {isRequested && <Inbox size={20} className="text-orange-400" />}
+            {order.status === 'ordinato' && <Clock size={20} className={overdue ? 'text-red-400' : 'text-cyan-400'} />}
+            {order.status === 'spedito' && <Truck size={20} className="text-violet-400" />}
+            {order.status === 'ricevuto' && <Check size={20} className="text-emerald-400" />}
+            {order.status === 'installato' && <Check size={20} className="text-green-400" />}
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-bold text-themed">{order.spare_part_name}</p>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+            {isRequested && urg && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide" style={{ background: urg.bg, color: urg.color }}>
+                {urg.label}
+              </span>
+            )}
+            {overdue && <span className="text-[10px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">In ritardo</span>}
+            <span className="text-xs text-faint">x{order.quantity}</span>
+          </div>
+
+          <div className="flex items-center gap-3 mt-1.5 text-xs text-faint flex-wrap">
+            {isRequested && order.requested_by && (
+              <span className="flex items-center gap-1"><User size={11} />{getUserName(order.requested_by)}</span>
+            )}
+            {!isRequested && order.supplier && <span>Fornitore: {order.supplier}</span>}
+            {order.machine_id && <span>Macchina: {getMachineName(order.machine_id)}</span>}
+            {order.report_id && <span className="text-amber-400">Report: {getReportTitle(order.report_id)}</span>}
+          </div>
+
+          <div className="flex items-center gap-3 mt-1 text-[11px] text-faint">
+            {isRequested
+              ? <span>Richiesto: {timeAgo(order.created_at || order.ordered_at)}</span>
+              : <span>Ordinato: {formatDate(order.ordered_at)}</span>}
+            {order.expected_at && !isRequested && <span>Previsto: {formatDate(order.expected_at)}</span>}
+            {order.received_at && <span className="text-emerald-400">Ricevuto: {formatDate(order.received_at)}</span>}
+          </div>
+
+          {order.notes && <p className="text-[11px] text-secondary mt-1.5 leading-relaxed line-clamp-2">{order.notes}</p>}
+
+          {/* Strip foto extra (oltre la 1ª) */}
+          {hasPhotos && images.length > 1 && (
+            <div className="flex gap-1.5 mt-2">
+              {images.slice(1, 5).map((img, i) => (
+                <button
+                  key={i}
+                  onClick={() => onPhotoClick(i + 1, images)}
+                  className="press-scale w-10 h-10 rounded-lg overflow-hidden border border-token"
+                  aria-label={`Apri foto ${i + 2}`}
+                >
+                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+              {images.length > 5 && (
+                <button
+                  onClick={() => onPhotoClick(5, images)}
+                  className="press-scale w-10 h-10 rounded-lg bg-surface-2 border border-token text-[10px] font-bold text-faint flex items-center justify-center"
+                >
+                  +{images.length - 5}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          {isRequested && (
+            <button onClick={onProcess} className="flex items-center gap-1 px-3 py-2 bg-orange-600/20 hover:bg-orange-600/30 text-orange-300 rounded-lg text-xs font-bold transition-all">
+              <ArrowRight size={13} /> Elabora
+            </button>
+          )}
+          {order.status === 'ordinato' && (
+            <>
+              <button onClick={onShipped} className="flex items-center gap-1 px-2.5 py-1.5 bg-violet-600/15 hover:bg-violet-600/25 text-violet-400 rounded-lg text-xs font-medium transition-all" title="Segna come spedito">
+                <Truck size={13} /> Spedito
+              </button>
+              <button onClick={onReceived} className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 rounded-lg text-xs font-medium transition-all" title="Segna come ricevuto">
+                <Check size={13} /> Ricevuto
+              </button>
+            </>
+          )}
+          {order.status === 'spedito' && (
+            <button onClick={onReceived} className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 rounded-lg text-xs font-medium transition-all">
+              <Check size={13} /> Ricevuto
+            </button>
+          )}
+          {order.status === 'ricevuto' && (
+            <button onClick={onInstalled} className="flex items-center gap-1 px-2.5 py-1.5 bg-green-600/15 hover:bg-green-600/25 text-green-400 rounded-lg text-xs font-medium transition-all">
+              <Check size={13} /> Installato
+            </button>
+          )}
+          <button onClick={onDelete} className="p-2 rounded-lg hover:bg-red-500/20 text-faint hover:text-red-400" aria-label="Elimina"><Trash2 size={14} /></button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// ProcessRequestModal — admin elabora una richiesta del tecnico
+// ─────────────────────────────────────────────────────────────
+function ProcessRequestModal({
+  order, onClose, onConfirm, onPhotoClick,
+  report, requesterName, machineName,
+  supplierProfiles, getSupplierProfile,
+}) {
+  if (!order) return null
+  return (
+    <ProcessRequestModalBody
+      key={order.id}
+      order={order}
+      onClose={onClose}
+      onConfirm={onConfirm}
+      onPhotoClick={onPhotoClick}
+      report={report}
+      requesterName={requesterName}
+      machineName={machineName}
+      supplierProfiles={supplierProfiles}
+      getSupplierProfile={getSupplierProfile}
+    />
+  )
+}
+
+function ProcessRequestModalBody({
+  order, onClose, onConfirm, onPhotoClick,
+  report, requesterName, machineName,
+  supplierProfiles, getSupplierProfile,
+}) {
+  const [supplierId, setSupplierId] = useState(order.supplier_id || '')
+  const [supplierText, setSupplierText] = useState(order.supplier || '')
+  const [expectedAt, setExpectedAt] = useState(order.expected_at ? order.expected_at.slice(0, 10) : '')
+  const [unitCost, setUnitCost] = useState(order.unit_cost || '')
+  const [submitting, setSubmitting] = useState(false)
+
+  const images = Array.isArray(order.images) ? order.images : []
+  const urg = order.urgency ? SPARE_URGENCY[order.urgency] : null
+  const selectedSupplier = supplierId ? getSupplierProfile(supplierId) : null
+
+  const handleConfirm = async () => {
+    setSubmitting(true)
+    await onConfirm(order.id, {
+      supplier_id: supplierId || null,
+      supplier: selectedSupplier?.company_name || supplierText.trim() || null,
+      expected_at: expectedAt ? new Date(expectedAt).toISOString() : null,
+      unit_cost: unitCost ? parseFloat(unitCost) : 0,
+    })
+    setSubmitting(false)
+  }
+
+  return (
+    <Modal open={true} onClose={onClose} title="Elabora richiesta ricambio" size="lg">
+      <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+        {/* Foto strip */}
+        {images.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {images.map((img, i) => (
+              <button
+                key={i}
+                onClick={() => onPhotoClick(i, images)}
+                className="press-scale shrink-0 w-24 h-24 rounded-xl overflow-hidden border border-token relative"
+              >
+                <img src={img.url} alt="" className="w-full h-full object-cover" />
+                {i === 0 && (
+                  <span className="absolute bottom-1 left-1 right-1 text-[8px] font-bold tracking-wide text-amber-400 bg-black/75 rounded text-center py-0.5">
+                    TARGHETTA
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Sommario richiesta */}
+        <div className="bg-surface-2 rounded-xl p-3 space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-base font-bold text-themed">{order.spare_part_name}</p>
+            {urg && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase" style={{ background: urg.bg, color: urg.color }}>
+                {urg.label}
+              </span>
+            )}
+            <span className="text-xs text-faint">x{order.quantity}</span>
+          </div>
+          <p className="text-xs text-faint">
+            Richiesto da <span className="text-secondary font-medium">{requesterName}</span>
+            {' · '}{timeAgo(order.created_at || order.ordered_at)}
+          </p>
+          {report && (
+            <p className="text-xs text-amber-400">
+              Ticket: {report.title}{machineName !== '—' && ` · ${machineName}`}
+            </p>
+          )}
+          {order.notes && (
+            <div className="mt-2 pt-2 border-t border-token">
+              <p className="text-[10px] uppercase tracking-wider text-faint mb-1">Note del tecnico</p>
+              <p className="text-sm text-themed leading-relaxed whitespace-pre-wrap">{order.notes}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Fornitore */}
+        <div>
+          <label className="block text-xs font-medium text-secondary mb-1.5">Fornitore</label>
+          {supplierProfiles.length > 0 ? (
+            <select
+              className="w-full bg-surface-2 border border-token rounded-xl px-3 py-2.5 text-sm text-themed focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 outline-none mb-2"
+              value={supplierId}
+              onChange={e => setSupplierId(e.target.value)}
+            >
+              <option value="">— Seleziona dall'anagrafica —</option>
+              {supplierProfiles.map(s => (
+                <option key={s.user_id} value={s.user_id}>
+                  {s.company_name}{s.specialties?.length ? ` · ${s.specialties.slice(0, 2).join(', ')}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <Input
+            label=""
+            placeholder={supplierProfiles.length > 0 ? 'Oppure inserisci nome libero' : 'Nome fornitore'}
+            value={supplierText}
+            onChange={e => setSupplierText(e.target.value)}
+          />
+
+          {/* Bottoni contatto */}
+          {selectedSupplier && (
+            <div className="flex gap-2 mt-2">
+              {selectedSupplier.phone && (
+                <a href={`tel:${selectedSupplier.phone.replace(/\s+/g, '')}`}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-cyan-600/15 hover:bg-cyan-600/25 text-cyan-400 rounded-lg text-xs font-medium transition-all">
+                  <Phone size={13} /> Chiama
+                </a>
+              )}
+              {selectedSupplier.whatsapp && (
+                <a href={`https://wa.me/${selectedSupplier.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 rounded-lg text-xs font-medium transition-all">
+                  <MessageCircle size={13} /> WhatsApp
+                </a>
+              )}
+              {selectedSupplier.email_public && (
+                <a href={`mailto:${selectedSupplier.email_public}?subject=${encodeURIComponent('Richiesta: ' + order.spare_part_name)}`}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-violet-600/15 hover:bg-violet-600/25 text-violet-400 rounded-lg text-xs font-medium transition-all">
+                  <Mail size={13} /> Email
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Data arrivo prevista" type="date" value={expectedAt} onChange={e => setExpectedAt(e.target.value)} />
+          <Input label="Costo unitario (€)" type="number" step="0.01" value={unitCost} onChange={e => setUnitCost(e.target.value)} placeholder="0.00" />
+        </div>
+
+        <Button onClick={handleConfirm} disabled={submitting} className="w-full">
+          {submitting ? 'Conferma…' : 'Conferma ordine al fornitore'}
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// PhotoLightbox — visualizzatore foto fullscreen
+// ─────────────────────────────────────────────────────────────
+function PhotoLightbox({ initialIdx, all, onClose }) {
+  const [idx, setIdx] = useState(initialIdx)
+  const current = all[idx]
+  if (!current) return null
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 70,
+        background: 'rgba(0,0,0,0.92)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <button
+        onClick={(e) => { e.stopPropagation(); onClose() }}
+        aria-label="Chiudi"
+        style={{
+          position: 'absolute', top: 16, right: 16,
+          width: 40, height: 40, borderRadius: 20,
+          background: 'rgba(255,255,255,0.1)', border: 'none',
+          color: '#fff', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <X size={20} />
+      </button>
+      <img
+        src={current.url}
+        alt=""
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }}
+      />
+      {all.length > 1 && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', gap: 8, alignItems: 'center',
+            background: 'rgba(0,0,0,0.6)', padding: '8px 14px', borderRadius: 999,
+          }}
+        >
+          <button
+            onClick={() => setIdx(i => (i - 1 + all.length) % all.length)}
+            style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}
+            aria-label="Precedente"
+          >‹</button>
+          <span style={{ color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
+            {idx + 1} / {all.length}
+          </span>
+          <button
+            onClick={() => setIdx(i => (i + 1) % all.length)}
+            style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}
+            aria-label="Successiva"
+          >›</button>
+        </div>
+      )}
     </div>
   )
 }
