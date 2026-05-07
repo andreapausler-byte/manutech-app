@@ -20,7 +20,7 @@ import {
 import VoiceUpdateFlow from '../voice/VoiceUpdateFlow'
 import VoiceCloseFlow from '../voice/VoiceCloseFlow'
 import VoiceNoteFlow from '../voice/VoiceNoteFlow'
-import VoiceSpareRequestFlow from '../voice/VoiceSpareRequestFlow'
+import SpareRequestModal from '../spare/SpareRequestModal'
 
 // ─────────────────────────────────────────────────────────────
 // Design tokens — Compact variant (handoff Dettaglio Segnalazione)
@@ -1072,7 +1072,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         />
       )}
       {voiceFlow === 'spare' && (
-        <VoiceSpareRequestFlow
+        <SpareRequestModal
           report={report}
           user={user}
           onClose={() => setVoiceFlow(null)}
