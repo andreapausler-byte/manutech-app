@@ -27,7 +27,7 @@ export const NAV = [
   { id: 'assistant',     icon: Sparkles,        label: 'Assistente AI', desc: 'Cerca soluzioni nello storico' },
   { id: 'machines',      icon: Cog,             label: 'Macchinari',   desc: 'Anagrafica impianti' },
   { id: 'maintenance',   icon: Shield,          label: 'Manutenzione', desc: 'Piani e interventi programmati' },
-  { id: 'spare-parts',   icon: Package,         label: 'Ricambi',      desc: 'Magazzino e ordini ricambi' },
+  { id: 'spare-parts',   icon: Package,         label: 'Richieste esterne', desc: 'Ricambi, interventi e magazzino' },
   { id: 'technicians',   icon: Wrench,          label: 'Tecnici',      desc: 'Carico e performance' },
   { id: 'leaderboard',   icon: Trophy,          label: 'Classifica',   desc: 'Punteggi e premi operatori' },
   { id: 'rewards',       icon: Gift,            label: 'Premi',        desc: 'Catalogo premi e ManuCoin' },

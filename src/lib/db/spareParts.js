@@ -96,10 +96,94 @@ export const spareParts = {
     return items[idx]
   },
 
+  // ─── TIMELINE per richiesta esterna (mix activities + comments) ───
+  // Restituisce una lista di eventi cronologici (asc) per il dettaglio richiesta.
+  // Ogni elemento: { id, kind: 'activity'|'comment', at, by, by_name, ...payload }
+  async getSparePartOrderTimeline(orderId) {
+    if (supabase) {
+      const [{ data: acts, error: ae }, { data: cmts, error: ce }] = await Promise.all([
+        supabase.from('activities').select('*').eq('spare_order_id', orderId).order('created_at', { ascending: true }),
+        supabase.from('comments').select('*').eq('spare_order_id', orderId).order('created_at', { ascending: true }),
+      ])
+      if (ae) throw ae
+      if (ce) throw ce
+      return mergeTimeline(acts || [], cmts || [])
+    }
+    const acts = getStore('manutech_activities').filter(a => a.spare_order_id === orderId)
+    const cmts = getStore('manutech_comments').filter(c => c.spare_order_id === orderId)
+    return mergeTimeline(acts, cmts)
+  },
+
+  // Aggiunge un commento alla chat della richiesta (kind='request_chat').
+  // Il commento è anche associato al report_id parent per consistenza.
+  async addSparePartOrderComment(orderId, comment) {
+    const orders = await this.getSparePartOrders({})
+    const order = orders.find(o => o.id === orderId)
+    if (!order) throw new Error('Richiesta non trovata')
+
+    if (supabase) {
+      const insertData = {
+        ...comment,
+        kind: 'request_chat',
+        report_id: order.report_id,
+        spare_order_id: orderId,
+        org_id: await getMyOrgId(),
+      }
+      const { data, error } = await supabase.from('comments').insert(insertData).select().single()
+      if (error) throw error
+      return data
+    }
+    const list = getStore('manutech_comments')
+    const newComment = {
+      ...comment,
+      id: `cmt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      kind: 'request_chat',
+      report_id: order.report_id,
+      spare_order_id: orderId,
+      created_at: new Date().toISOString(),
+    }
+    list.push(newComment)
+    setStore('manutech_comments', list)
+    return newComment
+  },
+
+  // Helper interno: emit activity legato sia al report che alla richiesta.
+  // Best-effort, non blocca l'operazione principale se fallisce.
+  async _emitOrderActivity(order, activity) {
+    if (!order) return
+    try {
+      if (supabase) {
+        const insertData = {
+          ...activity,
+          report_id: order.report_id,
+          spare_order_id: order.id,
+          org_id: await getMyOrgId(),
+        }
+        await supabase.from('activities').insert(insertData)
+        return
+      }
+      const list = getStore('manutech_activities')
+      list.unshift({
+        ...activity,
+        id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        report_id: order.report_id,
+        spare_order_id: order.id,
+        created_at: new Date().toISOString(),
+      })
+      setStore('manutech_activities', list)
+    } catch (e) {
+      console.warn('[spare] _emitOrderActivity failed:', e?.message)
+    }
+  },
+
   async receiveSparePartOrder(orderId) {
     if (supabase) {
       const { data, error } = await supabase.rpc('receive_spare_part_order', { _order_id: orderId })
       if (error) throw error
+      await this._emitOrderActivity(data, {
+        type: 'order_received',
+        detail: data?.kind === 'intervento' ? 'Intervento completato' : 'Ricambio ricevuto',
+      })
       return data
     }
     // ── Demo fallback: replica logica RPC migration 046 ──
@@ -169,6 +253,10 @@ export const spareParts = {
         setStore('manutech_notifications', notifs)
       }
     }
+    await this._emitOrderActivity(order, {
+      type: 'order_received',
+      detail: order.kind === 'intervento' ? 'Intervento completato' : 'Ricambio ricevuto',
+    })
     return order
   },
 
@@ -178,7 +266,12 @@ export const spareParts = {
     if (supplier !== undefined) updates.supplier = supplier
     if (expected_at !== undefined) updates.expected_at = expected_at
     if (unit_cost !== undefined) updates.unit_cost = unit_cost
-    return this.updateSparePartOrder(id, updates)
+    const updated = await this.updateSparePartOrder(id, updates)
+    await this._emitOrderActivity(updated, {
+      type: 'order_confirmed',
+      detail: supplier ? `Ordine confermato a ${supplier}` : 'Ordine confermato',
+    })
+    return updated
   },
 
   // ─── QUOTES (preventivi multi-fornitore) ───
@@ -204,7 +297,13 @@ export const spareParts = {
       decided_by: null,
     }))
     const newQuotes = [...existing, ...additions]
-    return this.updateSparePartOrder(orderId, { status: 'preventivo', quotes: newQuotes })
+    const updated = await this.updateSparePartOrder(orderId, { status: 'preventivo', quotes: newQuotes })
+    const names = additions.map(a => a.supplier_name).join(', ')
+    await this._emitOrderActivity(updated, {
+      type: 'quotes_requested',
+      detail: `Preventivo richiesto a: ${names}`,
+    })
+    return updated
   },
 
   // Aggiorna una singola quote: usato quando arriva la risposta del fornitore
@@ -227,6 +326,11 @@ export const spareParts = {
         _unit_cost: unit_cost,
       })
       if (error) throw error
+      const supplierName = data?.supplier || '—'
+      await this._emitOrderActivity(data, {
+        type: 'quote_accepted',
+        detail: `Preventivo accettato: ${supplierName}`,
+      })
       return data
     }
     // Demo fallback
@@ -282,6 +386,10 @@ export const spareParts = {
       })
       setStore('manutech_notifications', notifs)
     }
+    await this._emitOrderActivity(orders[idx], {
+      type: 'quote_accepted',
+      detail: `Preventivo accettato: ${target.supplier_name || '—'}`,
+    })
     return orders[idx]
   },
 
@@ -347,4 +455,34 @@ export const spareParts = {
     const items = getStore('manutech_spare_compat').filter(c => c.id !== id)
     setStore('manutech_spare_compat', items)
   },
+}
+
+// Merge interno: combina activities + comments in un'unica timeline cronologica
+function mergeTimeline(activities, comments) {
+  const events = [
+    ...activities.map(a => ({
+      id: `a-${a.id}`,
+      kind: 'activity',
+      at: a.created_at,
+      user_id: a.user_id,
+      user_name: a.user_name,
+      type: a.type,
+      from_status: a.from_status,
+      to_status: a.to_status,
+      detail: a.detail,
+    })),
+    ...comments.map(c => ({
+      id: `c-${c.id}`,
+      kind: 'comment',
+      at: c.created_at,
+      user_id: c.user_id,
+      user_name: c.user_name,
+      user_role: c.user_role,
+      text: c.text,
+      media: c.media,
+      extra_data: c.extra_data,
+    })),
+  ]
+  events.sort((a, b) => new Date(a.at) - new Date(b.at))
+  return events
 }
