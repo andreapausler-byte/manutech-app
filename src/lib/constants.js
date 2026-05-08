@@ -28,11 +28,31 @@ export const SEVERITY = {
 }
 
 export const ORDER_STATUS = {
-  richiesto: { label: 'Da elaborare', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-  ordinato: { label: 'Ordinato', color: '#06b6d4', bg: 'rgba(6,182,212,0.10)' },
-  spedito: { label: 'Spedito', color: '#7c6aff', bg: 'rgba(124,106,255,0.10)' },
-  ricevuto: { label: 'Ricevuto', color: '#3ddc84', bg: 'rgba(61,220,132,0.10)' },
-  installato: { label: 'Installato', color: '#22c55e', bg: 'rgba(34,197,94,0.10)' },
+  richiesto:  { label: 'Da elaborare',       color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  preventivo: { label: 'Preventivo',         color: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
+  ordinato:   { label: 'Ordinato',           color: '#06b6d4', bg: 'rgba(6,182,212,0.10)' },
+  spedito:    { label: 'Spedito',            color: '#7c6aff', bg: 'rgba(124,106,255,0.10)' },
+  ricevuto:   { label: 'Ricevuto',           color: '#3ddc84', bg: 'rgba(61,220,132,0.10)' },
+  installato: { label: 'Installato',         color: '#22c55e', bg: 'rgba(34,197,94,0.10)' },
+}
+
+// I 4 stadi principali visualizzati nella progress bar (lato tecnico).
+// Mappa lo status interno sull'indice (0-3) dello stage attivo.
+export const ORDER_STAGES = [
+  { key: 'richiesto',  label: 'Nuova richiesta' },
+  { key: 'preventivo', label: 'Preventivo richiesto' },
+  { key: 'ordinato',   label: 'Preventivo accettato' },
+  { key: 'ricevuto',   label: 'Ricambio ricevuto' },
+]
+
+// Restituisce 0..3 a seconda dello stato dell'ordine.
+// 'spedito' rientra nello stage 2 (ordinato), 'installato' nello stage 3.
+export function orderStageIndex(status) {
+  if (status === 'richiesto') return 0
+  if (status === 'preventivo') return 1
+  if (status === 'ordinato' || status === 'spedito') return 2
+  if (status === 'ricevuto' || status === 'installato') return 3
+  return 0
 }
 
 export const SPARE_URGENCY = {

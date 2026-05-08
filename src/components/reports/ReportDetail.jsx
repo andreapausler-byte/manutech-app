@@ -21,6 +21,7 @@ import VoiceUpdateFlow from '../voice/VoiceUpdateFlow'
 import VoiceCloseFlow from '../voice/VoiceCloseFlow'
 import VoiceNoteFlow from '../voice/VoiceNoteFlow'
 import SpareRequestModal from '../spare/SpareRequestModal'
+import TicketSparePanel from '../spare/TicketSparePanel'
 
 // ─────────────────────────────────────────────────────────────
 // Design tokens — Compact variant (handoff Dettaglio Segnalazione)
@@ -396,6 +397,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [sendingQuick, setSendingQuick] = useState(false)
   const [chatCount, setChatCount] = useState(0)
   const [historyCount, setHistoryCount] = useState(0)
+  const [spareRefresh, setSpareRefresh] = useState(0)
   const [voiceFlow, setVoiceFlow] = useState(null) // null|'update'|'close'|'note'|'spare'
   const [addingMedia, setAddingMedia] = useState(false)
 
@@ -968,6 +970,9 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             </div>
           )}
 
+          {/* Ricambi associati al ticket */}
+          <TicketSparePanel reportId={report.id} refreshKey={spareRefresh} />
+
           {/* AI card "Soluzioni dal passato" */}
           {user.role === 'tecnico' && report.status !== 'chiuso' && (
             <div style={{ marginBottom: 12 }}>
@@ -1080,6 +1085,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             if (updated) setReport(r => ({ ...r, ...updated }))
             setChatCount(c => c + 1)
             setHistoryCount(h => h + 1)
+            setSpareRefresh(s => s + 1)
             setVoiceFlow(null)
           }}
         />

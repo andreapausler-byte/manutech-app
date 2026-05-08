@@ -181,6 +181,110 @@ export const spareParts = {
     return this.updateSparePartOrder(id, updates)
   },
 
+  // ─── QUOTES (preventivi multi-fornitore) ───
+  // Aggiunge una o più richieste di preventivo a un ordine e lo porta
+  // in stato 'preventivo'. Ogni quote: { supplier_id?, supplier_name, note? }
+  async requestSparePartQuotes(orderId, quotesToAdd) {
+    const order = await this.getSparePartOrders({}).then(items => items.find(o => o.id === orderId))
+    if (!order) throw new Error('Ordine non trovato')
+
+    const existing = Array.isArray(order.quotes) ? order.quotes : []
+    const now = new Date().toISOString()
+    const additions = (quotesToAdd || []).map((q, i) => ({
+      id: `q-${Date.now()}-${i}`,
+      supplier_id: q.supplier_id || null,
+      supplier_name: q.supplier_name || '—',
+      note: q.note || null,
+      asked_at: now,
+      status: 'pending',
+      quoted_price: null,
+      quoted_lead_time_days: null,
+      received_at: null,
+      decided_at: null,
+      decided_by: null,
+    }))
+    const newQuotes = [...existing, ...additions]
+    return this.updateSparePartOrder(orderId, { status: 'preventivo', quotes: newQuotes })
+  },
+
+  // Aggiorna una singola quote: usato quando arriva la risposta del fornitore
+  // (status='received' con quoted_price/lead_time) o per modificare la nota.
+  async updateSparePartQuote(orderId, quoteId, patch) {
+    const order = await this.getSparePartOrders({}).then(items => items.find(o => o.id === orderId))
+    if (!order) throw new Error('Ordine non trovato')
+    const quotes = (order.quotes || []).map(q => q.id === quoteId ? { ...q, ...patch } : q)
+    return this.updateSparePartOrder(orderId, { quotes })
+  },
+
+  // Accetta un preventivo: marca quello vincente, rifiuta gli altri, copia
+  // i campi commerciali sull'ordine, passa a 'ordinato'.
+  async acceptSparePartQuote(orderId, quoteId, { expected_at = null, unit_cost = null } = {}) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('accept_spare_part_quote', {
+        _order_id: orderId,
+        _quote_id: quoteId,
+        _expected_at: expected_at,
+        _unit_cost: unit_cost,
+      })
+      if (error) throw error
+      return data
+    }
+    // Demo fallback
+    const orders = getStore('manutech_spare_orders')
+    const idx = orders.findIndex(o => o.id === orderId)
+    if (idx === -1) throw new Error('Ordine non trovato')
+    const order = orders[idx]
+    const session = (() => { try { return JSON.parse(localStorage.getItem('manutech_session') || 'null') } catch { return null } })()
+    const adminId = session?.id || null
+    const now = new Date().toISOString()
+
+    const target = (order.quotes || []).find(q => q.id === quoteId)
+    if (!target) throw new Error('Preventivo non trovato')
+
+    const quotes = (order.quotes || []).map(q => {
+      if (q.id === quoteId) return { ...q, status: 'accepted', decided_at: now, decided_by: adminId }
+      if (q.status === 'pending' || q.status === 'received') return { ...q, status: 'rejected', decided_at: now, decided_by: adminId }
+      return q
+    })
+
+    const finalCost = unit_cost ?? target.quoted_price ?? 0
+    const finalEta = expected_at ?? (target.quoted_lead_time_days
+      ? new Date(Date.now() + target.quoted_lead_time_days * 86400000).toISOString()
+      : null)
+
+    orders[idx] = {
+      ...order,
+      status: 'ordinato',
+      quotes,
+      supplier_id: target.supplier_id || null,
+      supplier: target.supplier_name || null,
+      expected_at: finalEta,
+      unit_cost: finalCost,
+      ordered_at: order.ordered_at || now,
+      ordered_by: order.ordered_by || adminId,
+      updated_at: now,
+    }
+    setStore('manutech_spare_orders', orders)
+
+    // Notifica requested_by
+    if (order.requested_by && order.requested_by !== adminId) {
+      const notifs = getStore('manutech_notifications')
+      notifs.push({
+        id: `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: 'spare_quote_accepted',
+        title: `Preventivo accettato: ${order.spare_part_name}`,
+        body: `Fornitore: ${target.supplier_name || 'n.d.'}${finalEta ? ` · arrivo previsto ${new Date(finalEta).toLocaleDateString('it-IT')}` : ''}`,
+        report_id: order.report_id || null,
+        from_user: adminId,
+        target_user: order.requested_by,
+        read: false,
+        created_at: now,
+      })
+      setStore('manutech_notifications', notifs)
+    }
+    return orders[idx]
+  },
+
   async deleteSparePartOrder(id) {
     if (supabase) {
       const { error } = await supabase.from('spare_part_orders').delete().eq('id', id)
