@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react'
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
 import { isAssistantAvailable, sendMessage } from '../../lib/assistant'
+import { renderMarkdown } from '../../lib/markdown'
 
 export default function SimilarReportsPanel({ report, onOpenReport }) {
   const [open, setOpen] = useState(false)
@@ -126,14 +127,13 @@ export default function SimilarReportsPanel({ report, onOpenReport }) {
                   fontSize: 14,
                   lineHeight: 1.55,
                   color: 'var(--color-text)',
-                  whiteSpace: 'pre-wrap',
                   background: 'var(--color-surface-2)',
                   padding: 12,
                   borderRadius: 12,
                   border: '1px solid var(--color-border-subtle)',
                 }}
               >
-                {content}
+                {renderMarkdown(content)}
               </div>
               {sources.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
