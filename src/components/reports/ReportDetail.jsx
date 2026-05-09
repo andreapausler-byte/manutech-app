@@ -10,6 +10,7 @@ import ActivityTimeline from './ActivityTimeline'
 import ChatPanel from '../chat/ChatPanel'
 import ShareGuestLink from '../chat/ShareGuestLink'
 import SimilarReportsPanel from './SimilarReportsPanel'
+import SimilarCasesLivePanel from './SimilarCasesLivePanel'
 import {
   ArrowLeft, MoreVertical, Send, Paperclip, Mic,
   Check, X, AlertTriangle, ArrowRight, Zap, Clock as ClockIcon,
@@ -973,7 +974,18 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           {/* Ricambi associati al ticket */}
           <TicketSparePanel reportId={report.id} refreshKey={spareRefresh} />
 
-          {/* AI card "Soluzioni dal passato" */}
+          {/* AI: casi simili live (auto-cerca all'apertura, semantic search raw) */}
+          {user.role === 'tecnico' && report.status !== 'chiuso' && (
+            <div style={{ marginBottom: 12 }}>
+              <SimilarCasesLivePanel
+                text={[report.title, report.description].filter(Boolean).join('. ')}
+                machineId={report.machine_id || null}
+                excludeReportId={report.id}
+              />
+            </div>
+          )}
+
+          {/* AI card "Soluzioni dal passato" (sintesi LLM, click manuale) */}
           {user.role === 'tecnico' && report.status !== 'chiuso' && (
             <div style={{ marginBottom: 12 }}>
               <SimilarReportsPanel report={report} />
