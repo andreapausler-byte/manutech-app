@@ -1,3 +1,5 @@
+*Dettaglio tattico della Fase 0 di ROADMAP.md. Si svuota e riscrive a inizio Fase 1.*
+
 # Piano Revamping UI Segnalazioni - Kanban Style
 
 ## Scope
