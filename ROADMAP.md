@@ -3,7 +3,7 @@
 Bussola di lungo periodo. Si aggiorna a fine fase o quando cambia la direzione, non più spesso. Il battito mensile sta in `journal/`. Il focus della sessione corrente sta in `CLAUDE.md`.
 
 **Ultima review**: 9 maggio 2026
-**Fase corrente**: Fase 0
+**Fase corrente**: Fase 4 anticipata — RAG sui commenti (use case "casi simili")
 **Prossima review trimestrale**: 2 agosto 2026
 
 ---
@@ -17,15 +17,16 @@ Bussola di lungo periodo. Si aggiorna a fine fase o quando cambia la direzione, 
 
 ## Fase 0 · Pulizia di casa
 
-**Stato**: in-progress
-**Obiettivo**: chiudere le 4 PR del piano v1.X — timeline collapse (PR 2), urgent skip quote (PR 3), voice transcripts in background (PR 1), supplier specialty inference (PR 4).
+**Stato**: chiusa
+**Obiettivo**: chiudere le 4 PR del piano v1.X — timeline collapse, urgent skip quote, voice transcripts in background, supplier specialty inference.
 **Why**: tolgono attrito quotidiano e liberano la testa per le fondamenta della Fase 1. Architetturalmente non aggiungono fondamenta — sono pulizia di casa prima del trasloco.
 **Apertura**: maggio 2026
-**Chiusura**: —
+**Chiusura**: 9 maggio 2026 (PR #199, #200)
+**Plan archiviato**: `docs/archive/PLAN-fase-0.md`
 
 ## Fase 1 · Eventi prima dello stato
 
-**Stato**: next
+**Stato**: rinviata (vedi *Decisioni di rotta*)
 **Obiettivo**: introdurre `request_events` come tabella primaria. Lo stato del ticket diventa una projection degli eventi atomici (foto caricata, audio inviato, email ricevuta, fornitore confermato, bolla allegata, status cambiato), non una colonna che si aggiorna a tap.
 **Why**: è la fondazione invisibile di tutto. Senza questa fase, ogni intelligenza che metti sopra è fragile e da rifare.
 
@@ -43,9 +44,10 @@ Bussola di lungo periodo. Si aggiorna a fine fase o quando cambia la direzione, 
 
 ## Fase 4 · Knowledge che sopravvive
 
-**Stato**: later · in parallelo a Fase 3 dal mese 6
+**Stato**: anticipata parzialmente — in corso
 **Obiettivo**: RAG unificato — manuali GEA/CIMA/Comac/AEB + storico ticket + voice transcript + foto (CLIP embeddings) + email fornitori. Una sola domanda alla chiusura ticket: "in una frase, cosa hai imparato?".
 **Why**: il tribal knowledge non cammina più fuori dalla porta con le persone. Quando Luigi non c'è, il nuovo tecnico fa l'intervento giusto al primo colpo.
+**Stato concreto**: stiamo anticipando il pezzo "RAG sui commenti dei report" come use case "casi simili" all'apertura segnalazione. Plan dettagliato in `PLAN.md`. Le altre componenti (foto/CLIP, email, voice, chiusura "in una frase") restano `later`.
 
 ## Fase 5 · Una conversazione, molti canali
 
@@ -67,7 +69,7 @@ Quando chiudi una fase, scrivi qui una riga su cosa hai imparato. Cresce nel tem
 
 Quando cambi piano, scrivi qui perché. Niente di lungo, una frase basta.
 
-— *(nessuna ancora)*
+- **9 maggio 2026** — Fase 1 (events prima dello stato) rinviata. Anticipiamo un pezzo di Fase 4: RAG sui commenti dei report come "casi simili" all'apertura segnalazione. Razionale: il valore di Fase 1 è invisibile finché non si costruisce sopra; il valore della Fase 4 anticipata è visibile dal primo merge ed è ciò che mi motiva di più adesso. Costo accettato: quando torneremo su Fase 1 events, dovremo retrofittare il modello con feature AI già sopra. Non catastrofico ma reale.
 
 ---
 
