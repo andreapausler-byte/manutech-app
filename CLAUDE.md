@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: Fase 4 anticipata · RAG sui commenti — use case "casi simili" all'apertura segnalazione (decisione di rotta del 9/5: Fase 1 events rinviata)
-- **Branch corrente**: `claude/initial-setup-nDLxm`
-- **Prossimo step**: PR 1 di nuovo PLAN — estendere `document_chunks` per indicizzare commenti e descrizioni di report chiusi, edge function `ingest-report-knowledge`, hook nel `db/reports.js`
+- **Fase**: Fase 4 anticipata · RAG sui commenti — sub-sprint del 9/5 chiuso (pannello "Casi simili" live in ReportDetail + schema TK-id giorno giuliano + navigabilità lista). Migration applicate: 041 ✓, 049 ✓, 050 da confermare.
+- **Branch corrente**: `claude/initial-setup-nDLxm` (16 commit sopra merge #200)
+- **Prossimo step**: validare in produzione su 2-3 ticket reali di macchine diverse, poi decidere rotta — tornare a Fase 1 events / continuare navigabilità (raggruppamento, full-text) / iniziare deduplicazione ticket (L1+L2 rinviati). Vedi journal di sera 9/5 per dettaglio.
 
 ---
 

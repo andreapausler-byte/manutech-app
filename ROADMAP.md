@@ -44,10 +44,12 @@ Bussola di lungo periodo. Si aggiorna a fine fase o quando cambia la direzione, 
 
 ## Fase 4 · Knowledge che sopravvive
 
-**Stato**: anticipata parzialmente — in corso
+**Stato**: anticipata parzialmente — sub-sprint del 9/5 chiuso, in attesa di validazione in produzione
 **Obiettivo**: RAG unificato — manuali GEA/CIMA/Comac/AEB + storico ticket + voice transcript + foto (CLIP embeddings) + email fornitori. Una sola domanda alla chiusura ticket: "in una frase, cosa hai imparato?".
 **Why**: il tribal knowledge non cammina più fuori dalla porta con le persone. Quando Luigi non c'è, il nuovo tecnico fa l'intervento giusto al primo colpo.
-**Stato concreto**: stiamo anticipando il pezzo "RAG sui commenti dei report" come use case "casi simili" all'apertura segnalazione. Plan dettagliato in `PLAN.md`. Le altre componenti (foto/CLIP, email, voice, chiusura "in una frase") restano `later`.
+**Cosa è stato consegnato il 9/5**: pannello "Casi simili dallo storico" live in ReportDetail (auto-cerca, no LLM, lista cliccabile), rimozione del vecchio "Soluzioni dal passato" (auto-descrizione tramite LLM), diagnostica empty state + tasto Re-indicizza inline. Riusa l'infra esistente: `document_chunks` (028+041), `ingest-knowledge` edge, `embed-query`, RPC `search_knowledge`. Niente nuove migration relative al RAG.
+**Sub-sprint collaterale (9/5)**: schema TK-id giorno giuliano (migration 049), trigger updated_at su comments (migration 050), navigabilità lista mobile (filtri Solo i miei + Per macchina + dropdown ordinamento + tab Archivio + ricerca TK-id senza trattini). Non era nel PLAN originale di Fase 4 ma è emerso come bisogno operativo durante il test reale.
+**Le altre componenti** (foto/CLIP, email fornitori, voice transcript, chiusura "in una frase", deduplicazione duplicati aperti L1+L2+L3) restano `later`.
 
 ## Fase 5 · Una conversazione, molti canali
 
@@ -70,6 +72,7 @@ Quando chiudi una fase, scrivi qui una riga su cosa hai imparato. Cresce nel tem
 Quando cambi piano, scrivi qui perché. Niente di lungo, una frase basta.
 
 - **9 maggio 2026** — Fase 1 (events prima dello stato) rinviata. Anticipiamo un pezzo di Fase 4: RAG sui commenti dei report come "casi simili" all'apertura segnalazione. Razionale: il valore di Fase 1 è invisibile finché non si costruisce sopra; il valore della Fase 4 anticipata è visibile dal primo merge ed è ciò che mi motiva di più adesso. Costo accettato: quando torneremo su Fase 1 events, dovremo retrofittare il modello con feature AI già sopra. Non catastrofico ma reale.
+- **9 maggio 2026 (pomeriggio)** — Inserito sub-sprint non pianificato di **navigabilità lista mobile + schema TK-id parlante**. Emerso come bisogno operativo durante il test reale del pannello "Casi simili" (utente: "destreggiarsi tra le segnalazioni quando sono tante è arduo"). Razionale: il pannello AI funziona, ma se la lista non è navigabile l'AI non viene mai invocata. La navigabilità è prerequisito infrastrutturale per qualsiasi feature successiva — non un nice-to-have. Costo: spostata indietro la decisione su Fase 1 events vs continuazione Fase 4. Beneficio: schema TK-id e trigger updated_at sono fondazioni che non si rifaranno.
 
 ---
 
