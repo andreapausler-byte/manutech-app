@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { db } from '../../lib/supabase'
 import { useMachines } from '../../hooks/useMachines'
 import { useVoiceCapture } from '../../hooks/useVoiceCapture'
@@ -98,7 +98,7 @@ export default function VoiceNewTicketFlow({ user, onBack, onCreated }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice.state, voice.error])
 
-  if (voice.state === 'recording' || voice.state === 'transcribing') {
+  if (voice.state === 'recording') {
     return (
       <VoiceRecorder
         state={voice.state}
@@ -118,6 +118,7 @@ export default function VoiceNewTicketFlow({ user, onBack, onCreated }) {
         fields={voice.fields || DEFAULT_FIELDS}
         transcription={voice.transcription}
         setTranscription={voice.setTranscription}
+        transcribing={voice.transcribing}
         audioBlob={voice.audioBlob}
         error={voice.error}
         user={user}
@@ -132,8 +133,8 @@ export default function VoiceNewTicketFlow({ user, onBack, onCreated }) {
   return null
 }
 
-function ReviewForm({ machines, fields, transcription, setTranscription, audioBlob, error, user, onCancel, onSubmitted, haptic, toast }) {
-  const [form, setForm] = useState(() => ({
+function buildFormFromFields(fields) {
+  return {
     summary: fields?.summary || '',
     machine_id: fields?.machine_id || '',
     componente: fields?.componente || '',
@@ -145,13 +146,29 @@ function ReviewForm({ machines, fields, transcription, setTranscription, audioBl
     auto_assegnazione: !!fields?.auto_assegnazione,
     ricambi_potenziali: Array.isArray(fields?.ricambi_potenziali) ? fields.ricambi_potenziali : [],
     note_tecniche: fields?.note_tecniche || '',
-  }))
+  }
+}
+
+function ReviewForm({ machines, fields, transcription, setTranscription, transcribing, audioBlob, error, user, onCancel, onSubmitted, haptic, toast }) {
+  const [form, setForm] = useState(() => buildFormFromFields(fields))
   const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
-  const update = (patch) => setForm(prev => ({ ...prev, ...patch }))
+  // Auto-popola il form quando fields arrivano dopo l'apertura della review
+  // (PR 3 Fase 0). Una volta toccato dall'utente, non si rehydrata più.
+  const formTouchedRef = useRef(false)
+  useEffect(() => {
+    if (formTouchedRef.current) return
+    setForm(buildFormFromFields(fields))
+  }, [fields])
+
+  const update = (patch) => {
+    formTouchedRef.current = true
+    setForm(prev => ({ ...prev, ...patch }))
+  }
 
   const removeRicambio = (idx) => {
+    formTouchedRef.current = true
     setForm(prev => ({
       ...prev,
       ricambi_potenziali: prev.ricambi_potenziali.filter((_, i) => i !== idx),
@@ -253,6 +270,7 @@ function ReviewForm({ machines, fields, transcription, setTranscription, audioBl
       title="Nuovo ticket vocale"
       transcription={transcription}
       setTranscription={setTranscription}
+      transcribing={transcribing}
       error={error}
       loading={loading}
       onCancel={onCancel}

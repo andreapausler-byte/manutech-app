@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { db } from '../../lib/supabase'
 import { useVoiceCapture } from '../../hooks/useVoiceCapture'
 import { useToast } from '../../hooks/useToast'
@@ -44,7 +44,7 @@ export default function VoiceNoteFlow({ report, user, onClose, onApplied }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice.state, voice.error])
 
-  if (voice.state === 'recording' || voice.state === 'transcribing') {
+  if (voice.state === 'recording') {
     return (
       <VoiceRecorder
         state={voice.state}
@@ -63,6 +63,7 @@ export default function VoiceNoteFlow({ report, user, onClose, onApplied }) {
         fields={voice.fields || DEFAULT_FIELDS}
         transcription={voice.transcription}
         setTranscription={voice.setTranscription}
+        transcribing={voice.transcribing}
         audioBlob={voice.audioBlob}
         error={voice.error}
         report={report}
@@ -78,11 +79,29 @@ export default function VoiceNoteFlow({ report, user, onClose, onApplied }) {
   return null
 }
 
-function ReviewForm({ fields, transcription, setTranscription, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
+function ReviewForm({ fields, transcription, setTranscription, transcribing, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
   const [text, setText] = useState(() => fields?.nota_tecnica || transcription || '')
   const [tag, setTag] = useState(() => fields?.tag || '')
   const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
+
+  // Auto-popola i campi quando trascrizione/fields arrivano dopo l'apertura
+  // della review (PR 3 Fase 0). Non sovrascriviamo input dell'utente.
+  const textTouchedRef = useRef(false)
+  const tagTouchedRef = useRef(false)
+
+  useEffect(() => {
+    if (textTouchedRef.current) return
+    const next = fields?.nota_tecnica || transcription || ''
+    if (next && next !== text) setText(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcription, fields?.nota_tecnica])
+
+  useEffect(() => {
+    if (tagTouchedRef.current) return
+    if (fields?.tag && fields.tag !== tag) setTag(fields.tag)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields?.tag])
 
   const handleSubmit = async () => {
     const finalText = (text || '').trim()
@@ -133,6 +152,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       title="Nota vocale"
       transcription={transcription}
       setTranscription={setTranscription}
+      transcribing={transcribing}
       error={error}
       loading={loading}
       onCancel={onCancel}
@@ -148,10 +168,10 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
         <label style={labelStyle}>Testo nota *</label>
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { textTouchedRef.current = true; setText(e.target.value) }}
           rows={4}
           maxLength={500}
-          placeholder="Es. Cliente richiede di intervenire dopo le 18"
+          placeholder={transcribing ? 'In attesa della trascrizione…' : 'Es. Cliente richiede di intervenire dopo le 18'}
           style={{ ...inputStyle, resize: 'vertical', minHeight: 90 }}
         />
         <div style={{ fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'right', marginTop: 4 }}>
@@ -163,7 +183,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
         <input
           type="text"
           value={tag}
-          onChange={(e) => setTag(e.target.value)}
+          onChange={(e) => { tagTouchedRef.current = true; setTag(e.target.value) }}
           maxLength={50}
           placeholder="Es. fornitore, ricambio, pianificazione…"
           style={inputStyle}

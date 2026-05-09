@@ -12,21 +12,22 @@ function formatMs(ms) {
 /**
  * VoiceRecorder — schermata fullscreen per registrazione vocale.
  *
+ * Da PR 3 Fase 0: la trascrizione gira in background dentro la review,
+ * questa schermata è mostrata solo durante 'recording'.
+ *
  * Props:
- *   state       — 'recording' | 'transcribing'
  *   elapsedMs   — durata registrazione corrente
  *   onStop      — callback per terminare la registrazione
  *   onCancel    — callback per annullare e tornare indietro
  *   title       — titolo opzionale visualizzato in alto
  *   hint        — testo descrittivo opzionale (es. "Descrivi il problema...")
  */
+// eslint-disable-next-line no-unused-vars
 export default function VoiceRecorder({ state, elapsedMs, onStop, onCancel, title, hint }) {
   useEffect(() => {
     document.body.style.userSelect = 'none'
     return () => { document.body.style.userSelect = '' }
   }, [])
-
-  const isTranscribing = state === 'transcribing'
 
   return (
     <div
@@ -46,13 +47,11 @@ export default function VoiceRecorder({ state, elapsedMs, onStop, onCancel, titl
           onClick={onCancel}
           aria-label="Annulla"
           className="press-scale"
-          disabled={isTranscribing}
           style={{
             width: 36, height: 36, borderRadius: 10,
             background: 'var(--color-surface-2)', border: 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: isTranscribing ? 'not-allowed' : 'pointer',
-            opacity: isTranscribing ? 0.4 : 1,
+            cursor: 'pointer',
             color: 'var(--color-text-muted)',
           }}
         >
@@ -68,96 +67,74 @@ export default function VoiceRecorder({ state, elapsedMs, onStop, onCancel, titl
         )}
       </div>
 
-      {/* Stato transcribing: spinner */}
-      {isTranscribing ? (
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 24,
+      }}>
+        {/* REC indicator + timer */}
         <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 16,
+          display: 'flex', alignItems: 'center', gap: 10,
+          fontSize: 13, fontWeight: 700, letterSpacing: 1.5,
+          color: '#ef4444',
         }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: '50%',
-            border: '3px solid var(--color-surface-3)',
-            borderTopColor: 'var(--color-primary)',
-            animation: 'spin 1s linear infinite',
-          }} />
-          <div style={{ fontSize: 15, color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-            Trascrizione in corso…
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-            Estrazione campi con AI
-          </div>
-        </div>
-      ) : (
-        // Stato recording
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 24,
-        }}>
-          {/* REC indicator + timer */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            fontSize: 13, fontWeight: 700, letterSpacing: 1.5,
-            color: '#ef4444',
-          }}>
-            <span
-              aria-hidden="true"
-              style={{
-                width: 10, height: 10, borderRadius: '50%',
-                background: '#ef4444',
-                animation: 'pulse 1s ease-in-out infinite',
-              }}
-            />
-            REC
-          </div>
-          <div style={{
-            fontSize: 48, fontWeight: 700,
-            fontFamily: '"JetBrains Mono", monospace',
-            color: 'var(--color-text)', letterSpacing: 1,
-          }}>
-            {formatMs(elapsedMs)}
-          </div>
-          <VoiceWaveform active />
-          {hint && (
-            <div style={{
-              fontSize: 13, color: 'var(--color-text-muted)',
-              textAlign: 'center', maxWidth: 280, marginTop: 8,
-            }}>
-              {hint}
-            </div>
-          )}
-
-          {/* Stop button (centralized big circle) */}
-          <button
-            type="button"
-            onPointerUp={() => onStop?.()}
-            onClick={() => onStop?.()}
-            aria-label="Termina registrazione"
-            className="press-scale"
+          <span
+            aria-hidden="true"
             style={{
-              width: 88, height: 88, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-              boxShadow: '0 12px 30px rgba(239, 68, 68, 0.5)',
-              border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginTop: 8,
+              width: 10, height: 10, borderRadius: '50%',
+              background: '#ef4444',
+              animation: 'pulse 1s ease-in-out infinite',
             }}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                width: 28, height: 28, borderRadius: 6,
-                background: '#fff',
-              }}
-            />
-          </button>
-          <div style={{
-            fontSize: 12, color: 'var(--color-text-muted)',
-            letterSpacing: 0.5, textTransform: 'uppercase',
-          }}>
-            Tocca per terminare
-          </div>
+          />
+          REC
         </div>
-      )}
+        <div style={{
+          fontSize: 48, fontWeight: 700,
+          fontFamily: '"JetBrains Mono", monospace',
+          color: 'var(--color-text)', letterSpacing: 1,
+        }}>
+          {formatMs(elapsedMs)}
+        </div>
+        <VoiceWaveform active />
+        {hint && (
+          <div style={{
+            fontSize: 13, color: 'var(--color-text-muted)',
+            textAlign: 'center', maxWidth: 280, marginTop: 8,
+          }}>
+            {hint}
+          </div>
+        )}
+
+        {/* Stop button (centralized big circle) */}
+        <button
+          type="button"
+          onPointerUp={() => onStop?.()}
+          onClick={() => onStop?.()}
+          aria-label="Termina registrazione"
+          className="press-scale"
+          style={{
+            width: 88, height: 88, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+            boxShadow: '0 12px 30px rgba(239, 68, 68, 0.5)',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginTop: 8,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 28, height: 28, borderRadius: 6,
+              background: '#fff',
+            }}
+          />
+        </button>
+        <div style={{
+          fontSize: 12, color: 'var(--color-text-muted)',
+          letterSpacing: 0.5, textTransform: 'uppercase',
+        }}>
+          Tocca per terminare
+        </div>
+      </div>
     </div>
   )
 }

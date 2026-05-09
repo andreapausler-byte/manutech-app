@@ -8,23 +8,15 @@ function formatMs(ms) {
   return `${m}:${s}`
 }
 
-export default function OperatorRecording({ state, elapsedMs, onStop }) {
-  // Sicurezza: se torniamo idle (es. audio troppo breve), il parent gestisce il routing.
+export default function OperatorRecording({ elapsedMs, onStop }) {
+  // Da PR 3 Fase 0: la trascrizione gira in background dentro la review,
+  // quindi questo schermo è mostrato solo durante la registrazione.
 
   useEffect(() => {
     // Impedisce zoom/selezione mentre si tiene premuto
     document.body.style.userSelect = 'none'
     return () => { document.body.style.userSelect = '' }
   }, [])
-
-  if (state === 'transcribing') {
-    return (
-      <div className="op-rec-screen" aria-live="polite">
-        <div className="op-spin" aria-label="Trascrizione in corso" role="status" />
-        <div className="op-rec-release" style={{ marginTop: 22 }}>Trascrizione in corso…</div>
-      </div>
-    )
-  }
 
   return (
     <div className="op-rec-screen" aria-live="polite">
