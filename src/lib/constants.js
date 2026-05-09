@@ -190,11 +190,38 @@ export const timeAgo = (dateStr) => {
   return formatDate(dateStr)
 }
 
-// Helper TK-XXXX (display id segnalazione, derivato dall'UUID).
-// Stesso schema usato storicamente in ReportDetail.jsx — ora unificato qui
-// per riuso in liste, header, toast, notifiche.
-export function formatTicketId(uuid) {
-  if (!uuid) return ''
-  const digits = String(uuid).replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')
+// Helper TK-XXXX (display id segnalazione).
+// Accetta:
+//   - oggetto report { id, display_id?, ... } → ritorna display_id se presente,
+//     altrimenti fallback al schema legacy derivato dall'UUID.
+//   - stringa UUID → usa direttamente lo schema legacy.
+//
+// Lo schema "vero" è generato dal trigger DB compute_report_display_id
+// (migration 049): TK-YYJJJ-NN dove YY=anno, JJJ=giorno giuliano,
+// NN=sequenziale per (org, giorno).
+//
+// Il fallback UUID-derivato (TK-XXXX, 4 cifre) resta per:
+//   - record vecchi non ancora migrati
+//   - chiamanti che hanno solo l'UUID a portata di mano (es. il
+//     source_ref di un chunk RAG, dove non abbiamo l'oggetto report)
+export function formatTicketId(reportOrId) {
+  if (!reportOrId) return ''
+  if (typeof reportOrId === 'object') {
+    if (reportOrId.display_id) return reportOrId.display_id
+    const uuid = reportOrId.id
+    if (!uuid) return ''
+    const digits = String(uuid).replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')
+    return `TK-${digits || '0000'}`
+  }
+  const digits = String(reportOrId).replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')
   return `TK-${digits || '0000'}`
+}
+
+// Giorno giuliano (1-366) di una data. Usato dal demo-mode createReport
+// per replicare lato client la logica del trigger DB.
+export function julianDay(date) {
+  const d = date instanceof Date ? date : new Date(date)
+  const start = new Date(d.getFullYear(), 0, 0)
+  const diff = d - start
+  return Math.floor(diff / 86400000)
 }

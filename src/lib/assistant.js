@@ -123,7 +123,7 @@ export async function searchSimilarCases({ text, machineId, excludeReportId, lim
   const reportIds = top.map(c => c.source_ref)
   const { data: reports } = await supabase
     .from('reports')
-    .select('id, title, status, machine, machine_id, created_at, updated_at, assigned_to_name, closure_root_cause, closure_action')
+    .select('id, display_id, title, status, machine, machine_id, created_at, updated_at, assigned_to_name, closure_root_cause, closure_action')
     .in('id', reportIds)
   const reportMap = new Map((reports || []).map(r => [r.id, r]))
 

@@ -84,7 +84,7 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
             fontWeight: 700, letterSpacing: 0.8,
             fontFamily: '"JetBrains Mono", monospace',
           }}>
-            {formatTicketId(report.id)}
+            {formatTicketId(report)}
           </span>
           <span style={{
             fontSize: 9, padding: '2px 6px', borderRadius: 3,

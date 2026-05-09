@@ -103,7 +103,7 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
         detail: `Template: ${template.label}${machine ? ` · ${machine}` : ''}`,
       }).catch(e => console.warn('Side effect failed:', e.message))
       db.addNotification({
-        type: 'new_report', title: `${formatTicketId(created.id)} · ${template.title}`,
+        type: 'new_report', title: `${formatTicketId(created)} · ${template.title}`,
         body: `${user.name} — ${template.label}${machine ? ` su ${machine}` : ''}`,
         report_id: created.id, from_user: user.id, target_user: null,
       }).catch(e => console.warn('Side effect failed:', e.message))
