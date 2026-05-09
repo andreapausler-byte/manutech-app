@@ -46,7 +46,9 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
     if (timerRef.current) clearTimeout(timerRef.current)
 
     const q = (text || '').trim()
-    if (q.length < MIN_LENGTH) {
+    // Skip se manca machineId: senza filtro la search ritorna i top globali
+    // (= sempre stessi risultati indipendenti dal report aperto). Reset visuale.
+    if (q.length < MIN_LENGTH || !machineId) {
       if (lastQueryRef.current) {
         setCases([])
         setError(null)
@@ -55,13 +57,19 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
       }
       return undefined
     }
-    const cacheKey = `${q}|${machineId || ''}|${excludeReportId || ''}`
+    const cacheKey = `${q}|${machineId}|${excludeReportId || ''}`
     if (cacheKey === lastQueryRef.current) return undefined
+
+    // Reset immediato dello stato visuale: navigando da un report a un altro
+    // (mismo componente, props diverse) i vecchi cases restavano visibili
+    // per i 700ms del debounce → falsa impressione "sempre stessi risultati".
+    setCases([])
+    setError(null)
+    setHasSearched(false)
+    setLoading(true)
 
     timerRef.current = setTimeout(async () => {
       lastQueryRef.current = cacheKey
-      setLoading(true)
-      setError(null)
       try {
         const results = await searchSimilarCases({ text: q, machineId, excludeReportId, limit: 3 })
         setCases(results)

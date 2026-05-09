@@ -78,10 +78,13 @@ export async function deleteConversation(conversationId) {
 // arricchimento con metadata report (titolo, macchina, data, closure).
 //
 // Ritorna array di { source_ref, content, similarity, report }.
-export async function searchSimilarCases({ text, machineId, excludeReportId, limit = 3 }) {
+export async function searchSimilarCases({ text, machineId, excludeReportId, limit = 3, minSimilarity = 0.5 }) {
   if (!supabase) throw new DemoModeError()
   const trimmed = (text || '').trim()
   if (trimmed.length < 20) return []
+  // Senza machineId la RPC non filtra e ritorna i top globali — confusione
+  // garantita (sempre stessi risultati indipendenti dal report). Skip.
+  if (!machineId) return []
 
   const embedRes = await supabase.functions.invoke('embed-query', {
     body: { text: trimmed.slice(0, 4000) },
@@ -103,6 +106,7 @@ export async function searchSimilarCases({ text, machineId, excludeReportId, lim
     if (c.source_kind !== 'report_chat') continue
     if (!c.source_ref) continue
     if (excludeReportId && c.source_ref === excludeReportId) continue
+    if (typeof c.similarity === 'number' && c.similarity < minSimilarity) continue
     const prev = byReport.get(c.source_ref)
     if (!prev || c.similarity > prev.similarity) byReport.set(c.source_ref, c)
   }
