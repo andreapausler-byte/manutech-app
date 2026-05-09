@@ -125,7 +125,7 @@ export default function AdminReports({ initialReportId }) {
     if (created?.id) {
       db.addNotification({
         type: 'new_report',
-        title: `${formatTicketId(created.id)} · ${form.title.trim()}`,
+        title: `${formatTicketId(created)} · ${form.title.trim()}`,
         body: `${user?.name || 'Admin'} ha creato una segnalazione ${form.severity}`,
         report_id: created.id,
         from_user: user?.id,
@@ -172,7 +172,7 @@ export default function AdminReports({ initialReportId }) {
             background: 'var(--color-primary-glow)',
             color: 'var(--color-primary)',
           }}>
-            {formatTicketId(r.id)}
+            {formatTicketId(r)}
           </div>
           <div
             className="font-semibold mb-0.5 group-hover:text-indigo-300 transition-colors truncate"

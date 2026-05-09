@@ -573,7 +573,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const videos = (report.media || []).filter(m => m.type === 'video')
   const audios = (report.media || []).filter(m => m.type === 'audio')
 
-  const tickeId = formatTicketId(report.id)
+  const tickeId = formatTicketId(report)
   // TK-id ora promosso a badge prominente sopra il titolo (vedi render).
   // L'eyebrow contiene solo timeAgo + autore.
   const eyebrowParts = [

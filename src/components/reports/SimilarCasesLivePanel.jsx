@@ -318,7 +318,7 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
                         flexShrink: 0,
                         fontFamily: 'JetBrains Mono, monospace',
                       }}>
-                        {formatTicketId(c.source_ref)}
+                        {formatTicketId(c.report || c.source_ref)}
                       </span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {c.report?.title || 'Segnalazione'}
