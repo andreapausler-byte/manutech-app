@@ -324,15 +324,25 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   useEffect(() => { load() }, [load])
 
   // Filter: search testuale + onlyMine + macchina
+  // Search supporta TK-id senza trattini/prefissi: "tk26", "26129",
+  // "tk-26129", "26 129" trovano tutti i match alfanumerici contenenti
+  // quei caratteri. Per title/machine resta un substring case-insensitive
+  // semplice.
   const filtered = reports.filter(r => {
     if (filters.onlyMine && r.assigned_to !== user?.id) return false
     if (filters.machineFilter && r.machine_id !== filters.machineFilter) return false
     if (search) {
-      const q = search.toLowerCase()
+      const q = search.toLowerCase().trim()
+      if (!q) return true
+      const qNorm = q.replace(/[^a-z0-9]/g, '')
       const tk = formatTicketId(r).toLowerCase()
-      if (!(r.title?.toLowerCase().includes(q)
-         || r.machine?.toLowerCase().includes(q)
-         || tk.includes(q))) return false
+      const tkNorm = tk.replace(/[^a-z0-9]/g, '')
+      const matches =
+        r.title?.toLowerCase().includes(q)
+        || r.machine?.toLowerCase().includes(q)
+        || tk.includes(q)
+        || (qNorm.length > 0 && tkNorm.includes(qNorm))
+      if (!matches) return false
     }
     return true
   })
@@ -405,7 +415,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           }} />
           <input
             type="text"
-            placeholder="Cerca segnalazione…"
+            placeholder="Cerca: titolo, macchina, tk26129…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
