@@ -5,10 +5,12 @@ import { EmptyState, SkeletonReportsPage } from '../ui'
 import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, X, ChevronDown, Clock, Layers, MessageCircle } from 'lucide-react'
+import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive } from 'lucide-react'
 
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
+const ARCHIVED_STATUSES = ['risolta', 'chiuso']
+const isArchived = (r) => ARCHIVED_STATUSES.includes(r.status)
 
 // ── Avatar with initials ──
 function AvatarInitials({ name, color }) {
@@ -323,12 +325,9 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
 
   useEffect(() => { load() }, [load])
 
-  // Filter: search testuale + onlyMine + macchina
-  // Search supporta TK-id senza trattini/prefissi: "tk26", "26129",
-  // "tk-26129", "26 129" trovano tutti i match alfanumerici contenenti
-  // quei caratteri. Per title/machine resta un substring case-insensitive
-  // semplice.
-  const filtered = reports.filter(r => {
+  // Filter di base: search testuale + onlyMine + macchina.
+  // Search supporta TK-id senza trattini/prefissi (vedi qNorm).
+  const baseFiltered = reports.filter(r => {
     if (filters.onlyMine && r.assigned_to !== user?.id) return false
     if (filters.machineFilter && r.machine_id !== filters.machineFilter) return false
     if (search) {
@@ -346,6 +345,15 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
     }
     return true
   })
+
+  // Conteggi per i chip del segmented control.
+  const activeCount = baseFiltered.filter(r => !isArchived(r)).length
+  const archivedCount = baseFiltered.filter(isArchived).length
+
+  // viewMode='archive' mostra solo chiusi/risolti, gli altri solo gli attivi.
+  const filtered = viewMode === 'archive'
+    ? baseFiltered.filter(isArchived)
+    : baseFiltered.filter(r => !isArchived(r))
 
   // Sort logic in base a filters.sortBy. Chrono = lista piatta.
   const sortFn = (a, b) => {
@@ -516,8 +524,9 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
         }}>
           {[
-            { id: 'chrono', label: 'Recenti', icon: Clock, count: filtered.length },
+            { id: 'chrono', label: 'Recenti', icon: Clock, count: activeCount },
             { id: 'grouped', label: 'Per stato', icon: Layers, count: null },
+            { id: 'archive', label: 'Archivio', icon: Archive, count: archivedCount },
           ].map(v => {
             const active = viewMode === v.id
             return (
@@ -551,8 +560,12 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       {loading ? (
         <div className="px-[4vw] pt-[3vw]"><SkeletonReportsPage /></div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
-      ) : viewMode === 'chrono' ? (
+        <EmptyState
+          icon={viewMode === 'archive' ? '📦' : '📋'}
+          title={viewMode === 'archive' ? 'Archivio vuoto' : 'Nessuna segnalazione'}
+          subtitle={viewMode === 'archive' ? 'Niente di completato o chiuso al momento' : 'Tocca + per crearne una'}
+        />
+      ) : (viewMode === 'chrono' || viewMode === 'archive') ? (
         <div className="px-[4vw] pt-[2vw]">
           <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {chronoSorted.map(report => (
