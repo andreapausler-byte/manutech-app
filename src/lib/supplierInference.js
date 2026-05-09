@@ -63,13 +63,15 @@ const SPECIALTY_KEYWORDS = {
   ],
 }
 
-const HITS_THRESHOLD = 2 // serve almeno 2 hit per considerare valida una specialità
+const HITS_THRESHOLD = 1 // basta un hit per mostrare la specialità (filtro top_n riduce il rumore)
 const TOP_N = 3          // mostra al massimo le 3 specialità più ricorrenti
 
 /**
  * Verifica se un ordine "appartiene" al fornitore.
  * Match: supplier_id diretto, OR supplier (free text) case-insensitive,
- * OR una quote accepted con questo supplier_id.
+ * OR una qualsiasi quote (anche solo richiesta, non accepted) con questo
+ * supplier. Anche una quote pendente è segnale: "abbiamo chiesto a questo
+ * fornitore questo tipo di ricambio".
  */
 function orderBelongsToSupplier(order, supplierId, supplierName) {
   if (supplierId && order.supplier_id === supplierId) return true
@@ -79,11 +81,9 @@ function orderBelongsToSupplier(order, supplierId, supplierName) {
   }
   if (Array.isArray(order.quotes)) {
     return order.quotes.some(q =>
-      q.status === 'accepted' && (
-        (supplierId && q.supplier_id === supplierId)
-        || (supplierName && q.supplier_name
-          && q.supplier_name.trim().toLowerCase() === supplierName.trim().toLowerCase())
-      )
+      (supplierId && q.supplier_id === supplierId)
+      || (supplierName && q.supplier_name
+        && q.supplier_name.trim().toLowerCase() === supplierName.trim().toLowerCase())
     )
   }
   return false
