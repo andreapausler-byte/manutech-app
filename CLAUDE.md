@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: Fase 0 · Pulizia di casa — chiusa con PR #199 (in attesa di merge)
+- **Fase**: Fase 4 anticipata · RAG sui commenti — use case "casi simili" all'apertura segnalazione (decisione di rotta del 9/5: Fase 1 events rinviata)
 - **Branch corrente**: `claude/initial-setup-nDLxm`
-- **Prossimo step**: Mergiare PR #199, poi decidere se aprire Fase 1 o consolidare con un giro di test manuali sulle 4 PR di Fase 0
+- **Prossimo step**: PR 1 di nuovo PLAN — estendere `document_chunks` per indicizzare commenti e descrizioni di report chiusi, edge function `ingest-report-knowledge`, hook nel `db/reports.js`
 
 ---
 
