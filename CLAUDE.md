@@ -5,8 +5,8 @@
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
 - **Fase**: Fase 0 · Pulizia di casa
-- **Branch corrente**: `claude/setup-roadmap-tracking-OE216`
-- **Prossimo step**: review delle 6 questioni di setup e merge del setup tracking
+- **Branch corrente**: `claude/initial-setup-nDLxm`
+- **Prossimo step**: PR 1 — Timeline collapse in `ActivityTimeline.jsx` (raggruppare eventi consecutivi/automatici)
 
 ---
 

@@ -1,81 +1,134 @@
 *Dettaglio tattico della Fase 0 di ROADMAP.md. Si svuota e riscrive a inizio Fase 1.*
 
-# Piano Revamping UI Segnalazioni - Kanban Style
+# Fase 0 · Pulizia di casa — 4 PR
 
-## Scope
-Ridisegno completo del flusso segnalazioni: ReportsList, ReportDetail, NewReport, QuickReport.
+L'obiettivo della fase è togliere attrito quotidiano. Niente fondamenta nuove, niente architettura. Quattro interventi piccoli e cattivi, in ordine di blast radius crescente.
 
-## 1. ReportsList.jsx — Vista Kanban Swipeable
-**Obiettivo**: Trasformare la lista piatta in colonne Kanban orizzontali per stato.
+**Ordine consigliato**: PR 1 → PR 2 → PR 3 → PR 4. PR 1 è UI pura e dà subito soddisfazione; PR 4 sfiora la Fase 3 e va valutata.
 
-### Modifiche:
-- **Kanban Board**: Scroll orizzontale con colonne per ogni stato (Aperta → Assegnata → In Corso → Attesa Ricambi → Completato → Chiuso)
-- **Column Header**: Nome stato + contatore + dot colorato, sticky in alto
-- **Card ridisegnate**:
-  - Avatar cerchio con iniziali del tecnico assegnato (o icona se non assegnato)
-  - Mini progress indicator (dot chain degli stati)
-  - Severity badge più visibile con glow
-  - Tempo trascorso con icona orologio
-  - Unread badge migliorato con pulse animation
-- **Swipe orizzontale** tra colonne con snap scroll CSS (`scroll-snap-type`)
-- **Tab pills** in alto per navigazione rapida tra colonne (tappando si scrolla alla colonna)
-- **Barra di ricerca** mantenuta ma con design aggiornato (pill shape, icon animata)
-- **Empty column state**: Illustrazione minimalista per colonne vuote
-- **Pull-to-refresh** mantenuto
+---
 
-### Nuove animazioni CSS (in index.css):
-- `@keyframes kanbanSlideIn` per ingresso cards
-- `@keyframes countPulse` per aggiornamento contatori
+## PR 1 · Timeline collapse
 
-## 2. ReportDetail.jsx — Detail Page Moderna
-**Obiettivo**: Layout più immersivo e leggibile.
+**File**: `src/components/reports/ActivityTimeline.jsx`
+**Usato da**: `src/components/reports/ReportDetail.jsx:1003`, `src/pages/admin/reports/ReportDetailModal.jsx:354`
 
-### Modifiche:
-- **Hero header**: Severity color come accento in alto (gradient sottile), titolo grande
-- **Status pill** prominente con animazione pulse quando cambia
-- **Info cards**: Layout a chip orizzontali scrollabili invece di badges compatti
-- **Sezione media**: Gallery con layout masonry-like, thumbnails più grandi
-- **Status actions**: Ridisegnate come stepper orizzontale (flow visivo del processo)
-  - Stato attuale evidenziato, stati futuri sfumati, stati passati con checkmark
-- **Closure form**: Bottom sheet con design migliorato, field più spaziati
-- **Tab Chat/Timeline**: Pill toggle invece di tab con underline
+### Problema
+La timeline del ticket mostra ogni evento in linea, anche cambi di stato automatici e commenti di sistema. Sui ticket maturi diventa rumore — chi apre il dettaglio scrolla per trovare il fatto saliente.
 
-## 3. NewReport.jsx — Form Moderno Multi-step Look
-**Obiettivo**: Form più invitante e meno "burocratico".
+### Soluzione
+Raggruppare eventi consecutivi dello stesso tipo (o gli automatici) in un unico nodo collassabile. Espansione on-tap.
 
-### Modifiche:
-- **Progress bar** in alto che mostra completamento form (quanti campi compilati)
-- **Tipo intervento**: Card più grandi con icona + descrizione breve, layout 2x2 invece di 4x1
-- **Priorità**: Slider visuale o card colorate più espressive con gradients
-- **Machine selector**: Card con icona macchinario invece di dropdown piatto
-- **Submit button**: Gradient animato con shimmer effect quando valido
-- **Transizioni** tra sezioni più fluide
+### Scope
+- Logica di grouping nel render di `timeline.map`
+- Nuovo nodo "gruppo" con contatore (`3 cambi di stato automatici`)
+- Stato di apertura locale (no persistenza)
+- Nessuna modifica DB, nessun cambio API
 
-## 4. QuickReport.jsx — Quick Flow Rinfrescato
-**Obiettivo**: Esperienza ancora più veloce e visivamente appagante.
+### Out of scope
+- Filtri per tipo evento (rimandato)
+- Persistenza dello stato collassato per utente
 
-### Modifiche:
-- **Step 1 (Template)**: Card più grandi con subtle gradient background, hover lift effect
-- **Step 2 (Dettagli)**: Layout più pulito con sezioni separate da divider sottili
-- **Step indicator**: Progress bar segmentata invece di dots
-- **Machine buttons**: Chip orizzontali scrollabili invece di grid 2 colonne
-- **Submit**: Button con countdown visuale o progress ring
+### Definition of done
+- Build e lint puliti
+- Nessuna regressione su `ReportDetail` mobile e `ReportDetailModal` admin
+- Timeline con 10+ eventi automatici si comprime visivamente
 
-## 5. Nuove animazioni CSS (index.css)
-- `kanbanSlideIn`: per cards che entrano nelle colonne
-- `shimmerButton`: effetto shimmer sul pulsante submit
-- `statusPulse`: pulse quando lo stato cambia
-- Scroll snap utilities per le colonne kanban
+---
 
-## File da modificare:
-1. `src/components/reports/ReportsList.jsx` — redesign completo
-2. `src/components/reports/ReportDetail.jsx` — redesign layout
-3. `src/components/reports/NewReport.jsx` — redesign form
-4. `src/components/reports/QuickReport.jsx` — refresh design
-5. `src/styles/index.css` — nuove animazioni e utility classes
+## PR 2 · Urgent skip quote
 
-## Vincoli:
-- Mantenere compatibilità con tema dark/light esistente (usare CSS vars)
-- Mantenere tutte le funzionalità esistenti (search, filter, pull-to-refresh, media, chat, timeline)
-- Mobile-first, tocco con guanti (target ≥ 48px)
-- Nessuna nuova dipendenza
+**File**: `src/pages/admin/AdminSpareParts.jsx`, `src/components/spare/SpareRequestModal.jsx`, `src/components/spare/TicketSparePanel.jsx`
+**Modulo correlato**: stato `preventivo` introdotto nelle PR #193-195 (appena mergeate)
+
+### Problema
+Quando una richiesta di ricambio è `urgenza: 'urgente'`, il flusso attuale passa comunque per `preventivo` (richiesta a N fornitori, attesa risposta). Per un ricambio urgente l'attesa preventivi è rumore: si vuole ordinare subito al fornitore di fiducia.
+
+### Soluzione
+Branch nel flusso: se `urgenza === 'urgente'`, salta `preventivo` e proponi direttamente l'ordine al fornitore con miglior score storico (o chiedi scelta esplicita).
+
+### Scope
+- Decisione policy: salto automatico vs prompt all'admin (default: prompt + suggerimento)
+- Modifica state machine spare in `AdminSpareParts.jsx`
+- UI hint visibile in `SpareRequestModal` quando si seleziona `urgente`
+- Nessuna nuova migration (lo stato `urgenza` esiste già)
+
+### Out of scope
+- Auto-ordine senza conferma
+- Notifica WhatsApp al fornitore (Fase 5)
+
+### Definition of done
+- Una richiesta `urgente` non resta mai a `preventivo` se l'admin sceglie skip
+- Flusso non-urgente invariato (regression test manuale)
+
+---
+
+## PR 3 · Voice transcripts in background
+
+**File**: `src/components/voice/VoiceRecorder.jsx`, `VoiceNewTicketFlow.jsx`, `VoiceUpdateFlow.jsx`, `VoiceReviewShell.jsx`
+**Edge function**: `supabase/functions/transcribe` (esistente)
+
+### Problema
+La trascrizione Whisper gira sincrona prima del submit del ticket. `VoiceRecorder.jsx:84` mostra "Trascrizione in corso…" e blocca il flusso. Su rete lenta o audio lungo l'utente aspetta — su un guasto urgente non è accettabile.
+
+### Soluzione
+Submit del ticket immediato con audio allegato. Trascrizione gira in background dopo l'insert e arriva come commento (o aggiornamento campo `description`) quando pronta.
+
+### Scope
+- Refactor `useVoiceTicket` / `useVoiceCapture` per disaccoppiare upload audio e transcribe
+- Edge function chiamata in fire-and-forget dopo il submit
+- Stato `pending_transcription` visibile sul ticket finché non arriva
+- Idempotenza: se la transcribe fallisce o l'utente chiude l'app, riprovare a riapertura ticket
+
+### Out of scope
+- Streaming in tempo reale della trascrizione
+- Cambio modello Whisper
+
+### Definition of done
+- Submit di un ticket vocale ritorna in <1s anche con audio di 30s
+- Trascrizione appare entro 10-15s come commento
+- Demo mode (no Supabase) continua a funzionare con flusso sync
+
+### Rischi
+- Race condition se l'utente ricarica il ticket prima che la trascrizione torni — gestire con polling soft o realtime channel
+
+---
+
+## PR 4 · Supplier specialty inference
+
+**File**: `src/components/SupplierFormModal.jsx`, `SupplierDetailModal.jsx`, eventuale nuova RPC
+
+### Problema
+La specialità di un fornitore (`SupplierFormModal.jsx:46`) è gestita a checkbox manuali. L'admin la imposta una volta e poi non la rivede — diventa stantia mentre il fornitore di fatto si specializza in altro.
+
+### Soluzione
+Inferire la specialità "implicita" dallo storico ricambi forniti. Mostrarla *accanto* alla manuale, non sostituirla. Se diverge, segnalarla all'admin.
+
+### Scope
+- RPC `infer_supplier_specialty(supplier_id)` che aggrega `spare_orders` / `quotes` per categoria
+- Visualizzazione in `SupplierDetailModal` come sezione "Inferita dallo storico"
+- Trigger: on-demand all'apertura del modal (no cron, no batch)
+- Nessuna scrittura automatica sulla colonna manuale
+
+### Out of scope
+- Categorizzazione LLM dei testi ricambio (per ora basta keyword/category match)
+- Auto-routing delle richieste in base alla specialità inferita (è materiale Fase 3)
+
+### Definition of done
+- Aprire un fornitore con 10+ ricambi storici mostra una specialità inferita
+- Se inferita ≠ manuale, badge visibile "diverge"
+- Performance: query sotto 200ms anche con 1000 ordini
+
+### Nota
+Questa PR è la più vicina alla Fase 3 ("Intelligenza per le scelte"). Se in corso d'opera scopriamo che richiede troppa infrastruttura, è candidata a slittare lì.
+
+---
+
+## Vincoli comuni a tutte e 4
+
+- Build e lint devono passare prima di ogni push
+- Demo mode (fallback localStorage) sempre rispettato per le funzioni DB nuove
+- UI in italiano, codice in inglese
+- Nessuna nuova dipendenza npm
+- Nessun file CSS nuovo — Tailwind inline + CSS vars esistenti
+- Una PR alla volta, mergeata prima di iniziare la successiva
