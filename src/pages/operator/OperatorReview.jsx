@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -19,10 +20,21 @@ const CATEGORY_OPTIONS = [
   { value: 'altro', label: 'Altro' },
 ]
 
+function buildFormFromFields(fields) {
+  return {
+    summary: fields?.summary || '',
+    machine_id: fields?.machine_id || '',
+    priority: fields?.priority || '',
+    category: fields?.category || '',
+    area: fields?.area || '',
+  }
+}
+
 export default function OperatorReview({
   machines,
   fields,
   transcription,
+  transcribing = false,
   error,
   onSubmit,
   onCancel,
@@ -31,20 +43,31 @@ export default function OperatorReview({
   const toast = useToast()
   const haptic = useHaptic()
 
-  // Initial state derivato dalle props. Il parent rimonta via key quando
-  // cambiano i fields estratti dall'AI (vedi OperatorApp.jsx).
-  const [form, setForm] = useState(() => ({
-    summary: fields?.summary || '',
-    machine_id: fields?.machine_id || '',
-    priority: fields?.priority || '',
-    category: fields?.category || '',
-    area: fields?.area || '',
-  }))
+  const [form, setForm] = useState(() => buildFormFromFields(fields))
   const [text, setText] = useState(transcription || '')
   const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
-  const update = (patch) => setForm(prev => ({ ...prev, ...patch }))
+  // PR 3 Fase 0: la review si apre subito, transcription/fields arrivano
+  // dopo dal background. Auto-popoliamo form/text se l'utente non ha
+  // ancora toccato. Una volta toccati, niente rehydrate.
+  const formTouchedRef = useRef(false)
+  const textTouchedRef = useRef(false)
+
+  useEffect(() => {
+    if (formTouchedRef.current) return
+    setForm(buildFormFromFields(fields))
+  }, [fields])
+
+  useEffect(() => {
+    if (textTouchedRef.current) return
+    if (transcription) setText(transcription)
+  }, [transcription])
+
+  const update = (patch) => {
+    formTouchedRef.current = true
+    setForm(prev => ({ ...prev, ...patch }))
+  }
 
   const handleSubmit = async () => {
     if (!form.summary.trim()) {
@@ -78,11 +101,18 @@ export default function OperatorReview({
     <div className="op-screen" aria-live="polite">
       <button className="op-back" onClick={onCancel} aria-label="Torna indietro">← ANNULLA</button>
 
-      <div style={{ marginTop: 6 }}>
-        <span className="op-badge" role="status">
-          <span className="op-badge__dot" aria-hidden="true" />
-          {transcription ? 'AI Whisper · Trascritto' : 'Compilazione manuale'}
-        </span>
+      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {transcribing ? (
+          <span className="op-badge" role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Loader2 size={13} className="animate-spin" aria-hidden="true" />
+            Trascrivendo audio…
+          </span>
+        ) : (
+          <span className="op-badge" role="status">
+            <span className="op-badge__dot" aria-hidden="true" />
+            {transcription ? 'AI Whisper · Trascritto' : 'Compilazione manuale'}
+          </span>
+        )}
       </div>
 
       {error && <div className="op-info" role="status">{error}</div>}
@@ -93,8 +123,8 @@ export default function OperatorReview({
           id="op-transcript"
           className="op-review-textarea"
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Descrivi il problema…"
+          onChange={(e) => { textTouchedRef.current = true; setText(e.target.value) }}
+          placeholder={transcribing ? 'In attesa della trascrizione…' : 'Descrivi il problema…'}
           aria-label="Trascrizione audio"
         />
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { db } from '../../lib/supabase'
 import { useVoiceCapture } from '../../hooks/useVoiceCapture'
 import { useToast } from '../../hooks/useToast'
@@ -63,7 +63,7 @@ export default function VoiceUpdateFlow({ report, user, onClose, onApplied }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice.state, voice.error])
 
-  if (voice.state === 'recording' || voice.state === 'transcribing') {
+  if (voice.state === 'recording') {
     return (
       <VoiceRecorder
         state={voice.state}
@@ -82,6 +82,7 @@ export default function VoiceUpdateFlow({ report, user, onClose, onApplied }) {
         fields={voice.fields || DEFAULT_FIELDS}
         transcription={voice.transcription}
         setTranscription={voice.setTranscription}
+        transcribing={voice.transcribing}
         audioBlob={voice.audioBlob}
         error={voice.error}
         report={report}
@@ -97,19 +98,34 @@ export default function VoiceUpdateFlow({ report, user, onClose, onApplied }) {
   return null
 }
 
-function ReviewForm({ fields, transcription, setTranscription, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
-  const [form, setForm] = useState(() => ({
+function buildFormFromFields(fields) {
+  return {
     diagnosi_confermata: fields?.diagnosi_confermata || '',
     azioni_eseguite: Array.isArray(fields?.azioni_eseguite) ? fields.azioni_eseguite : [],
     ricambi_ordinati: Array.isArray(fields?.ricambi_ordinati) ? fields.ricambi_ordinati : [],
     stato_proposto: fields?.stato_proposto || '',
     note_tecniche: fields?.note_tecniche || '',
     tempo_intervento_minuti: fields?.tempo_intervento_minuti != null ? String(fields.tempo_intervento_minuti) : '',
-  }))
+  }
+}
+
+function ReviewForm({ fields, transcription, setTranscription, transcribing, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
+  const [form, setForm] = useState(() => buildFormFromFields(fields))
   const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
-  const update = (patch) => setForm(prev => ({ ...prev, ...patch }))
+  // Auto-popola il form quando fields arrivano dopo l'apertura della review
+  // (PR 3 Fase 0). Una volta toccato dall'utente, non si rehydrata più.
+  const formTouchedRef = useRef(false)
+  useEffect(() => {
+    if (formTouchedRef.current) return
+    setForm(buildFormFromFields(fields))
+  }, [fields])
+
+  const update = (patch) => {
+    formTouchedRef.current = true
+    setForm(prev => ({ ...prev, ...patch }))
+  }
 
   const removeAzione = (idx) => update({
     azioni_eseguite: form.azioni_eseguite.filter((_, i) => i !== idx),
@@ -220,6 +236,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       title="Aggiornamento ticket"
       transcription={transcription}
       setTranscription={setTranscription}
+      transcribing={transcribing}
       error={error}
       loading={loading}
       onCancel={onCancel}

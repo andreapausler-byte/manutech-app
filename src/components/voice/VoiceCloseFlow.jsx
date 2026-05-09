@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { db } from '../../lib/supabase'
 import { useVoiceCapture } from '../../hooks/useVoiceCapture'
 import { useToast } from '../../hooks/useToast'
@@ -50,7 +50,7 @@ export default function VoiceCloseFlow({ report, user, onClose, onApplied }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice.state, voice.error])
 
-  if (voice.state === 'recording' || voice.state === 'transcribing') {
+  if (voice.state === 'recording') {
     return (
       <VoiceRecorder
         state={voice.state}
@@ -69,6 +69,7 @@ export default function VoiceCloseFlow({ report, user, onClose, onApplied }) {
         fields={voice.fields || DEFAULT_FIELDS}
         transcription={voice.transcription}
         setTranscription={voice.setTranscription}
+        transcribing={voice.transcribing}
         audioBlob={voice.audioBlob}
         error={voice.error}
         report={report}
@@ -84,18 +85,33 @@ export default function VoiceCloseFlow({ report, user, onClose, onApplied }) {
   return null
 }
 
-function ReviewForm({ fields, transcription, setTranscription, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
-  const [form, setForm] = useState(() => ({
+function buildFormFromFields(fields) {
+  return {
     closure_hours: fields?.closure_hours != null ? String(fields.closure_hours) : '',
     closure_parts: fields?.closure_parts || '',
     closure_root_cause: fields?.closure_root_cause || '',
     closure_action: fields?.closure_action || '',
     test_eseguiti: fields?.test_eseguiti || '',
-  }))
+  }
+}
+
+function ReviewForm({ fields, transcription, setTranscription, transcribing, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
+  const [form, setForm] = useState(() => buildFormFromFields(fields))
   const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
 
-  const update = (patch) => setForm(prev => ({ ...prev, ...patch }))
+  // Auto-popola il form quando fields arrivano dopo l'apertura della review
+  // (PR 3 Fase 0). Una volta toccato dall'utente, non si rehydrata più.
+  const formTouchedRef = useRef(false)
+  useEffect(() => {
+    if (formTouchedRef.current) return
+    setForm(buildFormFromFields(fields))
+  }, [fields])
+
+  const update = (patch) => {
+    formTouchedRef.current = true
+    setForm(prev => ({ ...prev, ...patch }))
+  }
 
   const isValid = form.closure_root_cause.trim() && form.closure_action.trim()
 
@@ -196,6 +212,7 @@ function ReviewForm({ fields, transcription, setTranscription, audioBlob, error,
       title="Chiusura ticket"
       transcription={transcription}
       setTranscription={setTranscription}
+      transcribing={transcribing}
       error={error}
       loading={loading}
       onCancel={onCancel}

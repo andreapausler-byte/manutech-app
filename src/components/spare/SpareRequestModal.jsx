@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { ChevronLeft, Camera, Mic, X, Plus, Minus, Send } from 'lucide-react'
+import { ChevronLeft, Camera, Mic, X, Plus, Minus, Send, Loader2 } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { SPARE_URGENCY } from '../../lib/constants'
 import { useVoiceCapture } from '../../hooks/useVoiceCapture'
@@ -45,20 +45,24 @@ export default function SpareRequestModal({ report, user, onClose, onApplied }) 
     },
   })
 
-  // Quando il flusso vocale arriva a 'review', popola i campi e torna al form.
+  // PR 3 Fase 0: review si apre subito dopo lo stop, fields arrivano dopo.
+  // Aspettiamo che la trascrizione background finisca (transcribing→false)
+  // prima di popolare i campi e chiudere il flow.
   useEffect(() => {
-    if (voice.state === 'review' && voice.fields) {
-      const f = voice.fields
-      if (f.articolo) setTitle(f.articolo)
+    if (voice.state !== 'review' || voice.transcribing) return
+    const f = voice.fields
+    let populated = false
+    if (f) {
+      if (f.articolo) { setTitle(f.articolo); populated = true }
       if (f.quantita) setQuantity(Math.max(1, parseInt(f.quantita, 10) || 1))
       if (f.urgenza && SPARE_URGENCY[f.urgenza]) setUrgency(f.urgenza)
-      if (f.note) setNotes(prev => prev ? `${prev}\n${f.note}` : f.note)
-      if (voice.error) toast.error(voice.error)
-      else toast.success('Compilato dalla voce, controlla e conferma')
-      voice.reset()
+      if (f.note) { setNotes(prev => prev ? `${prev}\n${f.note}` : f.note); populated = true }
     }
+    if (voice.error) toast.error(voice.error)
+    else if (populated) toast.success('Compilato dalla voce, controlla e conferma')
+    voice.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voice.state])
+  }, [voice.state, voice.transcribing])
 
   const handlePickPhotos = async (e) => {
     const files = Array.from(e.target.files || [])
@@ -183,11 +187,11 @@ export default function SpareRequestModal({ report, user, onClose, onApplied }) 
     }
   }
 
-  // Schermata fullscreen registrazione vocale
-  if (voice.state === 'recording' || voice.state === 'transcribing') {
+  // Schermata fullscreen registrazione vocale (solo durante recording — la
+  // trascrizione gira in background e popola il form quando arriva).
+  if (voice.state === 'recording') {
     return (
       <VoiceRecorder
-        state={voice.state}
         elapsedMs={voice.elapsedMs}
         onStop={voice.stopRecording}
         onCancel={voice.cancelRecording}
@@ -247,6 +251,19 @@ export default function SpareRequestModal({ report, user, onClose, onApplied }) 
 
       {/* ── Body ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        {voice.transcribing && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', borderRadius: 10, marginBottom: 16,
+            background: 'rgba(124,106,255,0.10)',
+            border: '1px solid rgba(124,106,255,0.30)',
+            color: '#a78bfa', fontSize: 12, fontWeight: 600,
+          }}>
+            <Loader2 size={14} className="animate-spin" />
+            Trascrivendo dettatura… i campi si popolano fra qualche secondo.
+          </div>
+        )}
+
         {/* Foto */}
         <FieldLabel required>
           Foto <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>· la 1ª = targhetta</span>
