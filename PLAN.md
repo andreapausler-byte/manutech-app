@@ -122,6 +122,16 @@ Inferire la specialità "implicita" dallo storico ricambi forniti. Mostrarla *ac
 ### Nota
 Questa PR è la più vicina alla Fase 3 ("Intelligenza per le scelte"). Se in corso d'opera scopriamo che richiede troppa infrastruttura, è candidata a slittare lì.
 
+### Scope evoluto in corso d'opera (PR #199)
+Lo scope iniziale assumeva un'anagrafica fornitori popolata e maintained, in modo che il "diverge" tra specialità manuale e inferita fosse il valore principale. Ground truth scoperta durante il lavoro: i fornitori non avevano una sezione dedicata in admin — erano mischiati nei tab Operatori/Tecnici/Admin con un piccolo badge "🚚 Fornitore". L'inferenza, mountata sul `SupplierDetailModal`, era praticamente irraggiungibile.
+
+Il valore reale era a monte: **dare ai fornitori una sezione dedicata** in `AdminUsers.jsx`. PR #199 quindi include:
+1. Modulo `lib/supplierInference.js` con classificazione keyword (no LLM, no RPC)
+2. Sezione "Dallo storico ricambi" nel `SupplierDetailModal`, sempre visibile quando ci sono ordini matched (anche con empty state esplicito se nessuna keyword matcha)
+3. **Quarto gruppo "🚚 Fornitori" in AdminUsers**, supplier esclusi dagli altri tab — l'inferenza diventa raggiungibile in 1 click
+
+L'RPC `infer_supplier_specialty` non è stata implementata: classificazione lato JS è sufficiente per i volumi attuali e non richiede migration. Se in Fase 3 i volumi crescono, il modulo è isolato e sostituibile con RPC senza toccare il modal.
+
 ---
 
 ## Vincoli comuni a tutte e 4
