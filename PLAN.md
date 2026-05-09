@@ -21,28 +21,93 @@ Quando l'operatore apre una nuova segnalazione, il sistema mostra **3 casi stori
 
 ---
 
-## Cosa esiste già (e che riusiamo)
+## Cosa esiste già (verificato leggendo il codice)
 
-ManuTech ha **un'infrastruttura RAG operativa** già pronta:
+Il piano iniziale di questo file assumeva di dover estendere la knowledge base ai commenti dei report. **Falso**: era già fatto. Verifica completa:
 
-- Migration `028_knowledge_base.sql`: estensione `pgvector`, tabella `document_chunks` con `embedding vector(1024)`, indice HNSW + GIN per FTS italiano, RPC `search_knowledge` ibrida (vector + FTS)
-- Edge function `embed-query`: wrapper privato a Voyage AI (`voyage-multilingual-2`, supporta italiano nativamente)
-- Edge function `ingest-knowledge`: pipeline che chunka e embedda manuali macchina
-- Edge function `assistant-chat`: RAG conversazionale sui chunks dei manuali, modello Haiku 4.5
-- Tabella `comments` già strutturata bene (text, user_id, user_role, media JSONB, org_id)
+- Migration `028` + `041`: `document_chunks` accetta `source_kind = 'report_chat'` (la 041 ha aggiunto questo valore al CHECK)
+- Edge function `ingest-knowledge`: già indicizza i report chiusi includendo titolo, descrizione, closure_root_cause/action/parts, e tutti i commenti — vedi `index.ts:472`
+- Trigger automatico alla chiusura report: `ReportDetail.jsx:511` chiama `db.queueMachineReindex(report.machine_id)` quando il tecnico clicca "risolvi"
+- Trigger su edit/delete commento: `ChatPanel.jsx:451,465` ri-indicizza la macchina
+- Tasto admin "Re-indicizza biblioteca AI" per macchina: `MachineDocumentationTab.jsx`
+- Componente `SimilarReportsPanel.jsx`: pannello "Soluzioni dal passato" già presente in `ReportDetail` (one-shot al click "Apri", usa `assistant-chat` con sintesi LLM)
 
-Quindi il piano **non costruisce da zero**: estende `document_chunks` per includere commenti e descrizioni di report, riusa `embed-query` e `search_knowledge`.
+**Quindi la PR 1 è una sola cosa**: portare la ricerca "casi simili" nel **composer di nuova segnalazione** in modo **live** (debounced mentre l'utente scrive). Non c'è migration nuova, non c'è edge function nuova — solo un nuovo componente UI e un piccolo helper in `lib/assistant.js`.
+
+Le PR 2 (backfill) e PR 3 (UI nel composer) della prima stesura del piano sono assorbite o cancellate. La PR 1 originaria (estendere document_chunks) è duplicato di lavoro già esistente.
 
 ---
 
 ## Ordine consigliato
 
-**PR 1 → PR 2 → PR 3**. PR 4 opzionale dopo aver visto il valore.
-PR 1 sblocca tutto, PR 2 popola lo storico, PR 3 è il momento "magico" per l'utente.
+**PR 1** è l'unica davvero necessaria. Tutto il resto sopra (estensione schema, backfill) è già nel codice. Le PR 2/3/4 della prima stesura sono cancellate o assorbite.
 
 ---
 
-## PR 1 · Estensione document_chunks per report
+## ~~PR 1 · Estensione document_chunks per report~~ — CANCELLATA
+
+Era duplicato di codice già esistente (migration 041 + ingest-knowledge linea 472). Lasciata qui sotto come archivio storico della prima ipotesi sbagliata. Lezione: leggere TUTTE le migration + edge function PRIMA di scrivere PLAN, non solo la 028.
+
+---
+
+## PR 1 (vera) · UI Casi simili live nel composer
+
+**File**: `src/lib/assistant.js`, `src/components/reports/SimilarCasesLivePanel.jsx` (nuovo), `src/components/reports/NewReport.jsx`
+
+### Problema
+L'operatore apre una nuova segnalazione. Mentre digita "encoder asse Y bloccato sulla riempitrice", non sa che 8 mesi fa Mario ha risolto un caso identico. La conoscenza c'è già nel DB (in `document_chunks` come `report_chat`), ma all'operatore non arriva: il pannello "Soluzioni dal passato" esiste solo dentro `ReportDetail` (su un report già aperto), non nel composer di una segnalazione nuova.
+
+### Soluzione
+Componente `SimilarCasesLivePanel` che vive nel composer. Mentre l'operatore digita titolo + descrizione + sceglie macchina:
+1. Concatena `title + description`, debounce 700ms, skip se <30 char
+2. Chiama edge `embed-query` per ottenere embedding del testo
+3. Chiama RPC `search_knowledge` filtrato per `machine_id`, prende top 12 chunks
+4. Filtra client-side per `source_kind === 'report_chat'`, dedupe per `source_ref` (=report_id) tenendo la similarity più alta
+5. Fetcha metadati dei top 3 report (titolo, macchina, closure_root_cause, ecc.) in un'unica query
+6. Mostra pannello con 3 card: titolo + estratto + similarity % + macchina + data + nome tecnico
+7. Click su una card apre una **modale di anteprima** con causa, azione, estratto chunk. Il composer resta intatto sotto.
+
+**Niente LLM call** in questo flow. Solo embedding + RPC + fetch report. Costo per query: ~$0.0001 (Voyage). Velocità: <1s tipico.
+
+### Scope
+- `lib/assistant.js`: aggiungere `searchSimilarCases({ text, machineId, excludeReportId, limit })`
+- `components/reports/SimilarCasesLivePanel.jsx`: nuovo, gestisce debounce + stati loading/empty/error/results + modale di preview
+- `components/reports/NewReport.jsx`: integrazione subito dopo il campo Descrizione, calcola `machineId` da `form.machine` via lookup `machines.find(m => m.name === form.machine)?.id`
+- Demo mode: il pannello restituisce `null` se `!isAssistantAvailable()`
+- Empty state esplicito: "Nessuna segnalazione storica simile sulla stessa macchina. Quando questa verrà chiusa, arricchirà lo storico per i prossimi."
+- Niente telemetria in questa PR (eventuale PR 2 di follow-up)
+
+### Out of scope
+- Integrazione anche in `QuickReport.jsx` (i quick template hanno meno testo, valore inferiore — valutiamo dopo)
+- Casi simili "fuori macchina" (su macchine diverse ma stesso problema)
+- Telemetria click-through (richiede tabella nuova, follow-up)
+- Apertura "completa" del report storico nel composer (per ora solo preview modale; se serve, aggiungiamo `onOpenFull` callback al chiamante)
+
+### Definition of done
+- Compilando titolo + descrizione + macchina nel composer, dopo ~700ms appare il pannello con 3 casi simili (se esistono)
+- Click su un caso apre preview modale con causa/azione/estratto
+- Demo mode: pannello invisibile, composer continua a funzionare normalmente
+- Niente regressioni su `SimilarReportsPanel` (che resta in ReportDetail)
+- Build e lint passano
+
+### Stima
+~~3-4 giorni~~ → **mezza giornata** (riusa tutto il backend esistente)
+
+---
+
+## ~~PR 2 · Backfill storico~~ — CANCELLATA
+
+Esiste già: il tasto "Re-indicizza biblioteca AI" in `MachineDocumentationTab.jsx` riprocessa tutti i report chiusi della macchina via `ingest-knowledge`. La triggata automatica alla chiusura report mantiene lo storico aggiornato. Eventualmente in futuro si può aggiungere un "Re-indicizza tutto globale" (1 PR piccola), ma non è bloccante.
+
+---
+
+## ~~PR 3 · UI Casi simili nel composer~~ — DIVENTATA PR 1
+
+Spostata sopra. Era la vera PR 1 dall'inizio, mascherata da "sequenza" di lavoro che si è rivelata già completata.
+
+---
+
+## PR 2 (eventuale) · Telemetria e follow-up
 
 **File**: `supabase/migrations/029_*.sql`, `supabase/functions/ingest-report-knowledge/index.ts` (nuova), `src/lib/db/reports.js`
 
@@ -75,91 +140,6 @@ Pipeline embedding al salvataggio: quando un commento viene inserito **e il repo
 
 ### Stima
 1-2 giorni. Niente UI, solo pipeline. Il rischio è la latenza: l'embedding non deve bloccare il salvataggio commento (chiamata async, errori loggati ma non rilanciati).
-
----
-
-## PR 2 · Backfill storico commenti e descrizioni
-
-**File**: `supabase/functions/backfill-report-knowledge/index.ts` (nuova), `src/pages/admin/AdminKnowledgeBase.jsx` (eventuale tasto)
-
-### Problema
-PR 1 indicizza solo i nuovi commenti. La conoscenza pregressa (mesi/anni di commenti su report già chiusi) resta invisibile. Senza backfill, "casi simili" mostra sempre vuoto fino a quando non si accumulano abbastanza commenti nuovi.
-
-### Soluzione
-Funzione one-shot che scorre tutti i commenti dei report chiusi (e tutte le `reports.description` dei report chiusi), batch-embedda, popola `document_chunks`. Idempotente: skip i (source_kind, source_ref) già presenti.
-
-### Scope
-- Edge function `backfill-report-knowledge` chiamabile via tasto admin
-- Input: `{ org_id?: string, batch_size?: number, dry_run?: boolean }`. Default org dell'admin chiamante. Default batch_size 50.
-- Output: `{ processed, skipped, errors, total }`. Streaming/polling se possibile, altrimenti chunking client-side a batch.
-- Tasto in `AdminKnowledgeBase.jsx` (o pagina equivalente esistente): "Re-indicizza commenti storici" con conferma + progress
-- Costi Voyage: stimare con dry_run prima di eseguire. A `voyage-multilingual-2` ~$0.05/1M token. 1000 commenti × 100 token = 100k token = $0.005. Trascurabile per i volumi attuali.
-
-### Out of scope
-- Re-indexing automatico schedulato (per ora basta on-demand)
-- Backfill commenti su report aperti (la logica "solo report chiusi" della PR 1 si applica anche qui)
-
-### Definition of done
-- Tasto "Re-indicizza" funziona, completa senza errori su un'org demo
-- Idempotente: re-eseguire non duplica
-- dry_run mostra il count di commenti da indicizzare prima di sparare le chiamate Voyage
-- Toast con risultato finale ("847 indicizzati, 12 skip, 0 errori")
-
-### Stima
-1 giorno se PR 1 è solida. Il pattern è già presente in `ingest-knowledge` per i manuali, basta adattare.
-
----
-
-## PR 3 · UI Casi simili nel composer segnalazione
-
-**File**: `src/components/ReportComposer.jsx` (o equivalente), `src/hooks/useSimilarCases.js` (nuova), `src/components/SimilarCasesPanel.jsx` (nuova)
-
-### Problema
-L'operatore apre una nuova segnalazione e digita "encoder asse Y bloccato sulla riempitrice GAI". Non sa che 8 mesi fa Mario ha risolto un caso identico. La conoscenza c'è nel DB ma non gli arriva.
-
-### Soluzione
-Mentre l'operatore digita titolo/descrizione + sceglie macchina, hook con debounce 600ms che embedda il testo combinato + chiama `search_knowledge` con filtro `source_kind IN ('report_comment', 'report_description')` e `machine_id = scelta` (o macchine simili in fase 2). Mostra fino a 3 casi simili sotto il composer, ciascuno con: titolo report, estratto del commento, data, nome del tecnico che ha risolto. Click → modale di anteprima.
-
-### Scope
-- Hook `useSimilarCases({ text, machineId, debounceMs: 600, minLength: 20 })` che ritorna `{ cases, loading, error }`
-- Embed lato edge function (`embed-query` esistente)
-- Search via RPC `search_knowledge` esistente — eventuale piccola estensione per supportare filtri su source_kind e report_id
-- Component `SimilarCasesPanel` collassabile (default aperto se ha risultati, chiuso se vuoto)
-- Empty state: *"Nessun caso simile trovato. La conoscenza cresce ad ogni segnalazione chiusa."*
-- Insufficient data state: se `total_chunks < 50`, mostra: *"Lo storico AI non è ancora maturo. Servono almeno 50 report chiusi per suggerimenti utili."*
-- Click su caso → modale leggera con report storico (titolo, descrizione, commento rilevante evidenziato, link al report completo)
-- Telemetria minima: contatore "casi mostrati" e "casi cliccati" su `activities` o tabella nuova `ai_suggestion_events`. Servirà per misurare se l'utente lo trova davvero utile.
-
-### Out of scope
-- Casi simili "fuori macchina" (su macchine diverse ma stesso problema) — euristica avanzata, fase 2
-- Auto-suggestion in fase di voce (Fase 2)
-- Spiegazione AI di "perché questo caso è simile" — interessante ma costoso, può aspettare
-
-### Definition of done
-- Composer con descrizione + macchina selezionata mostra 3 casi simili in <2s
-- Click su un caso apre la modale storica
-- Empty state corretto sia per "nessun caso simile" sia per "storico vuoto"
-- Demo mode: il composer continua a funzionare, sezione casi simili invisibile o con messaggio "AI non disponibile in modalità demo"
-- Mobile UX: il pannello non rompe il flusso del composer, è collassabile
-
-### Stima
-2-3 giorni. La parte AI è già pronta; il grosso è UX nel composer.
-
----
-
-## PR 4 (opzionale) · Quality e telemetria
-
-**Da decidere dopo aver visto PR 3 in uso**.
-
-### Possibili contenuti
-- Soglia di similarity dinamica (scarta sotto 0.6, threshold configurabile)
-- Filtri: per categoria di componente, per gravità, per data (ultimi 12 mesi)
-- Macchine simili (non solo identiche): se la macchina è una "Riempitrice", cerca anche su altre riempitrici
-- Dashboard admin: "casi suggeriti / casi cliccati / report risolti più rapidamente con AI" (KPI di valore reale)
-- A/B test: gruppo controllo senza panel per misurare differenza nel tempo medio di risoluzione
-
-### Decision point
-Apriamo PR 4 solo se PR 3 mostra >20% click-through rate sui casi suggeriti. Sotto, vuol dire che le similarity non sono buone abbastanza o l'UI non funziona — meglio iterare sulle prime 3 PR che impilare nuove feature.
 
 ---
 
