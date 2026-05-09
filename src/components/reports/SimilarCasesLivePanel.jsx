@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { isAssistantAvailable, searchSimilarCases, getMachineKnowledgeStats } from '../../lib/assistant'
+import { db } from '../../lib/supabase'
 import { formatDate } from '../../lib/constants'
 import { Modal } from '../ui'
 
@@ -31,6 +32,8 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
   const [previewCase, setPreviewCase] = useState(null)
   const [diagStats, setDiagStats] = useState(null)
   const [diagLoading, setDiagLoading] = useState(false)
+  const [reindexing, setReindexing] = useState(false)
+  const [reindexResult, setReindexResult] = useState(null)
   const timerRef = useRef(null)
   const lastQueryRef = useRef('')
   const lastDiagMachineRef = useRef(null)
@@ -91,6 +94,24 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
       .then(s => setDiagStats(s))
       .finally(() => setDiagLoading(false))
   }, [showEmpty, machineId])
+
+  const handleReindex = async () => {
+    if (!machineId || reindexing) return
+    setReindexing(true)
+    setReindexResult(null)
+    const res = await db.queueMachineReindex(machineId)
+    setReindexResult(res)
+    setReindexing(false)
+    if (res?.ok) {
+      // Re-fetch diagnostica e forza nuova ricerca quando l'utente
+      // continuerà a digitare / al prossimo render.
+      lastDiagMachineRef.current = null
+      lastQueryRef.current = ''
+      setDiagStats(null)
+      setHasSearched(false)
+      setCases([])
+    }
+  }
 
   if (!available) return null
   if (!hasSearched && !loading) return null
@@ -198,9 +219,40 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
                       {diagStats.by_kind?.maintenance_log || 0} interventi)
                     </div>
                     {(!diagStats.by_kind?.report_chat || diagStats.by_kind.report_chat === 0) && (
-                      <div style={{ marginTop: 4, color: 'var(--color-warning, #f59e0b)' }}>
-                        ⚠ Nessun report storico indicizzato per questa macchina.
-                        Vai in <b>Macchine → Documentazione</b> e clicca <b>Re-indicizza biblioteca AI</b>.
+                      <div style={{ marginTop: 4 }}>
+                        <div style={{ color: 'var(--color-warning, #f59e0b)' }}>
+                          ⚠ Nessun report storico indicizzato per questa macchina.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleReindex}
+                          disabled={reindexing}
+                          className="press-scale"
+                          style={{
+                            marginTop: 6,
+                            padding: '5px 12px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: reindexing ? 'var(--color-surface-2)' : 'var(--color-primary)',
+                            color: reindexing ? 'var(--color-text-muted)' : '#fff',
+                            border: 'none',
+                            borderRadius: 8,
+                            cursor: reindexing ? 'wait' : 'pointer',
+                          }}>
+                          {reindexing ? 'Indicizzazione in corso…' : 'Re-indicizza ora'}
+                        </button>
+                        {reindexResult?.ok && (
+                          <div style={{ marginTop: 4, color: 'var(--color-success, #10b981)' }}>
+                            ✓ Indicizzato: {reindexResult.chunks || 0} estratti totali, di cui{' '}
+                            {reindexResult.report_chat_chunks ?? '?'} da report storici.
+                            Riapri il ticket per vedere i casi simili.
+                          </div>
+                        )}
+                        {reindexResult && !reindexResult.ok && !reindexResult.demo && (
+                          <div style={{ marginTop: 4, color: 'var(--color-danger)' }}>
+                            Errore: {reindexResult.error || 'imprevisto'}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
