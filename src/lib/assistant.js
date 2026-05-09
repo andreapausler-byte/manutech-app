@@ -121,10 +121,25 @@ export async function searchSimilarCases({ text, machineId, excludeReportId, lim
   if (top.length === 0) return []
 
   const reportIds = top.map(c => c.source_ref)
-  const { data: reports } = await supabase
-    .from('reports')
-    .select('id, display_id, title, status, machine, machine_id, created_at, updated_at, assigned_to_name, closure_root_cause, closure_action')
-    .in('id', reportIds)
+  // Fetch metadata: prima prova con display_id (migration 049 applicata).
+  // Se la colonna non esiste, ritenta senza per non far esplodere la query.
+  let reports = null
+  {
+    const r1 = await supabase
+      .from('reports')
+      .select('id, display_id, title, status, machine, machine_id, created_at, updated_at, assigned_to_name, closure_root_cause, closure_action')
+      .in('id', reportIds)
+    if (r1.error) {
+      console.warn('[ManuTech] reports select with display_id failed, retry without:', r1.error.message)
+      const r2 = await supabase
+        .from('reports')
+        .select('id, title, status, machine, machine_id, created_at, updated_at, assigned_to_name, closure_root_cause, closure_action')
+        .in('id', reportIds)
+      reports = r2.data
+    } else {
+      reports = r1.data
+    }
+  }
   const reportMap = new Map((reports || []).map(r => [r.id, r]))
 
   return top.map(c => ({
