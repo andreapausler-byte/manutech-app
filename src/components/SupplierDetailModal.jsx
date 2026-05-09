@@ -92,7 +92,7 @@ export default function SupplierDetailModal({ open, onClose, supplier, profile, 
         )}
 
         {/* Specialità inferite dallo storico ricambi */}
-        {!loadingHistory && inferred.length > 0 && (
+        {!loadingHistory && matchedOrders > 0 && (
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: 'var(--color-text-muted)' }}>
               <History size={12} /> Dallo storico ricambi
@@ -100,35 +100,44 @@ export default function SupplierDetailModal({ open, onClose, supplier, profile, 
                 · {matchedOrders} {matchedOrders === 1 ? 'ordine' : 'ordini'}
               </span>
             </p>
-            <div className="flex flex-wrap gap-2">
-              {inferred.map(({ specialty, count }) => {
-                const s = SUPPLIER_SPECIALTIES[specialty]
-                if (!s) return null
-                const isNew = drift.onlyInferred.includes(specialty)
-                return (
-                  <span key={specialty}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium"
-                    style={{
-                      background: s.color + '12',
-                      color: s.color,
-                      border: `1px dashed ${s.color}40`,
-                    }}>
-                    <span>{s.icon}</span> {s.label}
-                    <span className="font-normal" style={{ opacity: 0.7 }}>· {count}</span>
-                    {isNew && (
-                      <span className="ml-1 px-1 py-px rounded text-[9px] font-bold uppercase tracking-wide"
-                        style={{ background: s.color + '25', color: s.color }}>
-                        nuovo
+            {inferred.length > 0 ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {inferred.map(({ specialty, count }) => {
+                    const s = SUPPLIER_SPECIALTIES[specialty]
+                    if (!s) return null
+                    const isNew = drift.onlyInferred.includes(specialty)
+                    return (
+                      <span key={specialty}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium"
+                        style={{
+                          background: s.color + '12',
+                          color: s.color,
+                          border: `1px dashed ${s.color}40`,
+                        }}>
+                        <span>{s.icon}</span> {s.label}
+                        <span className="font-normal" style={{ opacity: 0.7 }}>· {count}</span>
+                        {isNew && (
+                          <span className="ml-1 px-1 py-px rounded text-[9px] font-bold uppercase tracking-wide"
+                            style={{ background: s.color + '25', color: s.color }}>
+                            nuovo
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                )
-              })}
-            </div>
-            {drift.onlyInferred.length > 0 && specialties.length > 0 && (
-              <p className="text-[11px] mt-2 flex items-start gap-1.5" style={{ color: 'var(--color-text-muted)' }}>
+                    )
+                  })}
+                </div>
+                {drift.onlyInferred.length > 0 && specialties.length > 0 && (
+                  <p className="text-[11px] mt-2 flex items-start gap-1.5" style={{ color: 'var(--color-text-muted)' }}>
+                    <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                    Lo storico mostra specialità non incluse nella scheda. Valuta se aggiornarla.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-[11px] italic flex items-start gap-1.5" style={{ color: 'var(--color-text-muted)' }}>
                 <AlertCircle size={11} className="shrink-0 mt-0.5" />
-                Lo storico mostra specialità non incluse nella scheda. Valuta se aggiornarla.
+                Nessuna specialità riconosciuta nei nomi dei ricambi storici. L'inferenza usa parole chiave tecniche (cuscinetto, encoder, valvola, ecc.) — funziona meglio quando i nomi sono descrittivi.
               </p>
             )}
           </div>
