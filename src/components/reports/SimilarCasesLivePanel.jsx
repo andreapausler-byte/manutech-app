@@ -23,6 +23,13 @@ import { Modal } from '../ui'
 const DEBOUNCE_MS = 700
 const MIN_LENGTH = 30
 
+// Stesso schema usato in ReportDetail.jsx per coerenza visiva.
+function formatTicketId(uuid) {
+  if (!uuid) return ''
+  const digits = String(uuid).replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')
+  return `TK-${digits || '0000'}`
+}
+
 export default function SimilarCasesLivePanel({ text, machineId, excludeReportId, onOpenFull }) {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -89,7 +96,13 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
     }
   }, [text, machineId, excludeReportId, available, reindexCount])
 
-  const showEmpty = hasSearched && cases.length === 0 && !loading && !error
+  // Calcolata in 2 fasi: prima conta i case post-filtro client-side
+  // (vedi visibleCases sotto), poi useEffect/render usano questo flag.
+  const normExcludeId = excludeReportId ? String(excludeReportId).trim().toLowerCase() : null
+  const visibleCount = normExcludeId
+    ? cases.filter(c => String(c.source_ref || '').trim().toLowerCase() !== normExcludeId).length
+    : cases.length
+  const showEmpty = hasSearched && visibleCount === 0 && !loading && !error
 
   // Diagnostica: quando empty + machineId, fetcha una volta per macchina i count
   // di chunks indicizzati. Aiuta l'utente a capire se il vuoto è perché la
@@ -128,6 +141,12 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
   if (!available) return null
   if (!hasSearched && !loading) return null
 
+  // Safety net client-side: nel caso (improbabile) in cui un chunk con
+  // source_ref uguale al report corrente sfugga al filtro lato lib.
+  const visibleCases = normExcludeId
+    ? cases.filter(c => String(c.source_ref || '').trim().toLowerCase() !== normExcludeId)
+    : cases
+
   return (
     <>
       <div style={{
@@ -163,9 +182,9 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
           <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700 }}>
               Casi simili dallo storico
-              {cases.length > 0 && (
+              {visibleCases.length > 0 && (
                 <span style={{ fontWeight: 500, color: 'var(--color-text-muted)', marginLeft: 6 }}>
-                  · {cases.length}
+                  · {visibleCases.length}
                 </span>
               )}
             </div>
@@ -176,7 +195,7 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
           {open ? <ChevronUp size={16} color="var(--color-text-muted)" /> : <ChevronDown size={16} color="var(--color-text-muted)" />}
         </button>
 
-        {open && (loading || cases.length > 0 || error || showEmpty) && (
+        {open && (loading || visibleCases.length > 0 || error || showEmpty) && (
           <div style={{ padding: '0 14px 12px 14px', borderTop: '1px solid var(--color-border-subtle)' }}>
             {loading && (
               <div style={{ padding: '12px 0', fontSize: 12.5, color: 'var(--color-text-secondary)' }}>
@@ -272,9 +291,9 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
               </div>
             )}
 
-            {!loading && cases.length > 0 && (
+            {!loading && visibleCases.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-                {cases.map(c => (
+                {visibleCases.map(c => (
                   <button
                     key={c.source_ref}
                     type="button"
@@ -293,6 +312,18 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
                       gap: 4,
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: 999,
+                        background: 'var(--color-surface-1)',
+                        color: 'var(--color-text-muted)',
+                        flexShrink: 0,
+                        fontFamily: 'JetBrains Mono, monospace',
+                      }}>
+                        {formatTicketId(c.source_ref)}
+                      </span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {c.report?.title || 'Segnalazione'}
                       </span>
@@ -335,6 +366,9 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
         {previewCase && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 4 }}>
+                {formatTicketId(previewCase.source_ref)}
+              </div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>
                 {previewCase.report?.title || 'Segnalazione'}
               </div>

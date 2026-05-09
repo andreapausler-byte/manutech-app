@@ -101,11 +101,15 @@ export async function searchSimilarCases({ text, machineId, excludeReportId, lim
   })
   if (error) throw error
 
+  // Normalizza per evitare miss su trailing whitespace o casing diverso tra
+  // come l'UUID arriva dal client e come è memorizzato nel chunk.
+  const normExclude = excludeReportId ? String(excludeReportId).trim().toLowerCase() : null
   const byReport = new Map()
   for (const c of (chunks || [])) {
     if (c.source_kind !== 'report_chat') continue
     if (!c.source_ref) continue
-    if (excludeReportId && c.source_ref === excludeReportId) continue
+    const normRef = String(c.source_ref).trim().toLowerCase()
+    if (normExclude && normRef === normExclude) continue
     if (typeof c.similarity === 'number' && c.similarity < minSimilarity) continue
     const prev = byReport.get(c.source_ref)
     if (!prev || c.similarity > prev.similarity) byReport.set(c.source_ref, c)
