@@ -22,7 +22,7 @@ import { Modal } from '../ui'
 const DEBOUNCE_MS = 700
 const MIN_LENGTH = 30
 
-export default function SimilarCasesLivePanel({ text, machineId, onOpenFull }) {
+export default function SimilarCasesLivePanel({ text, machineId, excludeReportId, onOpenFull }) {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   const [cases, setCases] = useState([])
@@ -48,14 +48,15 @@ export default function SimilarCasesLivePanel({ text, machineId, onOpenFull }) {
       }
       return undefined
     }
-    if (q === lastQueryRef.current) return undefined
+    const cacheKey = `${q}|${machineId || ''}|${excludeReportId || ''}`
+    if (cacheKey === lastQueryRef.current) return undefined
 
     timerRef.current = setTimeout(async () => {
-      lastQueryRef.current = q
+      lastQueryRef.current = cacheKey
       setLoading(true)
       setError(null)
       try {
-        const results = await searchSimilarCases({ text: q, machineId, limit: 3 })
+        const results = await searchSimilarCases({ text: q, machineId, excludeReportId, limit: 3 })
         setCases(results)
         setHasSearched(true)
       } catch (err) {
@@ -71,7 +72,7 @@ export default function SimilarCasesLivePanel({ text, machineId, onOpenFull }) {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [text, machineId, available])
+  }, [text, machineId, excludeReportId, available])
 
   if (!available) return null
   if (!hasSearched && !loading) return null
