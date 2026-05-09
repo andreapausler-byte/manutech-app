@@ -252,6 +252,13 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
 
 // ── Main Component ──
 // eslint-disable-next-line no-unused-vars
+// Ranking per sort 'severity' e 'status' (workflow desc).
+const SEVERITY_RANK = { critica: 4, alta: 3, media: 2, bassa: 1 }
+const STATUS_RANK = {
+  in_lavorazione: 6, assegnata: 5, aperta: 4,
+  in_attesa_ricambi: 3, risolta: 2, chiuso: 1,
+}
+
 export default function ReportsList({ user, onSelectReport, unreadByReport = {} }) {
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
@@ -260,6 +267,35 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   const [initialized, setInitialized] = useState(false)
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('manutech_reports_view') || 'chrono')
   const [lastMessages, setLastMessages] = useState({})
+  const [machines, setMachines] = useState([])
+
+  // Filtri + ordinamento personalizzati per tecnico, persistiti in localStorage.
+  const filtersKey = `manutech_reports_filters_${user?.id || 'anon'}`
+  const [filters, setFilters] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(filtersKey) || '{}')
+      return {
+        onlyMine: !!saved.onlyMine,
+        machineFilter: saved.machineFilter || '',
+        sortBy: saved.sortBy || 'updated',
+      }
+    } catch {
+      return { onlyMine: false, machineFilter: '', sortBy: 'updated' }
+    }
+  })
+  const updateFilters = (patch) => {
+    setFilters(prev => {
+      const next = { ...prev, ...patch }
+      try { localStorage.setItem(filtersKey, JSON.stringify(next)) } catch { /* quota */ }
+      return next
+    })
+  }
+
+  useEffect(() => {
+    db.getMachines()
+      .then(list => setMachines(list || []))
+      .catch(e => console.warn('[ReportsList] getMachines:', e?.message))
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -287,24 +323,37 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
 
   useEffect(() => { load() }, [load])
 
-  // Filter by search
+  // Filter: search testuale + onlyMine + macchina
   const filtered = reports.filter(r => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return r.title?.toLowerCase().includes(q) || r.machine?.toLowerCase().includes(q)
+    if (filters.onlyMine && r.assigned_to !== user?.id) return false
+    if (filters.machineFilter && r.machine_id !== filters.machineFilter) return false
+    if (search) {
+      const q = search.toLowerCase()
+      const tk = formatTicketId(r).toLowerCase()
+      if (!(r.title?.toLowerCase().includes(q)
+         || r.machine?.toLowerCase().includes(q)
+         || tk.includes(q))) return false
+    }
+    return true
   })
 
-  // Chrono: flat list sorted by updated_at DESC
-  const chronoSorted = [...filtered].sort((a, b) =>
-    new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
-  )
+  // Sort logic in base a filters.sortBy. Chrono = lista piatta.
+  const sortFn = (a, b) => {
+    if (filters.sortBy === 'severity') {
+      const diff = (SEVERITY_RANK[b.severity] || 0) - (SEVERITY_RANK[a.severity] || 0)
+      if (diff !== 0) return diff
+    } else if (filters.sortBy === 'status') {
+      const diff = (STATUS_RANK[b.status] || 0) - (STATUS_RANK[a.status] || 0)
+      if (diff !== 0) return diff
+    }
+    return new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+  }
+  const chronoSorted = [...filtered].sort(sortFn)
 
-  // Group by status
+  // Group by status (la sortFn applicata anche dentro le sezioni)
   const grouped = {}
   for (const s of STATUSES) {
-    grouped[s] = filtered
-      .filter(r => r.status === s)
-      .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+    grouped[s] = filtered.filter(r => r.status === s).sort(sortFn)
   }
 
   // Sort sections: most recently updated first, empty sections last
@@ -389,6 +438,66 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               <X size={14} />
             </button>
           )}
+        </div>
+
+        {/* Filtri rapidi: Solo i miei + Macchina + Ordina */}
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center',
+        }}>
+          <button
+            type="button"
+            onClick={() => updateFilters({ onlyMine: !filters.onlyMine })}
+            className="press-scale"
+            style={{
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 999,
+              border: filters.onlyMine ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: filters.onlyMine ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+              color: filters.onlyMine ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+            }}>
+            {filters.onlyMine ? '✓ ' : ''}Solo i miei
+          </button>
+
+          <select
+            value={filters.machineFilter}
+            onChange={(e) => updateFilters({ machineFilter: e.target.value })}
+            style={{
+              padding: '6px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 999,
+              border: filters.machineFilter ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: filters.machineFilter ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+              color: filters.machineFilter ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              maxWidth: 180,
+            }}>
+            <option value="">Tutte le macchine</option>
+            {machines.map(m => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+
+          <select
+            value={filters.sortBy}
+            onChange={(e) => updateFilters({ sortBy: e.target.value })}
+            style={{
+              padding: '6px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 999,
+              border: filters.sortBy !== 'updated' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: filters.sortBy !== 'updated' ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+              color: filters.sortBy !== 'updated' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+            }}>
+            <option value="updated">Ordina: ultimo aggiornamento</option>
+            <option value="severity">Ordina: severità</option>
+            <option value="status">Ordina: workflow</option>
+          </select>
         </div>
 
         {/* View toggle — segmented */}
