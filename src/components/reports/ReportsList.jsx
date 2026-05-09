@@ -380,6 +380,12 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       return new Date(b.created_at) - new Date(a.created_at)
     }
     if (filters.sortBy === 'updated') {
+      // I non letti restano in cima finché l'utente non apre il ticket.
+      // Dentro ogni gruppo (non letti, letti) ordina per updated_at desc:
+      // i messaggi più nuovi salgono.
+      const aUnread = (unreadByReport[a.id] || 0) > 0
+      const bUnread = (unreadByReport[b.id] || 0) > 0
+      if (aUnread !== bUnread) return aUnread ? -1 : 1
       return new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
     }
     // default 'created'
