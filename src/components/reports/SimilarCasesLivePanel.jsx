@@ -5,10 +5,13 @@
  * una ricerca semantica (debounced) tra i report storici chiusi della
  * stessa macchina e mostra fino a 3 casi simili.
  *
- * Differenza con SimilarReportsPanel (che vive in ReportDetail):
+ * Caratteristiche:
  *   - Live: re-query ad ogni cambio testo dopo debounce
  *   - Niente sintesi LLM: solo embedding + RPC raw, costo minimo
- *   - Click su un caso apre una preview modale, il composer resta intatto
+ *   - Click su un caso apre una preview modale, il contesto resta intatto
+ *   - Filtra per machine_id (solo casi della stessa macchina)
+ *   - Esclude excludeReportId (no auto-suggerimento)
+ *   - Soglia similarity 0.5 di default (vedi searchSimilarCases)
  *
  * Nascosto in demo mode (Supabase non configurato).
  */
@@ -17,7 +20,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { isAssistantAvailable, searchSimilarCases, getMachineKnowledgeStats } from '../../lib/assistant'
 import { db } from '../../lib/supabase'
-import { formatDate } from '../../lib/constants'
+import { formatDate, formatTicketId } from '../../lib/constants'
 import { Modal } from '../ui'
 
 const DEBOUNCE_MS = 700
@@ -89,7 +92,13 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
     }
   }, [text, machineId, excludeReportId, available, reindexCount])
 
-  const showEmpty = hasSearched && cases.length === 0 && !loading && !error
+  // Calcolata in 2 fasi: prima conta i case post-filtro client-side
+  // (vedi visibleCases sotto), poi useEffect/render usano questo flag.
+  const normExcludeId = excludeReportId ? String(excludeReportId).trim().toLowerCase() : null
+  const visibleCount = normExcludeId
+    ? cases.filter(c => String(c.source_ref || '').trim().toLowerCase() !== normExcludeId).length
+    : cases.length
+  const showEmpty = hasSearched && visibleCount === 0 && !loading && !error
 
   // Diagnostica: quando empty + machineId, fetcha una volta per macchina i count
   // di chunks indicizzati. Aiuta l'utente a capire se il vuoto è perché la
@@ -128,6 +137,12 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
   if (!available) return null
   if (!hasSearched && !loading) return null
 
+  // Safety net client-side: nel caso (improbabile) in cui un chunk con
+  // source_ref uguale al report corrente sfugga al filtro lato lib.
+  const visibleCases = normExcludeId
+    ? cases.filter(c => String(c.source_ref || '').trim().toLowerCase() !== normExcludeId)
+    : cases
+
   return (
     <>
       <div style={{
@@ -163,9 +178,9 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
           <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700 }}>
               Casi simili dallo storico
-              {cases.length > 0 && (
+              {visibleCases.length > 0 && (
                 <span style={{ fontWeight: 500, color: 'var(--color-text-muted)', marginLeft: 6 }}>
-                  · {cases.length}
+                  · {visibleCases.length}
                 </span>
               )}
             </div>
@@ -176,7 +191,7 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
           {open ? <ChevronUp size={16} color="var(--color-text-muted)" /> : <ChevronDown size={16} color="var(--color-text-muted)" />}
         </button>
 
-        {open && (loading || cases.length > 0 || error || showEmpty) && (
+        {open && (loading || visibleCases.length > 0 || error || showEmpty) && (
           <div style={{ padding: '0 14px 12px 14px', borderTop: '1px solid var(--color-border-subtle)' }}>
             {loading && (
               <div style={{ padding: '12px 0', fontSize: 12.5, color: 'var(--color-text-secondary)' }}>
@@ -272,9 +287,9 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
               </div>
             )}
 
-            {!loading && cases.length > 0 && (
+            {!loading && visibleCases.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-                {cases.map(c => (
+                {visibleCases.map(c => (
                   <button
                     key={c.source_ref}
                     type="button"
@@ -293,6 +308,18 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
                       gap: 4,
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: 999,
+                        background: 'var(--color-surface-1)',
+                        color: 'var(--color-text-muted)',
+                        flexShrink: 0,
+                        fontFamily: 'JetBrains Mono, monospace',
+                      }}>
+                        {formatTicketId(c.source_ref)}
+                      </span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {c.report?.title || 'Segnalazione'}
                       </span>
@@ -335,6 +362,9 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
         {previewCase && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 4 }}>
+                {formatTicketId(previewCase.source_ref)}
+              </div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>
                 {previewCase.report?.title || 'Segnalazione'}
               </div>

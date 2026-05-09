@@ -189,3 +189,12 @@ export const timeAgo = (dateStr) => {
   if (seconds < 604800) return `${Math.floor(seconds / 86400)}g fa`
   return formatDate(dateStr)
 }
+
+// Helper TK-XXXX (display id segnalazione, derivato dall'UUID).
+// Stesso schema usato storicamente in ReportDetail.jsx — ora unificato qui
+// per riuso in liste, header, toast, notifiche.
+export function formatTicketId(uuid) {
+  if (!uuid) return ''
+  const digits = String(uuid).replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')
+  return `TK-${digits || '0000'}`
+}

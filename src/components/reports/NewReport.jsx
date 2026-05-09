@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
-import { SEVERITY, REPORT_TYPES } from '../../lib/constants'
+import { SEVERITY, REPORT_TYPES, formatTicketId } from '../../lib/constants'
 import { Button, Input, Textarea, Select } from '../ui'
 import MediaCapture from '../media/MediaCapture'
 import SuccessAnimation from '../ui/SuccessAnimation'
@@ -102,7 +102,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
         detail: form.machine ? `Macchinario: ${form.machine}` : null,
       }).catch(e => console.warn('Side effect failed:', e.message))
       db.addNotification({
-        type: 'new_report', title: `Nuova segnalazione: ${form.title.trim()}`,
+        type: 'new_report', title: `${formatTicketId(created.id)} · ${form.title.trim()}`,
         body: `${user.name} ha creato una segnalazione ${form.severity}`,
         report_id: created.id, from_user: user.id, target_user: null,
       }).catch(e => console.warn('Side effect failed:', e.message))
