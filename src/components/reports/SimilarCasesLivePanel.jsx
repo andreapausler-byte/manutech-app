@@ -5,10 +5,13 @@
  * una ricerca semantica (debounced) tra i report storici chiusi della
  * stessa macchina e mostra fino a 3 casi simili.
  *
- * Differenza con SimilarReportsPanel (che vive in ReportDetail):
+ * Caratteristiche:
  *   - Live: re-query ad ogni cambio testo dopo debounce
  *   - Niente sintesi LLM: solo embedding + RPC raw, costo minimo
- *   - Click su un caso apre una preview modale, il composer resta intatto
+ *   - Click su un caso apre una preview modale, il contesto resta intatto
+ *   - Filtra per machine_id (solo casi della stessa macchina)
+ *   - Esclude excludeReportId (no auto-suggerimento)
+ *   - Soglia similarity 0.5 di default (vedi searchSimilarCases)
  *
  * Nascosto in demo mode (Supabase non configurato).
  */
@@ -17,18 +20,11 @@ import { useEffect, useRef, useState } from 'react'
 import { Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { isAssistantAvailable, searchSimilarCases, getMachineKnowledgeStats } from '../../lib/assistant'
 import { db } from '../../lib/supabase'
-import { formatDate } from '../../lib/constants'
+import { formatDate, formatTicketId } from '../../lib/constants'
 import { Modal } from '../ui'
 
 const DEBOUNCE_MS = 700
 const MIN_LENGTH = 30
-
-// Stesso schema usato in ReportDetail.jsx per coerenza visiva.
-function formatTicketId(uuid) {
-  if (!uuid) return ''
-  const digits = String(uuid).replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')
-  return `TK-${digits || '0000'}`
-}
 
 export default function SimilarCasesLivePanel({ text, machineId, excludeReportId, onOpenFull }) {
   const [open, setOpen] = useState(true)

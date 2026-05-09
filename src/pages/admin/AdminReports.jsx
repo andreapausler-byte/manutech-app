@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatTicketId } from '../../lib/constants'
 import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
 import ReportDetailModal from './reports/ReportDetailModal'
@@ -125,7 +125,7 @@ export default function AdminReports({ initialReportId }) {
     if (created?.id) {
       db.addNotification({
         type: 'new_report',
-        title: `Nuova segnalazione: ${form.title.trim()}`,
+        title: `${formatTicketId(created.id)} · ${form.title.trim()}`,
         body: `${user?.name || 'Admin'} ha creato una segnalazione ${form.severity}`,
         report_id: created.id,
         from_user: user?.id,
@@ -163,6 +163,17 @@ export default function AdminReports({ initialReportId }) {
         }}
       >
         <td className="px-8 py-5 align-middle">
+          <div className="text-[10px] font-bold mb-1" style={{
+            display: 'inline-block',
+            padding: '2px 7px',
+            borderRadius: 4,
+            letterSpacing: 1,
+            fontFamily: '"JetBrains Mono", monospace',
+            background: 'var(--color-primary-glow)',
+            color: 'var(--color-primary)',
+          }}>
+            {formatTicketId(r.id)}
+          </div>
           <div
             className="font-semibold mb-0.5 group-hover:text-indigo-300 transition-colors truncate"
             style={{ color: 'var(--color-text)' }}

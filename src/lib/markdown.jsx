@@ -3,8 +3,8 @@
  * liste numerate/puntate, newline. Niente dipendenze esterne, niente
  * dangerouslySetInnerHTML — output di nodi React puri.
  *
- * Estratto da AssistantChat.jsx per riuso anche in SimilarReportsPanel
- * (e ovunque altro l'output LLM venga mostrato).
+ * Estratto da AssistantChat.jsx per riuso ovunque l'output LLM
+ * (markdown semplice) venga mostrato in UI.
  */
 
 function renderInline(text, keyBase) {

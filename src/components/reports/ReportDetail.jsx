@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatTicketId } from '../../lib/constants'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import MediaLightbox from '../media/MediaLightbox'
@@ -9,7 +9,6 @@ import VideoPlayer from '../media/VideoPlayer'
 import ActivityTimeline from './ActivityTimeline'
 import ChatPanel from '../chat/ChatPanel'
 import ShareGuestLink from '../chat/ShareGuestLink'
-import SimilarReportsPanel from './SimilarReportsPanel'
 import SimilarCasesLivePanel from './SimilarCasesLivePanel'
 import {
   ArrowLeft, MoreVertical, Send, Paperclip, Mic,
@@ -574,9 +573,10 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const videos = (report.media || []).filter(m => m.type === 'video')
   const audios = (report.media || []).filter(m => m.type === 'audio')
 
-  const tickeId = `TK-${String(report.id).replace(/[^0-9]/g, '').slice(-4).padStart(4, '0') || '0000'}`
+  const tickeId = formatTicketId(report.id)
+  // TK-id ora promosso a badge prominente sopra il titolo (vedi render).
+  // L'eyebrow contiene solo timeAgo + autore.
   const eyebrowParts = [
-    tickeId,
     timeAgo(report.created_at),
     report.created_by_name,
   ].filter(Boolean)
@@ -612,6 +612,21 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '2px 8px',
+              marginBottom: 4,
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 700,
+              fontFamily: '"JetBrains Mono", monospace',
+              letterSpacing: 1.2,
+              background: 'var(--color-primary-glow)',
+              color: 'var(--color-primary)',
+            }}>
+              {tickeId}
+            </div>
+            <div style={{
               display: 'flex', alignItems: 'center', gap: 0,
               fontSize: 10, color: D.textSubtle, fontWeight: 500,
               fontFamily: '"JetBrains Mono", monospace', letterSpacing: 0.5,
@@ -625,7 +640,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                       background: D.separator, margin: '0 6px',
                     }} />
                   )}
-                  <span style={{ color: i === 0 ? D.textFaint : D.textSubtle }}>{p}</span>
+                  <span style={{ color: D.textSubtle }}>{p}</span>
                 </span>
               ))}
             </div>
@@ -982,13 +997,6 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
                 machineId={report.machine_id || null}
                 excludeReportId={report.id}
               />
-            </div>
-          )}
-
-          {/* AI card "Soluzioni dal passato" (sintesi LLM, click manuale) */}
-          {user.role === 'tecnico' && report.status !== 'chiuso' && (
-            <div style={{ marginBottom: 12 }}>
-              <SimilarReportsPanel report={report} />
             </div>
           )}
 
