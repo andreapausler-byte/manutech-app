@@ -34,6 +34,7 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
   const [diagLoading, setDiagLoading] = useState(false)
   const [reindexing, setReindexing] = useState(false)
   const [reindexResult, setReindexResult] = useState(null)
+  const [reindexCount, setReindexCount] = useState(0)
   const timerRef = useRef(null)
   const lastQueryRef = useRef('')
   const lastDiagMachineRef = useRef(null)
@@ -45,7 +46,9 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
     if (timerRef.current) clearTimeout(timerRef.current)
 
     const q = (text || '').trim()
-    if (q.length < MIN_LENGTH) {
+    // Skip se manca machineId: senza filtro la search ritorna i top globali
+    // (= sempre stessi risultati indipendenti dal report aperto). Reset visuale.
+    if (q.length < MIN_LENGTH || !machineId) {
       if (lastQueryRef.current) {
         setCases([])
         setError(null)
@@ -54,13 +57,19 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
       }
       return undefined
     }
-    const cacheKey = `${q}|${machineId || ''}|${excludeReportId || ''}`
+    const cacheKey = `${q}|${machineId}|${excludeReportId || ''}`
     if (cacheKey === lastQueryRef.current) return undefined
+
+    // Reset immediato dello stato visuale: navigando da un report a un altro
+    // (mismo componente, props diverse) i vecchi cases restavano visibili
+    // per i 700ms del debounce → falsa impressione "sempre stessi risultati".
+    setCases([])
+    setError(null)
+    setHasSearched(false)
+    setLoading(true)
 
     timerRef.current = setTimeout(async () => {
       lastQueryRef.current = cacheKey
-      setLoading(true)
-      setError(null)
       try {
         const results = await searchSimilarCases({ text: q, machineId, excludeReportId, limit: 3 })
         setCases(results)
@@ -78,7 +87,7 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [text, machineId, excludeReportId, available])
+  }, [text, machineId, excludeReportId, available, reindexCount])
 
   const showEmpty = hasSearched && cases.length === 0 && !loading && !error
 
@@ -103,13 +112,16 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
     setReindexResult(res)
     setReindexing(false)
     if (res?.ok) {
-      // Re-fetch diagnostica e forza nuova ricerca quando l'utente
-      // continuerà a digitare / al prossimo render.
+      // Reset stato diagnostica così verrà ri-fetchata.
       lastDiagMachineRef.current = null
-      lastQueryRef.current = ''
       setDiagStats(null)
-      setHasSearched(false)
-      setCases([])
+      // Forza nuova ricerca: lastQueryRef='' invalida la cache, reindexCount
+      // bumpato fa ri-scattare lo useEffect (deps cambiate). setLoading(true)
+      // immediato evita che il pannello scompaia (return null se !hasSearched
+      // && !loading).
+      lastQueryRef.current = ''
+      setLoading(true)
+      setReindexCount(c => c + 1)
     }
   }
 
