@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react'
-import { isAssistantAvailable, searchSimilarCases } from '../../lib/assistant'
+import { isAssistantAvailable, searchSimilarCases, getMachineKnowledgeStats } from '../../lib/assistant'
 import { formatDate } from '../../lib/constants'
 import { Modal } from '../ui'
 
@@ -29,8 +29,11 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
   const [error, setError] = useState(null)
   const [hasSearched, setHasSearched] = useState(false)
   const [previewCase, setPreviewCase] = useState(null)
+  const [diagStats, setDiagStats] = useState(null)
+  const [diagLoading, setDiagLoading] = useState(false)
   const timerRef = useRef(null)
   const lastQueryRef = useRef('')
+  const lastDiagMachineRef = useRef(null)
 
   const available = isAssistantAvailable()
 
@@ -74,10 +77,23 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
     }
   }, [text, machineId, excludeReportId, available])
 
+  const showEmpty = hasSearched && cases.length === 0 && !loading && !error
+
+  // Diagnostica: quando empty + machineId, fetcha una volta per macchina i count
+  // di chunks indicizzati. Aiuta l'utente a capire se il vuoto è perché la
+  // pipeline non ha mai indicizzato i report di questa macchina.
+  useEffect(() => {
+    if (!showEmpty || !machineId) return
+    if (lastDiagMachineRef.current === machineId) return
+    lastDiagMachineRef.current = machineId
+    setDiagLoading(true)
+    getMachineKnowledgeStats(machineId)
+      .then(s => setDiagStats(s))
+      .finally(() => setDiagLoading(false))
+  }, [showEmpty, machineId])
+
   if (!available) return null
   if (!hasSearched && !loading) return null
-
-  const showEmpty = hasSearched && cases.length === 0 && !loading && !error
 
   return (
     <>
@@ -154,9 +170,41 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
                 padding: '8px 10px',
                 fontSize: 12.5,
                 color: 'var(--color-text-muted)',
+                lineHeight: 1.5,
               }}>
-                Nessuna segnalazione storica simile sulla stessa macchina. Quando questa verrà chiusa,
-                arricchirà lo storico per i prossimi.
+                <div>Nessuna segnalazione storica simile sulla stessa macchina.</div>
+                {diagLoading && (
+                  <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
+                    Verifico indicizzazione…
+                  </div>
+                )}
+                {diagStats && !diagLoading && (
+                  <div style={{
+                    marginTop: 8,
+                    padding: '6px 8px',
+                    background: 'var(--color-surface-2)',
+                    borderRadius: 8,
+                    fontSize: 11,
+                    color: 'var(--color-text-muted)',
+                    border: '1px dashed var(--color-border-subtle)',
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: 2, color: 'var(--color-text-secondary)' }}>
+                      Diagnostica indicizzazione
+                    </div>
+                    <div>
+                      Macchina: <b>{diagStats.chunks || 0}</b> chunks totali ·{' '}
+                      <b>{diagStats.by_kind?.report_chat || 0}</b> da report storici{' '}
+                      ({diagStats.by_kind?.attachment || 0} manuali ·{' '}
+                      {diagStats.by_kind?.maintenance_log || 0} interventi)
+                    </div>
+                    {(!diagStats.by_kind?.report_chat || diagStats.by_kind.report_chat === 0) && (
+                      <div style={{ marginTop: 4, color: 'var(--color-warning, #f59e0b)' }}>
+                        ⚠ Nessun report storico indicizzato per questa macchina.
+                        Vai in <b>Macchine → Documentazione</b> e clicca <b>Re-indicizza biblioteca AI</b>.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

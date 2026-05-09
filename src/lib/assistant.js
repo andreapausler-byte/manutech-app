@@ -126,3 +126,18 @@ export async function searchSimilarCases({ text, machineId, excludeReportId, lim
     report: reportMap.get(c.source_ref) || null,
   })).filter(c => c.report)
 }
+
+// ── Stats indicizzazione per macchina (diagnostica) ───────
+// Ritorna { chunks, sources, last_indexed_at, by_kind: {...} } via
+// RPC get_knowledge_stats (definita in migration 028). Usata
+// dall'empty state di SimilarCasesLivePanel per spiegare perché
+// non trova nulla.
+export async function getMachineKnowledgeStats(machineId) {
+  if (!supabase || !machineId) return null
+  const { data, error } = await supabase.rpc('get_knowledge_stats', { p_machine_id: machineId })
+  if (error) {
+    console.warn('[ManuTech] get_knowledge_stats error:', error.message)
+    return null
+  }
+  return data || null
+}
