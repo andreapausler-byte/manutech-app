@@ -34,6 +34,7 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
   const [diagLoading, setDiagLoading] = useState(false)
   const [reindexing, setReindexing] = useState(false)
   const [reindexResult, setReindexResult] = useState(null)
+  const [reindexCount, setReindexCount] = useState(0)
   const timerRef = useRef(null)
   const lastQueryRef = useRef('')
   const lastDiagMachineRef = useRef(null)
@@ -78,7 +79,7 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [text, machineId, excludeReportId, available])
+  }, [text, machineId, excludeReportId, available, reindexCount])
 
   const showEmpty = hasSearched && cases.length === 0 && !loading && !error
 
@@ -103,13 +104,16 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
     setReindexResult(res)
     setReindexing(false)
     if (res?.ok) {
-      // Re-fetch diagnostica e forza nuova ricerca quando l'utente
-      // continuerà a digitare / al prossimo render.
+      // Reset stato diagnostica così verrà ri-fetchata.
       lastDiagMachineRef.current = null
-      lastQueryRef.current = ''
       setDiagStats(null)
-      setHasSearched(false)
-      setCases([])
+      // Forza nuova ricerca: lastQueryRef='' invalida la cache, reindexCount
+      // bumpato fa ri-scattare lo useEffect (deps cambiate). setLoading(true)
+      // immediato evita che il pannello scompaia (return null se !hasSearched
+      // && !loading).
+      lastQueryRef.current = ''
+      setLoading(true)
+      setReindexCount(c => c + 1)
     }
   }
 
