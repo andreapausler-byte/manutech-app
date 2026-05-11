@@ -1,0 +1,463 @@
+/**
+ * SimilarCasesLivePanel — pannello live nel composer di nuova segnalazione.
+ *
+ * Mentre l'operatore digita titolo + descrizione + sceglie macchina, fa
+ * una ricerca semantica (debounced) tra i report storici chiusi della
+ * stessa macchina e mostra fino a 3 casi simili.
+ *
+ * Caratteristiche:
+ *   - Live: re-query ad ogni cambio testo dopo debounce
+ *   - Niente sintesi LLM: solo embedding + RPC raw, costo minimo
+ *   - Click su un caso apre una preview modale, il contesto resta intatto
+ *   - Filtra per machine_id (solo casi della stessa macchina)
+ *   - Esclude excludeReportId (no auto-suggerimento)
+ *   - Soglia similarity 0.5 di default (vedi searchSimilarCases)
+ *
+ * Nascosto in demo mode (Supabase non configurato).
+ */
+
+import { useEffect, useRef, useState } from 'react'
+import { Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { isAssistantAvailable, searchSimilarCases, getMachineKnowledgeStats } from '../../lib/assistant'
+import { db } from '../../lib/supabase'
+import { formatDate } from '../../lib/constants'
+import { Modal, TicketIdBadge } from '../ui'
+
+const DEBOUNCE_MS = 700
+const MIN_LENGTH = 30
+
+export default function SimilarCasesLivePanel({ text, machineId, excludeReportId, onOpenFull }) {
+  const [open, setOpen] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [cases, setCases] = useState([])
+  const [error, setError] = useState(null)
+  const [hasSearched, setHasSearched] = useState(false)
+  const [previewCase, setPreviewCase] = useState(null)
+  const [diagStats, setDiagStats] = useState(null)
+  const [diagLoading, setDiagLoading] = useState(false)
+  const [reindexing, setReindexing] = useState(false)
+  const [reindexResult, setReindexResult] = useState(null)
+  const [reindexCount, setReindexCount] = useState(0)
+  const timerRef = useRef(null)
+  const lastQueryRef = useRef('')
+  const lastDiagMachineRef = useRef(null)
+
+  const available = isAssistantAvailable()
+
+  useEffect(() => {
+    if (!available) return undefined
+    if (timerRef.current) clearTimeout(timerRef.current)
+
+    const q = (text || '').trim()
+    // Skip se manca machineId: senza filtro la search ritorna i top globali
+    // (= sempre stessi risultati indipendenti dal report aperto). Reset visuale.
+    if (q.length < MIN_LENGTH || !machineId) {
+      if (lastQueryRef.current) {
+        setCases([])
+        setError(null)
+        setHasSearched(false)
+        lastQueryRef.current = ''
+      }
+      return undefined
+    }
+    const cacheKey = `${q}|${machineId}|${excludeReportId || ''}`
+    if (cacheKey === lastQueryRef.current) return undefined
+
+    // Reset immediato dello stato visuale: navigando da un report a un altro
+    // (mismo componente, props diverse) i vecchi cases restavano visibili
+    // per i 700ms del debounce → falsa impressione "sempre stessi risultati".
+    setCases([])
+    setError(null)
+    setHasSearched(false)
+    setLoading(true)
+
+    timerRef.current = setTimeout(async () => {
+      lastQueryRef.current = cacheKey
+      try {
+        const results = await searchSimilarCases({ text: q, machineId, excludeReportId, limit: 3 })
+        setCases(results)
+        setHasSearched(true)
+      } catch (err) {
+        console.warn('[SimilarCasesLive] error:', err?.message)
+        setError('Ricerca casi simili non disponibile.')
+        setCases([])
+        setHasSearched(true)
+      } finally {
+        setLoading(false)
+      }
+    }, DEBOUNCE_MS)
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [text, machineId, excludeReportId, available, reindexCount])
+
+  // Calcolata in 2 fasi: prima conta i case post-filtro client-side
+  // (vedi visibleCases sotto), poi useEffect/render usano questo flag.
+  const normExcludeId = excludeReportId ? String(excludeReportId).trim().toLowerCase() : null
+  const visibleCount = normExcludeId
+    ? cases.filter(c => String(c.source_ref || '').trim().toLowerCase() !== normExcludeId).length
+    : cases.length
+  const showEmpty = hasSearched && visibleCount === 0 && !loading && !error
+
+  // Diagnostica: quando empty + machineId, fetcha una volta per macchina i count
+  // di chunks indicizzati. Aiuta l'utente a capire se il vuoto è perché la
+  // pipeline non ha mai indicizzato i report di questa macchina.
+  useEffect(() => {
+    if (!showEmpty || !machineId) return
+    if (lastDiagMachineRef.current === machineId) return
+    lastDiagMachineRef.current = machineId
+    setDiagLoading(true)
+    getMachineKnowledgeStats(machineId)
+      .then(s => setDiagStats(s))
+      .finally(() => setDiagLoading(false))
+  }, [showEmpty, machineId])
+
+  const handleReindex = async () => {
+    if (!machineId || reindexing) return
+    setReindexing(true)
+    setReindexResult(null)
+    const res = await db.queueMachineReindex(machineId)
+    setReindexResult(res)
+    setReindexing(false)
+    if (res?.ok) {
+      // Reset stato diagnostica così verrà ri-fetchata.
+      lastDiagMachineRef.current = null
+      setDiagStats(null)
+      // Forza nuova ricerca: lastQueryRef='' invalida la cache, reindexCount
+      // bumpato fa ri-scattare lo useEffect (deps cambiate). setLoading(true)
+      // immediato evita che il pannello scompaia (return null se !hasSearched
+      // && !loading).
+      lastQueryRef.current = ''
+      setLoading(true)
+      setReindexCount(c => c + 1)
+    }
+  }
+
+  if (!available) return null
+  if (!hasSearched && !loading) return null
+
+  // Safety net client-side: nel caso (improbabile) in cui un chunk con
+  // source_ref uguale al report corrente sfugga al filtro lato lib.
+  const visibleCases = normExcludeId
+    ? cases.filter(c => String(c.source_ref || '').trim().toLowerCase() !== normExcludeId)
+    : cases
+
+  return (
+    <>
+      <div style={{
+        borderRadius: 14,
+        background: 'var(--color-surface-1)',
+        border: '1px solid var(--color-border-subtle)',
+        overflow: 'hidden',
+      }}>
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="press-scale"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px 14px',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--color-text)',
+          }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 9,
+            background: 'var(--gradient-primary)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: 'var(--shadow-glow-primary)',
+          }}>
+            <Sparkles size={14} color="#fff" strokeWidth={2.2} />
+          </div>
+          <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700 }}>
+              Casi simili dallo storico
+              {visibleCases.length > 0 && (
+                <span style={{ fontWeight: 500, color: 'var(--color-text-muted)', marginLeft: 6 }}>
+                  · {visibleCases.length}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--color-text-secondary)' }}>
+              {loading ? 'Cerco interventi affini…' : showEmpty ? 'Nessun caso simile trovato' : 'Click per aprire il dettaglio'}
+            </div>
+          </div>
+          {open ? <ChevronUp size={16} color="var(--color-text-muted)" /> : <ChevronDown size={16} color="var(--color-text-muted)" />}
+        </button>
+
+        {open && (loading || visibleCases.length > 0 || error || showEmpty) && (
+          <div style={{ padding: '0 14px 12px 14px', borderTop: '1px solid var(--color-border-subtle)' }}>
+            {loading && (
+              <div style={{ padding: '12px 0', fontSize: 12.5, color: 'var(--color-text-secondary)' }}>
+                <span className="animate-pulse">Ricerca in corso…</span>
+              </div>
+            )}
+
+            {error && !loading && (
+              <div style={{
+                marginTop: 10,
+                padding: '8px 10px',
+                fontSize: 12.5,
+                color: 'var(--color-danger)',
+                background: 'var(--color-danger-glow)',
+                borderRadius: 10,
+              }}>
+                {error}
+              </div>
+            )}
+
+            {showEmpty && (
+              <div style={{
+                marginTop: 10,
+                padding: '8px 10px',
+                fontSize: 12.5,
+                color: 'var(--color-text-muted)',
+                lineHeight: 1.5,
+              }}>
+                <div>Nessuna segnalazione storica simile sulla stessa macchina.</div>
+                {diagLoading && (
+                  <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
+                    Verifico indicizzazione…
+                  </div>
+                )}
+                {diagStats && !diagLoading && (
+                  <div style={{
+                    marginTop: 8,
+                    padding: '6px 8px',
+                    background: 'var(--color-surface-2)',
+                    borderRadius: 8,
+                    fontSize: 11,
+                    color: 'var(--color-text-muted)',
+                    border: '1px dashed var(--color-border-subtle)',
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: 2, color: 'var(--color-text-secondary)' }}>
+                      Diagnostica indicizzazione
+                    </div>
+                    <div>
+                      Macchina: <b>{diagStats.chunks || 0}</b> chunks totali ·{' '}
+                      <b>{diagStats.by_kind?.report_chat || 0}</b> da report storici{' '}
+                      ({diagStats.by_kind?.attachment || 0} manuali ·{' '}
+                      {diagStats.by_kind?.maintenance_log || 0} interventi)
+                    </div>
+                    {(!diagStats.by_kind?.report_chat || diagStats.by_kind.report_chat === 0) && (
+                      <div style={{ marginTop: 4 }}>
+                        <div style={{ color: 'var(--color-warning, #f59e0b)' }}>
+                          ⚠ Nessun report storico indicizzato per questa macchina.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleReindex}
+                          disabled={reindexing}
+                          className="press-scale"
+                          style={{
+                            marginTop: 6,
+                            padding: '5px 12px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: reindexing ? 'var(--color-surface-2)' : 'var(--color-primary)',
+                            color: reindexing ? 'var(--color-text-muted)' : '#fff',
+                            border: 'none',
+                            borderRadius: 8,
+                            cursor: reindexing ? 'wait' : 'pointer',
+                          }}>
+                          {reindexing ? 'Indicizzazione in corso…' : 'Re-indicizza ora'}
+                        </button>
+                        {reindexResult?.ok && (
+                          <div style={{ marginTop: 4, color: 'var(--color-success, #10b981)' }}>
+                            ✓ Indicizzato: {reindexResult.chunks || 0} estratti totali, di cui{' '}
+                            {reindexResult.report_chat_chunks ?? '?'} da report storici.
+                            Riapri il ticket per vedere i casi simili.
+                          </div>
+                        )}
+                        {reindexResult && !reindexResult.ok && !reindexResult.demo && (
+                          <div style={{ marginTop: 4, color: 'var(--color-danger)' }}>
+                            Errore: {reindexResult.error || 'imprevisto'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!loading && visibleCases.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                {visibleCases.map(c => (
+                  <button
+                    key={c.source_ref}
+                    type="button"
+                    onClick={() => setPreviewCase(c)}
+                    className="press-scale"
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '10px 12px',
+                      background: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-border-subtle)',
+                      borderRadius: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: 999,
+                        background: 'var(--color-surface-1)',
+                        color: 'var(--color-text-muted)',
+                        flexShrink: 0,
+                        fontFamily: 'JetBrains Mono, monospace',
+                      }}>
+                        <TicketIdBadge report={c.report || c.source_ref} />
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.report?.title || 'Segnalazione'}
+                      </span>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: 999,
+                        background: 'var(--color-primary-glow)',
+                        color: 'var(--color-primary)',
+                        flexShrink: 0,
+                      }}>
+                        {Math.round((c.similarity || 0) * 100)}% simile
+                      </span>
+                    </div>
+                    <div style={{
+                      fontSize: 12,
+                      color: 'var(--color-text-secondary)',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}>
+                      {(c.content || '').slice(0, 220)}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {c.report?.machine && <span>{c.report.machine}</span>}
+                      {c.report?.updated_at && <span>· {formatDate(c.report.updated_at)}</span>}
+                      {c.report?.assigned_to_name && <span>· risolta da {c.report.assigned_to_name}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <Modal open={!!previewCase} onClose={() => setPreviewCase(null)} title="Caso storico" size="md">
+        {previewCase && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <div style={{ marginBottom: 4 }}>
+                <TicketIdBadge report={previewCase.source_ref} style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace' }} />
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>
+                {previewCase.report?.title || 'Segnalazione'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {previewCase.report?.machine && <span>{previewCase.report.machine}</span>}
+                {previewCase.report?.updated_at && <span>· {formatDate(previewCase.report.updated_at)}</span>}
+                {previewCase.report?.assigned_to_name && <span>· risolta da {previewCase.report.assigned_to_name}</span>}
+                <span>· {Math.round((previewCase.similarity || 0) * 100)}% simile</span>
+              </div>
+            </div>
+
+            {previewCase.report?.closure_root_cause && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                  Causa
+                </div>
+                <div style={{ fontSize: 13.5, color: 'var(--color-text)', whiteSpace: 'pre-wrap' }}>
+                  {previewCase.report.closure_root_cause}
+                </div>
+              </div>
+            )}
+
+            {previewCase.report?.closure_action && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                  Azione risolutiva
+                </div>
+                <div style={{ fontSize: 13.5, color: 'var(--color-text)', whiteSpace: 'pre-wrap' }}>
+                  {previewCase.report.closure_action}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                Estratto rilevante
+              </div>
+              <div style={{
+                fontSize: 13,
+                color: 'var(--color-text-secondary)',
+                background: 'var(--color-surface-2)',
+                padding: 12,
+                borderRadius: 10,
+                whiteSpace: 'pre-wrap',
+                border: '1px solid var(--color-border-subtle)',
+                maxHeight: 240,
+                overflowY: 'auto',
+              }}>
+                {previewCase.content}
+              </div>
+            </div>
+
+            {onOpenFull && previewCase.report?.id && (
+              <button
+                type="button"
+                onClick={() => { onOpenFull(previewCase.report.id); setPreviewCase(null) }}
+                className="press-scale"
+                style={{
+                  alignSelf: 'flex-start',
+                  padding: '8px 14px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  borderRadius: 10,
+                  background: 'var(--color-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}>
+                Apri segnalazione completa
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setPreviewCase(null)}
+              className="press-scale"
+              style={{
+                alignSelf: 'flex-end',
+                padding: '6px 12px',
+                fontSize: 12,
+                color: 'var(--color-text-muted)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}>
+              <X size={14} /> Chiudi
+            </button>
+          </div>
+        )}
+      </Modal>
+    </>
+  )
+}

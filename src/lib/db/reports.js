@@ -1,5 +1,24 @@
 import { supabase, getMyOrgId } from './_client'
 import { KEYS, getStore, setStore } from './_demoStore'
+import { julianDay } from '../constants'
+
+// Demo-mode: replica la logica del trigger DB (migration 049) per generare
+// un display_id consistente. In supabase mode non viene usato (il trigger
+// fa tutto sul server e il record ritorna già con display_id).
+function computeDisplayIdDemo(orgId, createdAt, allReports) {
+  const d = createdAt instanceof Date ? createdAt : new Date(createdAt)
+  const yy = String(d.getFullYear() % 100).padStart(2, '0')
+  const jjj = String(julianDay(d)).padStart(3, '0')
+  const sameDay = (allReports || []).filter(r => {
+    if ((r.org_id || 'demo') !== (orgId || 'demo')) return false
+    const rd = new Date(r.created_at)
+    return String(rd.getFullYear() % 100).padStart(2, '0') === yy
+        && String(julianDay(rd)).padStart(3, '0') === jjj
+  })
+  const seq = sameDay.length + 1
+  const seqStr = seq < 100 ? String(seq).padStart(2, '0') : String(seq)
+  return `TK-${yy}${jjj}-${seqStr}`
+}
 
 export const reports = {
   async getReports(filters = {}) {
@@ -34,7 +53,16 @@ export const reports = {
       return data
     }
     const list = getStore(KEYS.reports)
-    const newReport = { ...report, id: `rep-${Date.now()}`, created_at: new Date().toISOString(), status: 'aperta', comments: [] }
+    const createdAt = new Date().toISOString()
+    const display_id = computeDisplayIdDemo(report.org_id, createdAt, list)
+    const newReport = {
+      ...report,
+      id: `rep-${Date.now()}`,
+      display_id,
+      created_at: createdAt,
+      status: 'aperta',
+      comments: [],
+    }
     list.unshift(newReport)
     setStore(KEYS.reports, list)
     return newReport

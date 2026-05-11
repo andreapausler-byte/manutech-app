@@ -10,7 +10,7 @@
 
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
-import { QUICK_TEMPLATES, SEVERITY } from '../../lib/constants'
+import { QUICK_TEMPLATES, SEVERITY, formatTicketId } from '../../lib/constants'
 import { Button, Select, Input } from '../ui'
 import MediaCapture from '../media/MediaCapture'
 import QRScanner from '../media/QRScanner'
@@ -103,7 +103,7 @@ export default function QuickReport({ user, onBack, onCreated, preselectedMachin
         detail: `Template: ${template.label}${machine ? ` · ${machine}` : ''}`,
       }).catch(e => console.warn('Side effect failed:', e.message))
       db.addNotification({
-        type: 'new_report', title: `Report rapido: ${template.title}`,
+        type: 'new_report', title: `${formatTicketId(created)} · ${template.title}`,
         body: `${user.name} — ${template.label}${machine ? ` su ${machine}` : ''}`,
         report_id: created.id, from_user: user.id, target_user: null,
       }).catch(e => console.warn('Side effect failed:', e.message))

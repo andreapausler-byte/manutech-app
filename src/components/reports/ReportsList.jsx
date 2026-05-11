@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES } from '../../lib/constants'
-import { EmptyState, SkeletonReportsPage } from '../ui'
+import { STATUS, SEVERITY, REPORT_TYPES, formatTicketId } from '../../lib/constants'
+import { EmptyState, SkeletonReportsPage, TicketIdBadge } from '../ui'
 import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, X, ChevronDown, Clock, Layers, MessageCircle } from 'lucide-react'
+import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive } from 'lucide-react'
 
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
+const ARCHIVED_STATUSES = ['risolta', 'chiuso']
+const isArchived = (r) => ARCHIVED_STATUSES.includes(r.status)
 
 // ── Avatar with initials ──
 function AvatarInitials({ name, color }) {
@@ -76,8 +78,14 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
 
       {/* Body */}
       <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {/* Meta row: tag pill + severity */}
+        {/* Meta row: TK-id + tag pill + severity */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <TicketIdBadge report={report} style={{
+            fontSize: 9, padding: '2px 6px', borderRadius: 3,
+            background: 'var(--color-primary-glow)', color: 'var(--color-primary)',
+            fontWeight: 700, letterSpacing: 0.8,
+            fontFamily: '"JetBrains Mono", monospace',
+          }} />
           <span style={{
             fontSize: 9, padding: '2px 6px', borderRadius: 3,
             background: reportType.color, color: '#fff',
@@ -244,6 +252,13 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
 
 // ── Main Component ──
 // eslint-disable-next-line no-unused-vars
+// Ranking per sort 'severity' e 'status' (workflow desc).
+const SEVERITY_RANK = { critica: 4, alta: 3, media: 2, bassa: 1 }
+const STATUS_RANK = {
+  in_lavorazione: 6, assegnata: 5, aperta: 4,
+  in_attesa_ricambi: 3, risolta: 2, chiuso: 1,
+}
+
 export default function ReportsList({ user, onSelectReport, unreadByReport = {} }) {
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
@@ -252,6 +267,46 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   const [initialized, setInitialized] = useState(false)
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('manutech_reports_view') || 'chrono')
   const [lastMessages, setLastMessages] = useState({})
+  const [machines, setMachines] = useState([])
+
+  // Filtri + ordinamento personalizzati per tecnico, persistiti in localStorage.
+  // Il default è 'created' (data di creazione, dal più recente). 'updated'
+  // resta selezionabile esplicitamente nel dropdown ma non è più default
+  // per evitare confusione quando i ticket si riordinano per attività in
+  // chat invece che per quando sono nati.
+  const filtersKey = `manutech_reports_filters_${user?.id || 'anon'}`
+  const [filters, setFilters] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(filtersKey) || '{}')
+      // Migrazione: chi aveva il vecchio default 'updated' salvato
+      // (probabilmente perché era il default precedente, non scelto)
+      // viene riportato al nuovo default 'created'. Chi aveva
+      // severity/status li ha scelti esplicitamente, li manteniamo.
+      const sortBy = (!saved.sortBy || saved.sortBy === 'updated')
+        ? 'created'
+        : saved.sortBy
+      return {
+        onlyMine: !!saved.onlyMine,
+        machineFilter: saved.machineFilter || '',
+        sortBy,
+      }
+    } catch {
+      return { onlyMine: false, machineFilter: '', sortBy: 'created' }
+    }
+  })
+  const updateFilters = (patch) => {
+    setFilters(prev => {
+      const next = { ...prev, ...patch }
+      try { localStorage.setItem(filtersKey, JSON.stringify(next)) } catch { /* quota */ }
+      return next
+    })
+  }
+
+  useEffect(() => {
+    db.getMachines()
+      .then(list => setMachines(list || []))
+      .catch(e => console.warn('[ReportsList] getMachines:', e?.message))
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -279,24 +334,67 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
 
   useEffect(() => { load() }, [load])
 
-  // Filter by search
-  const filtered = reports.filter(r => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return r.title?.toLowerCase().includes(q) || r.machine?.toLowerCase().includes(q)
+  // Filter di base: search testuale + onlyMine + macchina.
+  // Search supporta TK-id senza trattini/prefissi (vedi qNorm).
+  const baseFiltered = reports.filter(r => {
+    if (filters.onlyMine && r.assigned_to !== user?.id) return false
+    if (filters.machineFilter && r.machine_id !== filters.machineFilter) return false
+    if (search) {
+      const q = search.toLowerCase().trim()
+      if (!q) return true
+      const qNorm = q.replace(/[^a-z0-9]/g, '')
+      const tk = formatTicketId(r).toLowerCase()
+      const tkNorm = tk.replace(/[^a-z0-9]/g, '')
+      const matches =
+        r.title?.toLowerCase().includes(q)
+        || r.machine?.toLowerCase().includes(q)
+        || tk.includes(q)
+        || (qNorm.length > 0 && tkNorm.includes(qNorm))
+      if (!matches) return false
+    }
+    return true
   })
 
-  // Chrono: flat list sorted by updated_at DESC
-  const chronoSorted = [...filtered].sort((a, b) =>
-    new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
-  )
+  // Conteggi per i chip del segmented control.
+  const activeCount = baseFiltered.filter(r => !isArchived(r)).length
+  const archivedCount = baseFiltered.filter(isArchived).length
 
-  // Group by status
+  // viewMode='archive' mostra solo chiusi/risolti, gli altri solo gli attivi.
+  const filtered = viewMode === 'archive'
+    ? baseFiltered.filter(isArchived)
+    : baseFiltered.filter(r => !isArchived(r))
+
+  // Sort logic in base a filters.sortBy. Tiebreak comune: created_at desc
+  // (più stabile di updated_at, che cambia con i commenti/eventi).
+  const sortFn = (a, b) => {
+    if (filters.sortBy === 'severity') {
+      const diff = (SEVERITY_RANK[b.severity] || 0) - (SEVERITY_RANK[a.severity] || 0)
+      if (diff !== 0) return diff
+      return new Date(b.created_at) - new Date(a.created_at)
+    }
+    if (filters.sortBy === 'status') {
+      const diff = (STATUS_RANK[b.status] || 0) - (STATUS_RANK[a.status] || 0)
+      if (diff !== 0) return diff
+      return new Date(b.created_at) - new Date(a.created_at)
+    }
+    if (filters.sortBy === 'updated') {
+      // I non letti restano in cima finché l'utente non apre il ticket.
+      // Dentro ogni gruppo (non letti, letti) ordina per updated_at desc:
+      // i messaggi più nuovi salgono.
+      const aUnread = (unreadByReport[a.id] || 0) > 0
+      const bUnread = (unreadByReport[b.id] || 0) > 0
+      if (aUnread !== bUnread) return aUnread ? -1 : 1
+      return new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+    }
+    // default 'created'
+    return new Date(b.created_at) - new Date(a.created_at)
+  }
+  const chronoSorted = [...filtered].sort(sortFn)
+
+  // Group by status (la sortFn applicata anche dentro le sezioni)
   const grouped = {}
   for (const s of STATUSES) {
-    grouped[s] = filtered
-      .filter(r => r.status === s)
-      .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+    grouped[s] = filtered.filter(r => r.status === s).sort(sortFn)
   }
 
   // Sort sections: most recently updated first, empty sections last
@@ -348,7 +446,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           }} />
           <input
             type="text"
-            placeholder="Cerca segnalazione…"
+            placeholder="Cerca: titolo, macchina, tk26129…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
@@ -383,14 +481,76 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           )}
         </div>
 
+        {/* Filtri rapidi: Solo i miei + Macchina + Ordina */}
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center',
+        }}>
+          <button
+            type="button"
+            onClick={() => updateFilters({ onlyMine: !filters.onlyMine })}
+            className="press-scale"
+            style={{
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 999,
+              border: filters.onlyMine ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: filters.onlyMine ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+              color: filters.onlyMine ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+            }}>
+            {filters.onlyMine ? '✓ ' : ''}Solo i miei
+          </button>
+
+          <select
+            value={filters.machineFilter}
+            onChange={(e) => updateFilters({ machineFilter: e.target.value })}
+            style={{
+              padding: '6px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 999,
+              border: filters.machineFilter ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: filters.machineFilter ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+              color: filters.machineFilter ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              maxWidth: 180,
+            }}>
+            <option value="">Tutte le macchine</option>
+            {machines.map(m => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+
+          <select
+            value={filters.sortBy}
+            onChange={(e) => updateFilters({ sortBy: e.target.value })}
+            style={{
+              padding: '6px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 999,
+              border: filters.sortBy !== 'created' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: filters.sortBy !== 'created' ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+              color: filters.sortBy !== 'created' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+            }}>
+            <option value="created">Ordina: data creazione</option>
+            <option value="updated">Ordina: ultimo aggiornamento</option>
+            <option value="severity">Ordina: severità</option>
+            <option value="status">Ordina: workflow</option>
+          </select>
+        </div>
+
         {/* View toggle — segmented */}
         <div style={{
           display: 'flex', borderRadius: 12, padding: 4,
           background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
         }}>
           {[
-            { id: 'chrono', label: 'Recenti', icon: Clock, count: filtered.length },
+            { id: 'chrono', label: 'Recenti', icon: Clock, count: activeCount },
             { id: 'grouped', label: 'Per stato', icon: Layers, count: null },
+            { id: 'archive', label: 'Archivio', icon: Archive, count: archivedCount },
           ].map(v => {
             const active = viewMode === v.id
             return (
@@ -424,8 +584,12 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       {loading ? (
         <div className="px-[4vw] pt-[3vw]"><SkeletonReportsPage /></div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon="📋" title="Nessuna segnalazione" subtitle="Tocca + per crearne una" />
-      ) : viewMode === 'chrono' ? (
+        <EmptyState
+          icon={viewMode === 'archive' ? '📦' : '📋'}
+          title={viewMode === 'archive' ? 'Archivio vuoto' : 'Nessuna segnalazione'}
+          subtitle={viewMode === 'archive' ? 'Niente di completato o chiuso al momento' : 'Tocca + per crearne una'}
+        />
+      ) : (viewMode === 'chrono' || viewMode === 'archive') ? (
         <div className="px-[4vw] pt-[2vw]">
           <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {chronoSorted.map(report => (

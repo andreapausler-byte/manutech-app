@@ -3,12 +3,15 @@
  *
  * Stile: pallini colorati 12px su linea verticale, senza icone.
  * workData (ore/ricambi chiusura) in box verde.
+ * Eventi consecutivi dello stesso tipo (≥3) vengono raggruppati in un nodo
+ * collassabile per ridurre il rumore (foto multiple, cambi stato automatici).
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, timeAgo } from '../../lib/constants'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronRight } from 'lucide-react'
+import { useHaptic } from '../../hooks/useHaptic'
 
 const EVENT_COLORS = {
   created:        '#7c6aff',
@@ -32,9 +35,22 @@ const EVENT_LABELS = {
   assigned:       'Assegnato',
 }
 
+// Tipi che possono essere raggruppati quando consecutivi (≥ GROUP_THRESHOLD).
+const GROUPABLE_TYPES = new Set(['media_photo', 'media_video', 'media_audio', 'status_change'])
+const GROUP_THRESHOLD = 3
+
+const GROUP_LABELS = {
+  media_photo:   (n) => `${n} foto aggiunte`,
+  media_video:   (n) => `${n} video aggiunti`,
+  media_audio:   (n) => `${n} audio aggiunti`,
+  status_change: (n) => `${n} cambi di stato`,
+}
+
 export default function ActivityTimeline({ reportId, report }) {
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set())
+  const haptic = useHaptic()
 
   const loadActivities = useCallback(async () => {
     setLoading(true)
@@ -52,6 +68,17 @@ export default function ActivityTimeline({ reportId, report }) {
   }, [loadActivities])
 
   const timeline = activities.length > 0 ? activities : buildFallbackTimeline(report)
+  const items = groupTimeline(timeline)
+
+  const toggleGroup = (id) => {
+    haptic?.light?.()
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   if (loading) {
     return (
@@ -81,102 +108,193 @@ export default function ActivityTimeline({ reportId, report }) {
         borderRadius: 1,
       }} />
 
-      {timeline.map((event, i) => {
-        let dotColor = EVENT_COLORS[event.type] || EVENT_COLORS.created
-        if (event.type === 'status_change' && event.to_status) {
-          dotColor = STATUS[event.to_status]?.color || dotColor
+      {items.map((item, i) => {
+        const isLastTop = i === items.length - 1
+
+        if (item.type === 'group') {
+          const isOpen = expandedGroups.has(item.id)
+          return (
+            <div key={item.id}>
+              <GroupNode
+                group={item}
+                open={isOpen}
+                onToggle={() => toggleGroup(item.id)}
+                isFirst={i === 0}
+                isLast={isLastTop && !isOpen}
+              />
+              {isOpen && item.events.map((event, k) => (
+                <EventNode
+                  key={event.id || `${item.id}-${k}`}
+                  event={event}
+                  isFirst={false}
+                  isLast={isLastTop && k === item.events.length - 1}
+                />
+              ))}
+            </div>
+          )
         }
 
-        const label = getEventTitle(event)
-
         return (
-          <div
-            key={event.id || i}
-            className="animate-fade-in"
-            style={{
-              position: 'relative',
-              paddingLeft: 8,
-              paddingBottom: i < timeline.length - 1 ? 16 : 0,
-              paddingTop: i === 0 ? 0 : 4,
-            }}
-          >
-            {/* Dot — Design System: 12px, border 2px solid surface */}
-            <div style={{
-              position: 'absolute',
-              left: -17,
-              top: i === 0 ? 2 : 6,
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              background: dotColor,
-              border: '2px solid var(--color-surface-1)',
-              zIndex: 2,
-            }} />
-
-            {/* Content */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4, color: dotColor }}>
-                  {label}
-                </p>
-                {event.detail && (
-                  <p style={{ fontSize: 13, marginTop: 3, lineHeight: 1.4, color: 'var(--color-text)' }}>{event.detail}</p>
-                )}
-                {event.user_name && (
-                  <p style={{ fontSize: 12, marginTop: 2, color: 'var(--color-text-secondary)' }}>{event.user_name}</p>
-                )}
-              </div>
-              <span style={{ fontSize: 11, flexShrink: 0, marginTop: 2, color: 'var(--color-text-muted)' }}>
-                {timeAgo(event.created_at)}
-              </span>
-            </div>
-
-            {/* Status change badges */}
-            {event.type === 'status_change' && event.from_status && event.to_status && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                <span
-                  style={{
-                    fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 9999,
-                    background: (STATUS[event.from_status]?.color || '#666') + '20',
-                    color: STATUS[event.from_status]?.color || '#666',
-                  }}
-                >
-                  {STATUS[event.from_status]?.label || event.from_status}
-                </span>
-                <ArrowRight size={12} className="text-faint" />
-                <span
-                  style={{
-                    fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 9999,
-                    background: (STATUS[event.to_status]?.color || '#666') + '20',
-                    color: STATUS[event.to_status]?.color || '#666',
-                  }}
-                >
-                  {STATUS[event.to_status]?.label || event.to_status}
-                </span>
-              </div>
-            )}
-
-            {/* Work data box — Design System */}
-            {event.workData && (
-              <div
-                style={{
-                  marginTop: 8,
-                  padding: 10,
-                  borderRadius: 8,
-                  background: 'var(--color-green-bg)',
-                  border: '1px solid rgba(61, 220, 132, 0.33)',
-                  fontSize: 11,
-                  color: 'var(--color-text)',
-                  lineHeight: 1.5,
-                }}
-              >
-                {event.workData}
-              </div>
-            )}
-          </div>
+          <EventNode
+            key={item.id || i}
+            event={item}
+            isFirst={i === 0}
+            isLast={isLastTop}
+          />
         )
       })}
     </div>
+  )
+}
+
+function EventNode({ event, isFirst, isLast }) {
+  let dotColor = EVENT_COLORS[event.type] || EVENT_COLORS.created
+  if (event.type === 'status_change' && event.to_status) {
+    dotColor = STATUS[event.to_status]?.color || dotColor
+  }
+
+  const label = getEventTitle(event)
+
+  return (
+    <div
+      className="animate-fade-in"
+      style={{
+        position: 'relative',
+        paddingLeft: 8,
+        paddingBottom: isLast ? 0 : 16,
+        paddingTop: isFirst ? 0 : 4,
+      }}
+    >
+      {/* Dot — Design System: 12px, border 2px solid surface */}
+      <div style={{
+        position: 'absolute',
+        left: -17,
+        top: isFirst ? 2 : 6,
+        width: 12,
+        height: 12,
+        borderRadius: '50%',
+        background: dotColor,
+        border: '2px solid var(--color-surface-1)',
+        zIndex: 2,
+      }} />
+
+      {/* Content */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4, color: dotColor }}>
+            {label}
+          </p>
+          {event.detail && (
+            <p style={{ fontSize: 13, marginTop: 3, lineHeight: 1.4, color: 'var(--color-text)' }}>{event.detail}</p>
+          )}
+          {event.user_name && (
+            <p style={{ fontSize: 12, marginTop: 2, color: 'var(--color-text-secondary)' }}>{event.user_name}</p>
+          )}
+        </div>
+        <span style={{ fontSize: 11, flexShrink: 0, marginTop: 2, color: 'var(--color-text-muted)' }}>
+          {timeAgo(event.created_at)}
+        </span>
+      </div>
+
+      {/* Status change badges */}
+      {event.type === 'status_change' && event.from_status && event.to_status && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <span
+            style={{
+              fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 9999,
+              background: (STATUS[event.from_status]?.color || '#666') + '20',
+              color: STATUS[event.from_status]?.color || '#666',
+            }}
+          >
+            {STATUS[event.from_status]?.label || event.from_status}
+          </span>
+          <ArrowRight size={12} className="text-faint" />
+          <span
+            style={{
+              fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 9999,
+              background: (STATUS[event.to_status]?.color || '#666') + '20',
+              color: STATUS[event.to_status]?.color || '#666',
+            }}
+          >
+            {STATUS[event.to_status]?.label || event.to_status}
+          </span>
+        </div>
+      )}
+
+      {/* Work data box — Design System */}
+      {event.workData && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 10,
+            borderRadius: 8,
+            background: 'var(--color-green-bg)',
+            border: '1px solid rgba(61, 220, 132, 0.33)',
+            fontSize: 11,
+            color: 'var(--color-text)',
+            lineHeight: 1.5,
+          }}
+        >
+          {event.workData}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GroupNode({ group, open, onToggle, isFirst, isLast }) {
+  const dotColor = EVENT_COLORS[group.subtype] || EVENT_COLORS.created
+  const labelFn = GROUP_LABELS[group.subtype] || ((n) => `${n} eventi`)
+  const label = labelFn(group.events.length)
+  const lastAt = group.events[group.events.length - 1]?.created_at
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="press-scale animate-fade-in"
+      aria-expanded={open}
+      style={{
+        position: 'relative',
+        paddingLeft: 8,
+        paddingBottom: isLast ? 0 : 16,
+        paddingTop: isFirst ? 0 : 4,
+        width: '100%',
+        textAlign: 'left',
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        display: 'block',
+      }}
+    >
+      {/* Dot */}
+      <div style={{
+        position: 'absolute',
+        left: -17,
+        top: isFirst ? 2 : 6,
+        width: 12,
+        height: 12,
+        borderRadius: '50%',
+        background: dotColor,
+        border: '2px solid var(--color-surface-1)',
+        zIndex: 2,
+      }} />
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {open
+            ? <ChevronDown size={14} style={{ color: dotColor, flexShrink: 0 }} />
+            : <ChevronRight size={14} style={{ color: dotColor, flexShrink: 0 }} />
+          }
+          <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4, color: dotColor }}>
+            {label}
+          </p>
+        </div>
+        <span style={{ fontSize: 11, flexShrink: 0, marginTop: 2, color: 'var(--color-text-muted)' }}>
+          {timeAgo(lastAt)}
+        </span>
+      </div>
+    </button>
   )
 }
 
@@ -189,6 +307,32 @@ function getEventTitle(event) {
     default:
       return EVENT_LABELS[event.type] || 'Evento'
   }
+}
+
+// Raggruppa run consecutivi di eventi raggruppabili (≥ GROUP_THRESHOLD).
+// Restituisce un mix di eventi singoli e nodi { type: 'group', subtype, events }.
+function groupTimeline(timeline) {
+  const result = []
+  let i = 0
+  while (i < timeline.length) {
+    const current = timeline[i]
+    let j = i + 1
+    while (j < timeline.length && timeline[j].type === current.type) j++
+    const run = j - i
+    if (run >= GROUP_THRESHOLD && GROUPABLE_TYPES.has(current.type)) {
+      result.push({
+        id: `group-${current.type}-${current.id || i}`,
+        type: 'group',
+        subtype: current.type,
+        events: timeline.slice(i, j),
+        created_at: current.created_at,
+      })
+    } else {
+      for (let k = i; k < j; k++) result.push(timeline[k])
+    }
+    i = j
+  }
+  return result
 }
 
 function buildFallbackTimeline(report) {

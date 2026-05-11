@@ -310,16 +310,29 @@ export default function AdminUsers() {
   const filtered = users.filter(u => !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase()))
   const activeUsers = filtered.filter(u => !u.status || u.status === 'active')
   const pendingInvites = filtered.filter(u => u.status === 'pending')
-  const grouped = { admin: activeUsers.filter(u => u.role === 'admin'), tecnico: activeUsers.filter(u => u.role === 'tecnico'), operatore: activeUsers.filter(u => u.role === 'operatore') }
+  // I fornitori sono utenti con un supplier_profile (o legacy email @esterno.local).
+  // Vivono come gruppo a sé: mostrati separatamente, esclusi dai gruppi role.
+  const grouped = {
+    fornitore: activeUsers.filter(u => isSupplier(u, profileMap)),
+    admin: activeUsers.filter(u => u.role === 'admin' && !isSupplier(u, profileMap)),
+    tecnico: activeUsers.filter(u => u.role === 'tecnico' && !isSupplier(u, profileMap)),
+    operatore: activeUsers.filter(u => u.role === 'operatore' && !isSupplier(u, profileMap)),
+  }
+  const GROUP_INFO = {
+    fornitore: { label: 'Fornitori', color: '#a78bfa', icon: '🚚' },
+    ...ROLES,
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
-        {Object.entries(ROLES).map(([key, { label, icon, color }]) => {
-          const count = users.filter(u => u.role === key).length
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {Object.entries(GROUP_INFO).map(([key, { label, icon, color }]) => {
+          const count = key === 'fornitore'
+            ? users.filter(u => isSupplier(u, profileMap)).length
+            : users.filter(u => u.role === key && !isSupplier(u, profileMap)).length
           return (
             <div key={key} className="card-elevated rounded-2xl p-5 flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: color + '15' }}>{icon}</div>
@@ -408,7 +421,7 @@ export default function AdminUsers() {
       {loading ? <Spinner /> : (
         <div className="space-y-6 stagger-children">
           {Object.entries(grouped).map(([role, list]) => {
-            const info = ROLES[role]
+            const info = GROUP_INFO[role]
             if (list.length === 0) return null
             return (
               <div key={role}>

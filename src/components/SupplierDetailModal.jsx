@@ -1,13 +1,48 @@
+import { useEffect, useState } from 'react'
 import { Modal, Button } from './ui'
 import { SUPPLIER_SPECIALTIES, SUPPLIER_AVAILABILITY } from '../lib/constants'
-import { Phone, MessageCircle, Mail, MapPin, Globe, Clock, Euro, User, FileText, Edit2, Trash2, Briefcase } from 'lucide-react'
+import { db } from '../lib/supabase'
+import { inferSupplierSpecialties, compareSpecialties } from '../lib/supplierInference'
+import { Phone, MessageCircle, Mail, MapPin, Globe, Clock, Euro, User, FileText, Edit2, Trash2, Briefcase, History, AlertCircle } from 'lucide-react'
 
 export default function SupplierDetailModal({ open, onClose, supplier, profile, onEdit, onDelete }) {
+  const [inferred, setInferred] = useState([])
+  const [matchedOrders, setMatchedOrders] = useState(0)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  // Carica gli ordini ricambi e calcola le specialità inferite quando il
+  // modal si apre. On-demand: nessun cron, nessuna scrittura.
+  useEffect(() => {
+    if (!open || !supplier) {
+      setInferred([])
+      setMatchedOrders(0)
+      return
+    }
+    let cancelled = false
+    setLoadingHistory(true)
+    db.getSparePartOrders().then(orders => {
+      if (cancelled) return
+      const result = inferSupplierSpecialties({
+        supplierId: supplier.id || null,
+        supplierName: profile?.company_name || supplier.name || null,
+        orders: orders || [],
+      })
+      setInferred(result.inferred)
+      setMatchedOrders(result.matchedOrdersCount)
+    }).catch(err => {
+      console.warn('[SupplierDetailModal] inference failed:', err?.message)
+    }).finally(() => {
+      if (!cancelled) setLoadingHistory(false)
+    })
+    return () => { cancelled = true }
+  }, [open, supplier, profile?.company_name])
+
   if (!supplier) return null
 
   const specialties = profile?.specialties || []
   const hasAdminExtras = profile?.address || profile?.website || profile?.admin_contact || profile?.iban
   const availability = profile?.availability ? SUPPLIER_AVAILABILITY[profile.availability] : null
+  const drift = inferred.length > 0 ? compareSpecialties(specialties, inferred) : { onlyInferred: [], onlyManual: [], common: [] }
 
   return (
     <Modal open={open} onClose={onClose} title="Scheda Fornitore">
@@ -53,6 +88,58 @@ export default function SupplierDetailModal({ open, onClose, supplier, profile, 
                 )
               })}
             </div>
+          </div>
+        )}
+
+        {/* Specialità inferite dallo storico ricambi */}
+        {!loadingHistory && matchedOrders > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: 'var(--color-text-muted)' }}>
+              <History size={12} /> Dallo storico ricambi
+              <span className="font-normal lowercase" style={{ color: 'var(--color-text-faint)' }}>
+                · {matchedOrders} {matchedOrders === 1 ? 'ordine' : 'ordini'}
+              </span>
+            </p>
+            {inferred.length > 0 ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {inferred.map(({ specialty, count }) => {
+                    const s = SUPPLIER_SPECIALTIES[specialty]
+                    if (!s) return null
+                    const isNew = drift.onlyInferred.includes(specialty)
+                    return (
+                      <span key={specialty}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium"
+                        style={{
+                          background: s.color + '12',
+                          color: s.color,
+                          border: `1px dashed ${s.color}40`,
+                        }}>
+                        <span>{s.icon}</span> {s.label}
+                        <span className="font-normal" style={{ opacity: 0.7 }}>· {count}</span>
+                        {isNew && (
+                          <span className="ml-1 px-1 py-px rounded text-[9px] font-bold uppercase tracking-wide"
+                            style={{ background: s.color + '25', color: s.color }}>
+                            nuovo
+                          </span>
+                        )}
+                      </span>
+                    )
+                  })}
+                </div>
+                {drift.onlyInferred.length > 0 && specialties.length > 0 && (
+                  <p className="text-[11px] mt-2 flex items-start gap-1.5" style={{ color: 'var(--color-text-muted)' }}>
+                    <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                    Lo storico mostra specialità non incluse nella scheda. Valuta se aggiornarla.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-[11px] italic flex items-start gap-1.5" style={{ color: 'var(--color-text-muted)' }}>
+                <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                Nessuna specialità riconosciuta nei nomi dei ricambi storici. L'inferenza usa parole chiave tecniche (cuscinetto, encoder, valvola, ecc.) — funziona meglio quando i nomi sono descrittivi.
+              </p>
+            )}
           </div>
         )}
 

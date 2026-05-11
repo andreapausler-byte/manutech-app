@@ -11,8 +11,13 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase'
  * Stati:
  *   idle         — pronto a registrare
  *   recording    — MediaRecorder attivo
- *   transcribing — audio inviato a Whisper + Claude
- *   review       — campi estratti dall'AI, consumer mostra form
+ *   review       — review form aperta (con o senza trascrizione pronta)
+ *
+ * Flag separato `transcribing` true mentre Whisper+Claude girano in
+ * background. Il consumer può usarlo per mostrare un indicatore inline
+ * dentro la review e auto-popolare i campi quando arrivano. Il submit
+ * non aspetta la trascrizione: l'utente vede la review immediatamente
+ * dopo aver rilasciato il pulsante.
  *
  * Demo mode (Supabase non configurato): bypassa AI, salta a "review" con
  * campi vuoti così il consumer può compilare manualmente.
@@ -142,6 +147,7 @@ export function useVoiceCapture({
   const [error, setError] = useState(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [audioBlob, setAudioBlob] = useState(null)
+  const [transcribing, setTranscribing] = useState(false)
 
   const mediaRecorderRef = useRef(null)
   const chunksRef = useRef([])
@@ -160,6 +166,7 @@ export function useVoiceCapture({
     setError(null)
     setElapsedMs(0)
     setAudioBlob(null)
+    setTranscribing(false)
   }, [])
 
   const startRecording = useCallback(async () => {
@@ -237,7 +244,9 @@ export function useVoiceCapture({
     } catch (err) {
       console.warn('[voice] stop tracks failed:', err)
     }
-    setState('transcribing')
+    // Lo stato successivo lo decide handleStop (review se audio valido,
+    // idle se troppo breve). Niente più stato 'transcribing': la
+    // trascrizione gira in background mentre la review è già aperta.
   }, [])
 
   // Annulla la registrazione: ferma mediarecorder + tracks, scarta i chunks
@@ -257,6 +266,7 @@ export function useVoiceCapture({
     setAudioBlob(null)
     setTranscription('')
     setError(null)
+    setTranscribing(false)
     setState('idle')
   }, [])
 
@@ -283,7 +293,7 @@ export function useVoiceCapture({
       return
     }
 
-    // Demo mode: niente AI, consumer compila a mano
+    // Demo mode: niente AI, consumer compila a mano (review già aperta)
     if (!isSupabaseConfigured()) {
       setTranscription('')
       setFields(defaultFields)
@@ -291,6 +301,15 @@ export function useVoiceCapture({
       setState('review')
       return
     }
+
+    // Apri la review subito con campi vuoti, poi gira la trascrizione
+    // in background. Quando arriva, `transcription` e `fields` si
+    // aggiornano e i consumer popolano i loro form se vuoti.
+    setTranscription('')
+    setFields(defaultFields)
+    setError(null)
+    setTranscribing(true)
+    setState('review')
 
     try {
       const form = new FormData()
@@ -317,23 +336,20 @@ export function useVoiceCapture({
       const text = applyCorrections(rawText)
 
       // Hallucination check: se Whisper ha inventato parole random
-      // (succede su silenzio o rumore), scarta e chiedi di riprovare.
+      // (succede su silenzio o rumore), restiamo in review con errore —
+      // l'utente può comunque compilare a mano senza perdere il flusso.
       if (looksLikeHallucination(text)) {
         console.warn('[voice] hallucination detected, raw text:', text.slice(0, 200))
-        setTranscription('')
-        setFields(defaultFields)
-        setAudioBlob(null)
-        setError('Audio non chiaro: il sistema ha rilevato voci o parole non riconoscibili. Riprova parlando più vicino al microfono.')
-        setState('idle')
+        setError('Audio non chiaro: il sistema ha rilevato voci non riconoscibili. Compila manualmente o annulla e riprova.')
+        setTranscribing(false)
         return
       }
 
       setTranscription(text)
 
       if (!text) {
-        setFields(defaultFields)
         setError('Non ho capito l\'audio. Compila manualmente o riprova.')
-        setState('review')
+        setTranscribing(false)
         return
       }
 
@@ -361,16 +377,13 @@ export function useVoiceCapture({
         setFields(extractResp.data || defaultFields)
       } catch (extractErr) {
         console.warn('[voice] extract failed:', extractErr)
-        setFields(defaultFields)
         setError('AI non ha estratto i campi. Completa manualmente.')
       }
-      setState('review')
+      setTranscribing(false)
     } catch (err) {
       console.error('[voice] transcription failed:', err)
       setError('Errore durante la trascrizione. Riprova o compila manualmente.')
-      setFields(defaultFields)
-      setTranscription('')
-      setState('review')
+      setTranscribing(false)
     }
   }
 
@@ -380,6 +393,7 @@ export function useVoiceCapture({
     setFields(defaultFields)
     setError(null)
     setAudioBlob(null)
+    setTranscribing(false)
     setState('review')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -393,6 +407,7 @@ export function useVoiceCapture({
     error,
     elapsedMs,
     audioBlob,
+    transcribing,
     supportsMediaRecorder,
     startRecording,
     stopRecording,

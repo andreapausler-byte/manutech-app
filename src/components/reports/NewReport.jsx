@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
-import { SEVERITY, REPORT_TYPES } from '../../lib/constants'
+import { SEVERITY, REPORT_TYPES, formatTicketId } from '../../lib/constants'
 import { Button, Input, Textarea, Select } from '../ui'
 import MediaCapture from '../media/MediaCapture'
 import SuccessAnimation from '../ui/SuccessAnimation'
 import DraftBanner from '../ui/DraftBanner'
 import QRScanner from '../media/QRScanner'
+import SimilarCasesLivePanel from './SimilarCasesLivePanel'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useAutosave } from '../../hooks/useAutosave'
@@ -101,7 +102,7 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
         detail: form.machine ? `Macchinario: ${form.machine}` : null,
       }).catch(e => console.warn('Side effect failed:', e.message))
       db.addNotification({
-        type: 'new_report', title: `Nuova segnalazione: ${form.title.trim()}`,
+        type: 'new_report', title: `${formatTicketId(created)} · ${form.title.trim()}`,
         body: `${user.name} ha creato una segnalazione ${form.severity}`,
         report_id: created.id, from_user: user.id, target_user: null,
       }).catch(e => console.warn('Side effect failed:', e.message))
@@ -308,6 +309,12 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
 
         {/* Description */}
         <Textarea label="Descrizione *" placeholder="Descrivi il problema..." value={form.description} onChange={e => set('description', e.target.value)} />
+
+        {/* Casi simili dallo storico (live, debounced) */}
+        <SimilarCasesLivePanel
+          text={[form.title, form.description].filter(Boolean).join('. ')}
+          machineId={machines.find(m => m.name === form.machine)?.id || null}
+        />
 
         {/* Assegnazione */}
         <div>

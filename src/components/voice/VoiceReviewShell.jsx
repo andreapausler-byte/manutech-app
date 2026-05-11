@@ -1,11 +1,11 @@
-import { Sparkles, PenLine, ArrowLeft } from 'lucide-react'
+import { Sparkles, PenLine, ArrowLeft, Loader2 } from 'lucide-react'
 import VoiceMediaPicker from './VoiceMediaPicker'
 
 /**
  * VoiceReviewShell — guscio review condiviso per i flow vocali.
  *
  * Layout:
- *   - Header: back button + titolo + badge AI/manuale
+ *   - Header: back button + titolo + badge AI/manuale/trascrivendo
  *   - Banner errore (se presente)
  *   - Trascrizione (textarea editabile, opzionale)
  *   - Slot {children}: campi specifici per context (passati dal parent)
@@ -15,6 +15,8 @@ import VoiceMediaPicker from './VoiceMediaPicker'
  *   title           — string, intestazione
  *   transcription   — string, testo trascritto
  *   setTranscription— setter per editare la trascrizione (può essere null per nascondere)
+ *   transcribing    — bool, true mentre Whisper+Claude girano in background
+ *                     (review già aperta, trascrizione/fields arrivano dopo)
  *   error           — string opzionale, mostrato in banner
  *   loading         — bool, disabilita i bottoni durante submit
  *   onCancel        — callback annulla
@@ -28,6 +30,7 @@ export default function VoiceReviewShell({
   title,
   transcription,
   setTranscription,
+  transcribing = false,
   error,
   loading = false,
   onCancel,
@@ -41,8 +44,8 @@ export default function VoiceReviewShell({
   mediaUploadPath = 'voice-attachments',
 }) {
   const showMedia = !!setMedia
-  const isManual = !transcription
-  const showConfidence = typeof confidence === 'number' && transcription
+  const isManual = !transcription && !transcribing
+  const showConfidence = typeof confidence === 'number' && transcription && !transcribing
 
   return (
     <div
@@ -92,19 +95,33 @@ export default function VoiceReviewShell({
 
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 5vw 100px' }}>
-        {/* Badge AI/manuale + confidence */}
+        {/* Badge AI/manuale/trascrivendo + confidence */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '6px 10px', borderRadius: 8,
-            background: isManual ? 'var(--color-surface-2)' : 'rgba(124, 106, 255, 0.12)',
-            color: isManual ? 'var(--color-text-secondary)' : 'var(--color-primary)',
-            fontSize: 12, fontWeight: 600,
-            border: isManual ? '1px solid var(--color-border)' : '1px solid rgba(124, 106, 255, 0.3)',
-          }}>
-            {isManual ? <PenLine size={13} /> : <Sparkles size={13} />}
-            {isManual ? 'Compilazione manuale' : 'AI Whisper · Trascritto'}
-          </span>
+          {transcribing ? (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 10px', borderRadius: 8,
+              background: 'rgba(124, 106, 255, 0.12)',
+              color: 'var(--color-primary)',
+              fontSize: 12, fontWeight: 600,
+              border: '1px solid rgba(124, 106, 255, 0.3)',
+            }}>
+              <Loader2 size={13} className="animate-spin" />
+              Trascrivendo audio…
+            </span>
+          ) : (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 10px', borderRadius: 8,
+              background: isManual ? 'var(--color-surface-2)' : 'rgba(124, 106, 255, 0.12)',
+              color: isManual ? 'var(--color-text-secondary)' : 'var(--color-primary)',
+              fontSize: 12, fontWeight: 600,
+              border: isManual ? '1px solid var(--color-border)' : '1px solid rgba(124, 106, 255, 0.3)',
+            }}>
+              {isManual ? <PenLine size={13} /> : <Sparkles size={13} />}
+              {isManual ? 'Compilazione manuale' : 'AI Whisper · Trascritto'}
+            </span>
+          )}
           {showConfidence && (
             <span style={{
               display: 'inline-flex', alignItems: 'center',
@@ -156,7 +173,7 @@ export default function VoiceReviewShell({
               id="voice-transcript"
               value={transcription || ''}
               onChange={(e) => setTranscription(e.target.value)}
-              placeholder="Descrivi il problema o aggiungi dettagli…"
+              placeholder={transcribing ? 'In attesa della trascrizione…' : 'Descrivi il problema o aggiungi dettagli…'}
               rows={4}
               style={{
                 width: '100%', padding: '12px 14px',

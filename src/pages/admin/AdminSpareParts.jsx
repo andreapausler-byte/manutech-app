@@ -956,7 +956,8 @@ function ProcessRequestModalBody({
     })
   }, [supplierProfiles, order.specialty])
 
-  const [mode, setMode] = useState('quote') // 'quote' | 'direct'
+  const isUrgent = order?.urgency === 'urgente'
+  const [mode, setMode] = useState(isUrgent ? 'direct' : 'quote') // 'quote' | 'direct'
   const [selectedIds, setSelectedIds] = useState([])  // user_id dei fornitori selezionati
   const [extraName, setExtraName] = useState('')      // nome libero opzionale
   const [globalNote, setGlobalNote] = useState('')
@@ -1013,6 +1014,18 @@ function ProcessRequestModalBody({
           onPhotoClick={onPhotoClick}
         />
 
+        {isUrgent && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2.5">
+            <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs">
+              <p className="font-bold text-red-300">Richiesta urgente</p>
+              <p className="text-faint mt-0.5 leading-relaxed">
+                Consigliato saltare i preventivi e ordinare diretto al fornitore di fiducia per non perdere tempo.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Tab interno: chiedi preventivi vs ordina diretto */}
         <div className="flex bg-surface-2 rounded-xl p-1">
           <button onClick={() => setMode('quote')}
@@ -1022,6 +1035,7 @@ function ProcessRequestModalBody({
           <button onClick={() => setMode('direct')}
             className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'direct' ? 'bg-cyan-500/20 text-cyan-300' : 'text-faint hover:text-secondary'}`}>
             <Send size={13} /> Salta, ordina diretto
+            {isUrgent && <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-red-500/30 text-red-200 uppercase ml-0.5">consigliato</span>}
           </button>
         </div>
 

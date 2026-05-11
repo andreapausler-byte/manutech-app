@@ -91,27 +91,24 @@ export default function OperatorApp() {
 
   const handleCloseDetail = useCallback(() => setDetailId(null), [])
 
-  // Screen priority: recording > transcribing > review > detail > tab
+  // Screen priority: recording > review > detail > tab
   let screen
-  if (voice.state === 'recording' || voice.state === 'transcribing') {
+  if (voice.state === 'recording') {
     screen = (
       <OperatorRecording
-        state={voice.state}
         elapsedMs={voice.elapsedMs}
         onStop={voice.stopRecording}
       />
     )
   } else if (voice.state === 'review') {
-    // key forza il remount di OperatorReview quando cambiano i fields
-    // estratti dall'AI o la trascrizione, così lo state interno del form
-    // si inizializza correttamente dalle props senza useEffect.
-    const reviewKey = `${voice.fields?.summary || ''}|${voice.transcription || ''}`
+    // OperatorReview gestisce internamente la rehydration del form quando
+    // fields/transcription arrivano dopo l'apertura della review (PR 3).
     screen = (
       <OperatorReview
-        key={reviewKey}
         machines={machines}
         fields={voice.fields}
         transcription={voice.transcription}
+        transcribing={voice.transcribing}
         error={voice.error}
         onSubmit={handleSubmit}
         onCancel={() => voice.reset()}
@@ -135,7 +132,6 @@ export default function OperatorApp() {
   }
 
   const showNav = voice.state !== 'recording'
-    && voice.state !== 'transcribing'
     && voice.state !== 'review'
     && !detailId
 
