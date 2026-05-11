@@ -55,6 +55,39 @@ export function orderStageIndex(status) {
   return 0
 }
 
+// ── Tipi di "richiesta esterna" ──
+// Una richiesta esterna è qualunque cosa il team aspetti dall'esterno per
+// chiudere un ticket: un ricambio fisico oppure un intervento di un
+// fornitore/tecnico esterno. Stesso lifecycle, UI ed entità a livello DB
+// (spare_part_orders.kind), cambia solo il significato e qualche campo.
+export const REQUEST_KIND = {
+  ricambio:   { label: 'Ricambio',           short: 'Ricambio',  icon: '📦', color: '#7c6aff' },
+  intervento: { label: 'Intervento esterno', short: 'Intervento', icon: '👤', color: '#06b6d4' },
+}
+
+// Label specifiche per stadio in base al tipo di richiesta.
+// Per intervento: stage 2 è "Intervento programmato", stage 3 è "Intervento completato".
+const STAGE_LABELS_BY_KIND = {
+  ricambio: ['Nuova richiesta', 'Preventivo richiesto', 'Preventivo accettato', 'Ricambio ricevuto'],
+  intervento: ['Nuova richiesta', 'Preventivo richiesto', 'Intervento programmato', 'Intervento completato'],
+}
+export function stageLabel(stage, kind = 'ricambio') {
+  const arr = STAGE_LABELS_BY_KIND[kind] || STAGE_LABELS_BY_KIND.ricambio
+  return arr[stage] || ''
+}
+
+// Label dello status interno specifica per kind.
+// Es. per intervento, 'ordinato' diventa 'Programmato', 'ricevuto' diventa 'Completato'.
+export function statusLabel(status, kind = 'ricambio') {
+  if (kind === 'intervento') {
+    if (status === 'ordinato') return 'Programmato'
+    if (status === 'spedito') return 'In arrivo'
+    if (status === 'ricevuto') return 'Completato'
+    if (status === 'installato') return 'Chiuso'
+  }
+  return ORDER_STATUS[status]?.label || status
+}
+
 export const SPARE_URGENCY = {
   bassa:   { label: 'Bassa',   color: '#9ca3af', bg: 'rgba(156,163,175,0.10)' },
   media:   { label: 'Media',   color: '#06b6d4', bg: 'rgba(6,182,212,0.10)' },

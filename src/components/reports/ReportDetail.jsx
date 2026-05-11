@@ -22,6 +22,8 @@ import VoiceUpdateFlow from '../voice/VoiceUpdateFlow'
 import VoiceCloseFlow from '../voice/VoiceCloseFlow'
 import VoiceNoteFlow from '../voice/VoiceNoteFlow'
 import SpareRequestModal from '../spare/SpareRequestModal'
+import InterventionRequestModal from '../spare/InterventionRequestModal'
+import RequestKindChooser from '../spare/RequestKindChooser'
 import TicketSparePanel from '../spare/TicketSparePanel'
 
 // ─────────────────────────────────────────────────────────────
@@ -984,8 +986,8 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             </div>
           )}
 
-          {/* Ricambi associati al ticket */}
-          <TicketSparePanel reportId={report.id} refreshKey={spareRefresh} />
+          {/* Richieste esterne (ricambi + interventi) associati al ticket */}
+          <TicketSparePanel reportId={report.id} user={user} refreshKey={spareRefresh} />
 
           {/* AI: casi simili live (auto-cerca all'apertura, semantic search raw) */}
           {user.role === 'tecnico' && report.status !== 'chiuso' && (
@@ -1095,7 +1097,27 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         />
       )}
       {voiceFlow === 'spare' && (
+        <RequestKindChooser
+          onClose={() => setVoiceFlow(null)}
+          onPick={(kind) => setVoiceFlow(kind === 'intervento' ? 'intervention' : 'ricambio')}
+        />
+      )}
+      {voiceFlow === 'ricambio' && (
         <SpareRequestModal
+          report={report}
+          user={user}
+          onClose={() => setVoiceFlow(null)}
+          onApplied={(updated) => {
+            if (updated) setReport(r => ({ ...r, ...updated }))
+            setChatCount(c => c + 1)
+            setHistoryCount(h => h + 1)
+            setSpareRefresh(s => s + 1)
+            setVoiceFlow(null)
+          }}
+        />
+      )}
+      {voiceFlow === 'intervention' && (
+        <InterventionRequestModal
           report={report}
           user={user}
           onClose={() => setVoiceFlow(null)}
@@ -1120,7 +1142,7 @@ function TechActionBar({ onAction }) {
     { id: 'update', label: 'Aggiorna', icon: FileEdit, color: '#06b6d4' },
     { id: 'close', label: 'Completa', icon: ClipboardCheck, color: '#10b981' },
     { id: 'note', label: 'Nota', icon: Mic, color: '#a78bfa' },
-    { id: 'spare', label: 'Ricambio', icon: Package, color: '#f59e0b' },
+    { id: 'spare', label: 'Richiedi', icon: Package, color: '#f59e0b' },
   ]
   return (
     <div style={{

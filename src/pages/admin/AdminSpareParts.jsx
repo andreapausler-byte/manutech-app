@@ -8,7 +8,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { db } from '../../lib/supabase'
-import { ORDER_STATUS, SPARE_URGENCY, ORDER_STAGES, orderStageIndex, formatDate, timeAgo } from '../../lib/constants'
+import { ORDER_STATUS, SPARE_URGENCY, ORDER_STAGES, REQUEST_KIND, orderStageIndex, statusLabel, formatDate, timeAgo } from '../../lib/constants'
+import RequestDetailPanel from '../../components/spare/RequestDetailPanel'
 import { Button, Input, Modal, Badge, Spinner, EmptyState } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
@@ -19,7 +20,7 @@ import {
   ShoppingCart, Check, Truck, MapPin, Hash, X,
   ArrowRight, Clock, Factory, ChevronRight, Archive,
   Phone, MessageCircle, Mail, Inbox, Image as ImageIcon, User,
-  Send, FileText, ChevronDown, Euro
+  Send, FileText, ChevronDown, Euro, UserCog, Eye
 } from 'lucide-react'
 
 const NAV_ITEM = findNavItem('spare-parts')
@@ -73,6 +74,7 @@ export default function AdminSpareParts() {
   const [processingOrder, setProcessingOrder] = useState(null)   // 'richiesto' → richiedi preventivi
   const [quotingOrder, setQuotingOrder] = useState(null)         // 'preventivo' → gestisci quotes
   const [photoLightbox, setPhotoLightbox] = useState(null)       // { url, all, idx }
+  const [openDetailId, setOpenDetailId] = useState(null)         // tap su card → fullscreen detail panel
 
   const load = async () => {
     setLoading(true)
@@ -197,7 +199,12 @@ export default function AdminSpareParts() {
 
   const markShipped = async (order) => {
     try {
-      await db.updateSparePartOrder(order.id, { status: 'spedito' })
+      const updated = await db.updateSparePartOrder(order.id, { status: 'spedito' })
+      db._emitOrderActivity?.(updated, {
+        type: 'status_change',
+        from_status: 'ordinato', to_status: 'spedito',
+        detail: order.kind === 'intervento' ? 'Tecnico in arrivo' : 'Spedito dal fornitore',
+      })
       toast.success('Stato aggiornato: spedito')
       load()
     } catch (e) { toast.error('Errore: ' + e.message) }
@@ -205,8 +212,13 @@ export default function AdminSpareParts() {
 
   const markInstalled = async (order) => {
     try {
-      await db.updateSparePartOrder(order.id, { status: 'installato', installed_at: new Date().toISOString() })
-      toast.success('Ricambio installato!')
+      const updated = await db.updateSparePartOrder(order.id, { status: 'installato', installed_at: new Date().toISOString() })
+      db._emitOrderActivity?.(updated, {
+        type: 'status_change',
+        from_status: 'ricevuto', to_status: 'installato',
+        detail: order.kind === 'intervento' ? 'Intervento concluso' : 'Ricambio installato',
+      })
+      toast.success(order.kind === 'intervento' ? 'Intervento concluso!' : 'Ricambio installato!')
       load()
     } catch (e) { toast.error('Errore: ' + e.message) }
   }
@@ -433,6 +445,7 @@ export default function AdminSpareParts() {
                             onReceived={() => markReceived(order)}
                             onInstalled={() => markInstalled(order)}
                             onDelete={() => deleteOrder(order.id)}
+                            onView={() => setOpenDetailId(order.id)}
                           />
                         ))}
                       </div>
@@ -583,6 +596,15 @@ export default function AdminSpareParts() {
           onClose={() => setPhotoLightbox(null)}
         />
       )}
+
+      {/* ═══ REQUEST DETAIL — apri timeline + chat ═══ */}
+      {openDetailId && user && (
+        <RequestDetailPanel
+          orderId={openDetailId}
+          user={user}
+          onClose={() => { setOpenDetailId(null); load() }}
+        />
+      )}
     </div>
   )
 }
@@ -593,8 +615,11 @@ export default function AdminSpareParts() {
 function OrderCard({
   order, overdue,
   getReportTitle, getMachineName, getUserName,
-  onPhotoClick, onProcess, onManageQuotes, onShipped, onReceived, onInstalled, onDelete,
+  onPhotoClick, onProcess, onManageQuotes, onShipped, onReceived, onInstalled, onDelete, onView,
 }) {
+  const kind = order.kind || 'ricambio'
+  const kindMeta = REQUEST_KIND[kind] || REQUEST_KIND.ricambio
+  const KindIcon = kind === 'intervento' ? UserCog : Package
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.ordinato
   const urg = order.urgency ? SPARE_URGENCY[order.urgency] : null
   const images = Array.isArray(order.images) ? order.images : []
@@ -616,12 +641,12 @@ function OrderCard({
   return (
     <div className={`card-elevated rounded-xl p-4 transition-all ${ringClass}`}>
       <div className="flex items-start gap-3">
-        {/* Foto principale o icona stato */}
+        {/* Thumb foto + badge kind, oppure icona kind */}
         {hasPhotos ? (
           <button
             onClick={() => onPhotoClick(0, images)}
             className="press-scale shrink-0 w-14 h-14 rounded-xl overflow-hidden border border-token relative"
-            aria-label="Apri foto targhetta"
+            aria-label="Apri foto"
           >
             <img src={images[0].url} alt="" className="w-full h-full object-cover" />
             {images.length > 1 && (
@@ -629,15 +654,19 @@ function OrderCard({
                 +{images.length - 1}
               </span>
             )}
+            <span
+              className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full flex items-center justify-center"
+              style={{ background: kindMeta.color, border: '2px solid var(--color-bg)' }}
+            >
+              <KindIcon size={11} className="text-white" />
+            </span>
           </button>
         ) : (
-          <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${overdue ? 'bg-red-500/15' : isRequested ? 'bg-orange-500/15' : isQuoting ? 'bg-amber-500/15' : 'bg-surface-2'}`}>
-            {isRequested && <Inbox size={20} className="text-orange-400" />}
-            {isQuoting && <FileText size={20} className="text-amber-300" />}
-            {order.status === 'ordinato' && <Clock size={20} className={overdue ? 'text-red-400' : 'text-cyan-400'} />}
-            {order.status === 'spedito' && <Truck size={20} className="text-violet-400" />}
-            {order.status === 'ricevuto' && <Check size={20} className="text-emerald-400" />}
-            {order.status === 'installato' && <Check size={20} className="text-green-400" />}
+          <div
+            className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: kindMeta.color + '22', color: kindMeta.color }}
+          >
+            <KindIcon size={22} />
           </div>
         )}
 
@@ -645,7 +674,7 @@ function OrderCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-bold text-themed">{order.spare_part_name}</p>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ background: st.bg, color: st.color }}>{statusLabel(order.status, kind)}</span>
             {(isRequested || isQuoting) && urg && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide" style={{ background: urg.bg, color: urg.color }}>
                 {urg.label}
@@ -723,6 +752,11 @@ function OrderCard({
 
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
+          {onView && (
+            <button onClick={onView} className="p-2 rounded-lg hover:bg-white/10 text-faint hover:text-white" aria-label="Apri dettaglio" title="Apri dettaglio richiesta">
+              <Eye size={14} />
+            </button>
+          )}
           {isRequested && (
             <button onClick={onProcess} className="flex items-center gap-1 px-3 py-2 bg-orange-600/20 hover:bg-orange-600/30 text-orange-300 rounded-lg text-xs font-bold transition-all">
               <ArrowRight size={13} /> Elabora
@@ -910,6 +944,18 @@ function ProcessRequestModalBody({
   order, onClose, onRequestQuotes, onDirectOrder, onPhotoClick,
   report, requesterName, machineName, supplierProfiles,
 }) {
+  // Smart filter: se l'ordine specifica una specialty, ordina i fornitori
+  // con quella specialty in cima.
+  const sortedSuppliers = useMemo(() => {
+    const ts = order.specialty
+    if (!ts) return supplierProfiles
+    return [...supplierProfiles].sort((a, b) => {
+      const am = (a.specialties || []).includes(ts) ? 0 : 1
+      const bm = (b.specialties || []).includes(ts) ? 0 : 1
+      return am - bm
+    })
+  }, [supplierProfiles, order.specialty])
+
   const isUrgent = order?.urgency === 'urgente'
   const [mode, setMode] = useState(isUrgent ? 'direct' : 'quote') // 'quote' | 'direct'
   const [selectedIds, setSelectedIds] = useState([])  // user_id dei fornitori selezionati
@@ -1005,11 +1051,12 @@ function ProcessRequestModalBody({
                 </p>
               ) : (
                 <div className="space-y-1.5 max-h-56 overflow-y-auto">
-                  {supplierProfiles.map(s => {
+                  {sortedSuppliers.map(s => {
                     const checked = selectedIds.includes(s.user_id)
+                    const matchesSpecialty = order.specialty && (s.specialties || []).includes(order.specialty)
                     return (
                       <label key={s.user_id}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${checked ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : 'bg-surface-2 hover:bg-surface-3'}`}>
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${checked ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : matchesSpecialty ? 'bg-emerald-500/5 ring-1 ring-emerald-500/20 hover:bg-emerald-500/10' : 'bg-surface-2 hover:bg-surface-3'}`}>
                         <input
                           type="checkbox"
                           checked={checked}
@@ -1017,7 +1064,12 @@ function ProcessRequestModalBody({
                           className="w-4 h-4 accent-amber-500"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-themed truncate">{s.company_name}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-medium text-themed truncate">{s.company_name}</p>
+                            {matchesSpecialty && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 uppercase tracking-wide shrink-0">Match</span>
+                            )}
+                          </div>
                           {s.specialties?.length > 0 && (
                             <p className="text-[11px] text-faint truncate">{s.specialties.slice(0, 3).join(' · ')}</p>
                           )}
