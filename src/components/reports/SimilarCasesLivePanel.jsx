@@ -20,8 +20,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Sparkles, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { isAssistantAvailable, searchSimilarCases, getMachineKnowledgeStats } from '../../lib/assistant'
 import { db } from '../../lib/supabase'
-import { formatDate, formatTicketId } from '../../lib/constants'
-import { Modal } from '../ui'
+import { formatDate } from '../../lib/constants'
+import { Modal, TicketIdBadge } from '../ui'
 
 const DEBOUNCE_MS = 700
 const MIN_LENGTH = 30
@@ -318,7 +318,7 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
                         flexShrink: 0,
                         fontFamily: 'JetBrains Mono, monospace',
                       }}>
-                        {formatTicketId(c.report || c.source_ref)}
+                        <TicketIdBadge report={c.report || c.source_ref} />
                       </span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {c.report?.title || 'Segnalazione'}
@@ -362,8 +362,8 @@ export default function SimilarCasesLivePanel({ text, machineId, excludeReportId
         {previewCase && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace', marginBottom: 4 }}>
-                {formatTicketId(previewCase.source_ref)}
+              <div style={{ marginBottom: 4 }}>
+                <TicketIdBadge report={previewCase.source_ref} style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'JetBrains Mono, monospace' }} />
               </div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>
                 {previewCase.report?.title || 'Segnalazione'}

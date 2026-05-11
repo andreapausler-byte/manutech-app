@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatTicketId } from '../../lib/constants'
-import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner } from '../../components/ui'
+import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner, TicketIdBadge } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
 import ReportDetailModal from './reports/ReportDetailModal'
 import { avatarGradient } from '../../hooks/usePremiumUI'
@@ -163,7 +163,7 @@ export default function AdminReports({ initialReportId }) {
         }}
       >
         <td className="px-8 py-5 align-middle">
-          <div className="text-[10px] font-bold mb-1" style={{
+          <TicketIdBadge report={r} className="text-[10px] font-bold mb-1" style={{
             display: 'inline-block',
             padding: '2px 7px',
             borderRadius: 4,
@@ -171,9 +171,7 @@ export default function AdminReports({ initialReportId }) {
             fontFamily: '"JetBrains Mono", monospace',
             background: 'var(--color-primary-glow)',
             color: 'var(--color-primary)',
-          }}>
-            {formatTicketId(r)}
-          </div>
+          }} />
           <div
             className="font-semibold mb-0.5 group-hover:text-indigo-300 transition-colors truncate"
             style={{ color: 'var(--color-text)' }}
