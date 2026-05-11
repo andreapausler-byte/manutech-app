@@ -1,8 +1,61 @@
 import { X, GripHorizontal } from 'lucide-react'
 import { useDraggable } from '../../hooks/useDraggable'
+import { formatTicketId } from '../../lib/constants'
+import { useToast } from '../../hooks/useToast'
 
 // ── Skeleton Components (re-export) ──────────────────────
 export { SkeletonBlock, SkeletonKPIGrid, SkeletonReportCard, SkeletonReportList, SkeletonDashboard, SkeletonReportsPage } from './Skeleton'
+
+// ── TicketIdBadge ────────────────────────────────────────
+// Badge cliccabile che mostra il TK-id e lo copia in clipboard al tap.
+// Applica sempre `slashed-zero tabular-nums` per distinguere 0 da 8/O in
+// font sans-serif. Accetta `style` per integrarsi con stilizzazioni di
+// contesto (lista, header, tabella admin, casi simili).
+export function TicketIdBadge({ report, style, className = '', stopPropagation = true }) {
+  const toast = useToast()
+  const tk = formatTicketId(report)
+  if (!tk) return null
+
+  const copy = async (e) => {
+    if (stopPropagation && e) e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(tk)
+      toast.success(`${tk} copiato`)
+    } catch {
+      toast.error('Impossibile copiare')
+    }
+  }
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      copy(e)
+    }
+  }
+
+  // span (non button) per evitare HTML invalido quando il TK-id è
+  // dentro card cliccabili (ReportsList, SimilarCasesLivePanel) che
+  // usano <button> come container — il nesting button>button è
+  // proibito dallo spec.
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={copy}
+      onKeyDown={onKeyDown}
+      aria-label={`Copia ${tk}`}
+      title={`Copia ${tk}`}
+      className={`press-scale ${className}`}
+      style={{
+        cursor: 'pointer',
+        fontVariantNumeric: 'slashed-zero tabular-nums',
+        ...style,
+      }}
+    >
+      {tk}
+    </span>
+  )
+}
 
 // ── Badge ────────────────────────────────────────────────
 export function Badge({ label, color, bg, icon }) {

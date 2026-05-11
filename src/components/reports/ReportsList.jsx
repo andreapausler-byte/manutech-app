@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, SEVERITY, REPORT_TYPES, formatTicketId } from '../../lib/constants'
-import { EmptyState, SkeletonReportsPage } from '../ui'
+import { EmptyState, SkeletonReportsPage, TicketIdBadge } from '../ui'
 import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
@@ -80,14 +80,12 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
       <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
         {/* Meta row: TK-id + tag pill + severity */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{
+          <TicketIdBadge report={report} style={{
             fontSize: 9, padding: '2px 6px', borderRadius: 3,
             background: 'var(--color-primary-glow)', color: 'var(--color-primary)',
             fontWeight: 700, letterSpacing: 0.8,
             fontFamily: '"JetBrains Mono", monospace',
-          }}>
-            {formatTicketId(report)}
-          </span>
+          }} />
           <span style={{
             fontSize: 9, padding: '2px 6px', borderRadius: 3,
             background: reportType.color, color: '#fff',

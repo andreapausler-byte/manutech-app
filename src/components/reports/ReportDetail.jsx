@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatTicketId } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
+import { TicketIdBadge } from '../ui'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import MediaLightbox from '../media/MediaLightbox'
@@ -573,7 +574,6 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const videos = (report.media || []).filter(m => m.type === 'video')
   const audios = (report.media || []).filter(m => m.type === 'audio')
 
-  const tickeId = formatTicketId(report)
   // TK-id ora promosso a badge prominente sopra il titolo (vedi render).
   // L'eyebrow contiene solo timeAgo + autore.
   const eyebrowParts = [
@@ -611,7 +611,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             <ArrowLeft size={18} />
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
+            <TicketIdBadge report={report} style={{
               display: 'inline-flex',
               alignItems: 'center',
               padding: '2px 8px',
@@ -623,9 +623,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
               letterSpacing: 1.2,
               background: 'var(--color-primary-glow)',
               color: 'var(--color-primary)',
-            }}>
-              {tickeId}
-            </div>
+            }} />
             <div style={{
               display: 'flex', alignItems: 'center', gap: 0,
               fontSize: 10, color: D.textSubtle, fontWeight: 500,
