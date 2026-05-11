@@ -1,5 +1,5 @@
 -- ──────────────────────────────────────────────────────────────────────────
--- Migration 049 — Richieste esterne: kind + interventi + timeline polimorfica
+-- Migration 051 — Richieste esterne: kind + interventi + timeline polimorfica
 -- ──────────────────────────────────────────────────────────────────────────
 -- Generalizza spare_part_orders: oltre ai ricambi (kind='ricambio') ora
 -- gestisce anche interventi esterni (kind='intervento'), tracciati con la
@@ -20,7 +20,7 @@
 -- Le righe esistenti restano valide (kind='ricambio' di default). Nessuna
 -- breaking change.
 --
--- DOWN: 049_external_requests_down.sql
+-- DOWN: 051_external_requests_down.sql
 
 -- ── 1. spare_part_orders: kind + campi intervento ──────────────────────
 ALTER TABLE public.spare_part_orders

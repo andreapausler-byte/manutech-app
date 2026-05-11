@@ -1,4 +1,4 @@
--- Rollback migration 049
+-- Rollback migration 051
 
 -- Pulisce eventuali righe con kind='intervento' o comments con kind='request_chat'
 -- prima di ripristinare i constraint originali. Attenzione: questo perde dati.
