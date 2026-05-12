@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { db } from '../../lib/supabase'
+import { db, supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatTicketId } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatDate, formatTicketId } from '../../lib/constants'
 import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner, TicketIdBadge } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
 import ReportDetailModal from './reports/ReportDetailModal'
@@ -45,7 +45,10 @@ export default function AdminReports({ initialReportId }) {
   const [form, setForm] = useState({ title: '', machine: '', severity: 'media', type: 'correttiva', description: '' })
   const [media, setMedia] = useState([])
   const [machines, setMachines] = useState([])
-  const [sortBy, setSortBy] = useState('created_at')
+  // Default: ordina per ultima attività (updated_at). Il trigger DB 050
+  // propaga updated_at quando arriva un commento, quindi i ticket "vivi"
+  // in chat salgono in cima — l'admin vede subito chi sta scrivendo.
+  const [sortBy, setSortBy] = useState('updated_at')
   const [sortDir, setSortDir] = useState('desc')
   const [archiveOpen, setArchiveOpen] = useState(false)
 
@@ -56,6 +59,30 @@ export default function AdminReports({ initialReportId }) {
   }
 
   useEffect(() => { load() }, [])
+
+  // ── Realtime: nuovo commento → bump updated_at della riga corrispondente.
+  // Il trigger DB 050 fa lo stesso server-side; qui lo riflettiamo subito
+  // in UI senza un fetch completo, così la riga risale in cima al sort
+  // "Ultima attività" mentre l'admin sta guardando la lista.
+  useEffect(() => {
+    if (!supabase) return
+    const channel = supabase
+      .channel('admin-reports-activity')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'comments' },
+        (payload) => {
+          const reportId = payload.new?.report_id
+          const createdAt = payload.new?.created_at || new Date().toISOString()
+          if (!reportId) return
+          setReports(prev => prev.map(r =>
+            r.id === reportId ? { ...r, updated_at: createdAt } : r
+          ))
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   // ── Deep link da email: apri report specifico ──
   useEffect(() => {
@@ -88,6 +115,7 @@ export default function AdminReports({ initialReportId }) {
   const sorted = [...filtered].sort((a, b) => {
     let va, vb
     switch (sortBy) {
+      case 'updated_at': va = a.updated_at || a.created_at || ''; vb = b.updated_at || b.created_at || ''; break
       case 'created_at': va = a.created_at || ''; vb = b.created_at || ''; break
       case 'machine': va = (a.machine || '').toLowerCase(); vb = (b.machine || '').toLowerCase(); break
       case 'status': va = a.status || ''; vb = b.status || ''; break
@@ -217,8 +245,12 @@ export default function AdminReports({ initialReportId }) {
             </span>
           )}
         </td>
-        <td className="px-8 py-5 align-middle text-right font-medium whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>
-          {timeAgo(r.created_at)}
+        <td
+          className="px-8 py-5 align-middle text-right font-medium whitespace-nowrap"
+          style={{ color: 'var(--color-text-muted)' }}
+          title={r.created_at ? `Creata: ${formatDate(r.created_at)}` : undefined}
+        >
+          {timeAgo(r.updated_at || r.created_at)}
         </td>
       </tr>
     )
@@ -379,7 +411,7 @@ export default function AdminReports({ initialReportId }) {
                     { label: 'Tipo', field: null, className: 'px-6 py-5 w-[10%] text-center hidden lg:table-cell' },
                     { label: 'Stato', field: 'status', className: 'px-6 py-5 w-[12%] text-center' },
                     { label: 'Assegnato', field: 'assigned_to_name', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
-                    { label: 'Data', field: 'created_at', className: 'px-8 py-5 text-right' },
+                    { label: 'Ultima attività', field: 'updated_at', className: 'px-8 py-5 text-right' },
                   ].map((col, i) => (
                     <th
                       key={i}

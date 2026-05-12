@@ -147,8 +147,12 @@ export const reports = {
     const list = getStore(KEYS.reports)
     const idx = list.findIndex(r => r.id === reportId)
     if (idx === -1) throw new Error('Segnalazione non trovata')
-    const newComment = { ...comment, id: `com-${Date.now()}`, created_at: new Date().toISOString() }
+    const now = new Date().toISOString()
+    const newComment = { ...comment, id: `com-${Date.now()}`, created_at: now }
+    // Parità col trigger DB 050: ogni commento "tocca" updated_at del report
+    // così la lista admin ordinata per ultima attività riflette la chat.
     list[idx].comments = [...(list[idx].comments || []), newComment]
+    list[idx].updated_at = now
     setStore(KEYS.reports, list)
     return newComment
   },
