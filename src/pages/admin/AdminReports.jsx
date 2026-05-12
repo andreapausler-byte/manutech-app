@@ -6,7 +6,7 @@ import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner, TicketIdBa
 import MediaCapture from '../../components/media/MediaCapture'
 import ReportDetailModal from './reports/ReportDetailModal'
 import { avatarGradient } from '../../hooks/usePremiumUI'
-import { Plus, Search, X, ChevronUp, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Search, X, ChevronUp, ChevronDown, ChevronRight, Star } from 'lucide-react'
 
 const TERMINAL_STATUSES = ['risolta', 'chiuso']
 
@@ -51,14 +51,47 @@ export default function AdminReports({ initialReportId }) {
   const [sortBy, setSortBy] = useState('updated_at')
   const [sortDir, setSortDir] = useState('desc')
   const [archiveOpen, setArchiveOpen] = useState(false)
+  // Set dei report_id stellati dall'admin loggato (preferiti personali).
+  // Pinnati sempre in cima al sort, indipendentemente dal criterio.
+  const [starred, setStarred] = useState(() => new Set())
 
   const load = async () => {
     setLoading(true)
-    const [r, u, m] = await Promise.all([db.getReports(), db.getUsers(), db.getMachines()])
-    setReports(r); setUsers(u); setMachines(m); setLoading(false)
+    const [r, u, m, s] = await Promise.all([
+      db.getReports(),
+      db.getUsers(),
+      db.getMachines(),
+      db.getStarredReportIds(user?.id),
+    ])
+    setReports(r); setUsers(u); setMachines(m); setStarred(s); setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Toggle stella con optimistic update. Se la chiamata DB fallisce,
+  // rollback dello state per coerenza UI ↔ DB.
+  const toggleStar = async (reportId, e) => {
+    e?.stopPropagation()
+    if (!user?.id) return
+    const isStarred = starred.has(reportId)
+    setStarred(prev => {
+      const next = new Set(prev)
+      if (isStarred) next.delete(reportId)
+      else next.add(reportId)
+      return next
+    })
+    try {
+      await db.toggleReportStar(user.id, reportId, !isStarred)
+    } catch (err) {
+      console.warn('[ManuTech] toggleStar fallito, rollback:', err.message)
+      setStarred(prev => {
+        const next = new Set(prev)
+        if (isStarred) next.add(reportId)
+        else next.delete(reportId)
+        return next
+      })
+    }
+  }
 
   // ── Realtime: nuovo commento → bump updated_at della riga corrispondente.
   // Il trigger DB 050 fa lo stesso server-side; qui lo riflettiamo subito
@@ -113,6 +146,12 @@ export default function AdminReports({ initialReportId }) {
   }
 
   const sorted = [...filtered].sort((a, b) => {
+    // Le stellate vincono sempre, qualunque sia il sort attivo: pin rigido
+    // in cima alla GitHub. Tra due stellate (o due non stellate) si applica
+    // il criterio scelto dall'utente.
+    const aStar = starred.has(a.id) ? 1 : 0
+    const bStar = starred.has(b.id) ? 1 : 0
+    if (aStar !== bStar) return bStar - aStar
     let va, vb
     switch (sortBy) {
       case 'updated_at': va = a.updated_at || a.created_at || ''; vb = b.updated_at || b.created_at || ''; break
@@ -180,6 +219,7 @@ export default function AdminReports({ initialReportId }) {
     const sts = STATUS[r.status] || STATUS.aperta
     const sev = SEVERITY[r.severity] || SEVERITY.media
     const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
+    const isStarred = starred.has(r.id)
     return (
       <tr
         key={r.id}
@@ -190,6 +230,22 @@ export default function AdminReports({ initialReportId }) {
           opacity: archived ? 0.75 : 1,
         }}
       >
+        <td className="pl-5 pr-1 py-5 align-middle text-center w-[44px]">
+          <button
+            onClick={(e) => toggleStar(r.id, e)}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/5 transition-colors"
+            aria-label={isStarred ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+            aria-pressed={isStarred}
+            title={isStarred ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+          >
+            <Star
+              size={16}
+              fill={isStarred ? '#facc15' : 'none'}
+              color={isStarred ? '#facc15' : 'var(--color-text-muted)'}
+              strokeWidth={isStarred ? 1.5 : 1.8}
+            />
+          </button>
+        </td>
         <td className="px-8 py-5 align-middle">
           <TicketIdBadge report={r} className="text-[10px] font-bold mb-1" style={{
             display: 'inline-block',
@@ -405,7 +461,8 @@ export default function AdminReports({ initialReportId }) {
                   }}
                 >
                   {[
-                    { label: 'Segnalazione', field: null, className: 'px-8 py-5 w-[28%]' },
+                    { label: '', field: null, className: 'pl-5 pr-1 py-5 w-[44px]' },
+                    { label: 'Segnalazione', field: null, className: 'px-8 py-5 w-[26%]' },
                     { label: 'Macchinario', field: 'machine', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
                     { label: 'Gravità', field: null, className: 'px-6 py-5 w-[10%] text-center hidden md:table-cell' },
                     { label: 'Tipo', field: null, className: 'px-6 py-5 w-[10%] text-center hidden lg:table-cell' },
@@ -442,7 +499,7 @@ export default function AdminReports({ initialReportId }) {
                     }}
                     aria-expanded={archiveVisible}
                   >
-                    <td colSpan={7} className="px-8 py-3">
+                    <td colSpan={8} className="px-8 py-3">
                       <div
                         className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-widest"
                         style={{ color: 'var(--color-text-muted)' }}
