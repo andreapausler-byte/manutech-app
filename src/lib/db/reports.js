@@ -213,4 +213,51 @@ export const reports = {
     }
     throw new Error('Commento non trovato')
   },
+
+  // ─── STARS (preferiti personali per admin) ───
+  // Ogni admin pinna i propri ticket in cima alla lista. RLS scoped sul
+  // public.users.id corrispondente all'auth.uid() della sessione (vedi
+  // migration 052). Ritorna un Set di report_id per lookup O(1) in UI.
+  async getStarredReportIds(userId) {
+    if (!userId) return new Set()
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('report_stars')
+        .select('report_id')
+        .eq('user_id', userId)
+      if (error) {
+        // Migration 052 non ancora applicata: fallback silenzioso a vuoto
+        console.warn('[ManuTech] getStarredReportIds:', error.message)
+        return new Set()
+      }
+      return new Set((data || []).map(r => r.report_id))
+    }
+    const all = getStore(KEYS.reportStars)
+    return new Set(all.filter(s => s.user_id === userId).map(s => s.report_id))
+  },
+
+  // Toggle idempotente: starred=true → upsert, starred=false → delete.
+  async toggleReportStar(userId, reportId, starred) {
+    if (!userId || !reportId) return
+    if (supabase) {
+      if (starred) {
+        const { error } = await supabase
+          .from('report_stars')
+          .upsert({ user_id: userId, report_id: reportId }, { onConflict: 'user_id,report_id' })
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('report_stars')
+          .delete()
+          .eq('user_id', userId)
+          .eq('report_id', reportId)
+        if (error) throw error
+      }
+      return
+    }
+    const all = getStore(KEYS.reportStars)
+    const filtered = all.filter(s => !(s.user_id === userId && s.report_id === reportId))
+    if (starred) filtered.push({ user_id: userId, report_id: reportId, starred_at: new Date().toISOString() })
+    setStore(KEYS.reportStars, filtered)
+  },
 }
