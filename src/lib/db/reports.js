@@ -241,9 +241,15 @@ export const reports = {
     if (!userId || !reportId) return
     if (supabase) {
       if (starred) {
+        // ignoreDuplicates: true → ON CONFLICT DO NOTHING. Senza questo flag
+        // supabase-js genera DO UPDATE che richiede policy UPDATE (assente in
+        // migration 052 by design: per pinnare basta INSERT, per togliere DELETE).
         const { error } = await supabase
           .from('report_stars')
-          .upsert({ user_id: userId, report_id: reportId }, { onConflict: 'user_id,report_id' })
+          .upsert({ user_id: userId, report_id: reportId }, {
+            onConflict: 'user_id,report_id',
+            ignoreDuplicates: true,
+          })
         if (error) throw error
       } else {
         const { error } = await supabase
