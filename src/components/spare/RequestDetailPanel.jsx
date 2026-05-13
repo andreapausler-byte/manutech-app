@@ -179,8 +179,10 @@ export default function RequestDetailPanel({ orderId, user, onClose }) {
   if (loading) return <FullscreenWrap title="Caricamento…" onClose={onClose} />
   if (!order) return <FullscreenWrap title="Richiesta non trovata" onClose={onClose} />
 
-  const kindMeta = REQUEST_KIND[order.kind] || REQUEST_KIND.ricambio
-  const KindIcon = order.kind === 'intervento' ? UserCog : Package
+  // Dopo mig 053 questo panel mostra SOLO ricambi. Manteniamo `kindMeta`
+  // come fallback ('ricambio') ma non c'è più ramo intervento.
+  const kindMeta = REQUEST_KIND.ricambio
+  const KindIcon = Package
   const stage = orderStageIndex(order.status)
   const status = ORDER_STATUS[order.status] || ORDER_STATUS.richiesto
   const urg = order.urgency ? SPARE_URGENCY[order.urgency] : null

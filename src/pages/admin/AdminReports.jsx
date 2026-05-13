@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { db, supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatDate, formatTicketId } from '../../lib/constants'
+import { PLANNING_STATE } from '../../lib/interventions'
 import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner, TicketIdBadge } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
 import ReportDetailModal from './reports/ReportDetailModal'
@@ -54,6 +55,9 @@ export default function AdminReports({ initialReportId }) {
   // Set dei report_id stellati dall'admin loggato (preferiti personali).
   // Pinnati sempre in cima al sort, indipendentemente dal criterio.
   const [starred, setStarred] = useState(() => new Set())
+  // Mappa reportId → { planning_state, active_count, next_at } dalla view
+  // reports_with_planning (mig 053). Mostrato come chip accanto al titolo.
+  const [planningMap, setPlanningMap] = useState({})
 
   const load = async () => {
     setLoading(true)
@@ -64,6 +68,12 @@ export default function AdminReports({ initialReportId }) {
       db.getStarredReportIds(user?.id),
     ])
     setReports(r); setUsers(u); setMachines(m); setStarred(s); setLoading(false)
+    // Planning state in second pass — non bloccare il primo paint.
+    if (r?.length) {
+      db.getPlanningStateForReports(r.map(rep => rep.id))
+        .then(map => setPlanningMap(map || {}))
+        .catch(e => console.warn('[AdminReports] planning state load failed:', e?.message))
+    }
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -220,6 +230,12 @@ export default function AdminReports({ initialReportId }) {
     const sev = SEVERITY[r.severity] || SEVERITY.media
     const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
     const isStarred = starred.has(r.id)
+    const planning = planningMap[r.id]
+    const planningMeta = planning && PLANNING_STATE[planning.planning_state]
+    // Mostra il chip solo per gli stati informativi (da_pianificare, pianificato,
+    // in_corso). risolta/altro restano impliciti dal status badge esistente.
+    const showPlanningChip = planningMeta
+      && ['da_pianificare', 'pianificato', 'in_corso'].includes(planning.planning_state)
     return (
       <tr
         key={r.id}
@@ -265,6 +281,15 @@ export default function AdminReports({ initialReportId }) {
           <div className="text-[11px] font-medium truncate" style={{ color: 'var(--color-text-muted)' }}>
             {r.created_by_name || 'Sconosciuto'}
           </div>
+          {showPlanningChip && (
+            <span
+              className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded mt-1"
+              style={{ background: planningMeta.bg, color: planningMeta.color }}
+              title={planning.next_at ? `Prossimo: ${formatDate(planning.next_at)}` : undefined}
+            >
+              <span>{planningMeta.icon}</span> {planningMeta.label}
+            </span>
+          )}
         </td>
         <td className="px-6 py-5 align-middle hidden lg:table-cell">
           <span className="italic font-medium truncate block" style={{ color: 'var(--color-text-muted)' }}>

@@ -11,6 +11,7 @@ import AssistantChat from '../../../components/assistant/AssistantChat'
 import DemoBanner from '../../../components/assistant/DemoBanner'
 import { isAssistantAvailable } from '../../../lib/assistant'
 import { useToast } from '../../../hooks/useToast'
+import InterventionsForReport from '../../../components/interventions/InterventionsForReport'
 import {
   X, MessageCircle, Clock, Pencil, Trash2, Save, XCircle,
   AlertTriangle, UserCheck, Sparkles
@@ -347,6 +348,9 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                   {selected.type && <p>Tipo: <span className="text-secondary font-medium">{REPORT_TYPES[selected.type]?.icon} {REPORT_TYPES[selected.type]?.label || selected.type}</span></p>}
                   {selected.is_quick && <p>Report: <span className="text-amber-400 font-medium">⚡ Quick Report</span></p>}
                 </div>
+
+                {/* Interventi pianificati collegati al report (Sprint 1a) */}
+                <InterventionsForReport report={selected} user={user} />
               </>
             )}
           </div>

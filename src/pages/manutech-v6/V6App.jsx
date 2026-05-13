@@ -21,6 +21,7 @@ const AdminLeaderboard = lazy(() => import('../admin/AdminLeaderboard'))
 const AdminRewards = lazy(() => import('../admin/AdminRewards'))
 const AdminSpareParts = lazy(() => import('../admin/AdminSpareParts'))
 const AdminAssistantPage = lazy(() => import('../admin/AdminAssistantPage'))
+const AdminCalendar = lazy(() => import('../admin/AdminCalendar'))
 
 function PageFallback() {
   return (
@@ -58,7 +59,7 @@ function V6TopBar({ title, crumbs }) {
   )
 }
 
-function AdminPageFrame({ title, crumbs, children }) {
+function AdminPageFrame({ title, crumbs, children, fullBleed = false }) {
   return (
     <>
       <V6TopBar title={title} crumbs={crumbs} />
@@ -66,11 +67,17 @@ function AdminPageFrame({ title, crumbs, children }) {
         flex: 1, minHeight: 0,
         background: 'var(--color-app-bg)',
         color: 'var(--color-text)',
-        padding: '28px 32px',
+        padding: fullBleed ? 0 : '28px 32px',
+        display: fullBleed ? 'flex' : 'block',
+        flexDirection: fullBleed ? 'column' : undefined,
       }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        {fullBleed ? (
           <Suspense fallback={<PageFallback />}>{children}</Suspense>
-        </div>
+        ) : (
+          <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+            <Suspense fallback={<PageFallback />}>{children}</Suspense>
+          </div>
+        )}
       </div>
     </>
   )
@@ -150,10 +157,12 @@ export default function V6App({ userName, initialReportId }) {
         <AdminPageFrame
           title={adminNavItem?.label || 'Console'}
           crumbs={user?.org_name || 'ManuTech · Console'}
+          fullBleed={route.name === 'calendar'}
         >
           {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
           {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
-          {route.name === 'reports' && <AdminReports initialReportId={initialReportId} />}
+          {route.name === 'reports' && <AdminReports initialReportId={initialReportId || route.reportId} />}
+          {route.name === 'calendar' && <AdminCalendar onNavigate={(name, params) => navigate(name, params)} />}
           {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} initialMachineId={route.machineId} />}
           {route.name === 'machines' && <AdminMachines onOpenAssistant={(machineId) => navigate('assistant', { machineId })} />}
           {route.name === 'maintenance' && <AdminMaintenance />}

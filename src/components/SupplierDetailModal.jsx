@@ -3,12 +3,17 @@ import { Modal, Button } from './ui'
 import { SUPPLIER_SPECIALTIES, SUPPLIER_AVAILABILITY } from '../lib/constants'
 import { db } from '../lib/supabase'
 import { inferSupplierSpecialties, compareSpecialties } from '../lib/supplierInference'
-import { Phone, MessageCircle, Mail, MapPin, Globe, Clock, Euro, User, FileText, Edit2, Trash2, Briefcase, History, AlertCircle } from 'lucide-react'
+import InterventionCard from './interventions/InterventionCard'
+import { Phone, MessageCircle, Mail, MapPin, Globe, Clock, Euro, User, FileText, Edit2, Trash2, Briefcase, History, AlertCircle, Calendar } from 'lucide-react'
 
 export default function SupplierDetailModal({ open, onClose, supplier, profile, onEdit, onDelete }) {
   const [inferred, setInferred] = useState([])
   const [matchedOrders, setMatchedOrders] = useState(0)
   const [loadingHistory, setLoadingHistory] = useState(false)
+  // Sprint 1a: interventi futuri assegnati a questo fornitore. Sezione separata
+  // dai ricambi (Correction #8) — il fornitore può essere assignee solo se
+  // esiste come utente, quindi serve supplier.id.
+  const [supplierInterventions, setSupplierInterventions] = useState([])
 
   // Carica gli ordini ricambi e calcola le specialità inferite quando il
   // modal si apre. On-demand: nessun cron, nessuna scrittura.
@@ -16,11 +21,13 @@ export default function SupplierDetailModal({ open, onClose, supplier, profile, 
     if (!open || !supplier) {
       setInferred([])
       setMatchedOrders(0)
+      setSupplierInterventions([])
       return
     }
     let cancelled = false
     setLoadingHistory(true)
-    db.getSparePartOrders().then(orders => {
+    // Ricambi storici → calcolo specialità inferite
+    db.getSparePartOrders({ kind: 'ricambio' }).then(orders => {
       if (cancelled) return
       const result = inferSupplierSpecialties({
         supplierId: supplier.id || null,
@@ -34,6 +41,13 @@ export default function SupplierDetailModal({ open, onClose, supplier, profile, 
     }).finally(() => {
       if (!cancelled) setLoadingHistory(false)
     })
+    // Interventi futuri assegnati al fornitore — solo se ha un user id (lo
+    // assigned_to su interventions è una FK a users).
+    if (supplier.id) {
+      db.getInterventionsForSupplier(supplier.id)
+        .then(list => { if (!cancelled) setSupplierInterventions(list || []) })
+        .catch(err => console.warn('[SupplierDetailModal] interventions load failed:', err?.message))
+    }
     return () => { cancelled = true }
   }, [open, supplier, profile?.company_name])
 
@@ -174,6 +188,28 @@ export default function SupplierDetailModal({ open, onClose, supplier, profile, 
               {profile.city && <InfoTile icon={<MapPin size={14} />} label="Zona" value={profile.city} />}
               {availability && <InfoTile icon={<Clock size={14} />} label="Reperibilità" value={availability.label} />}
               {profile.hourly_rate != null && <InfoTile icon={<Euro size={14} />} label="Tariffa oraria" value={`€ ${Number(profile.hourly_rate).toFixed(2)}/h`} />}
+            </div>
+          </div>
+        )}
+
+        {/* Interventi pianificati per questo fornitore (sezione separata dai ricambi) */}
+        {supplierInterventions.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: 'var(--color-text-muted)' }}>
+              <Calendar size={12} /> Interventi pianificati
+              <span className="font-normal lowercase" style={{ color: 'var(--color-text-faint)' }}>
+                · {supplierInterventions.length}
+              </span>
+            </p>
+            <div className="flex flex-col gap-2">
+              {supplierInterventions.slice(0, 5).map(intv => (
+                <InterventionCard key={intv.id} intervention={intv} compact />
+              ))}
+              {supplierInterventions.length > 5 && (
+                <p className="text-[11px] italic" style={{ color: 'var(--color-text-muted)' }}>
+                  …e altri {supplierInterventions.length - 5}. Vedili tutti nel calendario admin.
+                </p>
+              )}
             </div>
           </div>
         )}
