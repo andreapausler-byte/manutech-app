@@ -1,6 +1,7 @@
 # Sprint 1a-bis — Modal upgrade decisions
 
-**Data**: 2026-05-13 · **Status**: scope definito, in attesa di merge Sprint 1a + test produzione (1-2 giorni)
+**Data**: 2026-05-13 · **Status**: pacchetto completo definito, in attesa di merge Sprint 1a + test produzione (1-2 giorni)
+**Versione**: 2 (aggiunte sezioni D + E dopo seconda iterazione decisioni)
 
 Decisioni concordate con Andrea il 13/5 dopo prima demo del calendario. Lo Sprint 1a viene mergiato così com'è. Questo file conserva il sub-scope di 1a-bis per quando il branch ripartirà.
 
@@ -81,6 +82,82 @@ ALTER TABLE public.interventions
 
 ---
 
+## D) Riuso dati segnalazione — 1d-snapshot + description prefill strutturata
+
+### D1) Foto: variante 1d-snapshot
+
+All'apertura del modal:
+- Per ogni item in `report.media`, viene COPIATO in `interventions.media` con flag `{from_report: true, source_report_id: report.id}`
+- Da quel momento le foto sono **indipendenti** dal report: resistono a cancellazioni/modifiche/sostituzioni
+- La sezione UI è suddivisa in due:
+  - **"Foto della segnalazione"** (inline, read-only nel modal — chip mostrati con badge "dal report")
+  - **"Foto intervento"** (uploader normale per nuove foto aggiunte direttamente, niente flag)
+
+Solo `report.media` principale viene importato. **No foto della chat del report** (commenti.media): rumore, non valore.
+
+Stima: ~80 LOC nel modal + 0 schema change (media è già JSONB).
+
+### D2) Description prefill strutturata
+
+Il textarea del modal si pre-popola al primo render con:
+
+```
+[Intervento per: {report.title}]
+
+{report.description}
+
+---
+Note pianificazione:
+
+```
+
+Il cursore va posizionato dopo `Note pianificazione:` (più newline), così l'utente capisce immediatamente cosa è eredità dal report e cosa scrive lui. Editabile completamente.
+
+Stima: ~20 LOC.
+
+---
+
+## E) Utenti enriched — livello A only
+
+**No livello B** (suggerimenti smart): troppo poco storico in ManuTech per generarli utilmente. Si riprenderà a Sprint 6-7 con dati reali.
+
+### Cosa mostrare per ogni utente nel picker
+
+UI: il numero compare nella dropdown del picker, accanto al nome.
+Es: `Marco Rossi · Tecnico · 2 attivi · 5 su questa macchina`
+
+| Tipo dato | Visibile per | Query/fonte |
+|---|---|---|
+| Nome | Tutti | `users.name` |
+| Chip ruolo | Tutti | `users.role` (Admin/Tecnico/Fornitore) |
+| **N interventi attivi** | Solo Tecnici | `SELECT COUNT(*) FROM interventions WHERE assigned_to = X AND status IN ('pianificato','confermato','in_corso')` |
+| **Specialty** + tariffa oraria | Solo Fornitori | `supplier_profiles.specialties` + `supplier_profiles.hourly_rate` |
+| **N interventi storici su questa macchina** | Tutti (Admin/Tecnico/Fornitore) | `SELECT COUNT(*) FROM interventions WHERE machine_id = Y AND assigned_to = X AND status = 'completato'` |
+
+### Ottimizzazione query
+
+- Le 2 COUNT vanno fatte una sola volta al mount del modal, non per ogni utente (batch query con GROUP BY assigned_to)
+- Risultati cachati in stato locale del modal per la durata della sessione
+- Se in futuro la lista utenti diventa > 100, valutare RPC SECURITY DEFINER aggregata
+
+Stima: ~120 LOC nel picker + 2 helper in `db/interventions.js` (`getActiveInterventionsCountByUser`, `getCompletedInterventionsCountByUserMachine`) + 2 query.
+
+### Posizionamento UX
+
+I picker `supervised_by` e `assigned_to` sono entrambi in stile:
+```
+[Etichetta picker: Supervisore della pianificazione]
+[Search input: cerca per nome]
+[Lista filtrata:]
+  ◯ Marco Rossi      [chip Tecnico]  · 2 attivi · 5 su questa macchina
+  ◯ Luigi Bianchi    [chip Admin]    ·             · 3 su questa macchina
+  ◯ ElectroService   [chip Fornitore] elettricista · €45/h · 8 su questa macchina
+```
+
+Bonus per picker esecutore: se `extra_data.specialty` è valorizzata, riordinare i fornitori per matching specialty in cima.
+
+---
+
 ## Scope: β (nuovo branch da master post-merge 1a)
 
 Branch: `claude/calendar-modal-upgrade-...` (suffix da generare al kick-off).
@@ -111,7 +188,19 @@ Andrea darà segnale esplicito dopo i 1-2 giorni di osservazione. Da fare allora
 1. `git checkout master && git pull` per partire fresh
 2. Creare branch `claude/calendar-modal-upgrade-XXXXX`
 3. Plan mode obbligatorio con questo file in input
-4. Migration 054 (forward + down)
-5. Refactor `InterventionRequestModal.jsx`: aggiungere chips + picker supervised + picker assigned
-6. Aggiornare `db/interventions.js` per scrivere `supervised_by` e `supervised_by_name`
+4. Migration 054 (forward + down): `supervised_by` + `supervised_by_name`
+5. Aggiornare `db/interventions.js`:
+   - `createIntervention`/`updateIntervention` scrivono `supervised_by` + `supervised_by_name`
+   - Nuovi helper: `getActiveInterventionsCountByUser`, `getCompletedInterventionsCountByUserMachine`
+6. Refactor `InterventionRequestModal.jsx` con TUTTO il pacchetto:
+   - Chips quick-pick date (A1) sopra `<datetime-local>` fallback, per start E end
+   - Default smart su supervised_by (= created_by se admin)
+   - Picker `supervised_by` (collassato di default, expand "Cambia supervisore")
+   - Picker `assigned_to` (sempre visibile, con sezione "Fornitori per specialty" se valorizzata)
+   - Sezione "Foto della segnalazione" inline read-only (1d-snapshot) + sezione "Foto intervento" uploader
+   - Description prefill strutturata (D2)
+   - Caricamento batch dei contatori al mount
 7. Lint + build clean prima di commit + push
+8. PR + deploy preview Vercel per smoke test
+
+Stima totale 1a-bis: ~500 LOC distribuite in ~6 file (migration + db + lib + modal + 2 picker enriched).
