@@ -20,7 +20,7 @@ import {
   ShoppingCart, Check, Truck, MapPin, Hash, X,
   ArrowRight, Clock, Factory, ChevronRight, Archive,
   Phone, MessageCircle, Mail, Inbox, Image as ImageIcon, User,
-  Send, FileText, ChevronDown, Euro, UserCog, Eye
+  Send, FileText, ChevronDown, Euro, Eye
 } from 'lucide-react'
 
 const NAV_ITEM = findNavItem('spare-parts')
@@ -81,7 +81,7 @@ export default function AdminSpareParts() {
     try {
       const [p, o, r, m, u, sp] = await Promise.all([
         db.getSpareParts(),
-        db.getSparePartOrders(),
+        db.getSparePartOrders({ kind: 'ricambio' }),
         db.getReports(),
         db.getMachines(),
         db.getUsers().catch(() => []),
@@ -203,7 +203,7 @@ export default function AdminSpareParts() {
       db._emitOrderActivity?.(updated, {
         type: 'status_change',
         from_status: 'ordinato', to_status: 'spedito',
-        detail: order.kind === 'intervento' ? 'Tecnico in arrivo' : 'Spedito dal fornitore',
+        detail: 'Spedito dal fornitore',
       })
       toast.success('Stato aggiornato: spedito')
       load()
@@ -216,9 +216,9 @@ export default function AdminSpareParts() {
       db._emitOrderActivity?.(updated, {
         type: 'status_change',
         from_status: 'ricevuto', to_status: 'installato',
-        detail: order.kind === 'intervento' ? 'Intervento concluso' : 'Ricambio installato',
+        detail: 'Ricambio installato',
       })
-      toast.success(order.kind === 'intervento' ? 'Intervento concluso!' : 'Ricambio installato!')
+      toast.success('Ricambio installato!')
       load()
     } catch (e) { toast.error('Errore: ' + e.message) }
   }
@@ -617,9 +617,10 @@ function OrderCard({
   getReportTitle, getMachineName, getUserName,
   onPhotoClick, onProcess, onManageQuotes, onShipped, onReceived, onInstalled, onDelete, onView,
 }) {
-  const kind = order.kind || 'ricambio'
-  const kindMeta = REQUEST_KIND[kind] || REQUEST_KIND.ricambio
-  const KindIcon = kind === 'intervento' ? UserCog : Package
+  // Dopo mig 053, AdminSpareParts gestisce SOLO kind='ricambio'.
+  const kind = 'ricambio'
+  const kindMeta = REQUEST_KIND.ricambio
+  const KindIcon = Package
   const st = ORDER_STATUS[order.status] || ORDER_STATUS.ordinato
   const urg = order.urgency ? SPARE_URGENCY[order.urgency] : null
   const images = Array.isArray(order.images) ? order.images : []

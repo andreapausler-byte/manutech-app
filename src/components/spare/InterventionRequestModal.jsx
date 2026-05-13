@@ -2,20 +2,23 @@ import { useState, useRef } from 'react'
 import { ChevronLeft, Camera, X, Send, Calendar, MapPin, Clock } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { SPARE_URGENCY, SUPPLIER_SPECIALTIES } from '../../lib/constants'
+import { URGENCY_TO_SEVERITY, defaultsForOrigin } from '../../lib/interventions'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 
 /**
- * InterventionRequestModal — il tecnico richiede un intervento esterno.
+ * InterventionRequestModal — pianifica un intervento per chiudere un ticket.
  *
- * A differenza del ricambio, l'intervento ha:
- *   - specialty (chip elettrico/meccanico/...) per matching fornitori
- *   - location (dove avviene l'intervento, es. "linea 3")
- *   - scheduled_at opzionale (data/ora desiderata)
- *   - duration_h opzionale (stima durata)
+ * Scrive sulla tabella `interventions` (mig 053). Eredita type/severity dal
+ * report di origine. Non cambia lo status del report: la pianificazione è
+ * un evento separato, segnalato dalla view reports_with_planning.
  *
- * Foto opzionali (utili a contestualizzare il problema), titolo e note libere.
+ *   - specialty (chip elettrico/meccanico/...) → extra_data.specialty
+ *   - location → location
+ *   - scheduled_at → scheduled_start_at
+ *   - duration_h → estimated_duration_min (× 60)
+ *   - urgency → severity (mapping URGENCY_TO_SEVERITY)
  */
 export default function InterventionRequestModal({ report, user, onClose, onApplied }) {
   const toast = useToast()
@@ -68,75 +71,38 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
     setSubmitting(true)
     haptic.medium?.()
     try {
-      const order = await db.createSparePartOrder({
-        kind: 'intervento',
-        spare_part_id: null,
-        spare_part_name: title.trim().slice(0, 200),
-        report_id: report.id,
+      // Eredita type/severity dal report (override severity con urgency picker).
+      const inherited = defaultsForOrigin({ origin: 'report', report })
+      const mappedSeverity = URGENCY_TO_SEVERITY[urgency] || inherited.severity
+
+      const scheduledISO = scheduledAt ? new Date(scheduledAt).toISOString() : null
+      const durationMin = durationH ? Math.round(parseFloat(durationH) * 60) : null
+
+      const intervention = await db.createIntervention({
+        type: inherited.type,
+        severity: mappedSeverity,
+        status: scheduledISO ? 'pianificato' : 'bozza',
+        title: title.trim().slice(0, 200),
+        description: notes.trim() || '',
         machine_id: report.machine_id || null,
-        component_id: null,
-        quantity: 1,
-        unit_cost: 0,
-        supplier: null,
-        supplier_id: null,
-        status: 'richiesto',
-        notes: notes.trim() || null,
-        urgency,
-        specialty: specialty || null,
+        machine_name: report.machine || null,
+        report_id: report.id,
+        origin: 'report',
+        scheduled_start_at: scheduledISO,
+        estimated_duration_min: durationMin,
         location: location.trim() || null,
-        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
-        duration_h: durationH ? parseFloat(durationH) : null,
-        images: photos,
-        requested_by: user.id,
-        ordered_by: user.id,
+        media: photos.length > 0 ? photos : [],
+        extra_data: {
+          specialty: specialty || null,
+          urgency, // valore originale UI, utile per audit
+        },
+        created_by: user.id,
+        created_by_name: user.name,
       })
 
-      let updatedReport = null
-      const oldStatus = report.status
-      const TERMINAL_OR_WAITING = new Set(['in_attesa_ricambi', 'risolta', 'chiuso'])
-      if (!TERMINAL_OR_WAITING.has(oldStatus)) {
-        try {
-          updatedReport = await db.updateReport(report.id, { status: 'in_attesa_ricambi' })
-          db.addActivity(report.id, {
-            type: 'status_change',
-            from_status: oldStatus,
-            to_status: 'in_attesa_ricambi',
-            user_id: user.id,
-            user_name: user.name,
-            detail: `Richiesta intervento: ${title}`,
-            spare_order_id: order?.id || null,
-          }).catch(() => {})
-
-          const recipients = new Set()
-          if (report.created_by) recipients.add(report.created_by)
-          if (report.assigned_to) recipients.add(report.assigned_to)
-          recipients.delete(user.id)
-          for (const targetId of recipients) {
-            db.addNotification({
-              type: 'status_change',
-              title: `In attesa intervento: ${report.title}`,
-              body: `${user.name} ha richiesto: ${title}`,
-              report_id: report.id,
-              from_user: user.id,
-              target_user: targetId,
-            }).catch(() => {})
-          }
-        } catch (e) {
-          console.warn('[intervento] updateReport failed:', e?.message)
-        }
-      }
-
-      // Activity sul ticket + sulla richiesta
-      db.addActivity(report.id, {
-        type: 'intervention_requested',
-        user_id: user.id,
-        user_name: user.name,
-        detail: `Richiesta intervento: ${title}${specialty ? ` (${specialty})` : ''}`,
-        spare_order_id: order?.id || null,
-      }).catch(() => {})
-
-      // Comment di tracking nella chat ticket
-      const commentText = `🛠️ Intervento richiesto: ${title}${specialty ? ` · ${specialty}` : ''} — urgenza: ${urgency}`
+      // Comment di tracking nella chat del report. La pianificazione resta
+      // invisibile altrimenti — questo notifica la chat che è stato fatto.
+      const commentText = `🛠️ Intervento pianificato: ${title}${specialty ? ` · ${specialty}` : ''} — urgenza: ${urgency}`
       await db.addComment(report.id, {
         text: commentText,
         user_id: user.id,
@@ -144,19 +110,23 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
         user_role: user.role,
         kind: 'spare_request',
         extra_data: {
-          order_id: order?.id || null,
+          intervention_id: intervention?.id || null,
           kind: 'intervento',
           articolo: title.trim(),
           specialty,
           urgenza: urgency,
           note: notes.trim() || null,
+          scheduled_at: scheduledISO,
         },
         media: photos.length > 0 ? photos : null,
       })
 
-      toast.success('Richiesta inviata · in attesa elaborazione')
+      toast.success('Intervento pianificato')
       haptic.success?.()
-      onApplied?.(updatedReport)
+      // Non passiamo nessun "updated report" perché la pianificazione NON
+      // tocca lo status del report (vedi Correction #10). Il caller refresha
+      // i propri stati derivati senza fare merge sul report.
+      onApplied?.()
     } catch (err) {
       toast.error('Errore: ' + (err?.message || 'riprova'))
       setSubmitting(false)
@@ -179,7 +149,7 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
-            Richiesta intervento
+            Pianifica intervento
           </p>
           <p style={{
             fontSize: 11, margin: 0, color: 'var(--color-text-secondary)',
@@ -344,7 +314,7 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
             cursor: isValid && !submitting ? 'pointer' : 'not-allowed',
           }}>
           <Send size={16} />
-          {submitting ? 'Invio…' : 'Invia richiesta'}
+          {submitting ? 'Pianificazione…' : 'Pianifica intervento'}
         </button>
         {!isValid && (
           <p style={{

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Package, UserCog, ChevronRight } from 'lucide-react'
+import { Package, ChevronRight } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import {
   ORDER_STAGES, ORDER_STATUS, SPARE_URGENCY, REQUEST_KIND,
@@ -8,13 +8,14 @@ import {
 import RequestDetailPanel from './RequestDetailPanel'
 
 /**
- * TicketSparePanel — overview delle "richieste esterne" del ticket.
+ * TicketSparePanel — overview delle richieste ricambi del ticket.
  *
- * Mostra tutti gli spare_part_orders (ricambi e interventi) collegati al
- * report con icona kind, mini progress bar 4-stadi e riga sintesi.
+ * Dopo migration 053 questo pannello mostra SOLO ricambi (spare_part_orders
+ * con kind='ricambio'). Gli interventi vivono in public.interventions e
+ * sono renderizzati da InterventionsForReport.
+ *
  * Tap su una card apre RequestDetailPanel (timeline + chat + composer).
- *
- * Se il ticket non ha richieste, il pannello non viene renderizzato.
+ * Se il ticket non ha ricambi, il pannello non viene renderizzato.
  */
 export default function TicketSparePanel({ reportId, user, refreshKey = 0 }) {
   const [orders, setOrders] = useState([])
@@ -23,7 +24,7 @@ export default function TicketSparePanel({ reportId, user, refreshKey = 0 }) {
 
   useEffect(() => {
     let alive = true
-    db.getSparePartOrders({ report_id: reportId })
+    db.getSparePartOrders({ report_id: reportId, kind: 'ricambio' })
       .then(items => { if (alive) setOrders(items || []) })
       .catch(e => console.warn('[ticket-spare] load failed:', e?.message))
       .finally(() => { if (alive) setLoading(false) })
@@ -47,7 +48,7 @@ export default function TicketSparePanel({ reportId, user, refreshKey = 0 }) {
           display: 'inline-flex', alignItems: 'center', gap: 6,
           marginBottom: 8,
         }}>
-          In attesa di · {orders.length}
+          Ricambi · {orders.length}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {orders.map(order => (
@@ -72,9 +73,9 @@ export default function TicketSparePanel({ reportId, user, refreshKey = 0 }) {
 }
 
 function RequestCard({ order, onOpen }) {
-  const kind = order.kind || 'ricambio'
-  const kindMeta = REQUEST_KIND[kind] || REQUEST_KIND.ricambio
-  const KindIcon = kind === 'intervento' ? UserCog : Package
+  const kind = 'ricambio'
+  const kindMeta = REQUEST_KIND.ricambio
+  const KindIcon = Package
   const status = order.status
   const st = ORDER_STATUS[status] || ORDER_STATUS.richiesto
   const urg = order.urgency ? SPARE_URGENCY[order.urgency] : null
@@ -150,8 +151,7 @@ function RequestCard({ order, onOpen }) {
           <p style={{
             fontSize: 11, color: 'var(--color-text-secondary)', margin: '2px 0 0',
           }}>
-            {kind === 'ricambio' ? `x${order.quantity} · ` : ''}
-            {timeAgo(order.created_at || order.ordered_at)}
+            x{order.quantity} · {timeAgo(order.created_at || order.ordered_at)}
           </p>
         </div>
 
@@ -188,7 +188,6 @@ function RequestCard({ order, onOpen }) {
 
 function statusHint(order, quotes) {
   const status = order.status
-  const isInt = order.kind === 'intervento'
   if (status === 'richiesto') return "In attesa che l'admin elabori la richiesta"
   if (status === 'preventivo') {
     const received = quotes.filter(q => q.status === 'received').length
@@ -198,18 +197,12 @@ function statusHint(order, quotes) {
   }
   if (status === 'ordinato') {
     const eta = order.expected_at ? formatDate(order.expected_at) : null
-    if (isInt) {
-      const sched = order.scheduled_at ? formatDate(order.scheduled_at) : eta
-      return order.supplier
-        ? `Programmato con ${order.supplier}${sched ? ` · ${sched}` : ''}`
-        : 'Intervento programmato'
-    }
     return order.supplier
       ? `Ordinato da ${order.supplier}${eta ? ` · arrivo ${eta}` : ''}`
       : 'Ordine confermato'
   }
-  if (status === 'spedito') return isInt ? 'Tecnico in arrivo' : 'Spedito dal fornitore'
-  if (status === 'ricevuto') return isInt ? 'Intervento completato' : 'Pronto per il ritiro / installazione'
+  if (status === 'spedito') return 'Spedito dal fornitore'
+  if (status === 'ricevuto') return 'Pronto per il ritiro / installazione'
   if (status === 'installato') return order.installed_at ? `Concluso il ${formatDate(order.installed_at)}` : 'Concluso'
   return ''
 }

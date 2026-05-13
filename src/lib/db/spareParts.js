@@ -52,11 +52,15 @@ export const spareParts = {
   },
 
   // ─── SPARE PART ORDERS ───
+  // Dopo migration 053 spare_part_orders ospita SOLO kind='ricambio'.
+  // Gli interventi vivono in public.interventions. Il filtro kind è mantenuto
+  // per safety: chiamanti che vogliono solo ricambi possono passarlo esplicito.
   async getSparePartOrders(filters = {}) {
     if (supabase) {
       let query = supabase.from('spare_part_orders').select('*').order('created_at', { ascending: false })
       if (filters.status) query = query.eq('status', filters.status)
       if (filters.report_id) query = query.eq('report_id', filters.report_id)
+      if (filters.kind) query = query.eq('kind', filters.kind)
       const { data, error } = await query
       if (error) throw error
       return data || []
@@ -64,6 +68,7 @@ export const spareParts = {
     let items = getStore('manutech_spare_orders')
     if (filters.status) items = items.filter(o => o.status === filters.status)
     if (filters.report_id) items = items.filter(o => o.report_id === filters.report_id)
+    if (filters.kind) items = items.filter(o => (o.kind || 'ricambio') === filters.kind)
     return items
   },
 
@@ -182,7 +187,7 @@ export const spareParts = {
       if (error) throw error
       await this._emitOrderActivity(data, {
         type: 'order_received',
-        detail: data?.kind === 'intervento' ? 'Intervento completato' : 'Ricambio ricevuto',
+        detail: 'Ricambio ricevuto',
       })
       return data
     }
@@ -255,7 +260,7 @@ export const spareParts = {
     }
     await this._emitOrderActivity(order, {
       type: 'order_received',
-      detail: order.kind === 'intervento' ? 'Intervento completato' : 'Ricambio ricevuto',
+      detail: 'Ricambio ricevuto',
     })
     return order
   },
