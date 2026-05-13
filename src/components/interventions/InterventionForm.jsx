@@ -1,8 +1,15 @@
-import { useState, useRef } from 'react'
-import { Camera, X, Calendar, MapPin, Clock, Send } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { Camera, X, Calendar as CalendarIcon, MapPin, Clock, Send } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { SPARE_URGENCY, SUPPLIER_SPECIALTIES } from '../../lib/constants'
-import { URGENCY_TO_SEVERITY, defaultsForOrigin } from '../../lib/interventions'
+import {
+  URGENCY_TO_SEVERITY,
+  defaultsForOrigin,
+  quickDateChips,
+  toDatetimeLocalString,
+  buildDescriptionPrefill,
+  buildReportPhotoSnapshot,
+} from '../../lib/interventions'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -10,33 +17,19 @@ import { useHaptic } from '../../hooks/useHaptic'
 /**
  * InterventionForm — form puro per creazione/edit intervento.
  *
- * Componente AGNOSTICO sulla shell: rendering del form, validazione, upload
- * foto interno; al submit chiama `onSubmit(payload)` con un payload pronto
- * per `db.createIntervention`. La shell decide cosa fare dopo (creare in DB,
- * chiudere modal, cambiare modalità sidebar, scrivere comment tracking, …).
+ * Sprint 1a-bis: il form ora supporta
+ *   - chips quick-pick per scheduled_start_at + scheduled_end_at (B1 multi-day)
+ *   - validazione inline end > start
+ *   - foto snapshot dal report di origine (read-only) separate dalle nuove
+ *   - description prefill strutturata da report.title + report.description
  *
- * Shell wrapper:
- *   - InterventionRequestModal     (mobile + admin ReportDetail, fullscreen)
- *   - InterventionRequestSidePanel (calendario admin, sidebar destra)
+ * Componente AGNOSTICO sulla shell. Al submit chiama `onSubmit(payload, ctx)`
+ * con il payload pronto per `db.createIntervention`. La shell decide cosa
+ * fare dopo (createIntervention, addComment, close modal, switch sidebar mode).
  *
- * Props
- *   defaults: oggetto valori iniziali dei campi. Tutti opzionali.
- *     { title, description (notes), type, severity, machine_id, machine_name,
- *       report_id, maintenance_plan_id, origin, scheduled_start_at,
- *       scheduled_end_at, estimated_duration_min, location, media, extra_data,
- *       urgency (UI only, mappa a severity al submit) }
- *   context.report: opzionale, usato in fase di ereditarietà type/severity
- *     (defaultsForOrigin) e per uploadFile path. In Step 3 verrà anche usato
- *     per foto snapshot e description prefill.
- *   submitting: boolean, la shell forza disabled del bottone durante l'invio.
- *   submitButtonLabel: stringa, default "Pianifica intervento".
- *   onSubmit(payload, formContext): callback con il payload pronto.
- *   onCancel(): callback chiusura (la shell decide cosa fare).
- *
- * NOTE: questo Step 1 conserva la UX esistente (urgency picker, datetime-local
- * tradizionale, sezione foto singola). Le upgrade (chips, picker enriched,
- * foto snapshot, description prefill, supervised_by, end < start validation)
- * arrivano in Step 3.
+ * Step 3b (prossimo) aggiungerà i picker enriched per supervised_by e
+ * assigned_to. Per ora i campi non sono esposti in UI (vengono dai defaults
+ * della shell).
  */
 export default function InterventionForm({
   defaults = {},
@@ -52,35 +45,84 @@ export default function InterventionForm({
 
   const report = context.report || null
 
+  // ── State base ────────────────────────────────────────────────────────
   const [title, setTitle] = useState(defaults.title || '')
-  const [notes, setNotes] = useState(defaults.description || '')
+  const [notes, setNotes] = useState(
+    defaults.description !== undefined
+      ? defaults.description
+      : (report ? buildDescriptionPrefill(report) : '')
+  )
   const [specialty, setSpecialty] = useState(defaults.extra_data?.specialty || '')
   const [urgency, setUrgency] = useState(defaults.urgency || defaults.extra_data?.urgency || 'media')
   const [location, setLocation] = useState(defaults.location || report?.machine || '')
-  const [scheduledAt, setScheduledAt] = useState(toDatetimeLocalValue(defaults.scheduled_start_at))
-  const [durationH, setDurationH] = useState(
-    defaults.estimated_duration_min ? String(defaults.estimated_duration_min / 60) : ''
-  )
-  const [photos, setPhotos] = useState(Array.isArray(defaults.media) ? defaults.media : [])
+
+  // ── Schedule (start + end, ognuno con chips) ──────────────────────────
+  const startChipsList = useMemo(() => quickDateChips(), [])
+  const endChipsList = useMemo(() => quickDateChips(), [])
+
+  const initialStart = toDatetimeLocalString(defaults.scheduled_start_at)
+  const initialEnd = toDatetimeLocalString(defaults.scheduled_end_at)
+
+  const [scheduledStart, setScheduledStart] = useState(initialStart)
+  const [scheduledEnd, setScheduledEnd] = useState(initialEnd)
+  const [startChipKey, setStartChipKey] = useState(initialStart ? 'custom' : null)
+  const [endChipKey, setEndChipKey] = useState(initialEnd ? 'custom' : null)
+
+  // ── Foto: snapshot del report (read-only) + nuove (uploader) ──────────
+  // Snapshot iniziale da report.media: items con flag {from_report:true}
+  // copiati in interventions.media al submit. Sono indipendenti dal report
+  // (decisions doc §D1, variante 1d-snapshot).
+  const [reportPhotos] = useState(() => buildReportPhotoSnapshot(report))
+  const [newPhotos, setNewPhotos] = useState(() => {
+    // defaults.media può contenere foto già presenti (edit mode) — filtra
+    // via quelle marcate from_report (sono in reportPhotos invece)
+    const media = Array.isArray(defaults.media) ? defaults.media : []
+    return media.filter(m => !m?.from_report)
+  })
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
 
-  const isValid = title.trim().length > 0
+  // ── Validazione ──────────────────────────────────────────────────────
+  const endError = useMemo(() => {
+    if (!scheduledEnd || !scheduledStart) return null
+    const s = new Date(scheduledStart)
+    const e = new Date(scheduledEnd)
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return null
+    if (e.getTime() <= s.getTime()) {
+      return "L'ora di fine deve essere successiva all'ora di inizio"
+    }
+    return null
+  }, [scheduledStart, scheduledEnd])
 
+  const isValid = title.trim().length > 0 && !endError
+
+  // ── Handlers chips ───────────────────────────────────────────────────
+  const handleStartChip = (chip) => {
+    setStartChipKey(chip.key)
+    if (chip.key === 'custom') return // mostra input nativo, no auto-fill
+    setScheduledStart(toDatetimeLocalString(chip.value))
+  }
+  const handleEndChip = (chip) => {
+    setEndChipKey(chip.key)
+    if (chip.key === 'custom') return
+    setScheduledEnd(toDatetimeLocalString(chip.value))
+  }
+
+  // ── Foto handler ─────────────────────────────────────────────────────
   const handlePickPhotos = async (e) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
     setUploading(true)
     try {
-      const newPhotos = []
+      const additions = []
       for (const f of files) {
         const { file: compressed } = await compress(f)
         const reportId = report?.id || 'manual'
         const path = `spare-orders/${reportId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
         const url = await db.uploadFile('attachments', path, compressed)
-        newPhotos.push({ url, name: f.name, type: 'photo' })
+        additions.push({ url, name: f.name, type: 'photo' })
       }
-      setPhotos(prev => [...prev, ...newPhotos])
+      setNewPhotos(prev => [...prev, ...additions])
       haptic.light?.()
     } catch (err) {
       toast.error('Errore upload foto: ' + (err?.message || ''))
@@ -90,29 +132,36 @@ export default function InterventionForm({
     }
   }
 
-  const removePhoto = (idx) => {
-    setPhotos(p => p.filter((_, i) => i !== idx))
+  const removeNewPhoto = (idx) => {
+    setNewPhotos(p => p.filter((_, i) => i !== idx))
     haptic.light?.()
   }
 
+  // ── Submit ───────────────────────────────────────────────────────────
   const handleSubmit = () => {
     if (!isValid || submitting) return
     haptic.medium?.()
 
-    // Ereditarietà type/severity dal report (se origin='report' nei defaults).
     const inherited = defaultsForOrigin({
       origin: defaults.origin || (report ? 'report' : 'manuale'),
       report,
     })
     const mappedSeverity = URGENCY_TO_SEVERITY[urgency] || inherited.severity
 
-    const scheduledISO = scheduledAt ? new Date(scheduledAt).toISOString() : null
-    const durationMin = durationH ? Math.round(parseFloat(durationH) * 60) : null
+    const scheduledStartISO = scheduledStart ? new Date(scheduledStart).toISOString() : null
+    const scheduledEndISO = scheduledEnd ? new Date(scheduledEnd).toISOString() : null
+
+    // Calcola durata: priorità a (end - start) se entrambi presenti.
+    let estimatedDurationMin = null
+    if (scheduledStartISO && scheduledEndISO) {
+      const diffMs = new Date(scheduledEndISO) - new Date(scheduledStartISO)
+      if (diffMs > 0) estimatedDurationMin = Math.round(diffMs / 60000)
+    }
 
     const payload = {
       type: defaults.type || inherited.type,
       severity: defaults.severity || mappedSeverity,
-      status: scheduledISO ? 'pianificato' : 'bozza',
+      status: scheduledStartISO ? 'pianificato' : 'bozza',
       title: title.trim().slice(0, 200),
       description: notes.trim() || '',
       machine_id: defaults.machine_id ?? report?.machine_id ?? null,
@@ -120,15 +169,16 @@ export default function InterventionForm({
       report_id: defaults.report_id ?? report?.id ?? null,
       maintenance_plan_id: defaults.maintenance_plan_id ?? null,
       origin: defaults.origin || (report ? 'report' : 'manuale'),
-      scheduled_start_at: scheduledISO,
-      scheduled_end_at: defaults.scheduled_end_at || null,
-      estimated_duration_min: durationMin,
+      scheduled_start_at: scheduledStartISO,
+      scheduled_end_at: scheduledEndISO,
+      estimated_duration_min: estimatedDurationMin,
       location: location.trim() || null,
-      media: photos,
+      // Merge foto: prima lo snapshot dal report (preservato), poi le nuove
+      media: [...reportPhotos, ...newPhotos],
       extra_data: {
         ...(defaults.extra_data || {}),
         specialty: specialty || null,
-        urgency, // valore originale UI per audit
+        urgency,
       },
     }
 
@@ -171,17 +221,48 @@ export default function InterventionForm({
           })}
         </div>
 
-        {/* Foto contesto */}
-        <FieldLabel>Foto del contesto <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>· opzionali</span></FieldLabel>
+        {/* Foto della segnalazione — snapshot read-only (sezione visibile solo se ci sono) */}
+        {reportPhotos.length > 0 && (
+          <>
+            <FieldLabel>
+              Foto della segnalazione
+              <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}> · {reportPhotos.length}</span>
+            </FieldLabel>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+              {reportPhotos.map((p, i) => (
+                <div key={`r-${i}`} style={{
+                  position: 'relative', width: 72, height: 72,
+                  borderRadius: 12, overflow: 'hidden',
+                  border: '1px solid var(--color-border)',
+                }}>
+                  <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <span style={{
+                    position: 'absolute', bottom: 3, left: 3, right: 3,
+                    padding: '1px 4px', borderRadius: 4,
+                    background: 'rgba(0,0,0,0.75)', color: '#facc15',
+                    fontSize: 8, fontWeight: 800, letterSpacing: 0.4,
+                    textAlign: 'center', textTransform: 'uppercase',
+                  }}>dal report</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Foto intervento — uploader normale */}
+        <FieldLabel>
+          Foto intervento
+          <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}> · opzionali</span>
+        </FieldLabel>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-          {photos.map((p, i) => (
-            <div key={i} style={{
+          {newPhotos.map((p, i) => (
+            <div key={`n-${i}`} style={{
               position: 'relative', width: 72, height: 72,
               borderRadius: 12, overflow: 'hidden',
               border: '1px solid var(--color-border)',
             }}>
               <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              <button onClick={() => removePhoto(i)} aria-label="Rimuovi foto"
+              <button onClick={() => removeNewPhoto(i)} aria-label="Rimuovi foto"
                 style={{
                   position: 'absolute', top: 3, right: 3,
                   width: 22, height: 22, borderRadius: 11,
@@ -209,13 +290,13 @@ export default function InterventionForm({
         <input ref={fileInputRef} type="file" accept="image/*" capture="environment" multiple
           onChange={handlePickPhotos} style={{ display: 'none' }} />
 
-        {/* Note */}
+        {/* Note (description prefill da report se context.report) */}
         <FieldLabel>Note</FieldLabel>
         <textarea
           value={notes} onChange={e => setNotes(e.target.value)}
-          rows={3} maxLength={1000}
+          rows={4} maxLength={2000}
           placeholder="Descrivi il problema, contesto, vincoli (es. orari, certificazioni richieste)..."
-          style={{ ...inputStyle, resize: 'vertical', minHeight: 86, fontFamily: 'inherit' }}
+          style={{ ...inputStyle, resize: 'vertical', minHeight: 100, fontFamily: 'inherit' }}
         />
 
         {/* Location */}
@@ -250,28 +331,47 @@ export default function InterventionForm({
           })}
         </div>
 
-        {/* Schedule */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12 }}>
-          <div>
-            <FieldLabel><Calendar size={11} style={{ display: 'inline', marginRight: 4 }} />Data desiderata</FieldLabel>
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={e => setScheduledAt(e.target.value)}
-              style={{ ...inputStyle, marginBottom: 0 }}
-            />
-          </div>
-          <div>
-            <FieldLabel><Clock size={11} style={{ display: 'inline', marginRight: 4 }} />Durata (h)</FieldLabel>
-            <input
-              type="number" min="0" step="0.5"
-              value={durationH}
-              onChange={e => setDurationH(e.target.value)}
-              placeholder="es. 2"
-              style={{ ...inputStyle, marginBottom: 0 }}
-            />
-          </div>
-        </div>
+        {/* Schedule INIZIO con chips + input nativo (custom) */}
+        <FieldLabel>
+          <CalendarIcon size={11} style={{ display: 'inline', marginRight: 4 }} />
+          Inizio
+        </FieldLabel>
+        <ChipRow chips={startChipsList} selectedKey={startChipKey} onPick={handleStartChip} />
+        {(startChipKey === 'custom' || initialStart) && (
+          <input
+            type="datetime-local"
+            value={scheduledStart}
+            onChange={e => { setScheduledStart(e.target.value); setStartChipKey('custom') }}
+            style={{ ...inputStyle, marginTop: 6, marginBottom: 14 }}
+          />
+        )}
+        {startChipKey !== 'custom' && !initialStart && (
+          <div style={{ height: 14 }} />
+        )}
+
+        {/* Schedule FINE con chips + input nativo (opzionale) */}
+        <FieldLabel>
+          <Clock size={11} style={{ display: 'inline', marginRight: 4 }} />
+          Fine <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>· opzionale, per interventi che durano più ore/giorni</span>
+        </FieldLabel>
+        <ChipRow chips={endChipsList} selectedKey={endChipKey} onPick={handleEndChip} />
+        {(endChipKey === 'custom' || initialEnd) && (
+          <input
+            type="datetime-local"
+            value={scheduledEnd}
+            onChange={e => { setScheduledEnd(e.target.value); setEndChipKey('custom') }}
+            style={{ ...inputStyle, marginTop: 6, marginBottom: endError ? 4 : 14, borderColor: endError ? '#ef4444' : undefined }}
+          />
+        )}
+        {endError && (
+          <p style={{
+            fontSize: 11, color: '#ef4444',
+            margin: '0 0 14px',
+            fontWeight: 600,
+          }}>
+            ⚠ {endError}
+          </p>
+        )}
       </div>
 
       {/* Action bar */}
@@ -294,7 +394,7 @@ export default function InterventionForm({
           <Send size={16} />
           {submitting ? 'Pianificazione…' : submitButtonLabel}
         </button>
-        {!isValid && (
+        {!isValid && !endError && (
           <p style={{
             fontSize: 11, color: 'var(--color-text-secondary)',
             textAlign: 'center', margin: '6px 0 0', fontStyle: 'italic',
@@ -318,14 +418,31 @@ export default function InterventionForm({
   )
 }
 
-// `datetime-local` vuole il formato "YYYY-MM-DDTHH:MM" in LOCAL time, no Z.
-// Se defaults.scheduled_start_at è un ISO string UTC, lo converte.
-function toDatetimeLocalValue(iso) {
-  if (!iso) return ''
-  const d = iso instanceof Date ? iso : new Date(iso)
-  if (isNaN(d.getTime())) return ''
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+// Riga di chip date con stato selezionato
+function ChipRow({ chips, selectedKey, onPick }) {
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 6,
+      marginBottom: 0,
+    }}>
+      {chips.map(chip => {
+        const active = selectedKey === chip.key
+        return (
+          <button key={chip.key} onClick={() => onPick(chip)} className="press-scale"
+            style={{
+              padding: '7px 11px', borderRadius: 999,
+              background: active ? 'var(--color-primary)' : 'var(--color-surface-2)',
+              border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
+              color: active ? '#fff' : 'var(--color-text-secondary)',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              fontFamily: chip.key === 'custom' ? 'inherit' : '"JetBrains Mono", monospace',
+            }}>
+            {chip.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 const inputStyle = {
