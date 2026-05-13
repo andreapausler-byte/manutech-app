@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { useToast } from '../../hooks/useToast'
@@ -10,20 +10,44 @@ import InterventionForm from '../interventions/InterventionForm'
  * un intervento da `ReportDetail` (chat panel) o dalla sezione admin
  * `InterventionsForReport`.
  *
- * Da Sprint 1a-bis il modal è SOLO una shell: la logica del form vive in
- * `InterventionForm.jsx`. Il modal aggiunge:
- *   - chrome del modal (header con back, subtitle col titolo del report)
- *   - business logic post-submit: db.createIntervention + addComment di
- *     tracking nella chat del report + toast/haptic + onApplied callback.
+ * Da Sprint 1a-bis il modal è SOLO una shell. Le sue responsabilità:
+ *   - Chrome del modal (header con back, subtitle col titolo del report)
+ *   - Pre-carica users + supplier_profiles + counters per i picker enriched
+ *   - Default smart: se user.role === 'admin' → supervised_by = user
+ *   - Post-submit: db.createIntervention + addComment di tracking nella chat
  *
- * Per il calendario admin esiste invece `InterventionRequestSidePanel` che
- * usa lo stesso `InterventionForm` ma renderizzato in sidebar (Sprint 1a-bis,
- * principio: no modal sopra il calendario).
+ * La logica del form (campi, validazione, upload foto, chip date, picker)
+ * vive in `InterventionForm.jsx`. Il SidePanel calendario admin usa la stessa
+ * shell architecturale ma renderizza il form nella sidebar destra.
  */
 export default function InterventionRequestModal({ report, user, onClose, onApplied }) {
   const toast = useToast()
   const haptic = useHaptic()
   const [submitting, setSubmitting] = useState(false)
+  const [users, setUsers] = useState([])
+  const [supplierProfiles, setSupplierProfiles] = useState([])
+  const [userCounters, setUserCounters] = useState({ active: {}, completedOnMachine: {} })
+  const [loadingUsers, setLoadingUsers] = useState(true)
+
+  // Carica utenti + supplier_profiles + counters per i picker enriched.
+  // Pattern fire-and-forget al mount; gli errori non bloccano l'apertura
+  // del modal (il form mostra "Caricamento utenti…" finché arrivano).
+  useEffect(() => {
+    let alive = true
+    Promise.all([
+      db.getUsers().catch(() => []),
+      db.getSupplierProfiles?.().catch(() => []) ?? Promise.resolve([]),
+      db.getUserPickerCounters({ machineId: report?.machine_id || null }).catch(() => ({ active: {}, completedOnMachine: {} })),
+    ]).then(([u, p, c]) => {
+      if (!alive) return
+      setUsers(u || [])
+      setSupplierProfiles(p || [])
+      setUserCounters(c || { active: {}, completedOnMachine: {} })
+    }).finally(() => {
+      if (alive) setLoadingUsers(false)
+    })
+    return () => { alive = false }
+  }, [report?.machine_id])
 
   const handleSubmit = async (payload, formContext) => {
     if (submitting) return
@@ -39,8 +63,7 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
         created_by_name: user.name,
       })
 
-      // Comment di tracking nella chat del report: la pianificazione resta
-      // invisibile dal solo modal, questo notifica la chat che è stato fatto.
+      // Comment di tracking nella chat del report.
       const titleStr = payload.title
       const specialty = formContext?.specialty || null
       const urgency = formContext?.urgency || null
@@ -72,6 +95,20 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
     }
   }
 
+  // Default smart per supervised_by: l'admin che apre il form è probabilmente
+  // chi seguirà la pianificazione. Per altri ruoli (tecnico, operatore), il
+  // picker resta vuoto e l'utente sceglie esplicitamente se vuole assegnarlo.
+  const formDefaults = {
+    origin: 'report',
+    machine_id: report.machine_id || null,
+    machine_name: report.machine || null,
+    location: report.machine || '',
+    ...(user?.role === 'admin' ? {
+      supervised_by: user.id,
+      supervised_by_name: user.name,
+    } : {}),
+  }
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 60,
@@ -100,13 +137,12 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
       </div>
 
       <InterventionForm
-        defaults={{
-          origin: 'report',
-          machine_id: report.machine_id || null,
-          machine_name: report.machine || null,
-          location: report.machine || '',
-        }}
+        defaults={formDefaults}
         context={{ report }}
+        users={users}
+        supplierProfiles={supplierProfiles}
+        userCounters={userCounters}
+        loadingUsers={loadingUsers}
         submitting={submitting}
         submitButtonLabel="Pianifica intervento"
         onSubmit={handleSubmit}

@@ -13,6 +13,7 @@ import {
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
+import UserPicker from './UserPicker'
 
 /**
  * InterventionForm — form puro per creazione/edit intervento.
@@ -34,6 +35,10 @@ import { useHaptic } from '../../hooks/useHaptic'
 export default function InterventionForm({
   defaults = {},
   context = {},
+  users = [],
+  supplierProfiles = [],
+  userCounters = { active: {}, completedOnMachine: {} },
+  loadingUsers = false,
   submitting = false,
   submitButtonLabel = 'Pianifica intervento',
   onSubmit,
@@ -81,6 +86,47 @@ export default function InterventionForm({
   })
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
+
+  // ── Picker assigned_to + supervised_by ────────────────────────────────
+  const [assignedToId, setAssignedToId] = useState(defaults.assigned_to || null)
+  const [assignedToName, setAssignedToName] = useState(defaults.assigned_to_name || null)
+  const [assignedToRole, setAssignedToRole] = useState(defaults.assigned_to_role || null)
+  const [supervisedById, setSupervisedById] = useState(defaults.supervised_by || null)
+  const [supervisedByName, setSupervisedByName] = useState(defaults.supervised_by_name || null)
+
+  // Enrich users con role/counters/specialty/hourlyRate per UserPicker
+  const enrichedUsers = useMemo(() => {
+    const profilesByUserId = {}
+    for (const p of (supplierProfiles || [])) {
+      if (p.user_id) profilesByUserId[p.user_id] = p
+    }
+    return (users || [])
+      .filter(u => u && (!u.status || u.status === 'active'))
+      .filter(u => ['admin', 'tecnico', 'fornitore'].includes(u.role))
+      .map(u => {
+        const enriched = { ...u }
+        if (u.role === 'tecnico') {
+          enriched.activeCount = userCounters.active?.[u.id] || 0
+        }
+        if (u.role === 'fornitore') {
+          const p = profilesByUserId[u.id]
+          enriched.specialties = Array.isArray(p?.specialties) ? p.specialties : []
+          enriched.hourlyRate = typeof p?.hourly_rate === 'number' ? p.hourly_rate : null
+        }
+        enriched.completedOnMachineCount = userCounters.completedOnMachine?.[u.id] || 0
+        return enriched
+      })
+  }, [users, supplierProfiles, userCounters])
+
+  const handleAssignedChange = ({ id, name, role }) => {
+    setAssignedToId(id)
+    setAssignedToName(name)
+    setAssignedToRole(role)
+  }
+  const handleSupervisedChange = ({ id, name }) => {
+    setSupervisedById(id)
+    setSupervisedByName(name)
+  }
 
   // ── Validazione ──────────────────────────────────────────────────────
   const endError = useMemo(() => {
@@ -169,6 +215,11 @@ export default function InterventionForm({
       report_id: defaults.report_id ?? report?.id ?? null,
       maintenance_plan_id: defaults.maintenance_plan_id ?? null,
       origin: defaults.origin || (report ? 'report' : 'manuale'),
+      assigned_to: assignedToId,
+      assigned_to_name: assignedToName,
+      assigned_to_role: assignedToRole,
+      supervised_by: supervisedById,
+      supervised_by_name: supervisedByName,
       scheduled_start_at: scheduledStartISO,
       scheduled_end_at: scheduledEndISO,
       estimated_duration_min: estimatedDurationMin,
@@ -330,6 +381,34 @@ export default function InterventionForm({
             )
           })}
         </div>
+
+        {/* Picker assegnatario (esecutore) — sempre visibile */}
+        <UserPicker
+          label="Esegue l'intervento"
+          value={assignedToId}
+          valueName={assignedToName}
+          onChange={handleAssignedChange}
+          users={enrichedUsers}
+          rolesFilter={['admin', 'tecnico', 'fornitore']}
+          prioritySpecialty={specialty || undefined}
+          emptyLabel="Nessuno (assegna dopo)"
+          loading={loadingUsers}
+        />
+
+        {/* Picker supervisore — collassato di default se valore presente */}
+        <UserPicker
+          label="Supervisore della pianificazione"
+          value={supervisedById}
+          valueName={supervisedByName}
+          onChange={handleSupervisedChange}
+          users={enrichedUsers}
+          rolesFilter={['admin', 'tecnico']}
+          emptyLabel="Nessuno"
+          collapsible
+          changeLabel="Cambia"
+          inheritedFrom={defaults.supervised_by_inherited_from || undefined}
+          loading={loadingUsers}
+        />
 
         {/* Schedule INIZIO con chips + input nativo (custom) */}
         <FieldLabel>
