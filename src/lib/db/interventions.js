@@ -283,9 +283,14 @@ export const interventions = {
     const before = await this.getIntervention(id)
     if (!before) throw new Error('Intervento non trovato')
 
+    // Estrai i metadati "actor" che NON sono colonne della tabella: servono
+    // solo per popolare l'activity log e l'eventuale notifica. Se finissero
+    // nel .update() PostgREST risponderebbe "column not found in schema cache".
+    const { updated_by_user_id, updated_by_user_name, ...dbUpdates } = updates
+
     let after
     if (supabase) {
-      const { data, error } = await supabase.from('interventions').update(updates).eq('id', id).select().maybeSingle()
+      const { data, error } = await supabase.from('interventions').update(dbUpdates).eq('id', id).select().maybeSingle()
       if (error) throw error
       if (!data) throw new Error('Permessi insufficienti: impossibile aggiornare questo intervento')
       after = data
@@ -293,7 +298,7 @@ export const interventions = {
       const list = getStore(KEYS.interventions)
       const idx = list.findIndex(i => i.id === id)
       if (idx === -1) throw new Error('Intervento non trovato')
-      list[idx] = { ...list[idx], ...updates, updated_at: new Date().toISOString() }
+      list[idx] = { ...list[idx], ...dbUpdates, updated_at: new Date().toISOString() }
       setStore(KEYS.interventions, list)
       after = list[idx]
     }
@@ -306,15 +311,15 @@ export const interventions = {
         report_id: after.report_id,
         type: before.assigned_to ? 'intervention_reassigned' : 'intervention_assigned',
         detail: after.assigned_to_name || null,
-        user_id: updates.updated_by_user_id || null,
-        user_name: updates.updated_by_user_name || null,
+        user_id: updated_by_user_id || null,
+        user_name: updated_by_user_name || null,
         org_id: orgId,
       })
       if (after.assigned_to) {
         await notifyAssignee({
           intervention_id: id,
           target_user: after.assigned_to,
-          from_user: updates.updated_by_user_id || null,
+          from_user: updated_by_user_id || null,
           type: 'intervention_assigned',
           title: 'Nuovo intervento assegnato',
           body: after.title,
@@ -329,8 +334,8 @@ export const interventions = {
         type: 'intervention_status_changed',
         from_status: before.status,
         to_status: after.status,
-        user_id: updates.updated_by_user_id || null,
-        user_name: updates.updated_by_user_name || null,
+        user_id: updated_by_user_id || null,
+        user_name: updated_by_user_name || null,
         org_id: orgId,
       })
     }
