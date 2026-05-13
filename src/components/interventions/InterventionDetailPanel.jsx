@@ -2,13 +2,13 @@
 // Carica via db.getIntervention(id), mostra info principali, azioni di stato.
 
 import { useEffect, useState } from 'react'
-import { X, Calendar, MapPin, User as UserIcon, Wrench, FileText, ExternalLink, Play, Check, AlertOctagon } from 'lucide-react'
+import { X, Calendar, MapPin, User as UserIcon, Wrench, FileText, ExternalLink, Play, Check, AlertOctagon, CalendarClock } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { formatScheduledShort, getDurationMinutes } from '../../lib/interventions'
 import { useInterventionMutations } from '../../hooks/useInterventionMutations'
 import InterventionBadge from './InterventionBadge'
 
-export default function InterventionDetailPanel({ interventionId, onClose, onOpenReport }) {
+export default function InterventionDetailPanel({ interventionId, onClose, onOpenReport, onReschedule }) {
   const [intervention, setIntervention] = useState(null)
   const [loading, setLoading] = useState(true)
   const mutations = useInterventionMutations()
@@ -50,6 +50,7 @@ export default function InterventionDetailPanel({ interventionId, onClose, onOpe
   const canStart = intervention.status === 'pianificato' || intervention.status === 'confermato'
   const canComplete = intervention.status === 'in_corso'
   const canCancel = !['completato', 'annullato'].includes(intervention.status)
+  const canReschedule = !['completato', 'annullato'].includes(intervention.status) && !!onReschedule
 
   const handleStart = async () => {
     try {
@@ -177,6 +178,11 @@ export default function InterventionDetailPanel({ interventionId, onClose, onOpe
           {canComplete && (
             <ActionButton onClick={handleComplete} color="#22c55e" icon={<Check size={14} />} disabled={mutations.loading}>
               Completa intervento
+            </ActionButton>
+          )}
+          {canReschedule && (
+            <ActionButton onClick={() => onReschedule(intervention)} color="#f59e0b" variant="ghost" icon={<CalendarClock size={14} />} disabled={mutations.loading}>
+              Riprogramma
             </ActionButton>
           )}
           {canCancel && (

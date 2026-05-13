@@ -1,0 +1,189 @@
+import { useMemo } from 'react'
+import { X, Plus, Link2 } from 'lucide-react'
+import InterventionCard from './InterventionCard'
+
+/**
+ * DayContextPanel — modalità "Day" della sidebar destra del calendario admin.
+ *
+ * Si apre cliccando una cella del mese (vuota o piena). Mostra:
+ *   - Header: data leggibile + N interventi
+ *   - Lista InterventionCard cliccabili (→ modalità Detail)
+ *   - Per ogni card: bottone "+ Abbina" (→ modalità Create con baseIntervention)
+ *   - CTA primaria in fondo: "+ Nuovo intervento per [data]" (→ modalità Create)
+ *   - Empty state inline quando N=0 (no icona triste, solo CTA grande)
+ *
+ * Props
+ *   date                  Date selezionata
+ *   monthInterventions    array interventi del mese (filtra in memory)
+ *   onClose()             chiudi pannello (→ sidebar 'pending' / 'hidden')
+ *   onSelectIntervention(id)  passa a modalità Detail
+ *   onCreateForDay(date)  passa a modalità Create con prefillDate
+ *   onMatchIntervention(intervention)  passa a modalità Create con baseIntervention
+ */
+export default function DayContextPanel({
+  date,
+  monthInterventions = [],
+  onClose,
+  onSelectIntervention,
+  onCreateForDay,
+  onMatchIntervention,
+}) {
+  const dayInterventions = useMemo(() => {
+    if (!date) return []
+    const y = date.getFullYear()
+    const m = date.getMonth()
+    const d = date.getDate()
+    return monthInterventions
+      .filter(intv => {
+        if (!intv.scheduled_start_at) return false
+        const start = new Date(intv.scheduled_start_at)
+        return start.getFullYear() === y && start.getMonth() === m && start.getDate() === d
+      })
+      .sort((a, b) => new Date(a.scheduled_start_at) - new Date(b.scheduled_start_at))
+  }, [date, monthInterventions])
+
+  const dateLabel = useMemo(() => {
+    if (!date) return ''
+    const dd = String(date.getDate()).padStart(2, '0')
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const yyyy = date.getFullYear()
+    return `${dd}/${mm}/${yyyy}`
+  }, [date])
+
+  const dateLabelLong = useMemo(() => {
+    if (!date) return ''
+    return date.toLocaleDateString('it-IT', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    })
+  }, [date])
+
+  const count = dayInterventions.length
+  const isEmpty = count === 0
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', height: '100%',
+      background: 'var(--color-surface-1)',
+    }}>
+      {/* Header */}
+      <div style={{
+        flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 14px',
+        borderBottom: '1px solid var(--color-border)',
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <p style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: 0.8,
+            textTransform: 'uppercase', color: 'var(--color-text-secondary)',
+            margin: 0,
+          }}>Giorno</p>
+          <p style={{
+            fontSize: 14, fontWeight: 600, color: 'var(--color-text)',
+            margin: '2px 0 0', textTransform: 'capitalize',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {dateLabelLong}
+          </p>
+          <p style={{
+            fontSize: 11, color: 'var(--color-text-secondary)',
+            margin: '2px 0 0',
+          }}>
+            {count === 0
+              ? 'Nessun intervento pianificato'
+              : `${count} intervent${count === 1 ? 'o' : 'i'} pianificat${count === 1 ? 'o' : 'i'}`}
+          </p>
+        </div>
+        <button onClick={onClose} aria-label="Chiudi pannello giorno" className="press-scale"
+          style={{
+            width: 28, height: 28, borderRadius: 6,
+            background: 'transparent', border: 'none',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 12 }}>
+        {isEmpty ? (
+          <p style={{
+            fontSize: 13, color: 'var(--color-text-secondary)',
+            margin: '0 0 12px', padding: '12px 4px',
+            lineHeight: 1.5,
+          }}>
+            Nessun intervento pianificato per questo giorno.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {dayInterventions.map(intv => (
+              <DayInterventionRow
+                key={intv.id}
+                intervention={intv}
+                onOpen={() => onSelectIntervention?.(intv.id)}
+                onMatch={() => onMatchIntervention?.(intv)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer con CTA Nuovo */}
+      <div style={{
+        flexShrink: 0,
+        padding: '12px 14px',
+        borderTop: '1px solid var(--color-border)',
+        background: 'var(--color-bg)',
+      }}>
+        <button
+          onClick={() => onCreateForDay?.(date)}
+          className="press-scale"
+          style={{
+            width: '100%', padding: 12, borderRadius: 12,
+            background: 'var(--color-primary)',
+            border: 'none', color: '#fff',
+            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}>
+          <Plus size={15} /> Nuovo intervento per {dateLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Riga giornaliera: card cliccabile (apre detail) + bottone "Abbina" laterale.
+ * Wrapper sopra InterventionCard perché la card di default fa solo onClick;
+ * qui serve un secondo bottone "match" non incluso nella card.
+ */
+function DayInterventionRow({ intervention, onOpen, onMatch }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <InterventionCard
+        intervention={intervention}
+        compact
+        onClick={onOpen}
+      />
+      <button
+        onClick={(e) => { e.stopPropagation(); onMatch?.() }}
+        className="press-scale"
+        title="Abbina un nuovo intervento con stessi assegnatari/orario"
+        aria-label="Abbina nuovo intervento"
+        style={{
+          position: 'absolute', top: 8, right: 8,
+          padding: '4px 8px', borderRadius: 8,
+          background: 'rgba(124,106,255,0.14)',
+          border: '1px solid rgba(124,106,255,0.35)',
+          color: '#7c6aff',
+          fontSize: 10, fontWeight: 700, cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 3,
+        }}>
+        <Link2 size={10} /> Abbina
+      </button>
+    </div>
+  )
+}
