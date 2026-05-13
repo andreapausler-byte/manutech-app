@@ -178,3 +178,101 @@ export function defaultsForOrigin({ origin, report, machine, overrides = {} } = 
     severity: overrides.severity || 'media',
   }
 }
+
+// ─── Quick date chips per form datetime picker ─────────────────────────
+// Genera 5 opzioni rapide più "Altra data..." come fallback all'input nativo.
+// Ogni chip ha { key, label, value (Date|null) }. value=null per 'custom'
+// che apre l'input <datetime-local> sotto i chip.
+
+function round30Up(d) {
+  const r = new Date(d)
+  const m = r.getMinutes()
+  if (m === 0) { r.setSeconds(0, 0); return r }
+  if (m <= 30) {
+    r.setMinutes(30, 0, 0)
+  } else {
+    r.setMinutes(0, 0, 0)
+    r.setHours(r.getHours() + 1)
+  }
+  return r
+}
+
+// "Oggi 09:00" se sono prima delle 9, altrimenti +1h da now arrotondato a 30'.
+function todayAt9OrNextSlot(now = new Date()) {
+  const today9 = new Date(now)
+  today9.setHours(9, 0, 0, 0)
+  if (now.getTime() < today9.getTime()) return today9
+  return round30Up(new Date(now.getTime() + 60 * 60 * 1000))
+}
+
+function dayPlusN(n, hour = 9) {
+  const d = new Date()
+  d.setDate(d.getDate() + n)
+  d.setHours(hour, 0, 0, 0)
+  return d
+}
+
+// Prossimo lunedì alle 9. Se oggi è lunedì, ritorna il lunedì successivo
+// (skip dell'oggi: l'utente che clicca "Lunedì prossimo" intende quello
+// della settimana successiva).
+function nextMonday(now = new Date()) {
+  const d = new Date(now)
+  d.setHours(9, 0, 0, 0)
+  const day = d.getDay() // 0=Sunday, 1=Monday, ..., 6=Saturday
+  const daysToAdd = ((1 - day + 7) % 7) || 7
+  d.setDate(d.getDate() + daysToAdd)
+  return d
+}
+
+// Label dinamico per "Oggi": mostra l'ora effettiva se diverso da 09:00,
+// così l'utente capisce subito che il chip darà una slot diversa.
+function labelToday(now = new Date()) {
+  const v = todayAt9OrNextSlot(now)
+  const isNine = v.getHours() === 9 && v.getMinutes() === 0
+  if (isNine) return 'Oggi 09:00'
+  const hh = String(v.getHours()).padStart(2, '0')
+  const mm = String(v.getMinutes()).padStart(2, '0')
+  return `Oggi ${hh}:${mm}`
+}
+
+export function quickDateChips(now = new Date()) {
+  return [
+    { key: 'today',     label: labelToday(now), value: todayAt9OrNextSlot(now) },
+    { key: 'tomorrow',  label: 'Domani 09:00',  value: dayPlusN(1) },
+    { key: 'plus3',     label: '+3 giorni',     value: dayPlusN(3) },
+    { key: 'nextMon',   label: 'Lunedì prossimo', value: nextMonday(now) },
+    { key: 'custom',    label: 'Altra data…',   value: null },
+  ]
+}
+
+// Converte una Date in stringa "YYYY-MM-DDTHH:MM" (formato richiesto da
+// <input type="datetime-local">). Restituisce '' se input invalido.
+export function toDatetimeLocalString(value) {
+  if (!value) return ''
+  const d = value instanceof Date ? value : new Date(value)
+  if (isNaN(d.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// Costruisce la description prefill per un nuovo intervento da report.
+// Formato strutturato come da decisions doc §D2.
+// Il cursore va posizionato a fine stringa (textarea.setSelectionRange).
+export function buildDescriptionPrefill(report) {
+  if (!report) return ''
+  const t = report.title || ''
+  const d = report.description || ''
+  return `[Intervento per: ${t}]\n\n${d}\n\n---\nNote pianificazione:\n`
+}
+
+// Trasforma le foto del report in items "snapshot" da copiare in
+// interventions.media all'apertura del form. Flag `from_report:true` per
+// riconoscerle e renderle read-only nell'UI.
+export function buildReportPhotoSnapshot(report) {
+  if (!report?.media || !Array.isArray(report.media)) return []
+  return report.media.map(m => ({
+    ...m,
+    from_report: true,
+    source_report_id: report.id,
+  }))
+}
