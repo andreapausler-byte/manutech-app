@@ -61,6 +61,18 @@ async function notifyAssignee({ intervention_id, target_user, from_user, type, t
   setStore(KEYS.notifications, list)
 }
 
+// Aggrega un array di righe in un dizionario { key: count }. Helper interno
+// per i counter del picker (getActiveInterventionsCountByUser etc).
+function groupCountBy(rows, key) {
+  const map = {}
+  for (const row of rows) {
+    const k = row?.[key]
+    if (!k) continue
+    map[k] = (map[k] || 0) + 1
+  }
+  return map
+}
+
 export const interventions = {
   // ─── READ ───────────────────────────────────────────────────────────
   async getInterventions(filters = {}) {
@@ -200,10 +212,70 @@ export const interventions = {
     return map
   },
 
+  // Contatore "interventi attivi" per utente assegnatario. Usato dal picker
+  // assigned_to nel form per mostrare il carico di lavoro di ciascun tecnico.
+  // Status considerati attivi: pianificato, confermato, in_corso.
+  // Ritorna { [userId]: count }.
+  async getActiveInterventionsCountByUser() {
+    if (supabase) {
+      // RLS filtra per org_id automaticamente. Fetch solo assigned_to.
+      const { data, error } = await supabase
+        .from('interventions')
+        .select('assigned_to')
+        .in('status', ['pianificato', 'confermato', 'in_corso'])
+        .not('assigned_to', 'is', null)
+      if (error) {
+        console.warn('[interventions] getActiveInterventionsCountByUser:', error.message)
+        return {}
+      }
+      return groupCountBy(data || [], 'assigned_to')
+    }
+    const list = getStore(KEYS.interventions).filter(i =>
+      ['pianificato', 'confermato', 'in_corso'].includes(i.status) && i.assigned_to
+    )
+    return groupCountBy(list, 'assigned_to')
+  },
+
+  // Contatore "interventi completati su questa macchina" per utente assegnatario.
+  // Usato dal picker per mostrare l'esperienza storica sull'asset specifico.
+  // Ritorna { [userId]: count }.
+  async getCompletedInterventionsCountByUserMachine(machineId) {
+    if (!machineId) return {}
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('interventions')
+        .select('assigned_to')
+        .eq('machine_id', machineId)
+        .eq('status', 'completato')
+        .not('assigned_to', 'is', null)
+      if (error) {
+        console.warn('[interventions] getCompletedInterventionsCountByUserMachine:', error.message)
+        return {}
+      }
+      return groupCountBy(data || [], 'assigned_to')
+    }
+    const list = getStore(KEYS.interventions).filter(i =>
+      i.machine_id === machineId && i.status === 'completato' && i.assigned_to
+    )
+    return groupCountBy(list, 'assigned_to')
+  },
+
+  // Combinatore: carica entrambi i counter in parallelo. Usato dal form per
+  // popolare i picker assigned_to e supervised_by con dati arricchiti in un
+  // solo passaggio. Ritorna { active: {...}, completedOnMachine: {...} }.
+  async getUserPickerCounters({ machineId } = {}) {
+    const [active, completedOnMachine] = await Promise.all([
+      this.getActiveInterventionsCountByUser(),
+      machineId ? this.getCompletedInterventionsCountByUserMachine(machineId) : Promise.resolve({}),
+    ])
+    return { active, completedOnMachine }
+  },
+
   // ─── WRITE ──────────────────────────────────────────────────────────
   // data = { type, severity, status?, title, description?, machine_id, machine_name,
   //          report_id?, maintenance_plan_id?, origin, assigned_to?, assigned_to_name?,
-  //          assigned_to_role?, scheduled_start_at?, scheduled_end_at?,
+  //          assigned_to_role?, supervised_by?, supervised_by_name?,
+  //          scheduled_start_at?, scheduled_end_at?,
   //          estimated_duration_min?, location?, planning_notes?, media?, extra_data?,
   //          created_by, created_by_name, org_id? }
   async createIntervention(data) {
@@ -222,6 +294,8 @@ export const interventions = {
       assigned_to: data.assigned_to || null,
       assigned_to_name: data.assigned_to_name || null,
       assigned_to_role: data.assigned_to_role || null,
+      supervised_by: data.supervised_by || null,
+      supervised_by_name: data.supervised_by_name || null,
       scheduled_start_at: data.scheduled_start_at || null,
       scheduled_end_at: data.scheduled_end_at || null,
       estimated_duration_min: data.estimated_duration_min || null,
