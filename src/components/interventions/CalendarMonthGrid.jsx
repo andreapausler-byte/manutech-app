@@ -94,7 +94,7 @@ export default function CalendarMonthGrid({
       <div style={{
         flex: 1,
         display: 'grid',
-        gridTemplateRows: `repeat(${weeks.length}, 1fr)`,
+        gridTemplateRows: `repeat(${weeks.length}, minmax(96px, 1fr))`,
         minHeight: 0,
       }}>
         {weeks.map((week, wi) => (

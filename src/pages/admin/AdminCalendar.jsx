@@ -9,7 +9,7 @@
 // al click mostrano un toast "Disponibile prossimamente".
 
 import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Users as UsersIcon, Calendar as CalIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Users as UsersIcon } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useInterventionsCalendar } from '../../hooks/useInterventionsCalendar'
@@ -209,35 +209,28 @@ export default function AdminCalendar({ onNavigate }) {
         display: 'flex',
       }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          {loading ? (
+          {/* Banner informativo quando il mese è vuoto — non nasconde la griglia */}
+          {!loading && interventions.length === 0 && (
             <div style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+              padding: '8px 20px',
+              fontSize: 12,
               color: 'var(--color-text-secondary)',
+              background: 'rgba(124,106,255,0.06)',
+              borderBottom: '1px solid var(--color-border)',
+              fontStyle: 'italic',
             }}>
-              Caricamento interventi…
+              Nessun intervento in questo mese. Crea da una segnalazione: apri il report → <strong style={{ color: 'var(--color-text)', fontStyle: 'normal' }}>Pianifica intervento</strong>.
             </div>
-          ) : interventions.length === 0 ? (
-            <div style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 8,
-              color: 'var(--color-text-secondary)',
-            }}>
-              <CalIcon size={32} style={{ opacity: 0.4 }} />
-              <p style={{ fontSize: 14, margin: 0 }}>Nessun intervento pianificato in questo mese.</p>
-              <p style={{ fontSize: 12, margin: 0, fontStyle: 'italic' }}>
-                Crea da una segnalazione: apri il report → "Pianifica intervento".
-              </p>
-            </div>
-          ) : (
-            <CalendarMonthGrid
-              year={currentMonth.getFullYear()}
-              month={currentMonth.getMonth()}
-              interventions={interventions}
-              onInterventionClick={handleInterventionClick}
-              selectedInterventionId={selectedInterventionId}
-              onDayClick={() => { /* Sprint 1a: nessuna creazione diretta da cella */ }}
-            />
           )}
+          <CalendarMonthGrid
+            year={currentMonth.getFullYear()}
+            month={currentMonth.getMonth()}
+            interventions={loading ? [] : interventions}
+            onInterventionClick={handleInterventionClick}
+            selectedInterventionId={selectedInterventionId}
+            onDayClick={() => { /* Sprint 1a: nessuna creazione diretta da cella */ }}
+          />
         </div>
 
         {sidebarMode !== 'hidden' && (
