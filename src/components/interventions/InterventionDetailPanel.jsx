@@ -2,13 +2,13 @@
 // Carica via db.getIntervention(id), mostra info principali, azioni di stato.
 
 import { useEffect, useState } from 'react'
-import { X, Calendar, MapPin, User as UserIcon, Wrench, FileText, ExternalLink, Play, Check, AlertOctagon, CalendarClock } from 'lucide-react'
+import { X, Calendar, MapPin, User as UserIcon, Wrench, FileText, ExternalLink, Play, Check, AlertOctagon, CalendarClock, Link2 } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { formatScheduledShort, getDurationMinutes } from '../../lib/interventions'
 import { useInterventionMutations } from '../../hooks/useInterventionMutations'
 import InterventionBadge from './InterventionBadge'
 
-export default function InterventionDetailPanel({ interventionId, onClose, onOpenReport, onReschedule }) {
+export default function InterventionDetailPanel({ interventionId, onClose, onOpenReport, onReschedule, onMatch }) {
   const [intervention, setIntervention] = useState(null)
   const [loading, setLoading] = useState(true)
   const mutations = useInterventionMutations()
@@ -51,6 +51,7 @@ export default function InterventionDetailPanel({ interventionId, onClose, onOpe
   const canComplete = intervention.status === 'in_corso'
   const canCancel = !['completato', 'annullato'].includes(intervention.status)
   const canReschedule = !['completato', 'annullato'].includes(intervention.status) && !!onReschedule
+  const canMatch = !['annullato'].includes(intervention.status) && !!onMatch
 
   const handleStart = async () => {
     try {
@@ -178,6 +179,11 @@ export default function InterventionDetailPanel({ interventionId, onClose, onOpe
           {canComplete && (
             <ActionButton onClick={handleComplete} color="#22c55e" icon={<Check size={14} />} disabled={mutations.loading}>
               Completa intervento
+            </ActionButton>
+          )}
+          {canMatch && (
+            <ActionButton onClick={() => onMatch(intervention)} color="#7c6aff" variant="ghost" icon={<Link2 size={14} />} disabled={mutations.loading}>
+              Abbina nuovo
             </ActionButton>
           )}
           {canReschedule && (
