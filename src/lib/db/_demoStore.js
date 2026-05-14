@@ -10,6 +10,7 @@ export const KEYS = {
   notifications: 'manutech_notifications',
   reportStars: 'manutech_report_stars',
   interventions: 'manutech_interventions',
+  interventionReports: 'manutech_intervention_reports',
 }
 
 export function getStore(key) {

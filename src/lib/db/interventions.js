@@ -1,6 +1,8 @@
 import { supabase, getMyOrgId } from './_client'
 import { KEYS, getStore, setStore } from './_demoStore'
 
+// ─── Helpers interni ───────────────────────────────────────────────────
+
 // Helper: scrive una riga in activities legata all'intervento (e opzionalmente
 // al report di origine). Inline qui invece di usare activities.addActivity per
 // evitare il vincolo storico `(reportId, activity)` di quella firma.
@@ -73,6 +75,63 @@ function groupCountBy(rows, key) {
   return map
 }
 
+// Costruisce il payload INSERT per la tabella interventions a partire dai
+// dati del form/shell. Centralizzato per uso da createInterventionWithReports
+// e shim createIntervention.
+function buildInterventionPayload(data, orgId) {
+  return {
+    type: data.type || 'correttiva',
+    severity: data.severity || 'media',
+    status: data.status || (data.scheduled_start_at ? 'pianificato' : 'bozza'),
+    title: data.title,
+    description: data.description || '',
+    machine_id: data.machine_id || null,
+    machine_name: data.machine_name || null,
+    maintenance_plan_id: data.maintenance_plan_id || null,
+    origin: data.origin || (data.maintenance_plan_id ? 'maintenance_plan' : 'manuale'),
+    assigned_to: data.assigned_to || null,
+    assigned_to_name: data.assigned_to_name || null,
+    assigned_to_role: data.assigned_to_role || null,
+    supervised_by: data.supervised_by || null,
+    supervised_by_name: data.supervised_by_name || null,
+    scheduled_start_at: data.scheduled_start_at || null,
+    scheduled_end_at: data.scheduled_end_at || null,
+    estimated_duration_min: data.estimated_duration_min || null,
+    location: data.location || null,
+    planning_notes: data.planning_notes || null,
+    created_by: data.created_by || null,
+    created_by_name: data.created_by_name || null,
+    media: data.media || [],
+    extra_data: data.extra_data || {},
+    org_id: orgId,
+  }
+}
+
+// Inserisce un singolo link intervention_reports. Used da createInterventionWithReports
+// e linkReportToIntervention. Demo path coerente.
+async function insertLinkRow({ intervention_id, report_id, is_origin, resolves_report, added_by, added_by_name, org_id }) {
+  const link = {
+    intervention_id,
+    report_id,
+    is_origin: !!is_origin,
+    resolves_report: resolves_report ?? true,
+    added_by: added_by || null,
+    added_by_name: added_by_name || null,
+    org_id,
+  }
+  if (supabase) {
+    const { error } = await supabase.from('intervention_reports').insert(link)
+    if (error) throw error
+    return link
+  }
+  const list = getStore(KEYS.interventionReports)
+  list.push({ ...link, added_at: new Date().toISOString() })
+  setStore(KEYS.interventionReports, list)
+  return link
+}
+
+// ─── Modulo principale ─────────────────────────────────────────────────
+
 export const interventions = {
   // ─── READ ───────────────────────────────────────────────────────────
   async getInterventions(filters = {}) {
@@ -84,9 +143,10 @@ export const interventions = {
       if (filters.types) query = query.in('type', filters.types)
       if (filters.assigned_to) query = query.eq('assigned_to', filters.assigned_to)
       if (filters.assigned_to_role) query = query.eq('assigned_to_role', filters.assigned_to_role)
-      if (filters.report_id) query = query.eq('report_id', filters.report_id)
       if (filters.maintenance_plan_id) query = query.eq('maintenance_plan_id', filters.maintenance_plan_id)
       if (filters.machine_id) query = query.eq('machine_id', filters.machine_id)
+      // NOTE filters.report_id NON più supportato qui (post-mig 055): usa
+      // getInterventionsForReport() che fa JOIN su intervention_reports.
       const { data, error } = await query
       if (error) throw error
       return data || []
@@ -98,7 +158,6 @@ export const interventions = {
     if (filters.types) list = list.filter(i => filters.types.includes(i.type))
     if (filters.assigned_to) list = list.filter(i => i.assigned_to === filters.assigned_to)
     if (filters.assigned_to_role) list = list.filter(i => i.assigned_to_role === filters.assigned_to_role)
-    if (filters.report_id) list = list.filter(i => i.report_id === filters.report_id)
     if (filters.maintenance_plan_id) list = list.filter(i => i.maintenance_plan_id === filters.maintenance_plan_id)
     if (filters.machine_id) list = list.filter(i => i.machine_id === filters.machine_id)
     return list.sort((a, b) => {
@@ -156,14 +215,150 @@ export const interventions = {
     return getStore(KEYS.interventions).find(i => i.id === id) || null
   },
 
+  // Restituisce gli interventi associati a un report tramite la table
+  // intervention_reports (post-mig 055 N→M). L'array contiene gli interventi
+  // arricchiti con metadata del link: link_is_origin, link_resolves_report,
+  // link_added_at.
   async getInterventionsForReport(reportId) {
     if (!reportId) return []
-    return this.getInterventions({ report_id: reportId })
+    if (supabase) {
+      // Fetch link rows + JOIN su interventions
+      const { data, error } = await supabase
+        .from('intervention_reports')
+        .select('is_origin, resolves_report, added_at, intervention:interventions(*)')
+        .eq('report_id', reportId)
+      if (error) {
+        console.warn('[interventions] getInterventionsForReport:', error.message)
+        return []
+      }
+      return (data || [])
+        .filter(row => !!row.intervention)
+        .map(row => ({
+          ...row.intervention,
+          link_is_origin: row.is_origin,
+          link_resolves_report: row.resolves_report,
+          link_added_at: row.added_at,
+        }))
+        .sort((a, b) => {
+          const da = a.scheduled_start_at ? new Date(a.scheduled_start_at).getTime() : Infinity
+          const db = b.scheduled_start_at ? new Date(b.scheduled_start_at).getTime() : Infinity
+          return da - db
+        })
+    }
+    const links = getStore(KEYS.interventionReports).filter(l => l.report_id === reportId)
+    const allInterventions = getStore(KEYS.interventions)
+    return links
+      .map(l => {
+        const intv = allInterventions.find(i => i.id === l.intervention_id)
+        if (!intv) return null
+        return {
+          ...intv,
+          link_is_origin: l.is_origin,
+          link_resolves_report: l.resolves_report,
+          link_added_at: l.added_at,
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const da = a.scheduled_start_at ? new Date(a.scheduled_start_at).getTime() : Infinity
+        const db = b.scheduled_start_at ? new Date(b.scheduled_start_at).getTime() : Infinity
+        return da - db
+      })
+  },
+
+  // Restituisce i report associati a un intervento. Ogni elemento è il
+  // report arricchito con link_is_origin / link_resolves_report / link_added_at.
+  async getReportsForIntervention(interventionId) {
+    if (!interventionId) return []
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('intervention_reports')
+        .select('is_origin, resolves_report, added_at, added_by, added_by_name, report:reports(*)')
+        .eq('intervention_id', interventionId)
+      if (error) {
+        console.warn('[interventions] getReportsForIntervention:', error.message)
+        return []
+      }
+      return (data || [])
+        .filter(row => !!row.report)
+        .map(row => ({
+          ...row.report,
+          link_is_origin: row.is_origin,
+          link_resolves_report: row.resolves_report,
+          link_added_at: row.added_at,
+          link_added_by: row.added_by,
+          link_added_by_name: row.added_by_name,
+        }))
+        .sort((a, b) => (b.link_is_origin ? 1 : 0) - (a.link_is_origin ? 1 : 0))
+    }
+    const links = getStore(KEYS.interventionReports).filter(l => l.intervention_id === interventionId)
+    const allReports = getStore(KEYS.reports)
+    return links
+      .map(l => {
+        const r = allReports.find(x => x.id === l.report_id)
+        if (!r) return null
+        return {
+          ...r,
+          link_is_origin: l.is_origin,
+          link_resolves_report: l.resolves_report,
+          link_added_at: l.added_at,
+          link_added_by: l.added_by,
+          link_added_by_name: l.added_by_name,
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => (b.link_is_origin ? 1 : 0) - (a.link_is_origin ? 1 : 0))
   },
 
   async getInterventionsForSupplier(userId) {
     if (!userId) return []
     return this.getInterventions({ assigned_to: userId })
+  },
+
+  // Per ogni reportId della lista, ritorna i link a interventi ATTIVI
+  // (status pianificato/confermato/in_corso). Usato da ReportMultiPicker
+  // per il warning "⚠ già linkato a INT-XXX".
+  // Ritorna { [reportId]: [{ intervention_id, intervention_title, intervention_status }] }.
+  async getActiveLinksByReports(reportIds) {
+    if (!reportIds?.length) return {}
+    const ACTIVE_STATUSES = ['pianificato', 'confermato', 'in_corso']
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('intervention_reports')
+        .select('report_id, intervention:interventions(id, title, status)')
+        .in('report_id', reportIds)
+      if (error) {
+        console.warn('[interventions] getActiveLinksByReports:', error.message)
+        return {}
+      }
+      const map = {}
+      for (const row of (data || [])) {
+        const intv = row.intervention
+        if (!intv || !ACTIVE_STATUSES.includes(intv.status)) continue
+        if (!map[row.report_id]) map[row.report_id] = []
+        map[row.report_id].push({
+          intervention_id: intv.id,
+          intervention_title: intv.title,
+          intervention_status: intv.status,
+        })
+      }
+      return map
+    }
+    // Demo
+    const links = getStore(KEYS.interventionReports).filter(l => reportIds.includes(l.report_id))
+    const allIntv = getStore(KEYS.interventions)
+    const map = {}
+    for (const l of links) {
+      const intv = allIntv.find(i => i.id === l.intervention_id)
+      if (!intv || !ACTIVE_STATUSES.includes(intv.status)) continue
+      if (!map[l.report_id]) map[l.report_id] = []
+      map[l.report_id].push({
+        intervention_id: intv.id,
+        intervention_title: intv.title,
+        intervention_status: intv.status,
+      })
+    }
+    return map
   },
 
   // Lookup planning_state aggregato per una lista di report. Usato dal badge
@@ -174,7 +369,7 @@ export const interventions = {
     if (supabase) {
       const { data, error } = await supabase
         .from('reports_with_planning')
-        .select('id, planning_state, active_interventions_count, next_intervention_at')
+        .select('id, planning_state, active_interventions_count, next_intervention_at, linked_interventions_count')
         .in('id', reportIds)
       if (error) {
         console.warn('[interventions] getPlanningStateForReports view non disponibile:', error.message)
@@ -186,18 +381,25 @@ export const interventions = {
           planning_state: row.planning_state,
           active_count: row.active_interventions_count,
           next_at: row.next_intervention_at,
+          linked_count: row.linked_interventions_count,
         }
       }
       return map
     }
-    // Demo: ricalcola da interventions in localStorage
-    const all = getStore(KEYS.interventions)
-    const reports = getStore(KEYS.reports)
+    // Demo: ricalcola da intervention_reports + interventions in localStorage
+    const allLinks = getStore(KEYS.interventionReports)
+    const allIntv = getStore(KEYS.interventions)
+    const allReports = getStore(KEYS.reports)
     const map = {}
     for (const id of reportIds) {
-      const r = reports.find(rep => rep.id === id)
-      const linked = all.filter(i => i.report_id === id)
-      const active = linked.filter(i => !['annullato', 'completato'].includes(i.status))
+      const r = allReports.find(rep => rep.id === id)
+      const reportLinks = allLinks.filter(l => l.report_id === id)
+      const linkedCount = reportLinks.length
+      const resolvingLinks = reportLinks.filter(l => l.resolves_report)
+      const resolvingIntv = resolvingLinks
+        .map(l => allIntv.find(i => i.id === l.intervention_id))
+        .filter(Boolean)
+      const active = resolvingIntv.filter(i => !['annullato', 'completato'].includes(i.status))
       let state = 'altro'
       if (active.length === 0 && r?.status === 'aperta') state = 'da_pianificare'
       else if (active.some(i => i.status === 'in_corso')) state = 'in_corso'
@@ -207,18 +409,19 @@ export const interventions = {
         .map(i => i.scheduled_start_at)
         .filter(Boolean)
         .sort()[0] || null
-      map[id] = { planning_state: state, active_count: active.length, next_at: nextAt }
+      map[id] = {
+        planning_state: state,
+        active_count: active.length,
+        next_at: nextAt,
+        linked_count: linkedCount,
+      }
     }
     return map
   },
 
-  // Contatore "interventi attivi" per utente assegnatario. Usato dal picker
-  // assigned_to nel form per mostrare il carico di lavoro di ciascun tecnico.
-  // Status considerati attivi: pianificato, confermato, in_corso.
-  // Ritorna { [userId]: count }.
+  // Contatore "interventi attivi" per utente assegnatario (immutato).
   async getActiveInterventionsCountByUser() {
     if (supabase) {
-      // RLS filtra per org_id automaticamente. Fetch solo assigned_to.
       const { data, error } = await supabase
         .from('interventions')
         .select('assigned_to')
@@ -236,9 +439,6 @@ export const interventions = {
     return groupCountBy(list, 'assigned_to')
   },
 
-  // Contatore "interventi completati su questa macchina" per utente assegnatario.
-  // Usato dal picker per mostrare l'esperienza storica sull'asset specifico.
-  // Ritorna { [userId]: count }.
   async getCompletedInterventionsCountByUserMachine(machineId) {
     if (!machineId) return {}
     if (supabase) {
@@ -260,9 +460,6 @@ export const interventions = {
     return groupCountBy(list, 'assigned_to')
   },
 
-  // Combinatore: carica entrambi i counter in parallelo. Usato dal form per
-  // popolare i picker assigned_to e supervised_by con dati arricchiti in un
-  // solo passaggio. Ritorna { active: {...}, completedOnMachine: {...} }.
   async getUserPickerCounters({ machineId } = {}) {
     const [active, completedOnMachine] = await Promise.all([
       this.getActiveInterventionsCountByUser(),
@@ -272,42 +469,40 @@ export const interventions = {
   },
 
   // ─── WRITE ──────────────────────────────────────────────────────────
-  // data = { type, severity, status?, title, description?, machine_id, machine_name,
-  //          report_id?, maintenance_plan_id?, origin, assigned_to?, assigned_to_name?,
-  //          assigned_to_role?, supervised_by?, supervised_by_name?,
-  //          scheduled_start_at?, scheduled_end_at?,
-  //          estimated_duration_min?, location?, planning_notes?, media?, extra_data?,
-  //          created_by, created_by_name, org_id? }
-  async createIntervention(data) {
+
+  // API PRINCIPALE post-mig 055: crea intervento + N link a report in modo
+  // (semi-)atomico. Se uno dei link fallisce, l'intervento è già creato — la
+  // shell deve gestire eventuali rollback manuali se necessario.
+  //
+  // data:  payload intervention (NO report_id, gestito via links)
+  // links: array { report_id, is_origin?, resolves_report? }
+  //   - is_origin default: il primo link is_origin=true se nessuno è esplicito
+  //   - resolves_report default: true
+  //   - max 1 link is_origin=true (vincolato anche da unique partial index)
+  //
+  // Ritorna l'intervento creato.
+  async createInterventionWithReports(data, links = []) {
     const orgId = data.org_id || (supabase ? await getMyOrgId() : 'demo-org')
-    const payload = {
-      type: data.type || 'correttiva',
-      severity: data.severity || 'media',
-      status: data.status || (data.scheduled_start_at ? 'pianificato' : 'bozza'),
-      title: data.title,
-      description: data.description || '',
-      machine_id: data.machine_id || null,
-      machine_name: data.machine_name || null,
-      report_id: data.report_id || null,
-      maintenance_plan_id: data.maintenance_plan_id || null,
-      origin: data.origin || (data.report_id ? 'report' : (data.maintenance_plan_id ? 'maintenance_plan' : 'manuale')),
-      assigned_to: data.assigned_to || null,
-      assigned_to_name: data.assigned_to_name || null,
-      assigned_to_role: data.assigned_to_role || null,
-      supervised_by: data.supervised_by || null,
-      supervised_by_name: data.supervised_by_name || null,
-      scheduled_start_at: data.scheduled_start_at || null,
-      scheduled_end_at: data.scheduled_end_at || null,
-      estimated_duration_min: data.estimated_duration_min || null,
-      location: data.location || null,
-      planning_notes: data.planning_notes || null,
-      created_by: data.created_by || null,
-      created_by_name: data.created_by_name || null,
-      media: data.media || [],
-      extra_data: data.extra_data || {},
-      org_id: orgId,
+    const payload = buildInterventionPayload(data, orgId)
+    // Auto-deriva origin se non specificato e ci sono link
+    if (!data.origin && links.length > 0) {
+      payload.origin = 'report'
     }
 
+    // Normalizza links: max 1 is_origin, default primo
+    let normalizedLinks = (links || []).map(l => ({
+      report_id: l.report_id,
+      is_origin: !!l.is_origin,
+      resolves_report: l.resolves_report ?? true,
+    }))
+    const explicitOrigins = normalizedLinks.filter(l => l.is_origin).length
+    if (explicitOrigins === 0 && normalizedLinks.length > 0) {
+      normalizedLinks[0].is_origin = true
+    } else if (explicitOrigins > 1) {
+      throw new Error('createInterventionWithReports: solo un link può avere is_origin=true')
+    }
+
+    // 1. INSERT intervention
     let inserted
     if (supabase) {
       const { data: row, error } = await supabase.from('interventions').insert(payload).select().single()
@@ -325,10 +520,28 @@ export const interventions = {
       setStore(KEYS.interventions, list)
     }
 
-    // Activity log
+    // 2. INSERT links
+    const originReportId = normalizedLinks.find(l => l.is_origin)?.report_id || null
+    for (const link of normalizedLinks) {
+      try {
+        await insertLinkRow({
+          intervention_id: inserted.id,
+          report_id: link.report_id,
+          is_origin: link.is_origin,
+          resolves_report: link.resolves_report,
+          added_by: data.created_by || null,
+          added_by_name: data.created_by_name || null,
+          org_id: orgId,
+        })
+      } catch (e) {
+        console.warn('[interventions] link insert failed (continuing):', e?.message)
+      }
+    }
+
+    // 3. Activity log "intervention_created" (con report_id = origin singolo)
     await logActivity({
       intervention_id: inserted.id,
-      report_id: inserted.report_id,
+      report_id: originReportId,
       type: 'intervention_created',
       to_status: inserted.status,
       detail: inserted.title,
@@ -337,7 +550,7 @@ export const interventions = {
       org_id: orgId,
     })
 
-    // Notifica all'assegnatario, se presente
+    // 4. Notifica all'assegnatario
     if (inserted.assigned_to) {
       await notifyAssignee({
         intervention_id: inserted.id,
@@ -351,6 +564,103 @@ export const interventions = {
     }
 
     return inserted
+  },
+
+  // SHIM legacy: accetta `data.report_id` e converte in chiamata
+  // createInterventionWithReports([{report_id, is_origin:true, resolves_report:true}]).
+  // Logga warning di deprecazione per identificare chiamanti residui.
+  async createIntervention(data) {
+    if (data?.report_id) {
+      console.warn(
+        '[interventions] createIntervention(data) con report_id è deprecata. ' +
+        'Usa createInterventionWithReports(data, [{report_id, is_origin:true}]). ' +
+        'Caller stack:', new Error().stack?.split('\n')[2]?.trim()
+      )
+      const { report_id, ...rest } = data
+      return this.createInterventionWithReports(
+        { ...rest, origin: rest.origin || 'report' },
+        [{ report_id, is_origin: true, resolves_report: true }]
+      )
+    }
+    return this.createInterventionWithReports(data, [])
+  },
+
+  // Aggiunge un link report ↔ intervento esistente (post-creazione).
+  // Activity log type='report_linked_to_intervention'.
+  async linkReportToIntervention({ interventionId, reportId, isOrigin = false, resolvesReport = true, actor = {} }) {
+    if (!interventionId || !reportId) throw new Error('linkReportToIntervention: interventionId e reportId obbligatori')
+    const intervention = await this.getIntervention(interventionId)
+    if (!intervention) throw new Error('Intervento non trovato')
+    const orgId = intervention.org_id
+
+    await insertLinkRow({
+      intervention_id: interventionId,
+      report_id: reportId,
+      is_origin: isOrigin,
+      resolves_report: resolvesReport,
+      added_by: actor.user_id || null,
+      added_by_name: actor.user_name || null,
+      org_id: orgId,
+    })
+
+    await logActivity({
+      intervention_id: interventionId,
+      report_id: reportId,
+      type: 'report_linked_to_intervention',
+      detail: `Segnalazione linkata${resolvesReport ? '' : ' (contesto, no auto-close)'}`,
+      user_id: actor.user_id || null,
+      user_name: actor.user_name || null,
+      org_id: orgId,
+    })
+  },
+
+  // Rimuove un link. Activity log type='report_unlinked_from_intervention'.
+  async unlinkReportFromIntervention(interventionId, reportId, actor = {}) {
+    if (!interventionId || !reportId) return
+    const intervention = await this.getIntervention(interventionId)
+    if (!intervention) return
+    const orgId = intervention.org_id
+
+    if (supabase) {
+      const { error } = await supabase
+        .from('intervention_reports')
+        .delete()
+        .eq('intervention_id', interventionId)
+        .eq('report_id', reportId)
+      if (error) throw error
+    } else {
+      const list = getStore(KEYS.interventionReports)
+        .filter(l => !(l.intervention_id === interventionId && l.report_id === reportId))
+      setStore(KEYS.interventionReports, list)
+    }
+
+    await logActivity({
+      intervention_id: interventionId,
+      report_id: reportId,
+      type: 'report_unlinked_from_intervention',
+      detail: 'Segnalazione scollegata dall\'intervento',
+      user_id: actor.user_id || null,
+      user_name: actor.user_name || null,
+      org_id: orgId,
+    })
+  },
+
+  // Aggiorna il flag resolves_report di un link esistente.
+  async setResolvesReport(interventionId, reportId, resolvesReport) {
+    if (supabase) {
+      const { error } = await supabase
+        .from('intervention_reports')
+        .update({ resolves_report: !!resolvesReport })
+        .eq('intervention_id', interventionId)
+        .eq('report_id', reportId)
+      if (error) throw error
+      return
+    }
+    const list = getStore(KEYS.interventionReports)
+    const idx = list.findIndex(l => l.intervention_id === interventionId && l.report_id === reportId)
+    if (idx === -1) return
+    list[idx].resolves_report = !!resolvesReport
+    setStore(KEYS.interventionReports, list)
   },
 
   async updateIntervention(id, updates) {
@@ -382,7 +692,6 @@ export const interventions = {
     if (before.assigned_to !== after.assigned_to) {
       await logActivity({
         intervention_id: id,
-        report_id: after.report_id,
         type: before.assigned_to ? 'intervention_reassigned' : 'intervention_assigned',
         detail: after.assigned_to_name || null,
         user_id: updated_by_user_id || null,
@@ -404,7 +713,6 @@ export const interventions = {
     if (before.status !== after.status) {
       await logActivity({
         intervention_id: id,
-        report_id: after.report_id,
         type: 'intervention_status_changed',
         from_status: before.status,
         to_status: after.status,
@@ -429,7 +737,6 @@ export const interventions = {
 
     await logActivity({
       intervention_id: id,
-      report_id: after.report_id,
       type: 'intervention_rescheduled',
       from_status: before.scheduled_start_at || null,
       to_status: after.scheduled_start_at || null,
@@ -483,7 +790,6 @@ export const interventions = {
       updated_by_user_id: actor.user_id,
       updated_by_user_name: actor.user_name,
     })
-    // Notifica l'assegnatario dell'annullamento
     if (after.assigned_to) {
       await notifyAssignee({
         intervention_id: id,
@@ -506,10 +812,11 @@ export const interventions = {
     }
     const list = getStore(KEYS.interventions).filter(i => i.id !== id)
     setStore(KEYS.interventions, list)
+    // Demo: pulisci anche i link orfani
+    const links = getStore(KEYS.interventionReports).filter(l => l.intervention_id !== id)
+    setStore(KEYS.interventionReports, links)
   },
 
-  // Sollecito conferma fornitore: aggiorna planning_notes con timestamp.
-  // Il magic link vero arriva in Sprint 2. Per ora è un'azione tracciata.
   async sendSupplierReminder(id, actor = {}) {
     const before = await this.getIntervention(id)
     if (!before) throw new Error('Intervento non trovato')
@@ -524,7 +831,6 @@ export const interventions = {
     })
     await logActivity({
       intervention_id: id,
-      report_id: after.report_id,
       type: 'intervention_supplier_reminded',
       detail: reminderMark,
       user_id: actor.user_id || null,
