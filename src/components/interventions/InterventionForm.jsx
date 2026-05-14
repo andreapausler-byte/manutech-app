@@ -236,7 +236,11 @@ export default function InterventionForm({
       description: notes.trim() || '',
       machine_id: defaults.machine_id ?? report?.machine_id ?? null,
       machine_name: defaults.machine_name ?? report?.machine ?? null,
-      report_id: defaults.report_id ?? report?.id ?? null,
+      // NB: report_id NON è più una colonna di interventions (droppata da
+      // mig 055, N→M). I link ai report viaggiano separatamente come 3°
+      // argomento del callback onSubmit (linkedReports). Includere report_id
+      // qui causerebbe "Could not find column report_id in schema cache"
+      // quando il payload viene passato a updateIntervention (path reschedule).
       maintenance_plan_id: defaults.maintenance_plan_id ?? null,
       origin: defaults.origin || (report ? 'report' : 'manuale'),
       assigned_to: assignedToId,
