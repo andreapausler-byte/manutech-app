@@ -105,7 +105,8 @@ CREATE POLICY "intervention_reports_delete" ON public.intervention_reports
 -- ── 4. DATA MIGRATION ──────────────────────────────────────────────────
 -- Preserva i link esistenti (interventions.report_id IS NOT NULL) come
 -- is_origin=true + resolves_report=true. Eseguito PRIMA di droppare la
--- colonna report_id.
+-- colonna report_id. ON CONFLICT DO NOTHING per idempotenza (es. retry
+-- dopo un fallimento al DROP COLUMN successivo).
 INSERT INTO public.intervention_reports (
   intervention_id, report_id, is_origin, resolves_report,
   added_at, added_by, added_by_name, org_id
@@ -120,7 +121,8 @@ SELECT
   i.created_by_name,
   i.org_id
 FROM public.interventions i
-WHERE i.report_id IS NOT NULL;
+WHERE i.report_id IS NOT NULL
+ON CONFLICT (intervention_id, report_id) DO NOTHING;
 
 
 -- ── 5. CONSISTENCY CHECK pre-DROP ──────────────────────────────────────
@@ -150,18 +152,26 @@ BEGIN
 END $$;
 
 
--- ── 6. DROP colonna interventions.report_id + indice ───────────────────
+-- ── 6. DROP VIEW reports_with_planning ────────────────────────────────
+-- La view creata in mig 053 referenzia interventions.report_id. Va
+-- droppata PRIMA del DROP COLUMN (PostgreSQL non droppa colonne usate
+-- da view senza CASCADE). Verrà ricreata dopo il DROP COLUMN con la
+-- nuova logica N→M.
+DROP VIEW IF EXISTS public.reports_with_planning;
+
+
+-- ── 7. DROP colonna interventions.report_id + indice ──────────────────
 DROP INDEX IF EXISTS idx_interventions_report;
 
 ALTER TABLE public.interventions
   DROP COLUMN IF EXISTS report_id;
 
 
--- ── 7. VIEW reports_with_planning aggiornata ───────────────────────────
+-- ── 8. RICREA VIEW reports_with_planning (nuova logica N→M) ───────────
 -- IMPORTANTE: aggregazione planning_state filtra resolves_report=true
 -- (un report associato "per contesto" deve restare 'da_pianificare').
 -- Colonna linked_interventions_count = TUTTI i link, per UI informativa.
-CREATE OR REPLACE VIEW public.reports_with_planning AS
+CREATE VIEW public.reports_with_planning AS
 SELECT
   r.*,
   COUNT(i.id) FILTER (WHERE i.status NOT IN ('annullato','completato')) AS active_interventions_count,
@@ -190,7 +200,7 @@ COMMENT ON VIEW public.reports_with_planning IS
   'Estende reports con stato di pianificazione aggregato. JOIN su intervention_reports filtra resolves_report=true (i link "di contesto" non contano per planning_state). Colonna linked_interventions_count include TUTTI i link (anche contesto) come dato informativo.';
 
 
--- ── 8. TRIGGER AUTO-CLOSE on intervention completed ────────────────────
+-- ── 9. TRIGGER AUTO-CLOSE on intervention completed ───────────────────
 -- Si attiva quando un intervento passa a status='completato'. Per ogni
 -- report linkato con resolves_report=true e status NOT IN
 -- ('risolta','chiuso'), update a 'risolta' + activity log.
@@ -253,7 +263,7 @@ CREATE TRIGGER trg_intervention_completed_close_reports
   EXECUTE FUNCTION public.on_intervention_completed();
 
 
--- ── 9. REALTIME ────────────────────────────────────────────────────────
+-- ── 10. REALTIME ──────────────────────────────────────────────────────
 -- Aggiunta intervention_reports alla publication. Motivazione: il badge
 -- "Segnalazioni associate (N)" sulla scheda report deve aggiornarsi LIVE
 -- quando l'admin aggiunge/rimuove un link mentre un operatore guarda
