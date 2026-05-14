@@ -104,6 +104,29 @@ ORDER BY created_at DESC;
 
 ---
 
+## Frizioni osservate giorno 1 (2026-05-14)
+
+### #1 — Report appare "non gestito" anche con interventi pianificati
+
+**Sintomo**: vado sul report, vedo "Aperta + Da assegnare", sembra non gestito, ma ha N interventi pianificati con assegnatario.
+
+**Problema reale**: rappresentazione visiva inadeguata + coda admin "Da assegnare" non distingue tra report senza intervento vs report con intervento pianificato.
+
+**NON è**: necessità di sync auto status report ← intervento. Rompe N→M (vedi conflitti PTS: in scenario "elettricista linka 5 report, di cui 2 routine bassa priorità", il sync auto farebbe perdere visibilità alla coda "Da assegnare" per i routine; al completion con `resolves_report=false` sui routine, restano assegnati a Krones senza intervento risolutivo = stato fantasma; caso opposto report già assegnato a Mario + intervento extra di contesto con Krones → conflitto sync). Correction #10 di Sprint 1a esiste per ragioni valide in N→M, non la rompiamo.
+
+**Soluzione da progettare in 1c-bis**:
+1. Banner planning_state prominente sul report sopra "Aperta + Da assegnare": "🔧 N interventi pianificati. Prossimo: <data> con <assegnatario>."
+2. Segmentazione coda admin "Da assegnare" in due sezioni: "Senza intervento pianificato" (azione richiesta) vs "Con intervento pianificato" (gestito di fatto, sezione comprimibile/secondaria).
+3. La view `reports_with_planning` aggrega già `planning_state` + `next_intervention_at`. Riutilizzare per banner + segmentazione.
+
+### #2 — Interventi annullati creano rumore sul calendario
+
+**Sintomo**: pillole annullate visibili nella griglia mese, confusione su stato reale.
+
+**Risolto in hotfix**: nascosti di default + toggle "Mostra annullati" in toolbar (opzione B). Branch `hotfix/calendar-hide-cancelled-interventions`. Storico annullati resta accessibile via activity log del report e via toggle.
+
+---
+
 ## Bug minori incontrati
 
 > Non bloccanti, ma da fixare in 1c-bis o 1d. Includere ID intervento/report se possibile.
