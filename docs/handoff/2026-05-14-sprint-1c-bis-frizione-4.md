@@ -387,6 +387,152 @@ Al kick-off, partire da questo doc verificato + chiudere i 5 punti di decisione 
 
 ---
 
+## Blocker #4 — Validazione (2026-05-14, mini read-only)
+
+Validazione richiesta su tre fronti: schema relazione, hook calendario, sanity check produzione.
+
+### 1. Schema relazione intervention ↔ reports
+
+**Fonte**: `supabase/migrations/053_create_interventions.sql` (definizione tabella), `supabase/migrations/055_intervention_reports.sql` (relazione N→M, applicata in produzione il 14/5).
+
+**Cardinalità reale supportata dallo schema dopo mig 055**:
+
+- **FK diretta `interventions.report_id`**: **rimossa**. La mig 055 fa `ALTER TABLE public.interventions DROP COLUMN IF EXISTS report_id` (riga 167). Non esiste più.
+- **Junction table `intervention_reports`** (definita in mig 055 righe 42-52):
+  ```sql
+  CREATE TABLE public.intervention_reports (
+    intervention_id   UUID NOT NULL REFERENCES interventions(id) ON DELETE CASCADE,
+    report_id         UUID NOT NULL REFERENCES reports(id)       ON DELETE CASCADE,
+    is_origin         BOOLEAN NOT NULL DEFAULT false,
+    resolves_report   BOOLEAN NOT NULL DEFAULT true,
+    added_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    added_by          UUID REFERENCES users(id) ON DELETE SET NULL,
+    added_by_name     TEXT,
+    org_id            TEXT NOT NULL,
+    PRIMARY KEY (intervention_id, report_id)
+  );
+  ```
+- **Cardinalità**: **N↔M piena**. Un intervento può legare 0..N report. Un report può essere legato a 0..N interventi. Vincolo unico: `is_origin=true` può essere true per al massimo 1 link per intervento (unique partial index `uniq_intervention_origin`, mig 055 riga 69-71). Niente vincolo equivalente sul lato report.
+- **`resolves_report`** discrimina link **risolutivi** (default true, auto-close al completamento) da link **di contesto** (false, intervento associato per consultazione).
+
+**Conseguenza per BLOCKER #1 opt-A**: l'assunzione "un intervento ha 1 solo report linkato risolutivo" che giustificherebbe il bottone "Apri report" come scorciatoia è **strutturalmente non garantita**. Lo schema permette N>1 risolutivi senza limite. Il filtro per N=1 va calcolato runtime, non assunto.
+
+### 2. Hook `useInterventionsCalendar` — payload attuale
+
+**Fonte**: `src/hooks/useInterventionsCalendar.js` + `src/lib/db/interventions.js:294-329` (`db.getInterventionsCalendar`).
+
+**Query attuale** (riga 299):
+```js
+supabase.from('interventions').select('*')
+  .gte('scheduled_start_at', startISO)
+  .lte('scheduled_start_at', endISO)
+  .order('scheduled_start_at', { ascending: true })
+```
+
+**Payload per ogni intervento**: solo le colonne native di `public.interventions` (`id`, `title`, `scheduled_start_at`, `assigned_to`, `assigned_to_name`, `assigned_to_role`, `status`, `type`, `severity`, `machine_id`, `machine_name`, `org_id`, `created_at`, `created_by`, ecc.). **NESSUNA INFORMAZIONE sui report linkati**. La struttura `intervention.linked_reports` non esiste nel payload corrente.
+
+**Costo di aggiungere `linked_reports`** (per supportare opt-A o opt-C del BLOCKER #1):
+
+Soluzione minima (un singolo round-trip aggiuntivo, no nested select Supabase):
+```js
+// dopo la fetch interventions:
+const ids = data.map(i => i.id)
+const { data: links } = await supabase
+  .from('intervention_reports')
+  .select('intervention_id, report_id, is_origin, resolves_report')
+  .in('intervention_id', ids)
+// raggruppo client-side:
+const byIntv = new Map()
+for (const l of links || []) {
+  if (!byIntv.has(l.intervention_id)) byIntv.set(l.intervention_id, [])
+  byIntv.get(l.intervention_id).push(l)
+}
+return data.map(i => ({ ...i, linked_reports: byIntv.get(i.id) || [] }))
+```
+
+- **Round-trip extra**: 1 (`SELECT FROM intervention_reports WHERE intervention_id IN (...)`).
+- **Righe extra**: pari al numero totale di link sugli interventi del mese visualizzato. Su un mese tipico con ~5-50 interventi e N medio di link 1-2, ordine di grandezza 5-100 righe. Trascurabile.
+- **Alternativa nested select Supabase** (1 round-trip):
+  ```js
+  .select('*, intervention_reports(report_id, is_origin, resolves_report)')
+  ```
+  RLS su `intervention_reports` filtra già per `org_id`. Più pulito ma fan-out via PostgREST embedding — performance simile su volumi attuali.
+
+**Decisione operativa**: estendere il payload del calendario è **a basso costo** (~5-10 LOC + zero migration). Non blocca l'implementazione.
+
+### 3. Sanity check produzione — BLOCCATO da credenziali
+
+**Status**: **non eseguibile da questo ambiente**. Nessun `.env`, nessuna `SUPABASE_SERVICE_ROLE_KEY`, nessun connection string `DATABASE_URL` disponibile. Il sandbox ha `psql` e `supabase` CLI ma senza credenziali sono inutilizzabili.
+
+**Query pronte da incollare manualmente in Supabase Dashboard → SQL Editor** (target org `1235103f-45e5-4fa5-a256-3ca5f39dcf1e`):
+
+```sql
+-- Q1: totale interventi (org filtrato)
+SELECT COUNT(*) AS interventi_totali
+FROM public.interventions
+WHERE org_id = '1235103f-45e5-4fa5-a256-3ca5f39dcf1e';
+
+-- Q2: distribuzione count report linkati per intervento
+-- (include interventi con 0 link grazie a LEFT JOIN)
+SELECT
+  COALESCE(t.n, 0) AS reports_linkati_per_intervento,
+  COUNT(i.id)      AS num_interventi
+FROM public.interventions i
+LEFT JOIN (
+  SELECT intervention_id, COUNT(*) AS n
+  FROM public.intervention_reports
+  WHERE org_id = '1235103f-45e5-4fa5-a256-3ca5f39dcf1e'
+  GROUP BY intervention_id
+) t ON t.intervention_id = i.id
+WHERE i.org_id = '1235103f-45e5-4fa5-a256-3ca5f39dcf1e'
+GROUP BY COALESCE(t.n, 0)
+ORDER BY 1;
+
+-- Q3: max N osservato + lista degli interventi con N>1 (per ispezione)
+SELECT
+  i.id, i.title, i.status, i.scheduled_start_at,
+  COUNT(ir.report_id) AS n_link,
+  COUNT(ir.report_id) FILTER (WHERE ir.resolves_report = true) AS n_risolutivi
+FROM public.interventions i
+JOIN public.intervention_reports ir ON ir.intervention_id = i.id
+WHERE i.org_id = '1235103f-45e5-4fa5-a256-3ca5f39dcf1e'
+GROUP BY i.id, i.title, i.status, i.scheduled_start_at
+HAVING COUNT(ir.report_id) > 1
+ORDER BY n_link DESC, i.scheduled_start_at DESC;
+
+-- Q4 (bonus): max N osservato in numero secco
+SELECT MAX(n) AS max_link_per_intervento
+FROM (
+  SELECT COUNT(*) AS n
+  FROM public.intervention_reports
+  WHERE org_id = '1235103f-45e5-4fa5-a256-3ca5f39dcf1e'
+  GROUP BY intervention_id
+) t;
+```
+
+**Compilare quando le query tornano** (slot lasciati intenzionalmente vuoti):
+
+| Metric | Valore |
+|---|---|
+| Interventi totali | _TBD — incollare risultato Q1_ |
+| Interventi con N=0 link | _TBD — riga `reports_linkati_per_intervento = 0` di Q2_ |
+| Interventi con N=1 link | _TBD — riga `reports_linkati_per_intervento = 1` di Q2_ |
+| Interventi con N>1 link | _TBD — somma righe `≥ 2` di Q2_ |
+| Max N osservato | _TBD — Q4_ |
+| % risolutivi su totale link | _TBD — opzionale, dalla query "Distribuzione link risolutivi vs di contesto" già in OBSERVATIONS_1C.md_ |
+
+---
+
+### Conclusione di questa mini-validazione
+
+**Punti 1 e 2 chiusi**: schema N↔M pieno (non N:1), payload calendario oggi privo di info report, estensione a basso costo (~5-10 LOC).
+
+**Punto 3 in attesa**: serve incollare Q1-Q4 manualmente sul Dashboard. Senza quei numeri **non posso pronunciarmi su "N>1 è/non è significativo in produzione"**.
+
+> Riga finale richiesta — onesta, dipendente dai dati: _TBD una volta eseguite Q1-Q4_. Snapshot del 14/5 in `OBSERVATIONS_1C.md:81` riportava 5 interventi totali, 3 link totali, 0 con N>1 — coerente con "fase di osservazione appena iniziata, opt-A regge". Ma la decisione vera dipende dai numeri al kick-off 1c-bis (17-18/5), non dal deploy day.
+
+---
+
 ## Riferimenti
 
 - Brief originale: nella history della conversazione del 14/5 su `claude/calendar-next-steps-KVIST`.
