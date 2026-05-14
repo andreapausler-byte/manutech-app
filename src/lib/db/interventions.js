@@ -846,7 +846,15 @@ export const interventions = {
     // Estrai i metadati "actor" che NON sono colonne della tabella: servono
     // solo per popolare l'activity log e l'eventuale notifica. Se finissero
     // nel .update() PostgREST risponderebbe "column not found in schema cache".
-    const { updated_by_user_id, updated_by_user_name, ...dbUpdates } = updates
+    // Difesa: dropp anche eventuale `report_id` legacy (droppato in mig 055
+    // ma alcuni client potrebbero ancora passarlo nel payload).
+    const {
+      updated_by_user_id,
+      updated_by_user_name,
+      // eslint-disable-next-line no-unused-vars
+      report_id: _droppedReportId,
+      ...dbUpdates
+    } = updates
 
     let after
     if (supabase) {
