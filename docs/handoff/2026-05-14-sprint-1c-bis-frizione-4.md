@@ -510,26 +510,54 @@ FROM (
 ) t;
 ```
 
-**Compilare quando le query tornano** (slot lasciati intenzionalmente vuoti):
+**Risultato query eseguita 2026-05-14** (org `1235103f-45e5-4fa5-a256-3ca5f39dcf1e`):
 
 | Metric | Valore |
 |---|---|
-| Interventi totali | _TBD — incollare risultato Q1_ |
-| Interventi con N=0 link | _TBD — riga `reports_linkati_per_intervento = 0` di Q2_ |
-| Interventi con N=1 link | _TBD — riga `reports_linkati_per_intervento = 1` di Q2_ |
-| Interventi con N>1 link | _TBD — somma righe `≥ 2` di Q2_ |
-| Max N osservato | _TBD — Q4_ |
-| % risolutivi su totale link | _TBD — opzionale, dalla query "Distribuzione link risolutivi vs di contesto" già in OBSERVATIONS_1C.md_ |
+| Interventi totali | **0** |
+| Interventi con N=0 link | 0 |
+| Interventi con N=1 link | 0 |
+| Interventi con N>1 link | 0 |
+| Max N osservato | 0 |
+| Interventi con N risolutivi > 1 | 0 |
+| Max risolutivi osservato | 0 |
 
----
+### ⚠️ Discrepanza con OBSERVATIONS_1C.md:81
+
+`OBSERVATIONS_1C.md` snapshot del 2026-05-14 (deploy day) riporta: **5 interventi totali, 3 link totali, 3 con N=1, 0 con N>1**. La query di sanity check ritorna invece **0 in tutto**.
+
+Tre ipotesi:
+
+1. **Org_id sbagliato**: i 5 interventi vivono in un altro org_id. Probabile se la dashboard è connessa a un progetto multi-tenant e l'org `1235103f-…` non è quella dove sono state osservate le frizioni 1c.
+2. **Env sbagliato**: la dashboard è su staging mentre OBSERVATIONS si riferisce a prod (o viceversa).
+3. **Dati cancellati/spostati tra il momento dello snapshot e adesso**: improbabile nello stesso giorno senza azione esplicita.
+
+**Diagnostico veloce** (incolla sul SQL Editor per scoprire dove vivono i 5 interventi):
+
+```sql
+SELECT
+  org_id,
+  COUNT(*)                                  AS n_interventi,
+  MAX(created_at)                           AS ultimo_creato,
+  COUNT(DISTINCT created_by_name)           AS n_creatori
+FROM public.interventions
+GROUP BY org_id
+ORDER BY n_interventi DESC;
+```
+
+Se ritorna 1+ riga, il `org_id` con interventi è quello da usare (sostituire in tutte le query). Se ritorna 0 righe, **i 5 interventi di OBSERVATIONS_1C.md non sono in questo progetto** — è probabile che lo snapshot fosse riferito a staging o demo locale.
 
 ### Conclusione di questa mini-validazione
 
 **Punti 1 e 2 chiusi**: schema N↔M pieno (non N:1), payload calendario oggi privo di info report, estensione a basso costo (~5-10 LOC).
 
-**Punto 3 in attesa**: serve incollare Q1-Q4 manualmente sul Dashboard. Senza quei numeri **non posso pronunciarmi su "N>1 è/non è significativo in produzione"**.
+**Punto 3 eseguito ma sospetto**: i numeri ritornano tutti zero. Prima di trarre conclusioni serve risolvere la discrepanza con OBSERVATIONS via la query diagnostica sopra.
 
-> Riga finale richiesta — onesta, dipendente dai dati: _TBD una volta eseguite Q1-Q4_. Snapshot del 14/5 in `OBSERVATIONS_1C.md:81` riportava 5 interventi totali, 3 link totali, 0 con N>1 — coerente con "fase di osservazione appena iniziata, opt-A regge". Ma la decisione vera dipende dai numeri al kick-off 1c-bis (17-18/5), non dal deploy day.
+### Riga finale richiesta — verdetto onesto sotto due interpretazioni
+
+- **Se la dashboard è davvero connessa all'org di produzione**: **N>1 non è significativo** (è zero su zero interventi). L'opzione A del BLOCKER #1 regge **per assenza di dati contrari**, ma la decisione è priva di valore predittivo finché non c'è uso reale. Da rivalutare al kick-off 1c-bis (17-18/5) — se anche allora N>1 = 0 con 5-10 interventi accumulati, opt-A è confermato. Se emergono N>1 frequenti, **pivot a opt-C** (smart: card → report se N=1, → detail se N>1).
+
+- **Se l'org_id `1235103f-…` non è quella reale**: la validazione è inconcludente. Eseguire la diagnostica sopra e rilanciare le 4 query con l'org_id corretto prima di prendere qualunque decisione di rotta.
 
 ---
 
