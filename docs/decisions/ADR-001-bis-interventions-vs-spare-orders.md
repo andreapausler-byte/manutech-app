@@ -1,6 +1,8 @@
 # ADR-001-bis — interventions: nuova tabella, non estensione di spare_part_orders
 
-**Status**: accepted · **Date**: 2026-05-13 · **Sprint**: 1a · **Supersedes**: ADR-001 (handoff doc §3)
+**Status**: accepted (mapping report_id superseduto da ADR-006 in Sprint 1c) · **Date**: 2026-05-13 · **Sprint**: 1a · **Supersedes**: ADR-001 (handoff doc §3)
+
+> **Nota Sprint 1c (2026-05-14)**: la sezione "Decision punto 2 — Mapping campi" qui sotto include `report_id → report_id`. **Quel mapping non vale più**: la migration 055 ha droppato `interventions.report_id` e introdotto `intervention_reports` (N→M). Ora il mapping è `report_id → INSERT in intervention_reports (is_origin=true, resolves_report=true)` via `db.createInterventionWithReports`. Vedi **ADR-006** per dettagli.
 
 ## Context
 
