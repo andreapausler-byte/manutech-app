@@ -1,6 +1,7 @@
 import { supabase, getMyOrgId } from './_client'
 import { KEYS, getStore, setStore } from './_demoStore'
 import { formatPlannedComment, formatRescheduledComment } from '../interventions'
+import { toast } from 'react-hot-toast'
 
 // ─── Helpers interni ───────────────────────────────────────────────────
 
@@ -79,7 +80,15 @@ function groupCountBy(rows, key) {
 // Inserisce un comment "sistema" in chat report. Usato per i messaggi
 // automatici di pianificazione/reschedule intervento (feat chat-intervention-
 // notification). user_id=null + user_name='Sistema' coerente con activity
-// log auto-close (trigger PG). Best-effort: log warning su errore, no throw.
+// log auto-close (trigger PG).
+//
+// Error handling: NON throw (l'operazione principale — create/update
+// intervento — è già completata, non vogliamo bloccarla per un comment).
+// MA NEMMENO swallow silenzioso: ad Andrea è sfuggito un bug serio
+// (CHECK constraint comments_kind_check vs system_intervention_*) perché
+// l'errore finiva solo in console.warn invisibile in UI. Cambio in:
+//   1. console.error (rosso, va anche su Sentry/error tracking)
+//   2. toast.error visibile in UI agli admin (react-hot-toast imperative API)
 async function postSystemComment({ reportId, text, kind, orgId, extraData }) {
   if (!reportId || !text) return
   if (supabase) {
@@ -94,7 +103,14 @@ async function postSystemComment({ reportId, text, kind, orgId, extraData }) {
       extra_data: extraData || null,
     }
     const { error } = await supabase.from('comments').insert(insertData)
-    if (error) console.warn('[interventions] postSystemComment error:', error.message)
+    if (error) {
+      console.error('[interventions] postSystemComment INSERT failed:', error)
+      try {
+        toast.error('Notifica chat fallita: ' + (error.message || 'INSERT comments'), {
+          duration: 6000,
+        })
+      } catch { /* toast non disponibile fuori React tree, OK */ }
+    }
     return
   }
   // Demo: scrivi inline in localStorage. Lo store di comments per ManuTech
@@ -851,10 +867,10 @@ export const interventions = {
     const {
       updated_by_user_id,
       updated_by_user_name,
-      // eslint-disable-next-line no-unused-vars
       report_id: _droppedReportId,
       ...dbUpdates
     } = updates
+    void _droppedReportId // colonna droppata in mig 055, ignora se passata
 
     let after
     if (supabase) {
