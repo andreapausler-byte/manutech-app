@@ -273,9 +273,9 @@ export default function InterventionRequestSidePanel({
           color: 'var(--color-text-secondary)',
           lineHeight: 1.4,
         }}>
-          Modifica data/ora di inizio o fine. Le altre modifiche al form
-          vengono salvate insieme alla riprogrammazione. Le segnalazioni
-          associate (sotto) si salvano immediatamente.
+          Modifica data/ora di inizio o fine. Le altre modifiche al form vengono salvate insieme alla riprogrammazione tramite il bottone <strong style={{ color: 'var(--color-text)' }}>Salva modifiche</strong>.
+          {' '}
+          <strong style={{ color: 'var(--color-text)' }}>Le modifiche alle Segnalazioni associate (sotto) vengono salvate immediatamente, anche se annulli la riprogrammazione.</strong>
         </div>
       )}
 

@@ -574,6 +574,13 @@ export const interventions = {
   //   SELECT created_at, user_name, detail FROM activities
   //   WHERE type='deprecated_api_call' ORDER BY created_at DESC;
   // ).
+  //
+  // Error handling audit (Sprint 1c review punto #1, opzione c):
+  // se la scrittura dell'activity audit fallisce (RLS, network, schema
+  // mismatch), il fallimento NON blocca la chiamata di creazione: log
+  // perso visibilmente via console.error + swallow. La creazione legacy
+  // procede comunque. Motivazione: l'audit shim è "best effort", la
+  // priorità è non rompere la chiamata.
   async createIntervention(data) {
     if (data?.report_id) {
       const callerLine = new Error().stack?.split('\n')[2]?.trim() || 'unknown'
@@ -582,16 +589,38 @@ export const interventions = {
         'Usa createInterventionWithReports(data, [{report_id, is_origin:true}]). ' +
         'Caller stack:', callerLine
       )
-      // Server-side audit log (fire-and-forget, non blocca la creazione)
+      // Server-side audit (fire-and-forget, console.error + swallow su errore).
+      // Scriviamo inline (non via logActivity helper) per gestire l'errore
+      // esplicitamente con console.error invece dell'internal console.warn.
       const orgId = data.org_id || (supabase ? await getMyOrgId() : 'demo-org')
-      logActivity({
+      const auditRow = {
         type: 'deprecated_api_call',
-        report_id: data.report_id, // mantieni reference per audit
+        report_id: data.report_id,
         detail: `db.createIntervention(data) shim invocato. Caller: ${callerLine}. Payload contiene report_id=${data.report_id}`,
         user_id: data.created_by || null,
         user_name: data.created_by_name || 'unknown',
         org_id: orgId,
-      }).catch(e => console.warn('[shim audit] log failed:', e?.message))
+      }
+      try {
+        if (supabase) {
+          const { error } = await supabase.from('activities').insert(auditRow)
+          if (error) {
+            console.error('[shim audit] INSERT activities deprecated_api_call failed:', error)
+          }
+        } else {
+          const list = getStore(KEYS.activities)
+          list.unshift({
+            ...auditRow,
+            id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            created_at: new Date().toISOString(),
+          })
+          setStore(KEYS.activities, list)
+        }
+      } catch (e) {
+        // Eccezione imprevista (network, parsing, ecc.): swallow + console.error.
+        // L'audit log è perso, la creazione legacy continua comunque.
+        console.error('[shim audit] log failed (continuing with create):', e)
+      }
 
       const { report_id, ...rest } = data
       return this.createInterventionWithReports(
