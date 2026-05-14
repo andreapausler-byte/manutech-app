@@ -568,14 +568,31 @@ export const interventions = {
 
   // SHIM legacy: accetta `data.report_id` e converte in chiamata
   // createInterventionWithReports([{report_id, is_origin:true, resolves_report:true}]).
-  // Logga warning di deprecazione per identificare chiamanti residui.
+  // Logga warning console + scrive activity row type='deprecated_api_call'
+  // per audit server-side (query SQL post-deploy per identificare callsite
+  // residui:
+  //   SELECT created_at, user_name, detail FROM activities
+  //   WHERE type='deprecated_api_call' ORDER BY created_at DESC;
+  // ).
   async createIntervention(data) {
     if (data?.report_id) {
+      const callerLine = new Error().stack?.split('\n')[2]?.trim() || 'unknown'
       console.warn(
         '[interventions] createIntervention(data) con report_id è deprecata. ' +
         'Usa createInterventionWithReports(data, [{report_id, is_origin:true}]). ' +
-        'Caller stack:', new Error().stack?.split('\n')[2]?.trim()
+        'Caller stack:', callerLine
       )
+      // Server-side audit log (fire-and-forget, non blocca la creazione)
+      const orgId = data.org_id || (supabase ? await getMyOrgId() : 'demo-org')
+      logActivity({
+        type: 'deprecated_api_call',
+        report_id: data.report_id, // mantieni reference per audit
+        detail: `db.createIntervention(data) shim invocato. Caller: ${callerLine}. Payload contiene report_id=${data.report_id}`,
+        user_id: data.created_by || null,
+        user_name: data.created_by_name || 'unknown',
+        org_id: orgId,
+      }).catch(e => console.warn('[shim audit] log failed:', e?.message))
+
       const { report_id, ...rest } = data
       return this.createInterventionWithReports(
         { ...rest, origin: rest.origin || 'report' },

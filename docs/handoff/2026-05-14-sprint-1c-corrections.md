@@ -171,6 +171,36 @@
 
 ---
 
+## Correction #10 — Auto-close è ONE-WAY (riapertura intervento NON riapre report)
+
+**Trigger PG attuale**: `on_intervention_completed` si attiva su `UPDATE OF status` quando `NEW.status = 'completato' AND OLD.status <> 'completato'`. Nessun trigger speculare su transizione `completato → altro`.
+
+**Conseguenza**: se un intervento già `completato` torna a `in_corso` o `bozza` (es. tramite update DB diretto), i report che erano stati chiusi automaticamente da `auto_closed_by_intervention` **restano `risolta`**. Non vengono riaperti.
+
+**Decisione utente (post-review)**: confermata come **one-way intenzionale**. L'admin che riapre un intervento decide manualmente se anche i report devono essere riaperti, perché:
+- Più sicuro (no cascade automatici imprevisti su lavoro umano già fatto)
+- Allineato al principio "le chiusure di report sono decisioni umane esplicite" (cfr Correction #10 Sprint 1a)
+- Caso d'uso reale raro: la riapertura di intervento completato è situazione di rework, non flow normale
+
+**Acceptance criteria** (parte dello sprint):
+- Apply migration 055.
+- Crea intervento linkato a R1 (`resolves_report=true`).
+- Marca intervento `completato` → R1 passa a `risolta`. Verifica activity log `auto_closed_by_intervention` (user_id=NULL, user_name='Sistema').
+- Update manuale intervento `status='in_corso'` via SQL (`UPDATE interventions SET status='in_corso' WHERE id=...`).
+- Verifica: R1 **resta `risolta`** (NO trigger speculare).
+
+**File interessati**:
+- `supabase/migrations/055_intervention_reports.sql` (function `on_intervention_completed`, condizione single-direction)
+
+**Da fare quando aggiungeremo bottone "Riapri" nel DetailPanel** (futuro Sprint 1d o 1e):
+- Aggiungere nel DetailPanel un toast informativo quando `intervention.status` passa da `completato` a `in_corso`/`bozza`:
+  > "Report associati restano risolti. Riaprire manualmente se necessario."
+- Eventualmente offrire un'azione "Riapri anche i report associati" nel modal di conferma.
+
+**Impatto su altri sprint**: ADR-006 cita already il comportamento. CHANGELOG include nelle "Known limitations".
+
+---
+
 ## Correzioni minori (no entry separata)
 
 - **Sidebar SidePanel `existingLinks` state**: caricamento al mount via `db.getReportsForIntervention` solo in mode `reschedule`. Coerente con caricamento `users`/`supplierProfiles` esistente.
@@ -180,6 +210,10 @@
 - **Down migration 055**: documentato esempio scenario perdita dati nel header (Q1 risolta in fase di review SQL).
 
 ---
+
+## Da rivedere in Sprint 4+ (React 19 patterns)
+
+Lint React 19 segnala "Calling setState synchronously within an effect" su pattern fetch-on-mount con loading state (es. `InterventionDetailPanel.jsx:61`, `ReportMultiPicker.jsx:63`). **Falsi positivi** rispetto a bug latenti: il pattern è funzionalmente corretto (`alive` flag previene setState post-unmount, cleanup ok). Stesso identico pattern in 8+ file ManuTech esistenti. Refactor a `useDeferredValue` / `use()` hook / Suspense richiederebbe cambio cross-app del paradigma data-fetching. Sprint dedicato React 19 migration ETA Sprint 4+.
 
 ## Da fare in Sprint 1d
 

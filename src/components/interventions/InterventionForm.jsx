@@ -47,8 +47,11 @@ export default function InterventionForm({
   // Sprint 1c: link report ↔ intervento (N→M).
   // initialLinks: [{ report_id, is_origin?, resolves_report? }]
   // linksReadOnly: se true, mostra i link in sola lettura (no picker)
+  // hideLinkedReportsSection: nasconde COMPLETAMENTE la sezione (usato dal
+  //   SidePanel reschedule che la gestisce in proprio via hook live)
   initialLinks = [],
   linksReadOnly = false,
+  hideLinkedReportsSection = false,
 }) {
   const toast = useToast()
   const haptic = useHaptic()
@@ -295,14 +298,17 @@ export default function InterventionForm({
 
         {/* Segnalazioni coperte (Sprint 1c): link N→M intervento ↔ reports.
             Inizializzato da context.report (modal da ReportDetail) o vuoto
-            (form da calendario manuale). */}
-        <LinkedReportsSection
-          value={linkedReports}
-          onChange={setLinkedReports}
-          currentMachineId={defaults.machine_id ?? context.report?.machine_id ?? null}
-          currentInterventionId={defaults.interventionId || null}
-          readOnly={linksReadOnly}
-        />
+            (form da calendario manuale). Nascosta quando la shell gestisce
+            i link in proprio (es. SidePanel reschedule con hook live). */}
+        {!hideLinkedReportsSection && (
+          <LinkedReportsSection
+            value={linkedReports}
+            onChange={setLinkedReports}
+            currentMachineId={defaults.machine_id ?? context.report?.machine_id ?? null}
+            currentInterventionId={defaults.interventionId || null}
+            readOnly={linksReadOnly}
+          />
+        )}
 
         {/* Foto della segnalazione — snapshot read-only (sezione visibile solo se ci sono) */}
         {reportPhotos.length > 0 && (

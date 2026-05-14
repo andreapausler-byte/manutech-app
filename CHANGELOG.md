@@ -48,6 +48,8 @@ Pronto per merge sul branch `claude/intervention-reports-many-to-many-Vh3Mt`. Mi
 - `intervention_reports.org_id` è `TEXT NOT NULL` (NO default) — pattern safer ma TEXT, allineamento con resto schema
 - Down migration di 055 è destructive sui link `is_origin=false` (vengono persi col `DROP TABLE intervention_reports`)
 - Activity log `auto_closed_by_intervention` ha `user_id=NULL` (azione di sistema). L'audit trail risale al vero umano via activity precedente `intervention_status_changed`
+- **Auto-close è ONE-WAY**: se un intervento `completato` torna a stato precedente (via update DB diretto), i report chiusi dall'auto-close restano `risolta`. Decisione consapevole (cfr Correction #10). Nota UX runtime + eventuale "Riapri anche i report associati" pianificati quando aggiungeremo bottone "Riapri" nel DetailPanel
+- Lo shim `db.createIntervention` con `data.report_id` ora scrive activity row `type='deprecated_api_call'` per audit SQL post-deploy. Console.warn rimane in produzione. Grep `db.createIntervention(` nel codebase corrente ritorna 0 risultati: nessun caller residuo identificato
 - `InterventionDetailPanel` `onOpenReport` prop deprecato (non più consumato): lieve regression UX rispetto a Sprint 1a (no shortcut "Apri →" sulle mini-card). Da ripristinare in Sprint 1d (~10 LOC)
 - 3 nuovi `activities.type` (`auto_closed_by_intervention`, `report_linked_to_intervention`, `report_unlinked_from_intervention`) non hanno mapping label/icon nell'UI Activity Timeline. Default a stringa raw. Aggiunta mapping pianificata Sprint 1d
 

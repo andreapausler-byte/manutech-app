@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import { toDatetimeLocalString } from '../../lib/interventions'
+import { useInterventionReports } from '../../hooks/useInterventionReports'
 import InterventionForm from './InterventionForm'
+import LinkedReportsSection from './LinkedReportsSection'
 
-// Sprint 1c: in mode 'reschedule' carichiamo i link esistenti dal DB e li
-// passiamo al form come read-only. Le modifiche ai link si fanno nel
-// DetailPanel sezione "Segnalazioni associate" dopo il salvataggio.
+// Sprint 1c (post-review #3): in mode 'reschedule' la sezione "Segnalazioni
+// associate" è LIVE (non read-only). Inline sopra il form via componente
+// interno LinkedReportsLive: ogni modifica salva subito via hook
+// useInterventionReports (stesso pattern del DetailPanel). Il form interno
+// gestisce link solo in mode create; in reschedule li nasconde con
+// hideLinkedReportsSection=true.
 
 /**
  * InterventionRequestSidePanel — shell del form intervento per la SIDEBAR
@@ -49,7 +54,6 @@ export default function InterventionRequestSidePanel({
   onUpdated,
 }) {
   const isReschedule = mode === 'reschedule' && existingIntervention
-  const [existingLinks, setExistingLinks] = useState([])
   const toast = useToast()
   const haptic = useHaptic()
   const [submitting, setSubmitting] = useState(false)
@@ -83,22 +87,9 @@ export default function InterventionRequestSidePanel({
     return () => { alive = false }
   }, [machineIdForCounters])
 
-  // In reschedule mode, carica i link esistenti per mostrarli read-only nel form
-  useEffect(() => {
-    let alive = true
-    if (!isReschedule) return undefined
-    db.getReportsForIntervention(existingIntervention.id)
-      .then(reports => {
-        if (!alive) return
-        setExistingLinks((reports || []).map(r => ({
-          report_id: r.id,
-          is_origin: !!r.link_is_origin,
-          resolves_report: !!r.link_resolves_report,
-        })))
-      })
-      .catch(e => console.warn('[SidePanel] existing links load:', e?.message))
-    return () => { alive = false }
-  }, [isReschedule, existingIntervention?.id])
+  // Sprint 1c post-review: il caricamento dei link in reschedule mode è
+  // gestito dal componente inline LinkedReportsLive (sotto) tramite hook
+  // useInterventionReports. NIENTE caricamento qui.
 
   // Costruisce i defaults del form a partire da existingIntervention /
   // prefillDate / baseIntervention.
@@ -283,12 +274,21 @@ export default function InterventionRequestSidePanel({
           lineHeight: 1.4,
         }}>
           Modifica data/ora di inizio o fine. Le altre modifiche al form
-          vengono salvate insieme alla riprogrammazione.
+          vengono salvate insieme alla riprogrammazione. Le segnalazioni
+          associate (sotto) si salvano immediatamente.
         </div>
       )}
 
-      {/* Form */}
-      <div style={{ flex: 1, minHeight: 0 }}>
+      {/* Form (+ sezione link live in reschedule) */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {isReschedule && (
+          <div style={{ padding: '12px 16px 0' }}>
+            <LinkedReportsLive
+              interventionId={existingIntervention.id}
+              machineId={existingIntervention.machine_id}
+            />
+          </div>
+        )}
         <InterventionForm
           defaults={formDefaults}
           context={{}}
@@ -300,10 +300,58 @@ export default function InterventionRequestSidePanel({
           submitButtonLabel={isReschedule ? 'Salva modifiche' : 'Crea intervento'}
           onSubmit={handleSubmit}
           onCancel={onClose}
-          initialLinks={isReschedule ? existingLinks : []}
-          linksReadOnly={isReschedule}
+          initialLinks={[]}
+          linksReadOnly={false}
+          hideLinkedReportsSection={isReschedule}
         />
       </div>
     </div>
+  )
+}
+
+/**
+ * LinkedReportsLive — sezione "Segnalazioni associate" inline per mode
+ * reschedule. Connesso a useInterventionReports hook: ogni add/remove/toggle
+ * salva immediatamente in DB (no raccolta al submit). Stesso pattern del
+ * DetailPanel.
+ */
+function LinkedReportsLive({ interventionId, machineId }) {
+  const linksHook = useInterventionReports(interventionId)
+
+  const linksValue = useMemo(() => (linksHook.reports || []).map(r => ({
+    report_id: r.id,
+    is_origin: !!r.link_is_origin,
+    resolves_report: !!r.link_resolves_report,
+  })), [linksHook.reports])
+
+  const handleLinksChange = async (newValue) => {
+    const oldMap = new Map(linksValue.map(l => [l.report_id, l]))
+    const newMap = new Map(newValue.map(l => [l.report_id, l]))
+    for (const link of newValue) {
+      const old = oldMap.get(link.report_id)
+      if (!old) {
+        await linksHook.addLink({
+          reportId: link.report_id,
+          isOrigin: !!link.is_origin,
+          resolvesReport: !!link.resolves_report,
+        })
+      } else if (old.resolves_report !== link.resolves_report) {
+        await linksHook.toggleResolves(link.report_id, link.resolves_report)
+      }
+    }
+    for (const old of linksValue) {
+      if (!newMap.has(old.report_id) && !old.is_origin) {
+        await linksHook.removeLink(old.report_id)
+      }
+    }
+  }
+
+  return (
+    <LinkedReportsSection
+      value={linksValue}
+      onChange={handleLinksChange}
+      currentMachineId={machineId}
+      currentInterventionId={interventionId}
+    />
   )
 }
