@@ -169,8 +169,13 @@ Stessa filosofia ("annullati = info storica, non operativa") ma diversa implemen
 
 | Data | Bug | Riproduzione | Severity | Branch fix |
 |------|-----|--------------|----------|------------|
-| | | | | |
-| | | | | |
+| 2026-05-14 | Payload form intervento includeva ancora `report_id` (colonna droppata in mig 055 N→M) | Click "Salva modifiche" da SidePanel reschedule → errore PostgREST `Could not find the 'report_id' column of 'interventions' in the schema cache` | medio (blocca reschedule) | `feat/chat-intervention-notification` commit `ca61723` |
+| 2026-05-14 | `comments_kind_check` non includeva `system_intervention_planned`/`system_intervention_rescheduled` | Reschedule intervento → INSERT comment in chat fallisce con CHECK violation → swallow silente (`console.warn` non visibile in UI) → operatore non vede mai il messaggio 📅 in chat | medio (bug silente, scoperto solo aprendo console browser) | `feat/chat-intervention-notification` mig 056 (`34f6f93`) + error handling visibile (`2152b2d`) |
+
+### Lezioni apprese dai 2 bug
+
+1. **`report_id` residuo**: quando si droppa una colonna in migration, fare grep di tutti i payload UI/client che la referenziavano. Lo Sprint 1c ha sistemato il path `createIntervention*` ma ha lasciato il path `updateIntervention` rotto perché il form costruiva ancora `payload.report_id`. Aggiunto in `updateIntervention` un destructure difensivo che dropp `report_id` se passato erroneamente (commit `ca61723`).
+2. **CHECK constraint silente**: il pattern `try { ... } catch console.warn` è ok per il DB layer (best-effort, non bloccare operazione principale), ma per fallimenti DOWNSTREAM dell'operazione utente (es. comment in chat NON apparso) serve **visibilità in UI**. Fix in commit `2152b2d`: `postSystemComment` ora usa `console.error` (rosso, va su error tracking) + `toast.error` (visibile all'admin), mantenendo no-throw.
 
 ---
 
@@ -210,6 +215,52 @@ Pre-osservazione, il piano è:
 |------|---------|-----------------------------|-----------------|
 | | | | |
 | | | | |
+
+---
+
+## Smoke test esteso — pattern obbligatorio per form intervento
+
+I 2 bug del 14/05 sono sfuggiti perché lo smoke test si era fermato a "Crea intervento + verifica DB". Manca il path **reschedule** + verifica **conseguenze derivate** (comment in chat, notifiche, ecc.). Da ora in poi, ogni feature che tocca form intervento DEVE includere:
+
+### Check-list smoke test form intervento
+
+1. **Creazione da report**
+   - Apri report → "+ Pianifica intervento"
+   - Compila campi → Submit
+   - ✅ Intervento creato in DB
+   - ✅ Comment `🔧 Intervento pianificato per ...` appare in chat report (autore Sistema)
+
+2. **Creazione da calendario con link N→M**
+   - Calendario → cella vuota → "+ Nuovo intervento per X"
+   - Aggiungi 2+ report tramite picker
+   - Submit
+   - ✅ Intervento creato in DB con N link
+   - ✅ Comment `🔧` appare nelle chat di **tutti** i report `resolves_report=true`
+
+3. **Reschedule (path frequentemente saltato dagli smoke test)**
+   - Detail intervento → "Riprogramma" → cambia data → Salva modifiche
+   - ✅ Nessun errore PostgREST in UI
+   - ✅ `scheduled_start_at` aggiornato in DB
+   - ✅ Comment `📅 Data intervento aggiornata: X → Y` appare in chat report (autore Sistema)
+   - ✅ Console browser pulita (no warning silenti tipo `comments_kind_check`)
+
+4. **Completamento + auto-close (trigger PG)**
+   - Detail → "Completa intervento"
+   - ✅ Report con `resolves_report=true` passano a `risolta`
+   - ✅ Activity log `auto_closed_by_intervention` (user Sistema) per ogni report chiuso
+
+5. **Link "di contesto" — NO side effects**
+   - Crea intervento con 1 link risolutivo + 1 contesto (`resolves_report=false`)
+   - Completa intervento
+   - ✅ Solo il report risolutivo viene chiuso
+   - ✅ Nessun comment 🔧 nel report di contesto
+
+### Regola per future feature
+
+Prima di chiudere uno smoke test su feature che modifica `intervention.*`:
+- Verifica TUTTI i path (create, update, reschedule, complete, cancel) NON solo create
+- Verifica conseguenze DOWNSTREAM (comments, activities, notifications, trigger DB) NON solo l'oggetto principale
+- Apri sempre la **console browser** durante il test: catch i bug silenti tipo CHECK violation
 
 ---
 
