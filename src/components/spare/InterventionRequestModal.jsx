@@ -61,7 +61,7 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
         ? linkedReports
         : [{ report_id: report.id, is_origin: true, resolves_report: true }]
 
-      const intervention = await db.createInterventionWithReports({
+      await db.createInterventionWithReports({
         ...payload,
         origin: 'report',
         machine_id: payload.machine_id ?? report.machine_id ?? null,
@@ -70,28 +70,14 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
         created_by_name: user.name,
       }, links)
 
-      // Comment di tracking nella chat del report.
-      const titleStr = payload.title
-      const specialty = formContext?.specialty || null
-      const urgency = formContext?.urgency || null
-      const commentText = `🛠️ Intervento pianificato: ${titleStr}${specialty ? ` · ${specialty}` : ''}${urgency ? ` — urgenza: ${urgency}` : ''}`
-      await db.addComment(report.id, {
-        text: commentText,
-        user_id: user.id,
-        user_name: user.name,
-        user_role: user.role,
-        kind: 'spare_request',
-        extra_data: {
-          intervention_id: intervention?.id || null,
-          kind: 'intervento',
-          articolo: titleStr,
-          specialty,
-          urgenza: urgency,
-          note: payload.description || null,
-          scheduled_at: payload.scheduled_start_at,
-        },
-        media: payload.media?.length > 0 ? payload.media : null,
-      })
+      // Il comment "🔧 Intervento pianificato per DD/MM/YYYY — title — urgenza: X"
+      // in chat report è ora gestito automaticamente dal DB layer
+      // (db.createInterventionWithReports → postPlannedCommentToResolvingLinks).
+      // Niente db.addComment qui: il messaggio dal DB layer copre TUTTI i path
+      // (modal report, SidePanel calendario, reschedule).
+      // formContext (urgency/specialty) resta argomento del callback per
+      // compatibilità con la firma del form (potrebbe servire ad altri usi).
+      void formContext
 
       toast.success('Intervento pianificato')
       haptic.success?.()
