@@ -9,6 +9,12 @@ const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
 
 // Costruisce la matrice settimane × giorni per il mese richiesto.
 // Lunedì come primo giorno della settimana (convenzione IT).
+//
+// Importante: la `key` di ogni cella usa getDate() LOCAL (non toISOString,
+// che ritornerebbe UTC e shifterebbe di 1 giorno per chi sta a est di UTC).
+// Le pillole degli interventi indicizzano per getDate() local: le due chiavi
+// DEVONO essere generate con la stessa convention, altrimenti gli interventi
+// finiscono sotto la cella sbagliata.
 function buildMonthMatrix(year, month) {
   const first = new Date(year, month, 1)
   const last = new Date(year, month + 1, 0)
@@ -19,10 +25,13 @@ function buildMonthMatrix(year, month) {
   for (let i = 0; i < totalCells; i++) {
     const dayOffset = i - startWeekday
     const date = new Date(year, month, 1 + dayOffset)
+    const yyyy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
     cells.push({
       date,
       inMonth: date.getMonth() === month,
-      key: date.toISOString().slice(0, 10),
+      key: `${yyyy}-${mm}-${dd}`,
     })
   }
   const weeks = []
