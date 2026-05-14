@@ -510,54 +510,49 @@ FROM (
 ) t;
 ```
 
-**Risultato query eseguita 2026-05-14** (org `1235103f-45e5-4fa5-a256-3ca5f39dcf1e`):
+**Prima esecuzione 2026-05-14 — org `1235103f-45e5-4fa5-a256-3ca5f39dcf1e`** (org "vera" dell'admin):
 
 | Metric | Valore |
 |---|---|
 | Interventi totali | **0** |
-| Interventi con N=0 link | 0 |
-| Interventi con N=1 link | 0 |
-| Interventi con N>1 link | 0 |
-| Max N osservato | 0 |
+| (tutti gli altri valori) | 0 |
+
+Inconcludente. Diagnostico → tutti i 7 interventi vivono con `org_id = 'default'` (stringa letterale, **non UUID**). Esattamente l'anti-pattern documentato in mig 055 commenti riga 35-41 e in **ADR-007**: il client `getMyOrgId()` sta ritornando `'default'` come fallback invece dell'UUID dell'org reale. Lo Sprint 1d è dedicato a chiudere questa tech debt. **Fuori scope Frizione #4** ma da segnalare in journal.
+
+**Seconda esecuzione 2026-05-14 — org `'default'`** (dove vivono davvero i record):
+
+| Metric | Valore |
+|---|---|
+| Interventi totali | **7** |
+| Interventi con N=0 link | 2 (29%) — "Nuovo intervento" diretto da calendario senza abbinamento report |
+| Interventi con N=1 link | **5 (71%)** — caso pulito per opt-A |
+| Interventi con N>1 link | **0** |
+| Max N osservato | **1** |
 | Interventi con N risolutivi > 1 | 0 |
-| Max risolutivi osservato | 0 |
+| Max risolutivi osservato | 1 |
 
-### ⚠️ Discrepanza con OBSERVATIONS_1C.md:81
+### Coerenza con OBSERVATIONS_1C.md:81
 
-`OBSERVATIONS_1C.md` snapshot del 2026-05-14 (deploy day) riporta: **5 interventi totali, 3 link totali, 3 con N=1, 0 con N>1**. La query di sanity check ritorna invece **0 in tutto**.
-
-Tre ipotesi:
-
-1. **Org_id sbagliato**: i 5 interventi vivono in un altro org_id. Probabile se la dashboard è connessa a un progetto multi-tenant e l'org `1235103f-…` non è quella dove sono state osservate le frizioni 1c.
-2. **Env sbagliato**: la dashboard è su staging mentre OBSERVATIONS si riferisce a prod (o viceversa).
-3. **Dati cancellati/spostati tra il momento dello snapshot e adesso**: improbabile nello stesso giorno senza azione esplicita.
-
-**Diagnostico veloce** (incolla sul SQL Editor per scoprire dove vivono i 5 interventi):
-
-```sql
-SELECT
-  org_id,
-  COUNT(*)                                  AS n_interventi,
-  MAX(created_at)                           AS ultimo_creato,
-  COUNT(DISTINCT created_by_name)           AS n_creatori
-FROM public.interventions
-GROUP BY org_id
-ORDER BY n_interventi DESC;
-```
-
-Se ritorna 1+ riga, il `org_id` con interventi è quello da usare (sostituire in tutte le query). Se ritorna 0 righe, **i 5 interventi di OBSERVATIONS_1C.md non sono in questo progetto** — è probabile che lo snapshot fosse riferito a staging o demo locale.
+Lo snapshot del 14/5 in `OBSERVATIONS_1C.md:81` riportava 5 interventi totali / 3 link / 3 N=1 / 0 N>1. La query corrente ritorna 7 interventi / 5 link / 5 N=1 / 0 N>1. **Coerente**: il delta `+2 interventi / +2 link N=1` corrisponde all'uso reale tra il momento dello snapshot e il momento della validazione (~6 ore di lavoro nello stesso giorno). N>1 è rimasto stabilmente zero.
 
 ### Conclusione di questa mini-validazione
 
 **Punti 1 e 2 chiusi**: schema N↔M pieno (non N:1), payload calendario oggi privo di info report, estensione a basso costo (~5-10 LOC).
 
-**Punto 3 eseguito ma sospetto**: i numeri ritornano tutti zero. Prima di trarre conclusioni serve risolvere la discrepanza con OBSERVATIONS via la query diagnostica sopra.
+**Punto 3 chiuso**: 7 interventi, 0 con N>1, max N osservato = 1, max risolutivi = 1.
 
-### Riga finale richiesta — verdetto onesto sotto due interpretazioni
+### Riga finale — verdetto sui dati reali
 
-- **Se la dashboard è davvero connessa all'org di produzione**: **N>1 non è significativo** (è zero su zero interventi). L'opzione A del BLOCKER #1 regge **per assenza di dati contrari**, ma la decisione è priva di valore predittivo finché non c'è uso reale. Da rivalutare al kick-off 1c-bis (17-18/5) — se anche allora N>1 = 0 con 5-10 interventi accumulati, opt-A è confermato. Se emergono N>1 frequenti, **pivot a opt-C** (smart: card → report se N=1, → detail se N>1).
+> **N>1 NON è significativo in produzione oggi.** Su 7 interventi reali, zero hanno più di 1 report linkato. L'**opzione A** del BLOCKER #1 (3° bottone "Apri report" condizionale a N=1, attivo nel 71% dei casi, hidden nel 29% N=0) **regge senza ambiguità**. Niente pivot necessario sulla simmetria.
 
-- **Se l'org_id `1235103f-…` non è quella reale**: la validazione è inconcludente. Eseguire la diagnostica sopra e rilanciare le 4 query con l'org_id corretto prima di prendere qualunque decisione di rotta.
+**Caveat per il kick-off 1c-bis (17-18/5)**:
+
+- 7 è un campione minuscolo. Il PTS multi-link (caso d'uso primario per cui mig 055 è stata fatta) **non è ancora stato esercitato** in produzione. Possibile che resti raro (l'admin non scopre subito la feature) oppure che emerga di colpo (un fornitore raggruppa 3-4 report in un giro). Rieseguire la query al kick-off è obbligatorio: se N>1 è ancora zero, opt-A confermato; se compare un 5-10% di N>1, valutare **pivot a opt-C** (card → report se N=1, → detail se N>1).
+- Indipendentemente dalla rotta scelta, il pannello detail dell'intervento (`InterventionDetailPanel`) resta il fallback per gestire N>1: l'opt-A non rimuove quel flow, lo affianca.
+
+### ⚠️ Anti-pattern `org_id='default'` osservato — fuori scope ma da segnalare
+
+Tutti i 7 interventi (e presumibilmente tutti i record creati post-mig 055 nel sistema osservato) hanno `org_id = 'default'` invece dell'UUID dell'org reale. Comportamento documentato in mig 055 righe 35-41 come anti-pattern noto: `getMyOrgId()` lato client deve ritornare l'UUID reale, qui sta tornando `'default'`. ADR-007 e Sprint 1d esistono per questo. **Non bloccare 1c-bis** ma loggare in journal per Sprint 1d.
 
 ---
 
