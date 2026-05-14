@@ -6,6 +6,10 @@ import { useHaptic } from '../../hooks/useHaptic'
 import { toDatetimeLocalString } from '../../lib/interventions'
 import InterventionForm from './InterventionForm'
 
+// Sprint 1c: in mode 'reschedule' carichiamo i link esistenti dal DB e li
+// passiamo al form come read-only. Le modifiche ai link si fanno nel
+// DetailPanel sezione "Segnalazioni associate" dopo il salvataggio.
+
 /**
  * InterventionRequestSidePanel — shell del form intervento per la SIDEBAR
  * DESTRA del calendario admin.
@@ -45,6 +49,7 @@ export default function InterventionRequestSidePanel({
   onUpdated,
 }) {
   const isReschedule = mode === 'reschedule' && existingIntervention
+  const [existingLinks, setExistingLinks] = useState([])
   const toast = useToast()
   const haptic = useHaptic()
   const [submitting, setSubmitting] = useState(false)
@@ -77,6 +82,23 @@ export default function InterventionRequestSidePanel({
     })
     return () => { alive = false }
   }, [machineIdForCounters])
+
+  // In reschedule mode, carica i link esistenti per mostrarli read-only nel form
+  useEffect(() => {
+    let alive = true
+    if (!isReschedule) return undefined
+    db.getReportsForIntervention(existingIntervention.id)
+      .then(reports => {
+        if (!alive) return
+        setExistingLinks((reports || []).map(r => ({
+          report_id: r.id,
+          is_origin: !!r.link_is_origin,
+          resolves_report: !!r.link_resolves_report,
+        })))
+      })
+      .catch(e => console.warn('[SidePanel] existing links load:', e?.message))
+    return () => { alive = false }
+  }, [isReschedule, existingIntervention?.id])
 
   // Costruisce i defaults del form a partire da existingIntervention /
   // prefillDate / baseIntervention.
@@ -168,11 +190,13 @@ export default function InterventionRequestSidePanel({
     return 'Nuovo intervento'
   })()
 
-  const handleSubmit = async (payload) => {
+  const handleSubmit = async (payload, _formContext, linkedReports) => {
     if (submitting) return
     setSubmitting(true)
     try {
       if (isReschedule) {
+        // Reschedule: aggiorniamo solo i campi base, NON tocchiamo i link
+        // (gestiti dal DetailPanel sezione "Segnalazioni associate")
         await db.updateIntervention(existingIntervention.id, {
           ...payload,
           updated_by_user_id: user.id,
@@ -182,11 +206,12 @@ export default function InterventionRequestSidePanel({
         haptic.success?.()
         onUpdated?.(existingIntervention.id)
       } else {
-        const intervention = await db.createIntervention({
+        // Create: API principale Sprint 1c con link N→M
+        const intervention = await db.createInterventionWithReports({
           ...payload,
           created_by: user.id,
           created_by_name: user.name,
-        })
+        }, linkedReports || [])
         toast.success('Intervento creato')
         haptic.success?.()
         onCreated?.(intervention)
@@ -275,6 +300,8 @@ export default function InterventionRequestSidePanel({
           submitButtonLabel={isReschedule ? 'Salva modifiche' : 'Crea intervento'}
           onSubmit={handleSubmit}
           onCancel={onClose}
+          initialLinks={isReschedule ? existingLinks : []}
+          linksReadOnly={isReschedule}
         />
       </div>
     </div>

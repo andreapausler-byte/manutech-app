@@ -1,17 +1,59 @@
 // Pannello destro del calendario admin: dettaglio dell'intervento selezionato.
 // Carica via db.getIntervention(id), mostra info principali, azioni di stato.
+// Sprint 1c: include sezione "Segnalazioni associate (N)" via LinkedReportsSection.
 
-import { useEffect, useState } from 'react'
-import { X, Calendar, MapPin, User as UserIcon, Wrench, FileText, ExternalLink, Play, Check, AlertOctagon, CalendarClock, Link2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { X, Calendar, MapPin, User as UserIcon, Wrench, FileText, Play, Check, AlertOctagon, CalendarClock, Link2 } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { formatScheduledShort, getDurationMinutes } from '../../lib/interventions'
 import { useInterventionMutations } from '../../hooks/useInterventionMutations'
+import { useInterventionReports } from '../../hooks/useInterventionReports'
 import InterventionBadge from './InterventionBadge'
+import LinkedReportsSection from './LinkedReportsSection'
 
-export default function InterventionDetailPanel({ interventionId, onClose, onOpenReport, onReschedule, onMatch }) {
+// Nota Sprint 1c: il prop `onOpenReport` (Sprint 1a/1b) NON è più consumato
+// internamente: la sezione "Segnalazioni associate" mostra già i link via
+// LinkedReportsSection. I caller possono continuare a passarlo: viene
+// ignorato (React non protesta sui props extra). Futura UX potrà aggiungere
+// un "Apri →" sulle card della section.
+export default function InterventionDetailPanel({ interventionId, onClose, onReschedule, onMatch }) {
   const [intervention, setIntervention] = useState(null)
   const [loading, setLoading] = useState(true)
   const mutations = useInterventionMutations()
+  const linksHook = useInterventionReports(interventionId)
+
+  // Mappa reports del hook nel formato {report_id, is_origin, resolves_report}
+  // richiesto da LinkedReportsSection.
+  const linksValue = useMemo(() => (linksHook.reports || []).map(r => ({
+    report_id: r.id,
+    is_origin: !!r.link_is_origin,
+    resolves_report: !!r.link_resolves_report,
+  })), [linksHook.reports])
+
+  // Diff handler: confronta nuova lista con vecchia, fa add/remove/toggle.
+  const handleLinksChange = async (newValue) => {
+    const oldMap = new Map(linksValue.map(l => [l.report_id, l]))
+    const newMap = new Map(newValue.map(l => [l.report_id, l]))
+    // Add e toggle
+    for (const link of newValue) {
+      const old = oldMap.get(link.report_id)
+      if (!old) {
+        await linksHook.addLink({
+          reportId: link.report_id,
+          isOrigin: !!link.is_origin,
+          resolvesReport: !!link.resolves_report,
+        })
+      } else if (old.resolves_report !== link.resolves_report) {
+        await linksHook.toggleResolves(link.report_id, link.resolves_report)
+      }
+    }
+    // Remove
+    for (const old of linksValue) {
+      if (!newMap.has(old.report_id) && !old.is_origin) {
+        await linksHook.removeLink(old.report_id)
+      }
+    }
+  }
 
   useEffect(() => {
     let alive = true
@@ -147,23 +189,17 @@ export default function InterventionDetailPanel({ interventionId, onClose, onOpe
           </div>
         )}
 
-        {intervention.report_id && (
-          <button
-            onClick={() => onOpenReport?.(intervention.report_id)}
-            className="press-scale"
-            style={{
-              marginTop: 14, padding: '10px 12px',
-              background: 'var(--color-surface-2)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 10, cursor: 'pointer',
-              color: 'var(--color-text)',
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              fontSize: 13, fontWeight: 600,
-            }}
-          >
-            <ExternalLink size={14} /> Apri segnalazione di origine
-          </button>
-        )}
+        {/* Sprint 1c: sezione "Segnalazioni associate" — UI uniforme N=0/1/N>1.
+            La gestione (add/remove/toggle resolves_report) avviene via hook
+            useInterventionReports + diff in handleLinksChange. */}
+        <div style={{ marginTop: 16 }}>
+          <LinkedReportsSection
+            value={linksValue}
+            onChange={handleLinksChange}
+            currentMachineId={intervention.machine_id}
+            currentInterventionId={intervention.id}
+          />
+        </div>
 
         {/* Azioni */}
         <div style={{

@@ -14,6 +14,7 @@ import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import UserPicker from './UserPicker'
+import LinkedReportsSection from './LinkedReportsSection'
 
 /**
  * InterventionForm — form puro per creazione/edit intervento.
@@ -43,6 +44,11 @@ export default function InterventionForm({
   submitButtonLabel = 'Pianifica intervento',
   onSubmit,
   onCancel,
+  // Sprint 1c: link report ↔ intervento (N→M).
+  // initialLinks: [{ report_id, is_origin?, resolves_report? }]
+  // linksReadOnly: se true, mostra i link in sola lettura (no picker)
+  initialLinks = [],
+  linksReadOnly = false,
 }) {
   const toast = useToast()
   const haptic = useHaptic()
@@ -127,6 +133,21 @@ export default function InterventionForm({
     setSupervisedById(id)
     setSupervisedByName(name)
   }
+
+  // ── Linked reports (Sprint 1c) ───────────────────────────────────────
+  // Stato locale dei link gestiti dal form. Se initialLinks contiene un
+  // record dal context.report (es. modal da ReportDetail), lo include come
+  // is_origin=true. Il primo link aggiunto via picker (se mancante origin)
+  // diventa is_origin=true al submit (logica delegata a createInterventionWithReports).
+  const [linkedReports, setLinkedReports] = useState(() => {
+    // Se c'è un context.report (origin='report') e non passato in initialLinks
+    // → seed con un link is_origin=true
+    if (initialLinks?.length > 0) return initialLinks
+    if (context.report?.id) {
+      return [{ report_id: context.report.id, is_origin: true, resolves_report: true }]
+    }
+    return []
+  })
 
   // ── Validazione ──────────────────────────────────────────────────────
   const endError = useMemo(() => {
@@ -233,7 +254,7 @@ export default function InterventionForm({
       },
     }
 
-    onSubmit?.(payload, { urgency, specialty })
+    onSubmit?.(payload, { urgency, specialty }, linkedReports)
   }
 
   return (
@@ -271,6 +292,17 @@ export default function InterventionForm({
             )
           })}
         </div>
+
+        {/* Segnalazioni coperte (Sprint 1c): link N→M intervento ↔ reports.
+            Inizializzato da context.report (modal da ReportDetail) o vuoto
+            (form da calendario manuale). */}
+        <LinkedReportsSection
+          value={linkedReports}
+          onChange={setLinkedReports}
+          currentMachineId={defaults.machine_id ?? context.report?.machine_id ?? null}
+          currentInterventionId={defaults.interventionId || null}
+          readOnly={linksReadOnly}
+        />
 
         {/* Foto della segnalazione — snapshot read-only (sezione visibile solo se ci sono) */}
         {reportPhotos.length > 0 && (
