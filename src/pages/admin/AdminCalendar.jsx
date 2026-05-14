@@ -17,8 +17,8 @@
 // Sprint 1a: solo vista Mese funzionante. Settimana/Giorno/Agenda/Risorse
 // sono UI placeholders che mostrano toast "Disponibile prossimamente".
 
-import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Users as UsersIcon } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, Plus, Users as UsersIcon, EyeOff, Eye } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useInterventionsCalendar } from '../../hooks/useInterventionsCalendar'
@@ -47,6 +47,17 @@ export default function AdminCalendar({ onNavigate }) {
   const [currentMonth, setCurrentMonth] = useState(() => new Date())
   const [sidebar, setSidebar] = useState({ mode: 'hidden' })
   const [view, setView] = useState('mese')
+  // Hotfix calendar #2: nascondi annullati dalla griglia mese di default.
+  // Toggle in toolbar "Mostra annullati". Preferenza persistita in
+  // localStorage (per utente, non per org).
+  const [showCancelled, setShowCancelled] = useState(() => {
+    try { return localStorage.getItem('manutech_calendar_show_cancelled') === 'true' }
+    catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('manutech_calendar_show_cancelled', String(showCancelled)) }
+    catch { /* localStorage non disponibile (Safari private mode etc.): swallow */ }
+  }, [showCancelled])
 
   const { rangeStart, rangeEnd } = useMemo(() => {
     const y = currentMonth.getFullYear()
@@ -63,6 +74,20 @@ export default function AdminCalendar({ onNavigate }) {
     scope: 'all',
     currentUserId: user?.id,
   })
+
+  // Hotfix calendar #2: filtro griglia mese. Toggle "Mostra annullati" OFF
+  // (default) → escludi pillole con status='annullato'. Lo storico annullati
+  // resta accessibile via DayContextPanel (cliccando giorno) + via activity
+  // log del report. Il filtro NON si applica a DayContextPanel/Detail che
+  // sono accessi espliciti.
+  const visibleInterventions = useMemo(() => {
+    if (showCancelled) return interventions
+    return (interventions || []).filter(i => i.status !== 'annullato')
+  }, [interventions, showCancelled])
+  const hiddenCancelledCount = useMemo(() => {
+    if (showCancelled) return 0
+    return (interventions || []).filter(i => i.status === 'annullato').length
+  }, [interventions, showCancelled])
 
   // ── Navigazione mese ──
   const goPrev = () => setCurrentMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
@@ -194,6 +219,36 @@ export default function AdminCalendar({ onNavigate }) {
 
         <div style={{ flex: 1 }} />
 
+        {/* Toggle "Mostra annullati" (hotfix calendar #2). OFF default,
+            persistito in localStorage. Mostra anche un piccolo badge col
+            numero degli annullati nascosti, così l'admin sa che esistono. */}
+        <button onClick={() => setShowCancelled(v => !v)} className="press-scale"
+          title={showCancelled
+            ? 'Click per nascondere gli interventi annullati dalla griglia mese'
+            : 'Click per mostrare gli interventi annullati nella griglia mese'}
+          style={{
+            padding: '7px 12px', borderRadius: 8,
+            background: showCancelled ? 'rgba(245,158,11,0.15)' : 'var(--color-surface-2)',
+            border: `1px solid ${showCancelled ? 'rgba(245,158,11,0.40)' : 'var(--color-border)'}`,
+            color: showCancelled ? '#f59e0b' : 'var(--color-text-secondary)',
+            fontSize: 12, fontWeight: 700,
+            cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}>
+          {showCancelled ? <Eye size={14} /> : <EyeOff size={14} />}
+          {showCancelled ? 'Mostra annullati' : 'Annullati nascosti'}
+          {!showCancelled && hiddenCancelledCount > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 800,
+              padding: '1px 5px', borderRadius: 999,
+              background: 'rgba(245,158,11,0.25)', color: '#f59e0b',
+              fontFamily: '"JetBrains Mono", monospace',
+            }}>
+              {hiddenCancelledCount}
+            </span>
+          )}
+        </button>
+
         <button onClick={togglePending} className="press-scale"
           style={{
             padding: '7px 12px', borderRadius: 8,
@@ -243,7 +298,7 @@ export default function AdminCalendar({ onNavigate }) {
           <CalendarMonthGrid
             year={currentMonth.getFullYear()}
             month={currentMonth.getMonth()}
-            interventions={loading ? [] : interventions}
+            interventions={loading ? [] : visibleInterventions}
             onInterventionClick={(intv) => openDetail(intv.id)}
             selectedInterventionId={highlightedInterventionId}
             onDayClick={(date) => openDay(date)}
