@@ -276,3 +276,68 @@ export function buildReportPhotoSnapshot(report) {
     source_report_id: report.id,
   }))
 }
+
+// ─── Formatter messaggi di sistema in chat segnalazione ────────────────
+// Usati dal DB layer (createInterventionWithReports / updateIntervention)
+// per postare automaticamente messaggi di sistema in chat ai report linkati
+// con resolves_report=true quando un intervento viene creato o riprogrammato.
+
+// Mapping urgenza UI → label display nel messaggio di chat.
+// Andrea: "urgente" come livello tecnico va mostrato come "emergenza".
+// Per severity 'critica' (fallback se manca extra_data.urgency) usiamo
+// "emergenza" per coerenza con il livello apicale.
+export const URGENCY_DISPLAY_MAP = {
+  bassa: 'bassa',
+  media: 'media',
+  alta: 'alta',
+  urgente: 'emergenza',
+  critica: 'emergenza',
+}
+
+function formatDateLong(iso) {
+  if (!iso) return '—'
+  const d = iso instanceof Date ? iso : new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${dd}/${mm}/${d.getFullYear()}`
+}
+
+// Formato compatto per il messaggio di reschedule: anno omesso se uguale
+// all'anno corrente, mostrato altrimenti. Default refYear = anno corrente
+// del client che renderizza il comment.
+function formatDateShort(iso, refYear = new Date().getFullYear()) {
+  if (!iso) return '—'
+  const d = iso instanceof Date ? iso : new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  if (d.getFullYear() === refYear) return `${dd}/${mm}`
+  return `${dd}/${mm}/${d.getFullYear()}`
+}
+
+// Risolve l'urgenza display da un intervento: priorità a extra_data.urgency
+// (campo UI raccolto al create), fallback a severity (modello dati).
+function resolveUrgencyDisplay(intervention) {
+  const raw = intervention?.extra_data?.urgency || intervention?.severity || 'media'
+  return URGENCY_DISPLAY_MAP[raw] || raw
+}
+
+// Messaggio chat "creazione intervento pianificato".
+// Format: 🔧 Intervento pianificato per DD/MM/YYYY — title — urgenza: X
+export function formatPlannedComment(intervention) {
+  const dateStr = formatDateLong(intervention?.scheduled_start_at)
+  const title = (intervention?.title || 'intervento').trim()
+  const urgency = resolveUrgencyDisplay(intervention)
+  return `🔧 Intervento pianificato per ${dateStr} — ${title} — urgenza: ${urgency}`
+}
+
+// Messaggio chat "riprogrammazione data intervento".
+// Format: 📅 Data intervento aggiornata: DD/MM → DD/MM (anno omesso se = ref).
+// Se before è null (transizione bozza→pianificato) usa formatPlannedComment
+// invece — questa funzione assume entrambe le date valorizzate.
+export function formatRescheduledComment(beforeISO, afterISO) {
+  const before = formatDateShort(beforeISO)
+  const after = formatDateShort(afterISO)
+  return `📅 Data intervento aggiornata: ${before} → ${after}`
+}

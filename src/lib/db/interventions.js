@@ -1,5 +1,6 @@
 import { supabase, getMyOrgId } from './_client'
 import { KEYS, getStore, setStore } from './_demoStore'
+import { formatPlannedComment, formatRescheduledComment } from '../interventions'
 
 // ─── Helpers interni ───────────────────────────────────────────────────
 
@@ -73,6 +74,128 @@ function groupCountBy(rows, key) {
     map[k] = (map[k] || 0) + 1
   }
   return map
+}
+
+// Inserisce un comment "sistema" in chat report. Usato per i messaggi
+// automatici di pianificazione/reschedule intervento (feat chat-intervention-
+// notification). user_id=null + user_name='Sistema' coerente con activity
+// log auto-close (trigger PG). Best-effort: log warning su errore, no throw.
+async function postSystemComment({ reportId, text, kind, orgId, extraData }) {
+  if (!reportId || !text) return
+  if (supabase) {
+    const insertData = {
+      report_id: reportId,
+      text,
+      kind: kind || 'system_intervention',
+      user_id: null,
+      user_name: 'Sistema',
+      user_role: null,
+      org_id: orgId || (await getMyOrgId()),
+      extra_data: extraData || null,
+    }
+    const { error } = await supabase.from('comments').insert(insertData)
+    if (error) console.warn('[interventions] postSystemComment error:', error.message)
+    return
+  }
+  // Demo: scrivi inline in localStorage. Lo store di comments per ManuTech
+  // è "manutech_comments" come usato da addSparePartOrderComment.
+  const list = getStore('manutech_comments')
+  list.push({
+    id: `cmt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    report_id: reportId,
+    text,
+    kind: kind || 'system_intervention',
+    user_id: null,
+    user_name: 'Sistema',
+    user_role: null,
+    org_id: orgId || 'demo-org',
+    extra_data: extraData || null,
+    created_at: new Date().toISOString(),
+  })
+  setStore('manutech_comments', list)
+}
+
+// Posta il messaggio "🔧 Intervento pianificato per ..." nelle chat dei
+// report linkati con resolves_report=true. Iteration su `links` se passato
+// (caso createInterventionWithReports), altrimenti fa fetch via
+// getReportsForIntervention (caso updateIntervention).
+async function postPlannedCommentToResolvingLinks(intervention, linksOverride) {
+  if (!intervention || !intervention.scheduled_start_at) return
+  let resolvingReportIds = []
+  if (linksOverride) {
+    resolvingReportIds = linksOverride
+      .filter(l => l.resolves_report)
+      .map(l => l.report_id)
+  } else {
+    // Fetch via Supabase + demo gestiti dal pattern existing
+    try {
+      const reports = supabase
+        ? await fetchLinkedReportsBasic(intervention.id, true)
+        : getStore(KEYS.interventionReports)
+            .filter(l => l.intervention_id === intervention.id && l.resolves_report)
+            .map(l => ({ report_id: l.report_id }))
+      resolvingReportIds = (reports || []).map(r => r.report_id).filter(Boolean)
+    } catch (e) {
+      console.warn('[interventions] postPlannedCommentToResolvingLinks fetch failed:', e?.message)
+      return
+    }
+  }
+  if (resolvingReportIds.length === 0) return
+  const text = formatPlannedComment(intervention)
+  const orgId = intervention.org_id
+  for (const reportId of resolvingReportIds) {
+    await postSystemComment({
+      reportId,
+      text,
+      kind: 'system_intervention_planned',
+      orgId,
+      extraData: { intervention_id: intervention.id },
+    })
+  }
+}
+
+// Posta il messaggio "📅 Data intervento aggiornata: X → Y" nelle chat dei
+// report linkati con resolves_report=true. Chiamato da updateIntervention
+// quando scheduled_start_at cambia tra before e after (entrambi valorizzati).
+async function postRescheduledCommentToResolvingLinks(intervention, beforeISO, afterISO) {
+  if (!intervention || !beforeISO || !afterISO) return
+  let resolvingReportIds = []
+  try {
+    const reports = supabase
+      ? await fetchLinkedReportsBasic(intervention.id, true)
+      : getStore(KEYS.interventionReports)
+          .filter(l => l.intervention_id === intervention.id && l.resolves_report)
+          .map(l => ({ report_id: l.report_id }))
+    resolvingReportIds = (reports || []).map(r => r.report_id).filter(Boolean)
+  } catch (e) {
+    console.warn('[interventions] postRescheduledCommentToResolvingLinks fetch failed:', e?.message)
+    return
+  }
+  if (resolvingReportIds.length === 0) return
+  const text = formatRescheduledComment(beforeISO, afterISO)
+  const orgId = intervention.org_id
+  for (const reportId of resolvingReportIds) {
+    await postSystemComment({
+      reportId,
+      text,
+      kind: 'system_intervention_rescheduled',
+      orgId,
+      extraData: { intervention_id: intervention.id, from: beforeISO, to: afterISO },
+    })
+  }
+}
+
+// Fetch leggero dei link risolutivi (solo report_id), per evitare il JOIN
+// pesante di getReportsForIntervention quando ci servono solo gli ID.
+async function fetchLinkedReportsBasic(interventionId, resolvesOnly) {
+  let query = supabase
+    .from('intervention_reports')
+    .select('report_id')
+    .eq('intervention_id', interventionId)
+  if (resolvesOnly) query = query.eq('resolves_report', true)
+  const { data, error } = await query
+  if (error) throw error
+  return data || []
 }
 
 // Costruisce il payload INSERT per la tabella interventions a partire dai
@@ -563,6 +686,13 @@ export const interventions = {
       })
     }
 
+    // 5. Messaggio di sistema in chat dei report linkati con resolves_report=true.
+    // Solo se l'intervento è davvero pianificato (scheduled_start_at presente).
+    // Best-effort: errori non bloccano la creazione (postSystemComment swallow).
+    if (inserted.scheduled_start_at) {
+      await postPlannedCommentToResolvingLinks(inserted, normalizedLinks)
+    }
+
     return inserted
   },
 
@@ -766,6 +896,21 @@ export const interventions = {
         user_name: updated_by_user_name || null,
         org_id: orgId,
       })
+    }
+
+    // Messaggio di sistema in chat per cambio scheduled_start_at.
+    // 3 sotto-casi:
+    //   - null → valorizzato: transizione bozza→pianificato (usa formatPlanned)
+    //   - valorizzato → valorizzato: reschedule normale (usa formatRescheduled)
+    //   - valorizzato → null: cancellazione data (NO comment, raro, no spec)
+    if (before.scheduled_start_at !== after.scheduled_start_at) {
+      if (!before.scheduled_start_at && after.scheduled_start_at) {
+        await postPlannedCommentToResolvingLinks(after)
+      } else if (before.scheduled_start_at && after.scheduled_start_at) {
+        await postRescheduledCommentToResolvingLinks(
+          after, before.scheduled_start_at, after.scheduled_start_at
+        )
+      }
     }
 
     return after
