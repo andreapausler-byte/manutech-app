@@ -262,6 +262,7 @@ export default function AdminCalendar({ onNavigate }) {
                 onClose={closeSidebar}
                 onOpenReport={handleOpenReport}
                 onReschedule={openReschedule}
+                onMatch={openCreateBase}
               />
             )}
             {sidebar.mode === 'pending' && (
