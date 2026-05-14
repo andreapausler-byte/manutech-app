@@ -2,12 +2,16 @@
 // fornitore, sezione "Interventi pianificati" nel report detail).
 //
 // Mostra: data/ora, titolo, assegnatario, macchinario, badge stato+tipo.
+//
+// Prop `dim`: rende la card de-enfatizzata (opacity 0.55 + line-through sul
+// titolo). Usato per interventi storici (annullati/completati) nel contesto
+// di liste investigative (DetailPanel report) — visibili ma subordinati.
 
 import { ChevronRight, User as UserIcon, Wrench } from 'lucide-react'
 import { formatScheduledShort, isOverdue } from '../../lib/interventions'
 import InterventionBadge from './InterventionBadge'
 
-export default function InterventionCard({ intervention, onClick, compact = false }) {
+export default function InterventionCard({ intervention, onClick, compact = false, dim = false }) {
   if (!intervention) return null
   const overdue = isOverdue(intervention)
 
@@ -22,13 +26,14 @@ export default function InterventionCard({ intervention, onClick, compact = fals
         width: '100%',
         padding,
         background: 'var(--color-surface-2)',
-        border: `1px solid ${overdue ? 'rgba(239,68,68,0.4)' : 'var(--color-border)'}`,
+        border: `1px solid ${overdue && !dim ? 'rgba(239,68,68,0.4)' : 'var(--color-border)'}`,
         borderRadius: 12,
         cursor: 'pointer',
         textAlign: 'left',
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
+        opacity: dim ? 0.55 : 1,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -37,6 +42,7 @@ export default function InterventionCard({ intervention, onClick, compact = fals
             fontSize: fontSizeTitle, fontWeight: 700, color: 'var(--color-text)',
             margin: 0,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            textDecoration: dim ? 'line-through' : 'none',
           }}>
             {intervention.title}
           </p>
@@ -81,7 +87,7 @@ export default function InterventionCard({ intervention, onClick, compact = fals
         )}
       </div>
 
-      {overdue && (
+      {overdue && !dim && (
         <p style={{
           fontSize: 10, color: '#ef4444', margin: 0,
           fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase',
