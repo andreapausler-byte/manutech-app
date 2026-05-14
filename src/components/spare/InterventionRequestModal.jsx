@@ -49,19 +49,26 @@ export default function InterventionRequestModal({ report, user, onClose, onAppl
     return () => { alive = false }
   }, [report?.machine_id])
 
-  const handleSubmit = async (payload, formContext) => {
+  const handleSubmit = async (payload, formContext, linkedReports) => {
     if (submitting) return
     setSubmitting(true)
     try {
-      const intervention = await db.createIntervention({
+      // Sprint 1c: createInterventionWithReports è la nuova API. Il form
+      // gestisce internamente i link (almeno il report di origine via
+      // context.report). Se per qualche ragione la lista è vuota, fallback
+      // a singolo link sul report di apertura modal.
+      const links = (linkedReports && linkedReports.length > 0)
+        ? linkedReports
+        : [{ report_id: report.id, is_origin: true, resolves_report: true }]
+
+      const intervention = await db.createInterventionWithReports({
         ...payload,
-        report_id: report.id,
         origin: 'report',
         machine_id: payload.machine_id ?? report.machine_id ?? null,
         machine_name: payload.machine_name ?? report.machine ?? null,
         created_by: user.id,
         created_by_name: user.name,
-      })
+      }, links)
 
       // Comment di tracking nella chat del report.
       const titleStr = payload.title
