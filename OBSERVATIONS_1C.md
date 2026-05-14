@@ -125,6 +125,26 @@ ORDER BY created_at DESC;
 
 **Risolto in hotfix**: nascosti di default + toggle "Mostra annullati" in toolbar (opzione B). Branch `hotfix/calendar-hide-cancelled-interventions`. Storico annullati resta accessibile via activity log del report e via toggle.
 
+### #3 — Lista "Interventi pianificati" nel DetailPanel report tratta annullati come attivi
+
+**Sintomo** (osservato nel DetailPanel del report con 1 annullato 11:30 + 1 pianificato 14:30):
+1. Header "Interventi pianificati · 2" falsa: conta anche annullati
+2. Ordinamento sbagliato: annullato 11:30 sopra al pianificato 14:30 (sort cronologico misto)
+3. Visual weight identico tra card annullata e card attiva
+
+**Filosofia distinta vs calendario** (frizione #2): qui il DetailPanel è strumento **investigativo**, non operativo. Storico annullato/completato è necessario per capire cos'è successo al ticket. Quindi NO nasconde, ma SUBORDINA.
+
+**Risolto in hotfix**: branch `hotfix/intervention-list-historic-styling`. File: `InterventionsForReport.jsx` + `InterventionCard.jsx`.
+1. Header: "**Interventi attivi · N**" con N = count interventi NOT IN ('annullato', 'completato'); badge secondario "(+M storici)" se M>0
+2. Sort: split tra `active` (sort per `scheduled_start_at` ASC) e `historic` (sort per `updated_at` DESC, più recenti prima)
+3. Card storiche: prop `dim` su `InterventionCard` → `opacity: 0.55` + `text-decoration: line-through` sul titolo + niente bordo rosso "in ritardo" + niente badge "⏰ In ritardo"
+4. Separator "─ Storico ─" tra i due gruppi se entrambi presenti; assente se solo uno dei due
+
+**Differenza chiave vs hotfix #2**:
+- Calendario admin: annullati **nascosti** di default (strumento operativo)
+- DetailPanel report: annullati **subordinati** sempre visibili (strumento investigativo)
+Stessa filosofia ("annullati = info storica, non operativa") ma diversa implementazione perché diverso contesto.
+
 ---
 
 ## Bug minori incontrati
