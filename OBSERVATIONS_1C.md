@@ -145,6 +145,22 @@ ORDER BY created_at DESC;
 - DetailPanel report: annullati **subordinati** sempre visibili (strumento investigativo)
 Stessa filosofia ("annullati = info storica, non operativa") ma diversa implementazione perché diverso contesto.
 
+### #4 — Card intervento nel DetailPanel report dovrebbe navigare al calendario
+
+**Sintomo**: la freccia destra sulle card "Interventi pianificati" del DetailPanel report non porta da nessuna parte (o comportamento poco chiaro). L'admin vede "Krones, 14/05 11:30" ma per andare al calendario su quella data deve uscire, andare ad admin/calendar, navigare al mese, trovare la cella.
+
+**Soluzione proposta per 1c-bis**: click card → naviga al calendario admin sul mese di `scheduled_start_at` + apre DayContextPanel sulla cella + evidenzia la pillola di quell'intervento.
+
+**Sotto-decisioni da chiudere al kick-off 1c-bis**:
+- Click target: tutta la card cliccabile + freccia visibile come "azione esplicita" (opzione Z)
+- Comportamento mobile/operatore: card NON cliccabile o porta a vista read-only (operatori non hanno accesso calendario admin)
+- Edge case card annullata: forza toggle calendar a ON al click, così la pillola annullata è visibile sulla cella di destinazione
+- Conferma: comportamento simmetrico va anche da intervento → report? (es. dal DayContextPanel calendar, click su pillola intervento, salta al report associato). Se sì coerenza UX globale.
+
+**Effort stimato**: ~80 LOC (handler navigazione + state condiviso calendar mese/data + scroll/highlight pillola). Niente DB change.
+
+**NON implementato in hotfix**. Solo documentazione. Va a 1c-bis insieme alle altre decisioni di UX-flow.
+
 ---
 
 ## Bug minori incontrati
