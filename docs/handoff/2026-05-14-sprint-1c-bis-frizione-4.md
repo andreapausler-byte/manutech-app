@@ -561,3 +561,27 @@ Tutti i 7 interventi (e presumibilmente tutti i record creati post-mig 055 nel s
 - Brief originale: nella history della conversazione del 14/5 su `claude/calendar-next-steps-KVIST`.
 - Sorgenti chiave: `src/pages/manutech-v6/V6App.jsx`, `src/pages/admin/AdminCalendar.jsx`, `src/components/interventions/InterventionsForReport.jsx`, `src/components/interventions/DayContextPanel.jsx`, `src/components/interventions/InterventionCard.jsx`, `src/contexts/AuthContext.jsx`.
 - Filosofia simmetria vs detail: `OBSERVATIONS_1C.md:148-162` (Frizione #4).
+
+---
+
+## Sanity check 15/5/2026
+
+**Scopo**: verificare che la produzione post-Sprint 1c (deploy 14/5) sia stabile prima del kick-off Sprint 1c-bis di lunedì 18/5. Eseguito come strategy day docs-only, **non come refactor del piano Frizione #4** che resta invariato.
+
+### Esito verifica
+
+| Check | Stato | Note |
+|---|---|---|
+| Stabilità produzione Vercel ultime 24h | **Non eseguito in sessione** | No accesso Vercel CLI/API dal container. Da verificare manualmente in `vercel.com/<project>/logs` filtrando severity error. Atteso: nessun nuovo errore post-deploy 14/5. |
+| Errori Supabase ultimi 24h | **Non eseguito in sessione** | No accesso Supabase Studio/logs dal container (solo chiave ANON via .env). Da verificare manualmente in dashboard Supabase. |
+| Distribuzione N reports linkati (Blocker #4) | **Query SQL pronta, non eseguita** | Vedi `docs/decisions/ADR-008-interventions-v2-data-model.md` § Pre-implementation audit — query #3. Eseguire nel SQL Editor Supabase contro org `1235103f-45e5-4fa5-a256-3ca5f39dcf1e`, riportare nella prossima sessione. |
+
+### Decisione
+
+Sprint 1c-bis (Frizione #4 calendar navigation) **confermato lunedì 18/5**, contenuto invariato dal brief di ieri. La discovery Interventi v2 (ADR-008) procede in **parallelo come docs-only**, non rallenta Frizione #4.
+
+### Riferimenti
+
+- `docs/decisions/ADR-008-interventions-v2-data-model.md` — nuovo ADR creato in questa sessione (15/5)
+- `CLAUDE.md` — Current focus aggiornato al 15/5
+- `ROADMAP.md` — entry "15 maggio 2026" in Decisioni di rotta + FASE 3 backlog Agenda mobile

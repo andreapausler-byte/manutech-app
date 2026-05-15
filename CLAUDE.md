@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: Fase 4 anticipata · RAG sui commenti — sub-sprint del 9/5 chiuso (pannello "Casi simili" live in ReportDetail + schema TK-id giorno giuliano + navigabilità lista). Migration applicate: 041 ✓, 049 ✓, 050 da confermare.
-- **Branch corrente**: `claude/initial-setup-nDLxm` (16 commit sopra merge #200)
-- **Prossimo step**: validare in produzione su 2-3 ticket reali di macchine diverse, poi decidere rotta — tornare a Fase 1 events / continuare navigabilità (raggruppamento, full-text) / iniziare deduplicazione ticket (L1+L2 rinviati). Vedi journal di sera 9/5 per dettaglio.
+- **Fase**: Strategy day 15/5 · Interventi v2 in discovery (ADR-008 Proposed) — schema delta proposto (execution_mode + intervention_participants), 5 open questions blocking da chiudere col manutentore prima di Sprint dedicato. Sprint 1c-bis (Frizione #4 calendar nav) parte lunedì 18/5, intoccato.
+- **Branch corrente**: `claude/update-intervention-model-SBsFM` (docs-only)
+- **Prossimo step**: lunedì 18/5 Sprint 1c-bis. In parallelo: confronto manutentore per chiudere open questions ADR-008 (#3 account fornitori e #1 approvazione prioritarie). Future ADR-009 (Agenda mobile) bloccato da ADR-008 in produzione.
 
 ---
 
