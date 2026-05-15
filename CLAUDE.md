@@ -99,6 +99,20 @@ src/
 - **Badge**: 16 achievement in 5 categorie — **Livelli**: Bronzo→Argento→Oro→Platino→Diamante
 - **ManuCoin**: wallet token interno con catalogo premi riscattabili (`useWallet`)
 
+## AI Strategy
+
+ManuTech evolve verso un layer AI trasversale (Sonnet per analisi, rielaborazione, tracciabilità), non come singola feature. Vision formalizzata in `docs/decisions/ADR-010-ai-strategy-vision.md`.
+
+**Sequencing 4 layer:**
+- L0 Fondamenta — in corso (ADR-007 org_id, ADR-008 Interventi v2, ADR-009 Agenda mobile)
+- L1 AI applicata — autunno 2026 (riassunti on-demand, classificazione automatica, voice creation)
+- L2 AI memoria operativa — Q4 2026 (RAG storico macchina, anomaly detection)
+- L3 AI commerciale — 2027 (post multi-tenant, insights cross-cliente)
+
+**Anti-pattern vincolante:** non implementare feature AI prima che Layer 0 sia stabile in produzione.
+
+**Use cases osservati** (15/5/2026 dal confronto manutentore): voice creation intervento, riassunto storico macchina, classificazione segnalazioni, anomaly detection, estrazione info da chat realtime.
+
 ## Errori da evitare
 1. **NON dimenticare demo mode** — ogni funzione DB nuova DEVE avere fallback localStorage
 2. **NON usare insert diretto** su tabelle RLS complesse — usa RPC `SECURITY DEFINER`
