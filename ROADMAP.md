@@ -60,6 +60,19 @@ Bussola di lungo periodo. Si aggiorna a fine fase o quando cambia la direzione, 
 
 ---
 
+## AI Strategy (cross-cutting layer)
+
+ManuTech evolve verso layer AI trasversale. Vision e sequencing in `docs/decisions/ADR-010-ai-strategy-vision.md`.
+
+- **Layer 0** Fondamenta — in corso (sprint 1d-2a)
+- **Layer 1** AI applicata — FASE 4 (autunno 2026): riassunti, classificazione, voice creation
+- **Layer 2** AI memoria operativa — FASE 4 evoluta (Q4 2026): RAG, anomaly detection
+- **Layer 3** AI commerciale — FASE 5+ (2027): cross-cliente insights
+
+Tutti gli ADR tecnici dei singoli Layer (ADR-011+) saranno sequenziati post completamento Layer 0.
+
+---
+
 ## Lezioni imparate
 
 Quando chiudi una fase, scrivi qui una riga su cosa hai imparato. Cresce nel tempo — è il pezzo più prezioso di questo file fra 12 mesi.
@@ -75,6 +88,7 @@ Quando cambi piano, scrivi qui perché. Niente di lungo, una frase basta.
 - **9 maggio 2026** — Fase 1 (events prima dello stato) rinviata. Anticipiamo un pezzo di Fase 4: RAG sui commenti dei report come "casi simili" all'apertura segnalazione. Razionale: il valore di Fase 1 è invisibile finché non si costruisce sopra; il valore della Fase 4 anticipata è visibile dal primo merge ed è ciò che mi motiva di più adesso. Costo accettato: quando torneremo su Fase 1 events, dovremo retrofittare il modello con feature AI già sopra. Non catastrofico ma reale.
 - **9 maggio 2026 (pomeriggio)** — Inserito sub-sprint non pianificato di **navigabilità lista mobile + schema TK-id parlante**. Emerso come bisogno operativo durante il test reale del pannello "Casi simili" (utente: "destreggiarsi tra le segnalazioni quando sono tante è arduo"). Razionale: il pannello AI funziona, ma se la lista non è navigabile l'AI non viene mai invocata. La navigabilità è prerequisito infrastrutturale per qualsiasi feature successiva — non un nice-to-have. Costo: spostata indietro la decisione su Fase 1 events vs continuazione Fase 4. Beneficio: schema TK-id e trigger updated_at sono fondazioni che non si rifaranno.
 - **15 maggio 2026** — Confronto col manutentore reale fa emergere 4 insight strutturali sul modello Interventi (origine varia, modalità operative, partecipanti multipli, visibilità=accountability). 3/4 già parzialmente coperti dallo schema attuale (ADR-006 mig 055 + supervised_by mig 054). Delta schema reale = nuova colonna `execution_mode` + nuova tabella `intervention_participants`. Conseguenza: Agenda tecnico mobile (entrava come "nice-to-have FASE 3 later") promossa a "early FASE 3" ma sequenziale dopo Interventi v2. Tracked in ADR-008 (proposed, 5 open questions blocking).
+- **15 maggio 2026 (sera)** — Formalizzata AI Strategy in ADR-010 (Vision). Confronto manutentore ha generato 5 use cases AI dal campo (voice creation, riassunto storico, classificazione automatica, anomaly detection, estrazione info da chat). Direzione: AI come layer trasversale, non singola feature. Sequencing 4 layer, dipendenze hard su ADR-007 + ADR-008 + FASE 1-3 in produzione.
 
 ---
 
