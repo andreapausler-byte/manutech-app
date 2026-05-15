@@ -41,6 +41,7 @@ Bussola di lungo periodo. Si aggiorna a fine fase o quando cambia la direzione, 
 **Stato**: later
 **Obiettivo**: MTBF per macchina × tipo intervento, stock minimi dinamici, score multifattoriale fornitori (specialty match, tempo medio risposta, accuratezza preventivo, tasso re-intervento). Tutto SQL, niente AI esotica.
 **Why**: l'admin smette di registrare e inizia a decidere con i fatti. È la fase più admin-first di tutta la roadmap.
+**Aggiunta backlog (15/5/2026)**: Agenda tecnico mobile (vista temporale lista, non calendario; tecnico priorità più alta di operatore). Sequenziale rispetto a Interventi v2 in produzione — vedi ADR-008 (schema) + futuro ADR-009 (UI agenda).
 
 ## Fase 4 · Knowledge che sopravvive
 
@@ -73,6 +74,7 @@ Quando cambi piano, scrivi qui perché. Niente di lungo, una frase basta.
 
 - **9 maggio 2026** — Fase 1 (events prima dello stato) rinviata. Anticipiamo un pezzo di Fase 4: RAG sui commenti dei report come "casi simili" all'apertura segnalazione. Razionale: il valore di Fase 1 è invisibile finché non si costruisce sopra; il valore della Fase 4 anticipata è visibile dal primo merge ed è ciò che mi motiva di più adesso. Costo accettato: quando torneremo su Fase 1 events, dovremo retrofittare il modello con feature AI già sopra. Non catastrofico ma reale.
 - **9 maggio 2026 (pomeriggio)** — Inserito sub-sprint non pianificato di **navigabilità lista mobile + schema TK-id parlante**. Emerso come bisogno operativo durante il test reale del pannello "Casi simili" (utente: "destreggiarsi tra le segnalazioni quando sono tante è arduo"). Razionale: il pannello AI funziona, ma se la lista non è navigabile l'AI non viene mai invocata. La navigabilità è prerequisito infrastrutturale per qualsiasi feature successiva — non un nice-to-have. Costo: spostata indietro la decisione su Fase 1 events vs continuazione Fase 4. Beneficio: schema TK-id e trigger updated_at sono fondazioni che non si rifaranno.
+- **15 maggio 2026** — Confronto col manutentore reale fa emergere 4 insight strutturali sul modello Interventi (origine varia, modalità operative, partecipanti multipli, visibilità=accountability). 3/4 già parzialmente coperti dallo schema attuale (ADR-006 mig 055 + supervised_by mig 054). Delta schema reale = nuova colonna `execution_mode` + nuova tabella `intervention_participants`. Conseguenza: Agenda tecnico mobile (entrava come "nice-to-have FASE 3 later") promossa a "early FASE 3" ma sequenziale dopo Interventi v2. Tracked in ADR-008 (proposed, 5 open questions blocking).
 
 ---
 
