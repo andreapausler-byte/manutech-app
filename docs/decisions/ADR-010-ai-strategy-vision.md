@@ -34,6 +34,26 @@ Se la risposta è no, la feature non va costruita — anche se è tecnicamente p
 
 **Questo principio prevale su qualsiasi altra considerazione tecnica o commerciale espressa in questo ADR.** In caso di conflitto tra "fattibilità tecnica" e "comfort operatore", vince sempre l'operatore.
 
+**Estensione del principio (16/5/2026): assunto sulla condizione dell'utente.**
+
+Quando la AI riceve input dall'operatore o dal tecnico — vocale, testuale, qualunque — deve assumere che chi lo sta usando è **stanco, agitato, di fretta**. Lavora in fabbrica, in piedi, sotto pressione, spesso al telefono mentre fa altro. Non parla come si scrive: parte dalla fine, si corregge a metà, omette il contesto ovvio per lui, usa diminutivi, salta passaggi logici.
+
+Questo significa che la AI **non deve mai**:
+
+- Chiedere "ripeti più chiaramente" o equivalenti
+- Restituire un fallimento totale ("non ho capito")
+- Costringere a riformulare in linguaggio strutturato
+- Richiedere conferma per ogni minimo dettaglio
+
+E **deve sempre**:
+
+- Fare il massimo sforzo di interpretazione anche su input caotico
+- In caso di ambiguità, restituire un'interpretazione **parziale chiara** evidenziando i punti incerti
+- Echeggiare in italiano normale ciò che ha capito, prima di scrivere su database
+- Permettere la correzione vocale ("no, non quello, l'altro") senza forzare il tap
+
+**Rationale:** una voice UX che non capisce un tecnico stanco non aiuta — umilia. Aggiunge frustrazione a frustrazione. È esattamente il contrario del principio fondante. Per questo "il parlato caotico" non è un edge case: è il **caso d'uso primario** in fabbrica reale.
+
 ---
 
 ## Context
@@ -97,9 +117,30 @@ Bottone "Genera riassunto" su macchina, segnalazione, o intervento. Sonnet estra
 Quando un operatore crea una segnalazione testuale via Quick Report, Sonnet suggerisce `type` (correttiva/preventiva/ispezione/migliorativa) e `severity` (bassa/media/alta/critica). L'operatore conferma o corregge con un tap. Riduce errori di classificazione e tempo di compilazione — l'operatore inserisce solo il problema, l'AI fa il lavoro di categorizzazione.
 *Stima:* 1 sprint.
 
-**L1.C Voice creation intervento mobile**
-Manutentore al telefono col fornitore dice *"crea intervento giovedì 21 maggio alle 14:00, elettricista Mario, quadro elettrico sala chimica"*. App crea stub intervento (data, fornitore, area, descrizione) da rifinire dopo da postazione admin. Riusa pipeline `useVoiceInput` + `useVoiceScheduler` esistente. Cattura l'intervento mentre il manutentore è ancora con le mani occupate al telefono. Sarà tracked in un futuro ADR dedicato.
-*Stima:* 2 sprint.
+**L1.C Voice-first interface per tecnico mobile**
+
+Modalità d'uso trasversale, non singola feature. Quattro pattern d'utilizzo sulla stessa pipeline tecnica (STT → Claude parsing → confirm UX → write Supabase):
+
+1. **Voice create** — crea intervento/segnalazione/nota da comando vocale (es. manutentore al telefono col fornitore: *"crea intervento giovedì alle 14 elettricista Mario quadro elettrico sala chimica"*)
+2. **Voice append** — aggiungi info a record esistente sfruttando contesto sessione (intervento aperto sullo schermo, ultima macchina toccata, ecc.)
+3. **Voice query** — chiedi informazioni in linguaggio naturale (*"leggimi le ultime note su questa macchina"*)
+4. **Voice command** — azioni rapide (*"inizia intervento", "completa", "marca come urgente"*)
+
+**Architettura proposta:**
+- STT: probabilmente Whisper API (qualità su parlato caotico > Web Speech API; decisione finale data-driven dopo testing in fabbrica)
+- Parsing: Claude Haiku (più veloce e più economico di Sonnet, sufficiente per intent extraction)
+- Edge Function Supabase per protezione chiave API
+- **Contesto sessione persistente** passato a ogni request Claude (intervento aperto, macchina recente, conversazioni recenti, fornitori abituali, pattern temporale)
+- Echo dell'interpretazione in italiano normale prima di scrivere su DB (toast con ambiguità evidenziate)
+- Correzione vocale ammessa ("no, l'altro") come secondo turno
+
+**Pre-requisiti vincolanti per il lancio:**
+- Layer 0 completo in produzione (ADR-007, ADR-008, ADR-009)
+- Dataset di 50-100 registrazioni vocali reali raccolte da tecnici/manutentori in fabbrica
+- Test set: 17/20 comandi correttamente interpretati (vedi anti-pattern #9)
+- ADR tecnico dedicato (probabile ADR-011 quando arriverà il momento)
+
+**Stima:** 2-3 sprint (10-15 giorni), più del Layer 1.C originale che era solo "create". Valore strategico molto più alto: differenziante competitivo silenzioso, nessun competitor SaaS ha voice progettata per parlato di fabbrica reale.
 
 ### Layer 2 — AI memoria operativa (FASE 4 evoluta, Q4 2026)
 
@@ -133,6 +174,7 @@ Posizionamento del cliente nel proprio segmento. Genera valore enterprise vero, 
 6. **Confidence threshold sempre dichiarato esplicitamente** per voice e classificazione. Pattern esistente `useVoiceScheduler` ha threshold 0.6 per rumore di fabbrica — replicare per ogni feature con uncertainty.
 7. **Privacy by design.** Chat realtime contiene dati personali (nomi, messaggi). Prompt Sonnet che attraversano Edge Function vanno valutati per anonimizzazione pre-invio quando il caso d'uso lo richiede. Open question dedicata sotto.
 8. **Mai costruire feature AI per impressionare** chi non userà mai il prodotto in fabbrica (founder, investor, demo audience). Il test "rende più facile la vita di operatore/tecnico?" è vincolante. Se fallisce, la feature non si fa — anche se è tecnicamente attraente o commercialmente vendibile.
+9. **Mai progettare voice UX assumendo parlato chiaro o ordinato.** Il caso d'uso primario è un tecnico stanco/agitato/di fretta che parla in modo caotico (vedi estensione del principio fondante 16/5). **Test obbligatorio prima del lancio di qualsiasi feature voice:** raccolta di 50-100 registrazioni vocali reali di tecnici/manutentori in fabbrica (in condizioni reali: rumore, stanchezza, fretta, posizione scomoda), uso come dataset di test per il prompt Claude. **Criterio di lancio:** se il sistema non interpreta correttamente almeno 17 comandi su 20 del test set, la feature **non si lancia**. Si torna a iterare sul prompt, sull'STT, sul contesto sessione, finché la soglia non è raggiunta.
 
 ---
 
