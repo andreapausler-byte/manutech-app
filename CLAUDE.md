@@ -108,6 +108,22 @@ src/
 6. **NON scrivere inglese nell'UI** — tutto italiano
 7. **Build DEVE passare** prima di ogni push
 
+## AI Strategy
+
+ManuTech evolve verso un layer AI trasversale (Sonnet per analisi, rielaborazione, tracciabilità), non come singola feature. Vision formalizzata in `docs/decisions/ADR-010-ai-strategy-vision.md`.
+
+**Principio fondante (vincolante):** l'AI esiste per tutelare e aiutare in primis l'operatore e il tecnico. Test obbligatorio per ogni feature: *"rende più facile/sicura/comoda la giornata di operatore o tecnico?"*. Se no, non si fa.
+
+**Sequencing 4 layer:**
+- L0 Fondamenta — in corso (ADR-007 org_id, ADR-008 Interventi v2, ADR-009 Agenda mobile)
+- L1 AI applicata — autunno 2026 (riassunti on-demand, classificazione automatica, voice creation)
+- L2 AI memoria operativa — Q4 2026 (RAG storico macchina, anomaly detection)
+- L3 AI commerciale — 2027 (post multi-tenant, insights cross-cliente — subordinato a L1/L2)
+
+**Anti-pattern vincolanti:** (1) mai implementare feature AI prima che Layer 0 sia stabile in produzione; (2) mai costruire feature AI per impressionare chi non userà mai il prodotto in fabbrica.
+
+**Use cases osservati** (15/5/2026 dal confronto manutentore): voice creation intervento, riassunto storico macchina, classificazione segnalazioni, anomaly detection, estrazione info da chat realtime. Tutti con beneficiario operativo esplicito.
+
 ## Debito tecnico
 - Query N+1 in AdminDashboard e AdminMaintenance
 - Componenti grandi (600+ LOC): AdminMachines, AdminReports, AdminDashboard
