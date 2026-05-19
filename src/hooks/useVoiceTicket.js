@@ -89,7 +89,7 @@ export function useVoiceTicket(machines = []) {
     }).catch(e => console.warn('[voice] addActivity failed:', e?.message))
 
     db.addNotification({
-      type: 'new_report',
+      type: payload.severity === 'critica' ? 'new_report_critical' : 'new_report',
       title: `Nuovo ticket vocale: ${payload.title}`,
       body: `${user.name}${payload.machine ? ` — ${payload.machine}` : ''}`,
       report_id: created.id,

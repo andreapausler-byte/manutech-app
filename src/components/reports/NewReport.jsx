@@ -102,7 +102,11 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
         detail: form.machine ? `Macchinario: ${form.machine}` : null,
       }).catch(e => console.warn('Side effect failed:', e.message))
       db.addNotification({
-        type: 'new_report', title: `${formatTicketId(created)} · ${form.title.trim()}`,
+        // Critica boost: type dedicato così l'edge function send-push può
+        // distinguere e applicare ROLE_DEFAULTS specifico (admin = sempre on
+        // per critica, opzionale per gli altri new_report).
+        type: form.severity === 'critica' ? 'new_report_critical' : 'new_report',
+        title: `${formatTicketId(created)} · ${form.title.trim()}`,
         body: `${user.name} ha creato una segnalazione ${form.severity}`,
         report_id: created.id, from_user: user.id, target_user: null,
       }).catch(e => console.warn('Side effect failed:', e.message))
