@@ -237,7 +237,7 @@ export default function AdminReports({ initialReportId }) {
     })
     if (created?.id) {
       db.addNotification({
-        type: 'new_report',
+        type: form.severity === 'critica' ? 'new_report_critical' : 'new_report',
         title: `${formatTicketId(created)} · ${form.title.trim()}`,
         body: `${user?.name || 'Admin'} ha creato una segnalazione ${form.severity}`,
         report_id: created.id,

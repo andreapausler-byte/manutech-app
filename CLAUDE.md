@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: Sprint 1b-A fix UX post-smoke-test 19/5 — bottom sheet = single source of truth del giorno (rimossa lista inline duplicata + bottone "Apri dettaglio" placeholder), pillola ridisegnata a 2 righe (orario+titolo / tipo+severità+assegnatario+count linked report), critica boost (ring rosso + dot pulsante + label "CRITICA" + sort priority), border-left per status, opacity+strikethrough per annullato. Sheet height fisso 60vh per non coprire week-strip. Pillola NON è tap-target (no InterventionDetail mobile in scope), solo side button "Apri report" attivo se N=1 risolutivo. Build pulito, 0 regressi lint.
-- **Branch corrente**: `claude/sprint-1b-mobile-push` (Phase A fix UX)
-- **Prossimo step**: re-smoke-test Phase A su preview Vercel (gio 21 mag "Intervento omnia" → vedere tipo/severità/assegnatario sulla pillola del sheet; sheet a 60vh non copre il giorno selezionato nella strip). Test specifico critica: creare intervento `severity='critica'` per oggi via SQL editor, verificare boost visivo. Poi Phase B: cablare push event wiring sopra infra esistente.
+- **Fase**: Sprint 1b-B (Push Event Wiring) MVP completato 19/5 — type `new_report_critical` per severity critica su 5 call sites (NewReport, QuickReport, AdminReports, VoiceNewTicketFlow, useVoiceTicket); ROLE_DEFAULTS edge function aggiornati con `new_report_critical` (admin+tecnico ON, operatore OFF) e `intervention_assigned/_rescheduled/_cancelled` (tecnico+admin ON, operatore OFF). Decision gate: 5 sub esistenti (0 negli ultimi 30gg) ma autopulenti via 404/410. Migration 056 skippata (gli index esistono già dalla mig 007). Da deployare edge function: `supabase functions deploy send-push-notification`.
+- **Branch corrente**: `claude/sprint-1b-mobile-push` (Phase A + B MVP)
+- **Prossimo step**: deploy edge function via Supabase CLI (Andrea), poi smoke test Phase B sul preview Vercel: (1) test critica → admin riceve push con `type=new_report_critical`; (2) test assegnazione intervento → tecnico riceve push; (3) verificare che le 5 sub stale vengano pulite al primo invio (404/410 → DELETE). Opzionali rinviati a 1b-bis: NotificationPrimer pre-consenso, Visibility API + last_seen_at dedup, NotificationPreferencesPage mobile.
 
 ---
 

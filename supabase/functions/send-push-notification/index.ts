@@ -376,11 +376,20 @@ Deno.serve(async (req: Request) => {
     const userRoles: Record<string, string> = {}
     usersData?.forEach(u => { userRoles[u.id] = u.role })
 
-    // Default ruolo
+    // Default ruolo.
+    //
+    // Sprint 1b-B (Phase B wiring 19/5):
+    //   - `new_report_critical` = nuovo report severity='critica'. Admin SEMPRE
+    //     on (override implicito anche se hanno silenziato new_report standard).
+    //   - `intervention_assigned` / `_rescheduled` / `_cancelled` = eventi dal
+    //     dominio interventi (notifyAssignee in db/interventions.js). Tecnico
+    //     ON di default — è il loro lavoro del giorno. Admin ON come courtesy
+    //     per chi pianifica e vuole follow-up. Operatore OFF (non gestisce
+    //     interventi, vede già le notifiche via status_change del report).
     const ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
-      admin: { new_report: true, quick_report: true, assigned: true, status_change: true, comment: true, maintenance_taken: true, maintenance_completed: true, maintenance_reminder: true, maintenance_overdue: true },
-      tecnico: { new_report: false, quick_report: false, assigned: true, status_change: true, comment: true, maintenance_taken: false, maintenance_completed: false, maintenance_reminder: true, maintenance_overdue: true },
-      operatore: { new_report: false, quick_report: false, assigned: true, status_change: true, comment: true, maintenance_taken: false, maintenance_completed: false, maintenance_reminder: true, maintenance_overdue: true },
+      admin: { new_report: true, new_report_critical: true, quick_report: true, assigned: true, status_change: true, comment: true, intervention_assigned: true, intervention_rescheduled: true, intervention_cancelled: true, maintenance_taken: true, maintenance_completed: true, maintenance_reminder: true, maintenance_overdue: true },
+      tecnico: { new_report: false, new_report_critical: true, quick_report: false, assigned: true, status_change: true, comment: true, intervention_assigned: true, intervention_rescheduled: true, intervention_cancelled: true, maintenance_taken: false, maintenance_completed: false, maintenance_reminder: true, maintenance_overdue: true },
+      operatore: { new_report: false, new_report_critical: false, quick_report: false, assigned: true, status_change: true, comment: true, intervention_assigned: false, intervention_rescheduled: false, intervention_cancelled: false, maintenance_taken: false, maintenance_completed: false, maintenance_reminder: true, maintenance_overdue: true },
     }
 
     // Preferenze per utente
