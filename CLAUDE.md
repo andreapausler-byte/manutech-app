@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: Sprint 1c-bis (Frizione #4) implementato 19/5 — card intervento in ReportDetailModal → salta al calendario admin sul giorno target con highlight effimero della pillola; simmetria DayContextPanel → "Apri report" condizionale (N=1 link risolutivo). Build pulito, 0 nuovi errori lint. Da validare in preview Vercel.
-- **Branch corrente**: `claude/proceed-implementation-G0Bq1` (codice 1c-bis)
-- **Prossimo step**: test manuale preview Vercel (card click in ReportDetailModal → calendario corretto + cella aperta + highlight visibile; "Apri report" su N=1; toggle showCancelled override non persistito). Poi confronto manutentore per chiudere open questions residue ADR-008 (#2 notifica operatore linea, #4 reschedule, #5 storico).
+- **Fase**: Sprint 1b-A (Mobile Calendar Parity) implementato 19/5 — CalendarioMobile + week-strip + bottom sheet + micro-mese overlay + pillola 56px glove-friendly + toggle showCancelled effimero. Tab `calendar` sostituisce `assistant` per ruolo tecnico in MobileLayout. Parità Sprint 1c-bis ("Apri report" condizionale a N=1 risolutivo). Build pulito, 0 nuovi errori lint. Phase B (push event wiring) sospesa in attesa di smoke test Phase A.
+- **Branch corrente**: `claude/sprint-1b-mobile-push` (Phase A)
+- **Prossimo step**: smoke test Phase A su preview Vercel (tab Calendario per tecnico → strip settimanale + tap giorno → bottom sheet con pillole + swipe-down close + micro-mese overlay quick-jump). Poi Phase B: cablare insert in `notifications` per `interventions.assigned_to` change + filtro `severity='critica'` su new report. Mappa categorie 🔴🟡🔵 → gruppi JSONB esistenti (no migration breaking). D2/D3 assunti come raccomandazione CTO (solo nuovo assegnatario; fan-out totale role=admin per critica).
 
 ---
 
