@@ -45,14 +45,19 @@ export default function MobileWeekStrip({
     return t
   }, [])
 
-  // Aggrega count per giorno (1 sola passata)
-  const countByDayKey = useMemo(() => {
+  // Aggrega per giorno: count + flag "hasCritical" così il dot indicator
+  // può virare al rosso quando il giorno contiene almeno un intervento
+  // critica (segnale immediato senza dover aprire il sheet).
+  const dayMetaByKey = useMemo(() => {
     const map = new Map()
     for (const intv of interventions) {
       if (!intv.scheduled_start_at) continue
       const d = new Date(intv.scheduled_start_at)
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-      map.set(key, (map.get(key) || 0) + 1)
+      const prev = map.get(key) || { count: 0, hasCritical: false }
+      prev.count += 1
+      if (intv.severity === 'critica') prev.hasCritical = true
+      map.set(key, prev)
     }
     return map
   }, [interventions])
@@ -70,7 +75,7 @@ export default function MobileWeekStrip({
     >
       {days.map((d, i) => {
         const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-        const count = countByDayKey.get(dayKey) || 0
+        const meta = dayMetaByKey.get(dayKey) || { count: 0, hasCritical: false }
         const isSelected = selectedDay && isSameDay(d, selectedDay)
         const isToday = isSameDay(d, today)
         const isWeekend = i >= 5
@@ -80,7 +85,7 @@ export default function MobileWeekStrip({
             key={dayKey}
             role="tab"
             aria-selected={isSelected}
-            aria-label={`${WEEKDAYS_SHORT[i]} ${d.getDate()}${count > 0 ? `, ${count} interventi` : ''}`}
+            aria-label={`${WEEKDAYS_SHORT[i]} ${d.getDate()}${meta.count > 0 ? `, ${meta.count} interventi${meta.hasCritical ? ', uno critico' : ''}` : ''}`}
             onClick={() => onDayTap?.(d)}
             className="press-scale"
             style={{
@@ -91,7 +96,7 @@ export default function MobileWeekStrip({
                 : isToday
                   ? 'rgba(124,106,255,0.10)'
                   : 'var(--color-surface-2)',
-              border: `1px solid ${isSelected ? 'var(--color-primary)' : isToday ? 'rgba(124,106,255,0.40)' : 'var(--color-border)'}`,
+              border: `1px solid ${isSelected ? 'var(--color-primary)' : isToday ? 'rgba(124,106,255,0.40)' : '#52525b'}`,
               borderRadius: 12,
               cursor: 'pointer',
               display: 'flex',
@@ -102,9 +107,9 @@ export default function MobileWeekStrip({
             }}
           >
             <span style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+              fontSize: 11, fontWeight: 800, letterSpacing: 0.6,
               textTransform: 'uppercase',
-              color: isSelected ? '#fff' : isWeekend ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
+              color: isSelected ? '#fff' : isWeekend ? '#a1a1aa' : '#d4d4d8',
             }}>
               {WEEKDAYS_SHORT[i]}
             </span>
@@ -116,7 +121,7 @@ export default function MobileWeekStrip({
             }}>
               {d.getDate()}
             </span>
-            <DotDensity count={count} active={isSelected} />
+            <DotDensity count={meta.count} hasCritical={meta.hasCritical} active={isSelected} />
           </button>
         )
       })}
@@ -124,26 +129,31 @@ export default function MobileWeekStrip({
   )
 }
 
-function DotDensity({ count, active }) {
+function DotDensity({ count, hasCritical, active }) {
   const dots = Math.min(count, 3)
-  const color = active ? '#fff' : 'var(--color-primary)'
+  // Critica → rosso brillante. Default → violet-400 (più chiaro del primary).
+  // Selected day → bianco (su sfondo primary).
+  const color = active
+    ? '#fff'
+    : hasCritical
+      ? '#ef4444'
+      : '#a78bfa'
   return (
     <div style={{
       display: 'flex',
-      gap: 3,
-      minHeight: 6,
+      gap: 4,
+      minHeight: 10,
       alignItems: 'center',
     }}>
       {Array.from({ length: dots }).map((_, i) => (
         <span key={i} style={{
-          width: 5, height: 5, borderRadius: 999,
+          width: 8, height: 8, borderRadius: 999,
           background: color,
-          opacity: active ? 0.9 : 1,
         }} />
       ))}
       {count > 3 && (
         <span style={{
-          fontSize: 9, fontWeight: 700,
+          fontSize: 10, fontWeight: 700,
           color,
           marginLeft: 2,
           fontFamily: '"JetBrains Mono", monospace',

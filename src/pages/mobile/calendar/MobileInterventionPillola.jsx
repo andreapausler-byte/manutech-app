@@ -125,15 +125,15 @@ export default function MobileInterventionPillola({
         <div style={{
           marginTop: 8,
           display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-          fontSize: 12,
+          fontSize: 13,
         }}>
           {typeMeta && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
               color: typeMeta.color,
-              fontWeight: 600,
+              fontWeight: 700,
             }}>
-              <typeMeta.icon size={13} /> {typeMeta.label}
+              <typeMeta.icon size={14} /> {typeMeta.label}
             </span>
           )}
 
@@ -145,7 +145,7 @@ export default function MobileInterventionPillola({
             >
               <span style={{
                 display: 'inline-block',
-                width: 10, height: 10, borderRadius: 999,
+                width: 12, height: 12, borderRadius: 999,
                 background: sevMeta.color,
                 animation: isCritical ? 'pulseRing 1.6s ease-in-out infinite' : undefined,
               }} />
@@ -155,11 +155,12 @@ export default function MobileInterventionPillola({
           {intervention.assigned_to_name ? (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
-              color: 'var(--color-text-secondary)',
+              color: '#d4d4d8',
+              fontWeight: 500,
               maxWidth: 160,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              <UserIcon size={12} style={{ flexShrink: 0 }} />
+              <UserIcon size={13} style={{ flexShrink: 0 }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {intervention.assigned_to_name}
               </span>
@@ -167,20 +168,21 @@ export default function MobileInterventionPillola({
           ) : (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
-              color: 'var(--color-text-muted)',
+              color: '#a1a1aa',
               fontStyle: 'italic',
             }}>
-              <UserIcon size={12} /> Non assegnato
+              <UserIcon size={13} /> Non assegnato
             </span>
           )}
 
           {linkedCount > 0 && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
-              color: 'var(--color-text-secondary)',
+              color: '#d4d4d8',
+              fontWeight: 600,
               fontFamily: '"JetBrains Mono", monospace',
             }}>
-              <Paperclip size={12} /> {linkedCount} report
+              <Paperclip size={13} /> {linkedCount} report
             </span>
           )}
         </div>

@@ -144,25 +144,26 @@ export default function MobileDayContextSheet({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               <p style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: 0.8,
-                textTransform: 'uppercase', color: 'var(--color-text-secondary)',
+                fontSize: 11, fontWeight: 800, letterSpacing: 1,
+                textTransform: 'uppercase', color: '#d4d4d8',
                 margin: 0,
               }}>Giorno</p>
               <p style={{
-                fontSize: 16, fontWeight: 700, color: 'var(--color-text)',
-                margin: '2px 0 0', textTransform: 'capitalize',
+                fontSize: 22, fontWeight: 700, color: 'var(--color-text)',
+                margin: '4px 0 0', textTransform: 'capitalize',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                letterSpacing: -0.3,
               }}>
                 {dateLabelLong}
               </p>
-              <p style={{
-                fontSize: 12, color: 'var(--color-text-secondary)',
-                margin: '2px 0 0',
-              }}>
-                {count === 0
-                  ? 'Nessun intervento pianificato'
-                  : `${count} intervent${count === 1 ? 'o' : 'i'} pianificat${count === 1 ? 'o' : 'i'}`}
-              </p>
+              {count > 0 && (
+                <p style={{
+                  fontSize: 14, fontWeight: 500, color: '#e4e4e7',
+                  margin: '4px 0 0',
+                }}>
+                  {`${count} intervent${count === 1 ? 'o' : 'i'} pianificat${count === 1 ? 'o' : 'i'}`}
+                </p>
+              )}
             </div>
             <button
               onClick={onClose}
@@ -172,8 +173,8 @@ export default function MobileDayContextSheet({
                 flexShrink: 0,
                 width: 48, height: 48, borderRadius: 12,
                 background: 'var(--color-surface-2)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-secondary)',
+                border: '1px solid #52525b',
+                color: '#d4d4d8',
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
@@ -190,14 +191,22 @@ export default function MobileDayContextSheet({
         }}>
           {count === 0 ? (
             <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-              padding: '32px 12px',
-              color: 'var(--color-text-secondary)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+              padding: '40px 16px',
               textAlign: 'center',
             }}>
-              <CalendarOff size={28} style={{ opacity: 0.4 }} />
-              <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+              <CalendarOff size={56} style={{ color: '#a1a1aa' }} />
+              <p style={{
+                fontSize: 15, fontWeight: 500, color: '#e4e4e7',
+                margin: 0, lineHeight: 1.5,
+              }}>
                 Nessun intervento pianificato per questo giorno.
+              </p>
+              <p style={{
+                fontSize: 12, color: '#a1a1aa',
+                margin: 0, lineHeight: 1.5, maxWidth: 280,
+              }}>
+                Tocca un altro giorno della settimana per visualizzarne gli interventi.
               </p>
             </div>
           ) : (
