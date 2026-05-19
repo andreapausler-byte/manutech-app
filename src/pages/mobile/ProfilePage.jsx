@@ -77,7 +77,7 @@ export default function ProfilePage({ onOpenWallet }) {
         <LogOut size={22} /> Esci
       </Button>
 
-      <p className="text-center text-sm" style={{ color: 'var(--color-text-faint)' }}>ManuTech v5.3 — Sprint 3.7 Notification Preferences</p>
+      <p className="text-center text-sm" style={{ color: 'var(--color-text-faint)' }}>ManuTech v5.3.1 — Hotfix search segnalazioni</p>
     </div>
   )
 }

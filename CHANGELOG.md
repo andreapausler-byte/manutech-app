@@ -6,6 +6,24 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased — Hotfix Sprint 1a-bis] — v5.3.1
+
+Hotfix sul branch `claude/hotfix-search-segnalazioni-SvhFt`. Solo cambi UI, nessuna migration DB.
+
+### Fixed
+- Search segnalazioni mobile (`src/components/reports/ReportsList.jsx`) ora cerca su tutti i campi visibili al manutentore: titolo, descrizione, nome macchinario (snapshot `r.machine` + fallback via lookup `machine_id` contro lo state `machines`), tecnico assegnato (`assigned_to_name`), creatore (`created_by_name`) e ID UUID raw. La ricerca per "etichettatrice" ora restituisce tutte le segnalazioni correlate anche quando il titolo è diverso (es. "Guasto improvviso").
+- Search segnalazioni admin (`src/pages/admin/AdminReports.jsx`): estesa con gli stessi campi del mobile per coerenza UX su entrambe le interfacce. Prima cercava solo titolo, macchina e creatore — senza ID né descrizione.
+- Debounce 200ms su entrambe le searchbar: evita re-render eccessivi durante digitazione rapida, invisibile all'utente.
+
+### Documented
+- Commento header in `ReportsList.jsx` documenta la convenzione schema asimmetrica: il nome macchinario è in `reports.machine` (TEXT snapshot), non `machine_name` come suggerirebbe la simmetria con `assigned_to_name`. Debito tecnico noto, da valutare normalizzazione in Sprint 1d insieme all'hardening `org_id` (ADR-007).
+
+### Out of scope (rinviato)
+- Full-text Postgres con `tsvector` (stemming italiano, ricerca server-side su tutto il dataset, ranking) → Sprint 1d post ADR-007.
+- Fuzzy matching / typo tolerance (`pg_trgm`) → Sprint 3.3.
+
+---
+
 ## [Unreleased — Sprint 1c]
 
 Pronto per merge sul branch `claude/intervention-reports-many-to-many-Vh3Mt`. Migration 055 NON ancora applicata su Supabase (apply in finestra coordinata col push).
