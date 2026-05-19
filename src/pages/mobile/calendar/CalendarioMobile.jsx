@@ -63,7 +63,10 @@ export default function CalendarioMobile({
   const [currentMonth, setCurrentMonth] = useState(() => initialMonth || startOfMonth(new Date()))
   const [weekStart, setWeekStart] = useState(() => startOfWeek(initialOpenDay || new Date()))
   const [selectedDay, setSelectedDay] = useState(() => initialOpenDay || today)
-  const [sheetOpen, setSheetOpen] = useState(Boolean(initialOpenDay))
+  // Fix UX 1b-A: sheet è la single source of truth per il giorno.
+  // Apre automaticamente al mount (anche se selectedDay === today) così
+  // l'utente vede subito gli interventi senza dover toccare la strip.
+  const [sheetOpen, setSheetOpen] = useState(true)
   const [overlayOpen, setOverlayOpen] = useState(false)
 
   const [showCancelled, setShowCancelled] = useState(() => {
@@ -120,6 +123,7 @@ export default function CalendarioMobile({
   // Filtra per giorno selezionato (dal pool VISIBLE, così il toggle agisce
   // anche sul sheet — diverso da desktop dove DayContextPanel ignora il
   // filtro perché è un accesso esplicito. Su mobile la coerenza UX vince.)
+  // Sort: critica in cima (priorità assoluta), poi orario crescente.
   const dayInterventions = useMemo(() => {
     if (!selectedDay) return []
     return visibleInterventions
@@ -130,7 +134,12 @@ export default function CalendarioMobile({
           && d.getMonth() === selectedDay.getMonth()
           && d.getDate() === selectedDay.getDate()
       })
-      .sort((a, b) => new Date(a.scheduled_start_at) - new Date(b.scheduled_start_at))
+      .sort((a, b) => {
+        const aCrit = a.severity === 'critica' ? 0 : 1
+        const bCrit = b.severity === 'critica' ? 0 : 1
+        if (aCrit !== bCrit) return aCrit - bCrit
+        return new Date(a.scheduled_start_at) - new Date(b.scheduled_start_at)
+      })
   }, [visibleInterventions, selectedDay])
 
   const goPrevWeek = () => {
@@ -173,13 +182,6 @@ export default function CalendarioMobile({
     setSelectedDay(date)
     setSheetOpen(true)
     setArrivedHighlightId(null)
-  }
-
-  const handleSheetOpenIntervention = (id) => {
-    // Mobile: niente InterventionDetail standalone, l'admin lo usa da desktop.
-    // Su mobile tap sulla pillola consuma l'highlight ed è no-op se non c'è
-    // un report linkato. Il bottone laterale "Apri report" gestisce N=1.
-    setArrivedHighlightId(prev => prev === id ? null : prev)
   }
 
   const handleOpenReport = (reportId) => {
@@ -351,26 +353,33 @@ export default function CalendarioMobile({
         )}
       </div>
 
-      {/* Lista del giorno selezionato sotto la strip (preview rapida) */}
-      <div style={{
-        flex: 1, minHeight: 0,
-        marginTop: 16,
-        overflowY: 'auto',
-      }}>
-        <DayPreview
-          date={selectedDay}
-          interventions={dayInterventions}
-          highlightedInterventionId={arrivedHighlightId}
-          onOpenSheet={() => setSheetOpen(true)}
-        />
-      </div>
+      {/* CTA per riaprire il sheet se l'utente lo ha chiuso (single source
+          of truth = sheet). Visibile solo se sheet è chiuso. Il giorno è
+          comunque selezionato nella week-strip. */}
+      {!sheetOpen && (
+        <div style={{ marginTop: 16, padding: '0 4px' }}>
+          <button
+            onClick={() => setSheetOpen(true)}
+            className="press-scale"
+            style={{
+              width: '100%', minHeight: 48,
+              padding: '10px 12px', borderRadius: 12,
+              background: 'var(--color-surface-1)',
+              border: '1px dashed var(--color-border)',
+              color: 'var(--color-text-secondary)',
+              fontSize: 13, fontWeight: 600,
+              cursor: 'pointer',
+            }}>
+            Mostra interventi del giorno
+          </button>
+        </div>
+      )}
 
       <MobileDayContextSheet
         open={sheetOpen}
         date={selectedDay}
         dayInterventions={dayInterventions}
         onClose={() => setSheetOpen(false)}
-        onOpenIntervention={handleSheetOpenIntervention}
         onOpenReport={handleOpenReport}
         highlightedInterventionId={arrivedHighlightId}
       />
@@ -388,115 +397,3 @@ export default function CalendarioMobile({
   )
 }
 
-function DayPreview({ date, interventions, highlightedInterventionId, onOpenSheet }) {
-  if (!date) return null
-
-  const count = interventions.length
-  const dateLabelLong = date.toLocaleDateString('it-IT', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  })
-
-  if (count === 0) {
-    return (
-      <div style={{
-        textAlign: 'center',
-        padding: '24px 12px',
-        color: 'var(--color-text-secondary)',
-      }}>
-        <p style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: 0.8,
-          textTransform: 'uppercase', margin: 0,
-          color: 'var(--color-text-muted)',
-        }}>
-          {dateLabelLong}
-        </p>
-        <p style={{ fontSize: 13, marginTop: 8, lineHeight: 1.5 }}>
-          Nessun intervento pianificato.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 10,
-      }}>
-        <p style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: 0.8,
-          textTransform: 'uppercase', margin: 0,
-          color: 'var(--color-text-secondary)',
-        }}>
-          {dateLabelLong} · {count} {count === 1 ? 'intervento' : 'interventi'}
-        </p>
-        <button
-          onClick={onOpenSheet}
-          className="press-scale"
-          style={{
-            fontSize: 11, fontWeight: 700,
-            color: 'var(--color-primary)',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '4px 8px',
-            minHeight: 32,
-          }}>
-          Apri dettaglio →
-        </button>
-      </div>
-      <div
-        onClick={onOpenSheet}
-        style={{
-          display: 'flex', flexDirection: 'column', gap: 6,
-        }}>
-        {interventions.slice(0, 3).map(intv => (
-          <PreviewRow
-            key={intv.id}
-            intervention={intv}
-            highlighted={intv.id === highlightedInterventionId}
-          />
-        ))}
-        {count > 3 && (
-          <p style={{
-            fontSize: 11, color: 'var(--color-text-secondary)',
-            margin: '4px 0 0', textAlign: 'center',
-          }}>
-            +{count - 3} altri — tocca per vedere tutti
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function PreviewRow({ intervention, highlighted }) {
-  const d = intervention.scheduled_start_at ? new Date(intervention.scheduled_start_at) : null
-  const time = d ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '--:--'
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '8px 12px',
-      background: 'var(--color-surface-2)',
-      border: `1px solid ${highlighted ? 'var(--color-primary)' : 'var(--color-border)'}`,
-      borderRadius: 10,
-      minHeight: 48,
-    }}>
-      <span style={{
-        fontSize: 12, fontWeight: 700,
-        fontFamily: '"JetBrains Mono", monospace',
-        color: 'var(--color-text-secondary)',
-        minWidth: 40,
-      }}>
-        {time}
-      </span>
-      <span style={{
-        flex: 1, minWidth: 0,
-        fontSize: 13, color: 'var(--color-text)',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      }}>
-        {intervention.title}
-      </span>
-    </div>
-  )
-}
