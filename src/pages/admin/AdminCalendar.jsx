@@ -17,7 +17,7 @@
 // Sprint 1a: solo vista Mese funzionante. Settimana/Giorno/Agenda/Risorse
 // sono UI placeholders che mostrano toast "Disponibile prossimamente".
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Plus, Users as UsersIcon, EyeOff, Eye } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
@@ -41,10 +41,16 @@ const VIEWS = [
   { id: 'risorse', label: 'Risorse', enabled: false },
 ]
 
-export default function AdminCalendar({ onNavigate }) {
+export default function AdminCalendar({
+  onNavigate,
+  initialMonth,
+  initialOpenDay,
+  initialHighlightInterventionId,
+  forceShowCancelledOnce,
+}) {
   const { user } = useAuth()
   const toast = useToast()
-  const [currentMonth, setCurrentMonth] = useState(() => new Date())
+  const [currentMonth, setCurrentMonth] = useState(() => initialMonth || new Date())
   const [sidebar, setSidebar] = useState({ mode: 'hidden' })
   const [view, setView] = useState('mese')
   // Hotfix calendar #2: nascondi annullati dalla griglia mese di default.
@@ -54,10 +60,33 @@ export default function AdminCalendar({ onNavigate }) {
     try { return localStorage.getItem('manutech_calendar_show_cancelled') === 'true' }
     catch { return false }
   })
+  // Override effimero per arrivo da link "vedi su calendario" su intervento
+  // annullato: non vogliamo persistere la preference dell'utente se è arrivato
+  // tramite navigazione one-shot. null = nessun override, usa showCancelled.
+  const [showCancelledOverride, setShowCancelledOverride] = useState(null)
+  const effectiveShowCancelled = showCancelledOverride ?? showCancelled
   useEffect(() => {
     try { localStorage.setItem('manutech_calendar_show_cancelled', String(showCancelled)) }
     catch { /* localStorage non disponibile (Safari private mode etc.): swallow */ }
   }, [showCancelled])
+
+  // Highlight in arrivo dalla card di un report: si attiva solo per il primo
+  // mount e si resetta quando l'utente cambia mese / chiude la sidebar / clicca
+  // un altro intervento. Non persistito.
+  const [arrivedHighlightId, setArrivedHighlightId] = useState(
+    initialHighlightInterventionId || null
+  )
+
+  // Hydration una sola volta al mount con i parametri di arrivo.
+  // Non riapplica se i prop cambiano (l'utente naviga internamente al calendar
+  // dopo essere arrivato — non deve essere riportato al giorno iniziale).
+  const didHydrateRef = useRef(false)
+  useEffect(() => {
+    if (didHydrateRef.current) return
+    didHydrateRef.current = true
+    if (forceShowCancelledOnce) setShowCancelledOverride(true)
+    if (initialOpenDay) setSidebar({ mode: 'day', date: initialOpenDay })
+  }, [forceShowCancelledOnce, initialOpenDay])
 
   const { rangeStart, rangeEnd } = useMemo(() => {
     const y = currentMonth.getFullYear()
@@ -81,18 +110,29 @@ export default function AdminCalendar({ onNavigate }) {
   // log del report. Il filtro NON si applica a DayContextPanel/Detail che
   // sono accessi espliciti.
   const visibleInterventions = useMemo(() => {
-    if (showCancelled) return interventions
+    if (effectiveShowCancelled) return interventions
     return (interventions || []).filter(i => i.status !== 'annullato')
-  }, [interventions, showCancelled])
+  }, [interventions, effectiveShowCancelled])
   const hiddenCancelledCount = useMemo(() => {
-    if (showCancelled) return 0
+    if (effectiveShowCancelled) return 0
     return (interventions || []).filter(i => i.status === 'annullato').length
-  }, [interventions, showCancelled])
+  }, [interventions, effectiveShowCancelled])
 
   // ── Navigazione mese ──
-  const goPrev = () => setCurrentMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
-  const goNext = () => setCurrentMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))
-  const goToday = () => setCurrentMonth(new Date())
+  // Cambio mese azzera l'highlight effimero in arrivo (l'utente è "andato altrove"
+  // rispetto al punto di arrivo).
+  const goPrev = () => {
+    setCurrentMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+    setArrivedHighlightId(null)
+  }
+  const goNext = () => {
+    setCurrentMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+    setArrivedHighlightId(null)
+  }
+  const goToday = () => {
+    setCurrentMonth(new Date())
+    setArrivedHighlightId(null)
+  }
 
   const handleView = (v) => {
     if (v.enabled) setView(v.id)
@@ -100,9 +140,23 @@ export default function AdminCalendar({ onNavigate }) {
   }
 
   // ── Sidebar transitions ──
-  const closeSidebar = () => setSidebar({ mode: 'hidden' })
-  const openDetail = (interventionId) => setSidebar({ mode: 'detail', interventionId })
-  const openDay = (date) => setSidebar({ mode: 'day', date })
+  // Qualsiasi transizione di sidebar avviata dall'utente azzera l'highlight in
+  // arrivo: significa che l'utente sta già interagendo con il calendario.
+  // Eccezione: openDay viene chiamato anche dall'hydration con la cella di
+  // arrivo, in quel caso vogliamo mantenere l'highlight. La distinzione è
+  // possibile perché in hydration usiamo setSidebar direttamente, non openDay.
+  const closeSidebar = () => {
+    setSidebar({ mode: 'hidden' })
+    setArrivedHighlightId(null)
+  }
+  const openDetail = (interventionId) => {
+    setSidebar({ mode: 'detail', interventionId })
+    setArrivedHighlightId(null)
+  }
+  const openDay = (date) => {
+    setSidebar({ mode: 'day', date })
+    setArrivedHighlightId(null)
+  }
   const openCreateForDay = (date) => setSidebar({ mode: 'create', createPrefillDate: date })
   const openCreateBase = (baseIntervention) => setSidebar({ mode: 'create', createBaseIntervention: baseIntervention })
   const openCreateNew = () => setSidebar({ mode: 'create', createPrefillDate: new Date() })
@@ -124,8 +178,13 @@ export default function AdminCalendar({ onNavigate }) {
     openDetail(interventionId)
   }
 
-  // Highlight della griglia: l'intervento attivo è quello in modalità Detail
-  const highlightedInterventionId = sidebar.mode === 'detail' ? sidebar.interventionId : null
+  // Highlight della griglia: in modalità Detail mostra l'intervento attivo;
+  // in modalità Day, se siamo appena arrivati da un link "vedi su calendario",
+  // evidenzia la pillola target finché l'utente non interagisce.
+  const highlightedInterventionId =
+    sidebar.mode === 'detail' ? sidebar.interventionId :
+    sidebar.mode === 'day' ? arrivedHighlightId :
+    null
 
   const title = `${MONTH_NAMES[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`
   const sidebarVisible = sidebar.mode !== 'hidden'
@@ -221,23 +280,31 @@ export default function AdminCalendar({ onNavigate }) {
 
         {/* Toggle "Mostra annullati" (hotfix calendar #2). OFF default,
             persistito in localStorage. Mostra anche un piccolo badge col
-            numero degli annullati nascosti, così l'admin sa che esistono. */}
-        <button onClick={() => setShowCancelled(v => !v)} className="press-scale"
-          title={showCancelled
+            numero degli annullati nascosti, così l'admin sa che esistono.
+            Se è attivo un override effimero (arrivo da link annullato), il
+            click resetta l'override e cambia la preference utente in modo
+            esplicito. */}
+        <button
+          onClick={() => {
+            setShowCancelledOverride(null)
+            setShowCancelled(v => !v)
+          }}
+          className="press-scale"
+          title={effectiveShowCancelled
             ? 'Click per nascondere gli interventi annullati dalla griglia mese'
             : 'Click per mostrare gli interventi annullati nella griglia mese'}
           style={{
             padding: '7px 12px', borderRadius: 8,
-            background: showCancelled ? 'rgba(245,158,11,0.15)' : 'var(--color-surface-2)',
-            border: `1px solid ${showCancelled ? 'rgba(245,158,11,0.40)' : 'var(--color-border)'}`,
-            color: showCancelled ? '#f59e0b' : 'var(--color-text-secondary)',
+            background: effectiveShowCancelled ? 'rgba(245,158,11,0.15)' : 'var(--color-surface-2)',
+            border: `1px solid ${effectiveShowCancelled ? 'rgba(245,158,11,0.40)' : 'var(--color-border)'}`,
+            color: effectiveShowCancelled ? '#f59e0b' : 'var(--color-text-secondary)',
             fontSize: 12, fontWeight: 700,
             cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
-          {showCancelled ? <Eye size={14} /> : <EyeOff size={14} />}
-          {showCancelled ? 'Mostra annullati' : 'Annullati nascosti'}
-          {!showCancelled && hiddenCancelledCount > 0 && (
+          {effectiveShowCancelled ? <Eye size={14} /> : <EyeOff size={14} />}
+          {effectiveShowCancelled ? 'Mostra annullati' : 'Annullati nascosti'}
+          {!effectiveShowCancelled && hiddenCancelledCount > 0 && (
             <span style={{
               fontSize: 10, fontWeight: 800,
               padding: '1px 5px', borderRadius: 999,
@@ -334,6 +401,7 @@ export default function AdminCalendar({ onNavigate }) {
                 onSelectIntervention={openDetail}
                 onCreateForDay={openCreateForDay}
                 onMatchIntervention={openCreateBase}
+                onOpenReport={handleOpenReport}
               />
             )}
             {sidebar.mode === 'create' && (

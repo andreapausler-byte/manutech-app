@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Calendar, Plus } from 'lucide-react'
 import { db } from '../../lib/supabase'
+import { useV6Navigate } from '../../contexts/V6NavigateContext'
 import InterventionCard from './InterventionCard'
 import InterventionRequestModal from '../spare/InterventionRequestModal'
 
@@ -19,6 +20,26 @@ const HISTORIC_STATUSES = ['annullato', 'completato']
 const isHistoric = (i) => i && HISTORIC_STATUSES.includes(i.status)
 
 export default function InterventionsForReport({ report, user, onOpenIntervention }) {
+  const navigate = useV6Navigate()
+  // Frizione #4: solo admin può saltare al calendario (V6App).
+  // Operatore/tecnico non montano mai ReportDetailModal, ma manteniamo il
+  // guard come safety net per usi futuri del componente.
+  const isNavigable = user?.role === 'admin'
+
+  const handleCardClick = useCallback((intv) => {
+    if (isNavigable && intv.scheduled_start_at) {
+      const target = new Date(intv.scheduled_start_at)
+      navigate('calendar', {
+        calendarInitialMonth: target,
+        calendarOpenDay: target,
+        calendarHighlightInterventionId: intv.id,
+        calendarForceShowCancelled: intv.status === 'annullato',
+      })
+    } else {
+      onOpenIntervention?.(intv.id)
+    }
+  }, [isNavigable, navigate, onOpenIntervention])
+
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -122,7 +143,7 @@ export default function InterventionsForReport({ report, user, onOpenInterventio
               key={intv.id}
               intervention={intv}
               compact
-              onClick={() => onOpenIntervention?.(intv.id)}
+              onClick={() => handleCardClick(intv)}
             />
           ))}
 
@@ -150,7 +171,7 @@ export default function InterventionsForReport({ report, user, onOpenInterventio
               intervention={intv}
               compact
               dim
-              onClick={() => onOpenIntervention?.(intv.id)}
+              onClick={() => handleCardClick(intv)}
             />
           ))}
         </div>

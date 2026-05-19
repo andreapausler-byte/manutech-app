@@ -3,6 +3,7 @@ import { LogOut, Sun, Moon, Settings } from 'lucide-react'
 import { Shell, MT, fMono } from '../../components/manutech'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { V6NavigateProvider } from '../../contexts/V6NavigateContext'
 import { NAV as ADMIN_NAV } from '../../lib/adminNav'
 import NotificationCenter from '../../components/ui/NotificationCenter'
 import SettingsPanel from '../../components/ui/SettingsPanel'
@@ -145,36 +146,44 @@ export default function V6App({ userName, initialReportId }) {
 
   return (
     <div className="mt-scope" style={{ minHeight: '100vh' }}>
-      <Shell
-        activeRoute={route.name}
-        onNavigate={(r) => navigate(r)}
-        userName={userName || user?.name}
-        userSubtitle={user ? `${(user.role || '').toUpperCase()} · ${user?.org_name || 'MANUTECH'}` : 'ADMIN · MANUTECH'}
-        navItems={navItems}
-        versionLabel={`v${__APP_VERSION__} · CONSOLE`}
-        sidebarFooter={sidebarFooter}
-      >
-        <AdminPageFrame
-          title={adminNavItem?.label || 'Console'}
-          crumbs={user?.org_name || 'ManuTech · Console'}
-          fullBleed={route.name === 'calendar'}
+      <V6NavigateProvider value={navigate}>
+        <Shell
+          activeRoute={route.name}
+          onNavigate={(r) => navigate(r)}
+          userName={userName || user?.name}
+          userSubtitle={user ? `${(user.role || '').toUpperCase()} · ${user?.org_name || 'MANUTECH'}` : 'ADMIN · MANUTECH'}
+          navItems={navItems}
+          versionLabel={`v${__APP_VERSION__} · CONSOLE`}
+          sidebarFooter={sidebarFooter}
         >
-          {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
-          {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
-          {route.name === 'reports' && <AdminReports initialReportId={initialReportId || route.reportId} />}
-          {route.name === 'calendar' && <AdminCalendar onNavigate={(name, params) => navigate(name, params)} />}
-          {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} initialMachineId={route.machineId} />}
-          {route.name === 'machines' && <AdminMachines onOpenAssistant={(machineId) => navigate('assistant', { machineId })} />}
-          {route.name === 'maintenance' && <AdminMaintenance />}
-          {route.name === 'spare-parts' && <AdminSpareParts />}
-          {route.name === 'technicians' && <AdminTechnicians />}
-          {route.name === 'leaderboard' && <AdminLeaderboard />}
-          {route.name === 'rewards' && <AdminRewards />}
-          {route.name === 'users' && <AdminUsers />}
-          {route.name === 'messages' && <AdminMessaging />}
-          {route.name === 'notifications' && <AdminNotifSettings />}
-        </AdminPageFrame>
-      </Shell>
+          <AdminPageFrame
+            title={adminNavItem?.label || 'Console'}
+            crumbs={user?.org_name || 'ManuTech · Console'}
+            fullBleed={route.name === 'calendar'}
+          >
+            {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
+            {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
+            {route.name === 'reports' && <AdminReports initialReportId={initialReportId || route.reportId} />}
+            {route.name === 'calendar' && <AdminCalendar
+              onNavigate={(name, params) => navigate(name, params)}
+              initialMonth={route.calendarInitialMonth || null}
+              initialOpenDay={route.calendarOpenDay || null}
+              initialHighlightInterventionId={route.calendarHighlightInterventionId || null}
+              forceShowCancelledOnce={Boolean(route.calendarForceShowCancelled)}
+            />}
+            {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} initialMachineId={route.machineId} />}
+            {route.name === 'machines' && <AdminMachines onOpenAssistant={(machineId) => navigate('assistant', { machineId })} />}
+            {route.name === 'maintenance' && <AdminMaintenance />}
+            {route.name === 'spare-parts' && <AdminSpareParts />}
+            {route.name === 'technicians' && <AdminTechnicians />}
+            {route.name === 'leaderboard' && <AdminLeaderboard />}
+            {route.name === 'rewards' && <AdminRewards />}
+            {route.name === 'users' && <AdminUsers />}
+            {route.name === 'messages' && <AdminMessaging />}
+            {route.name === 'notifications' && <AdminNotifSettings />}
+          </AdminPageFrame>
+        </Shell>
+      </V6NavigateProvider>
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user?.id} userRole={user?.role} />
     </div>

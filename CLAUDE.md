@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: Strategy day 15/5 · Interventi v2 in discovery (ADR-008 Proposed) — schema delta proposto (execution_mode + intervention_participants), 5 open questions blocking da chiudere col manutentore prima di Sprint dedicato. Sprint 1c-bis (Frizione #4 calendar nav) parte lunedì 18/5, intoccato.
-- **Branch corrente**: `claude/update-intervention-model-SBsFM` (docs-only)
-- **Prossimo step**: lunedì 18/5 Sprint 1c-bis. In parallelo: confronto manutentore per chiudere open questions ADR-008 (#3 account fornitori e #1 approvazione prioritarie). Future ADR-009 (Agenda mobile) bloccato da ADR-008 in produzione.
+- **Fase**: Sprint 1c-bis (Frizione #4) implementato 19/5 — card intervento in ReportDetailModal → salta al calendario admin sul giorno target con highlight effimero della pillola; simmetria DayContextPanel → "Apri report" condizionale (N=1 link risolutivo). Build pulito, 0 nuovi errori lint. Da validare in preview Vercel.
+- **Branch corrente**: `claude/proceed-implementation-G0Bq1` (codice 1c-bis)
+- **Prossimo step**: test manuale preview Vercel (card click in ReportDetailModal → calendario corretto + cella aperta + highlight visibile; "Apri report" su N=1; toggle showCancelled override non persistito). Poi confronto manutentore per chiudere open questions residue ADR-008 (#2 notifica operatore linea, #4 reschedule, #5 storico).
 
 ---
 

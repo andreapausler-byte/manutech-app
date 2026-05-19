@@ -291,6 +291,10 @@ export const interventions = {
   },
 
   // Range query usata dal calendario. scope = 'all' | 'mine' | 'pending_supplier'.
+  // Ogni intervento è arricchito con `linked_reports` (array di link da
+  // intervention_reports), usato dal DayContextPanel per il bottone "Apri
+  // report" condizionale quando N=1 link. Costo: 1 round-trip extra per il
+  // mese visualizzato (5-100 righe tipiche, trascurabile).
   async getInterventionsCalendar({ rangeStart, rangeEnd, scope = 'all', currentUserId, filters = {} } = {}) {
     const startISO = rangeStart instanceof Date ? rangeStart.toISOString() : rangeStart
     const endISO = rangeEnd instanceof Date ? rangeEnd.toISOString() : rangeEnd
@@ -309,7 +313,27 @@ export const interventions = {
 
       const { data, error } = await query
       if (error) throw error
-      return data || []
+
+      const interventions = data || []
+      if (interventions.length === 0) return interventions
+
+      // Fetch link rows con un singolo round-trip e arricchimento client-side.
+      // RLS su intervention_reports già filtra per org_id.
+      const ids = interventions.map(i => i.id)
+      const { data: links, error: linksError } = await supabase
+        .from('intervention_reports')
+        .select('intervention_id, report_id, is_origin, resolves_report')
+        .in('intervention_id', ids)
+      if (linksError) {
+        console.warn('[interventions] linked_reports fetch failed:', linksError.message)
+        return interventions.map(i => ({ ...i, linked_reports: [] }))
+      }
+      const byIntv = new Map()
+      for (const l of links || []) {
+        if (!byIntv.has(l.intervention_id)) byIntv.set(l.intervention_id, [])
+        byIntv.get(l.intervention_id).push(l)
+      }
+      return interventions.map(i => ({ ...i, linked_reports: byIntv.get(i.id) || [] }))
     }
 
     let list = getStore(KEYS.interventions)
@@ -325,7 +349,21 @@ export const interventions = {
     if (filters.types?.length) list = list.filter(i => filters.types.includes(i.type))
     if (filters.statuses?.length) list = list.filter(i => filters.statuses.includes(i.status))
     if (filters.severities?.length) list = list.filter(i => filters.severities.includes(i.severity))
-    return list.sort((a, b) => new Date(a.scheduled_start_at) - new Date(b.scheduled_start_at))
+    list = list.sort((a, b) => new Date(a.scheduled_start_at) - new Date(b.scheduled_start_at))
+
+    // Demo mode: deriva linked_reports dal KEYS.interventionReports store se presente.
+    const linkStore = getStore(KEYS.interventionReports) || []
+    return list.map(i => {
+      const linked_reports = linkStore
+        .filter(l => l.intervention_id === i.id)
+        .map(l => ({
+          intervention_id: l.intervention_id,
+          report_id: l.report_id,
+          is_origin: !!l.is_origin,
+          resolves_report: l.resolves_report !== false,
+        }))
+      return { ...i, linked_reports }
+    })
   },
 
   async getIntervention(id) {
