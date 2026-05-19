@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { X, Plus, Link2 } from 'lucide-react'
+import { X, Plus, Link2, ArrowUpRight } from 'lucide-react'
 import InterventionCard from './InterventionCard'
 
 /**
@@ -19,6 +19,9 @@ import InterventionCard from './InterventionCard'
  *   onSelectIntervention(id)  passa a modalità Detail
  *   onCreateForDay(date)  passa a modalità Create con prefillDate
  *   onMatchIntervention(intervention)  passa a modalità Create con baseIntervention
+ *   onOpenReport(reportId)  apre il report linkato (scorciatoia, solo se N=1
+ *                           link risolutivo). Mantiene la simmetria col flow
+ *                           card-report (Frizione #4 opt-A).
  */
 export default function DayContextPanel({
   date,
@@ -27,6 +30,7 @@ export default function DayContextPanel({
   onSelectIntervention,
   onCreateForDay,
   onMatchIntervention,
+  onOpenReport,
 }) {
   const dayInterventions = useMemo(() => {
     if (!date) return []
@@ -125,6 +129,7 @@ export default function DayContextPanel({
                 intervention={intv}
                 onOpen={() => onSelectIntervention?.(intv.id)}
                 onMatch={() => onMatchIntervention?.(intv)}
+                onOpenReport={onOpenReport}
               />
             ))}
           </div>
@@ -159,8 +164,20 @@ export default function DayContextPanel({
  * Riga giornaliera: card cliccabile (apre detail) + bottone "Abbina" laterale.
  * Wrapper sopra InterventionCard perché la card di default fa solo onClick;
  * qui serve un secondo bottone "match" non incluso nella card.
+ *
+ * Frizione #4 opt-A: se l'intervento ha esattamente 1 report linkato
+ * risolutivo, aggiungiamo un terzo bottone "Apri report" come scorciatoia.
+ * Per N=0 (intervento creato senza abbinamento) o N>1 (più report risolutivi)
+ * il bottone non appare: il flow detail rimane l'unico modo per scegliere
+ * quale report aprire.
  */
-function DayInterventionRow({ intervention, onOpen, onMatch }) {
+function DayInterventionRow({ intervention, onOpen, onMatch, onOpenReport }) {
+  const linked = Array.isArray(intervention.linked_reports) ? intervention.linked_reports : []
+  const resolvingLinks = linked.filter(l => l.resolves_report !== false)
+  const singleResolvingReportId =
+    resolvingLinks.length === 1 ? resolvingLinks[0].report_id : null
+  const showOpenReport = Boolean(singleResolvingReportId && onOpenReport)
+
   return (
     <div style={{ position: 'relative' }}>
       <InterventionCard
@@ -168,22 +185,46 @@ function DayInterventionRow({ intervention, onOpen, onMatch }) {
         compact
         onClick={onOpen}
       />
-      <button
-        onClick={(e) => { e.stopPropagation(); onMatch?.() }}
-        className="press-scale"
-        title="Abbina un nuovo intervento con stessi assegnatari/orario"
-        aria-label="Abbina nuovo intervento"
-        style={{
-          position: 'absolute', top: 8, right: 8,
-          padding: '4px 8px', borderRadius: 8,
-          background: 'rgba(124,106,255,0.14)',
-          border: '1px solid rgba(124,106,255,0.35)',
-          color: '#7c6aff',
-          fontSize: 10, fontWeight: 700, cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', gap: 3,
-        }}>
-        <Link2 size={10} /> Abbina
-      </button>
+      {/* Cluster bottoni laterali: posizionati in alto a destra sopra la
+          card, affiancati orizzontalmente per non sovrapporsi al rigo
+          assegnatario sul badge row sotto. */}
+      <div style={{
+        position: 'absolute', top: 8, right: 8,
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+      }}>
+        {showOpenReport && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onOpenReport(singleResolvingReportId) }}
+            className="press-scale"
+            title="Apri la segnalazione collegata a questo intervento"
+            aria-label="Apri segnalazione collegata"
+            style={{
+              padding: '4px 8px', borderRadius: 8,
+              background: 'rgba(16,185,129,0.14)',
+              border: '1px solid rgba(16,185,129,0.35)',
+              color: '#10b981',
+              fontSize: 10, fontWeight: 700, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+            }}>
+            <ArrowUpRight size={10} /> Apri report
+          </button>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onMatch?.() }}
+          className="press-scale"
+          title="Abbina un nuovo intervento con stessi assegnatari/orario"
+          aria-label="Abbina nuovo intervento"
+          style={{
+            padding: '4px 8px', borderRadius: 8,
+            background: 'rgba(124,106,255,0.14)',
+            border: '1px solid rgba(124,106,255,0.35)',
+            color: '#7c6aff',
+            fontSize: 10, fontWeight: 700, cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+          }}>
+          <Link2 size={10} /> Abbina
+        </button>
+      </div>
     </div>
   )
 }

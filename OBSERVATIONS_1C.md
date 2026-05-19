@@ -213,6 +213,26 @@ Pre-osservazione, il piano è:
 
 ---
 
+## Validazione kick-off 1c-bis (2026-05-19)
+
+Snapshot dati produzione (org `'default'`, anti-pattern ADR-007 ancora attivo) rieseguito al kick-off Sprint 1c-bis per confermare la decisione opt-A del Blocker #1 (3° bottone "Apri report" condizionale a N risolutivi = 1).
+
+| Metric | 14/5 | 19/5 | Delta |
+|---|---|---|---|
+| Interventi totali | 7 | 10 | +3 |
+| N=0 link | 2 (29%) | 3 (30%) | +1 |
+| N=1 link | 5 (71%) | 6 (60%) | +1 |
+| N>1 link | 0 (0%) | 1 (10%) | **+1** |
+| Max N osservato | 1 | 3 | +2 |
+
+L'unico caso N>1 (`0cf6fd68…`, "Intervento di riparazioni generali", completato 2026-05-16) ha **3 link tutti risolutivi**. È il pattern PTS multi-link previsto da mig 055 (fermo macchina opportunistico che chiude più segnalazioni contemporaneamente) — emerso in produzione tra il 14/5 e il 19/5.
+
+**Verdetto**: opt-A regge senza pivot. Per quel caso il bottone "Apri report" è correttamente nascosto (ambiguità: quale dei 3 risolutivi?) e l'admin passa per `InterventionDetailPanel` che già espone la lista linked reports. Il bottone resta visibile per i 6 casi N=1 (60% della popolazione). Niente codice da cambiare.
+
+**Caveat**: 10 record sono ancora un campione piccolo. Se N>1 dovesse passare sopra ~25-30% in produzione, riaprire la decisione (valutare opt-C: card click → report se 1 risolutivo, → detail se >1).
+
+---
+
 ## Note operative
 
 - **NON aprire branch 1c-bis** finché Andrea non dà segnale esplicito (~3-4 giorni di osservazione).
