@@ -1,25 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, Calendar as CalendarIcon } from 'lucide-react'
+import { X, CalendarOff } from 'lucide-react'
 import MobileInterventionPillola from './MobileInterventionPillola'
 
 const SWIPE_DOWN_THRESHOLD = 80
 
 /**
- * Bottom sheet mobile equivalente a DayContextPanel sidebar desktop.
+ * Bottom sheet mobile per il giorno selezionato.
+ *
+ * Fix UX 1b-A (post-smoke-test): il sheet adesso è LA vista del giorno (single
+ * source of truth, niente più lista inline duplicata in CalendarioMobile).
+ * maxHeight 60vh per NON coprire la week-strip sopra: l'utente vede sempre
+ * quale giorno ha selezionato mentre legge la lista interventi.
  *
  * Pattern UX (briefing § 3.4):
  *   - slide-up animato all'apertura
  *   - backdrop semitrasparente, tap = chiude
  *   - swipe down ≥80px sull'header = chiude
- *   - header sticky con data + bottone X (48×48 glove-friendly)
- *   - body scrollabile, ogni pillola alta 56px
+ *   - header sticky con data + count + bottone X (48×48 glove-friendly)
+ *   - body scrollabile, pillole 80px due righe (tipo + severità + assegnatario)
  *
  * Props
  *   open                bool
  *   date                Date selezionata
- *   dayInterventions    array già filtrato sul giorno
+ *   dayInterventions    array già filtrato + ordinato (critica prima, poi orario)
  *   onClose()
- *   onOpenIntervention(id)  tap pillola (apre detail / naviga)
  *   onOpenReport(reportId)  scorciatoia diretta al report (N=1 risolutivo)
  *   highlightedInterventionId  bordo evidenziato (deep link)
  */
@@ -28,7 +32,6 @@ export default function MobileDayContextSheet({
   date,
   dayInterventions = [],
   onClose,
-  onOpenIntervention,
   onOpenReport,
   highlightedInterventionId,
 }) {
@@ -112,7 +115,8 @@ export default function MobileDayContextSheet({
           background: 'var(--color-surface-1)',
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
-          maxHeight: '80vh',
+          height: '60vh',
+          maxHeight: '60vh',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 -8px 32px rgba(0,0,0,0.3)',
@@ -191,21 +195,19 @@ export default function MobileDayContextSheet({
               color: 'var(--color-text-secondary)',
               textAlign: 'center',
             }}>
-              <CalendarIcon size={28} style={{ opacity: 0.4 }} />
+              <CalendarOff size={28} style={{ opacity: 0.4 }} />
               <p style={{ fontSize: 13, margin: 0, lineHeight: 1.5 }}>
                 Nessun intervento pianificato per questo giorno.
               </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {dayInterventions.map(intv => (
                 <MobileInterventionPillola
                   key={intv.id}
                   intervention={intv}
-                  onClick={() => onOpenIntervention?.(intv.id)}
                   onOpenReport={onOpenReport}
                   highlighted={intv.id === highlightedInterventionId}
-                  dim={['annullato', 'completato'].includes(intv.status)}
                 />
               ))}
             </div>

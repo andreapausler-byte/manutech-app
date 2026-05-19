@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: Sprint 1b-A (Mobile Calendar Parity) implementato 19/5 — CalendarioMobile + week-strip + bottom sheet + micro-mese overlay + pillola 56px glove-friendly + toggle showCancelled effimero. Tab `calendar` sostituisce `assistant` per ruolo tecnico in MobileLayout. Parità Sprint 1c-bis ("Apri report" condizionale a N=1 risolutivo). Build pulito, 0 nuovi errori lint. Phase B (push event wiring) sospesa in attesa di smoke test Phase A.
-- **Branch corrente**: `claude/sprint-1b-mobile-push` (Phase A)
-- **Prossimo step**: smoke test Phase A su preview Vercel (tab Calendario per tecnico → strip settimanale + tap giorno → bottom sheet con pillole + swipe-down close + micro-mese overlay quick-jump). Poi Phase B: cablare insert in `notifications` per `interventions.assigned_to` change + filtro `severity='critica'` su new report. Mappa categorie 🔴🟡🔵 → gruppi JSONB esistenti (no migration breaking). D2/D3 assunti come raccomandazione CTO (solo nuovo assegnatario; fan-out totale role=admin per critica).
+- **Fase**: Sprint 1b-A fix UX post-smoke-test 19/5 — bottom sheet = single source of truth del giorno (rimossa lista inline duplicata + bottone "Apri dettaglio" placeholder), pillola ridisegnata a 2 righe (orario+titolo / tipo+severità+assegnatario+count linked report), critica boost (ring rosso + dot pulsante + label "CRITICA" + sort priority), border-left per status, opacity+strikethrough per annullato. Sheet height fisso 60vh per non coprire week-strip. Pillola NON è tap-target (no InterventionDetail mobile in scope), solo side button "Apri report" attivo se N=1 risolutivo. Build pulito, 0 regressi lint.
+- **Branch corrente**: `claude/sprint-1b-mobile-push` (Phase A fix UX)
+- **Prossimo step**: re-smoke-test Phase A su preview Vercel (gio 21 mag "Intervento omnia" → vedere tipo/severità/assegnatario sulla pillola del sheet; sheet a 60vh non copre il giorno selezionato nella strip). Test specifico critica: creare intervento `severity='critica'` per oggi via SQL editor, verificare boost visivo. Poi Phase B: cablare push event wiring sopra infra esistente.
 
 ---
 
