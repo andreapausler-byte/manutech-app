@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { db, supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatDate, formatTicketId } from '../../lib/constants'
@@ -39,6 +39,7 @@ export default function AdminReports({ initialReportId }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterSeverity, setFilterSeverity] = useState('')
   const [showNew, setShowNew] = useState(false)
@@ -77,6 +78,19 @@ export default function AdminReports({ initialReportId }) {
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounce 200ms: stesso pattern del mobile per coerenza UX.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 200)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Mappa machine_id → name per fallback quando lo snapshot `machine` è null.
+  const machineNameById = useMemo(() => {
+    const m = new Map()
+    for (const machine of machines) m.set(machine.id, machine.name)
+    return m
+  }, [machines])
 
   // Toggle stella con optimistic update. Se la chiamata DB fallisce,
   // rollback dello state per coerenza UI ↔ DB.
@@ -138,12 +152,34 @@ export default function AdminReports({ initialReportId }) {
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
+  // Search estesa per coerenza con la mobile (ReportsList.jsx): titolo,
+  // descrizione, macchina (snapshot + fallback via machine_id), tecnico
+  // assegnato, creatore, TK-id (normalizzato) e UUID raw.
   const filtered = reports.filter(r => {
     if (filterStatus && r.status !== filterStatus) return false
     if (filterSeverity && r.severity !== filterSeverity) return false
-    if (search) {
-      const q = search.toLowerCase()
-      return r.title?.toLowerCase().includes(q) || r.machine?.toLowerCase().includes(q) || r.created_by_name?.toLowerCase().includes(q)
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase().trim()
+      if (!q) return true
+      const qNorm = q.replace(/[^a-z0-9]/g, '')
+      const tk = formatTicketId(r).toLowerCase()
+      const tkNorm = tk.replace(/[^a-z0-9]/g, '')
+      const machineFromLookup = r.machine_id ? machineNameById.get(r.machine_id) : null
+      const searchable = [
+        r.title,
+        r.description,
+        r.machine,
+        r.machine_name,
+        machineFromLookup,
+        r.assigned_to_name,
+        r.created_by_name,
+        r.id,
+      ]
+      const textMatch = searchable.some(f =>
+        f?.toString().toLowerCase().includes(q)
+      )
+      const tkMatch = tk.includes(q) || (qNorm.length > 0 && tkNorm.includes(qNorm))
+      if (!textMatch && !tkMatch) return false
     }
     return true
   })

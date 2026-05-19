@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, SEVERITY, REPORT_TYPES, formatTicketId } from '../../lib/constants'
 import { EmptyState, SkeletonReportsPage, TicketIdBadge } from '../ui'
@@ -6,6 +6,12 @@ import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive } from 'lucide-react'
+
+// Convenzione schema reports: il nome del macchinario è salvato come snapshot
+// denormalizzato nel campo `machine` (TEXT) — NON `machine_name`. Asimmetrico
+// con `assigned_to_name` (debito tecnico noto). Il FK è `machine_id` (UUID).
+// La ricerca client-side cerca su `machine` (snapshot) con fallback a lookup
+// via `machine_id` contro lo state `machines` caricato da db.getMachines().
 
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
@@ -263,6 +269,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [expandedSections, setExpandedSections] = useState(new Set())
   const [initialized, setInitialized] = useState(false)
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('manutech_reports_view') || 'chrono')
@@ -308,6 +315,20 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       .catch(e => console.warn('[ReportsList] getMachines:', e?.message))
   }, [])
 
+  // Debounce 200ms: evita re-render eccessivi mentre il manutentore digita.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 200)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Mappa machine_id → name per fallback quando lo snapshot `machine` è null
+  // (es. record storici creati prima dell'enforcement del pattern snapshot).
+  const machineNameById = useMemo(() => {
+    const m = new Map()
+    for (const machine of machines) m.set(machine.id, machine.name)
+    return m
+  }, [machines])
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -335,22 +356,35 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   useEffect(() => { load() }, [load])
 
   // Filter di base: search testuale + onlyMine + macchina.
-  // Search supporta TK-id senza trattini/prefissi (vedi qNorm).
+  // Search supporta TK-id senza trattini/prefissi (vedi qNorm) e cerca su tutti
+  // i campi che il manutentore vede nella card (titolo, descrizione, macchina,
+  // tecnico assegnato, creatore, ID raw). Fallback su machine_id→name per
+  // record con snapshot `machine` null.
   const baseFiltered = reports.filter(r => {
     if (filters.onlyMine && r.assigned_to !== user?.id) return false
     if (filters.machineFilter && r.machine_id !== filters.machineFilter) return false
-    if (search) {
-      const q = search.toLowerCase().trim()
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase().trim()
       if (!q) return true
       const qNorm = q.replace(/[^a-z0-9]/g, '')
       const tk = formatTicketId(r).toLowerCase()
       const tkNorm = tk.replace(/[^a-z0-9]/g, '')
-      const matches =
-        r.title?.toLowerCase().includes(q)
-        || r.machine?.toLowerCase().includes(q)
-        || tk.includes(q)
-        || (qNorm.length > 0 && tkNorm.includes(qNorm))
-      if (!matches) return false
+      const machineFromLookup = r.machine_id ? machineNameById.get(r.machine_id) : null
+      const searchable = [
+        r.title,
+        r.description,
+        r.machine,
+        r.machine_name,
+        machineFromLookup,
+        r.assigned_to_name,
+        r.created_by_name,
+        r.id,
+      ]
+      const textMatch = searchable.some(f =>
+        f?.toString().toLowerCase().includes(q)
+      )
+      const tkMatch = tk.includes(q) || (qNorm.length > 0 && tkNorm.includes(qNorm))
+      if (!textMatch && !tkMatch) return false
     }
     return true
   })
@@ -446,7 +480,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           }} />
           <input
             type="text"
-            placeholder="Cerca: titolo, macchina, tk26129…"
+            placeholder="Cerca: titolo, macchina, tecnico, ID…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
