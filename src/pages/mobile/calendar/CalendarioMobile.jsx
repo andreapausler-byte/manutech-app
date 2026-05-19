@@ -278,8 +278,8 @@ export default function CalendarioMobile({
         </button>
         <div style={{
           flex: 1, textAlign: 'center',
-          fontSize: 12, fontWeight: 700,
-          color: 'var(--color-text-secondary)',
+          fontSize: 13, fontWeight: 700,
+          color: '#d4d4d8',
           fontFamily: '"JetBrains Mono", monospace',
           letterSpacing: 0.4,
           textTransform: 'uppercase',
@@ -327,18 +327,18 @@ export default function CalendarioMobile({
             minHeight: 40,
             padding: '8px 12px', borderRadius: 10,
             background: effectiveShowCancelled ? 'rgba(245,158,11,0.15)' : 'var(--color-surface-2)',
-            border: `1px solid ${effectiveShowCancelled ? 'rgba(245,158,11,0.40)' : 'var(--color-border)'}`,
-            color: effectiveShowCancelled ? '#f59e0b' : 'var(--color-text-secondary)',
-            fontSize: 12, fontWeight: 700,
+            border: `1px solid ${effectiveShowCancelled ? 'rgba(245,158,11,0.40)' : '#52525b'}`,
+            color: effectiveShowCancelled ? '#f59e0b' : '#d4d4d8',
+            fontSize: 13, fontWeight: 700,
             cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
-          {effectiveShowCancelled ? <Eye size={14} /> : <EyeOff size={14} />}
+          {effectiveShowCancelled ? <Eye size={15} /> : <EyeOff size={15} />}
           {effectiveShowCancelled ? 'Annullati visibili' : 'Annullati nascosti'}
           {!effectiveShowCancelled && hiddenCancelledCount > 0 && (
             <span style={{
-              fontSize: 10, fontWeight: 800,
-              padding: '1px 5px', borderRadius: 999,
+              fontSize: 11, fontWeight: 800,
+              padding: '1px 6px', borderRadius: 999,
               background: 'rgba(245,158,11,0.25)', color: '#f59e0b',
               fontFamily: '"JetBrains Mono", monospace',
             }}>
@@ -347,7 +347,7 @@ export default function CalendarioMobile({
           )}
         </button>
         {loading && (
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+          <span style={{ fontSize: 12, fontWeight: 500, color: '#a1a1aa' }}>
             Caricamento…
           </span>
         )}
