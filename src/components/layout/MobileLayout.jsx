@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
-import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save, Camera, Paperclip, FileText, Sparkles, Mic } from 'lucide-react'
+import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save, Camera, Paperclip, FileText, Sparkles, Mic, Calendar } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useToast } from '../../hooks/useToast'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
@@ -26,6 +26,7 @@ import ProfilePage from '../../pages/mobile/ProfilePage'
 import MobileDashboard from '../../pages/mobile/MobileDashboard'
 import WalletPage from '../../pages/mobile/WalletPage'
 import AssistantPage from '../../pages/mobile/AssistantPage'
+import CalendarioMobile from '../../pages/mobile/calendar/CalendarioMobile'
 import ConversationList from '../messaging/ConversationList'
 import ConversationView from '../messaging/ConversationView'
 
@@ -182,7 +183,7 @@ const TABS_BY_ROLE = {
   ],
   tecnico: [
     { id: 'reports', icon: ClipboardList, label: 'Assegnati' },
-    { id: 'assistant', icon: Sparkles, label: 'AI' },
+    { id: 'calendar', icon: Calendar, label: 'Calendario' },
     { id: 'machines', icon: Cog, label: 'Macchine' },
     { id: 'messages', icon: MessageCircle, label: 'Messaggi' },
     { id: 'profile', icon: User, label: 'Profilo' },
@@ -736,6 +737,7 @@ export default function MobileLayout({ initialReportId }) {
           )}
           {tab === 'wallet' && <WalletPage />}
           {tab === 'assistant' && <AssistantPage onOpenReport={openReportById} />}
+          {tab === 'calendar' && <CalendarioMobile onOpenReport={openReportById} />}
           {tab === 'machines' && (
             <MobileMachinesList onSelectMachine={openMachine} />
           )}
