@@ -402,11 +402,12 @@ export default function CalendarioMobile({
       {/* Lista interventi della settimana, raggruppata per giorno.
           Visibile quando il sheet è chiuso (single source of truth: quando
           sheet aperto, ha pieno focus sul giorno selezionato). Empty state
-          dedicato se la settimana non ha interventi.
-          Layout: altezza naturale, lo scroll è gestito dal <main> di
-          MobileLayout (overflow-y-auto già attivo a livello superiore). */}
+          dedicato se la settimana non ha interventi. */}
       {!sheetOpen && (
-        <div style={{ marginTop: 16 }}>
+        <div style={{
+          marginTop: 16, flex: 1, minHeight: 0,
+          overflowY: 'auto', paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
+        }}>
           {weekTotalCount === 0 ? (
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
