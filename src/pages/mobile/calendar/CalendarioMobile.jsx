@@ -67,10 +67,11 @@ export default function CalendarioMobile({
   const [currentMonth, setCurrentMonth] = useState(() => initialMonth || startOfMonth(new Date()))
   const [weekStart, setWeekStart] = useState(() => startOfWeek(initialOpenDay || new Date()))
   const [selectedDay, setSelectedDay] = useState(() => initialOpenDay || today)
-  // Fix UX 1b-A: sheet è la single source of truth per il giorno.
-  // Apre automaticamente al mount (anche se selectedDay === today) così
-  // l'utente vede subito gli interventi senza dover toccare la strip.
-  const [sheetOpen, setSheetOpen] = useState(true)
+  // Fix UX 20/5: default sheet CHIUSO — l'overview settimanale (lista
+  // raggruppata per giorno sotto la week strip) ha più valore al mount
+  // del dettaglio singolo giorno. Il sheet diventa zoom esplicito al tap
+  // su un giorno della week strip o sul bottone CTA.
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [overlayOpen, setOverlayOpen] = useState(false)
 
   const [showCancelled, setShowCancelled] = useState(() => {
@@ -250,7 +251,10 @@ export default function CalendarioMobile({
       flexDirection: 'column',
       height: '100%',
       minHeight: 0,
-      padding: '12px 12px 24px',
+      // padding bottom ampio: il <main> di MobileLayout ha già pb-[18vw]
+      // ma la lista può crescere oltre — qui garantiamo che l'ultima pillola
+      // sia visibile sopra la tab bar fissa anche con safe area iPhone.
+      padding: '12px 12px calc(96px + env(safe-area-inset-bottom, 0px))',
       background: 'var(--color-app-bg)',
     }}>
       {/* Header: mese tappabile (apre overlay) + bottoni nav settimana */}
