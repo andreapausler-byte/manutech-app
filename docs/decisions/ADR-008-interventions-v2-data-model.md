@@ -304,9 +304,11 @@ Tutte read-only, nessun DML, nessun DDL.
 
 Status pivota a **`accepted`** quando tutti e 3:
 1. ~~Q1 e Q3 chiuse~~ ✓ (15/5 sera). Q2/Q4/Q5 chiuse (preferenza: confronto manutentore #2; ammesso default tecnico se conferma orale veloce su raccomandazioni in 4.5 + sezione Open questions).
-2. ADR-007 mergiato — mig 056 in produzione (`org_id UUID`). **Verificato 20/5 via `ls supabase/migrations/`: NON ANCORA in produzione**. È il blocker primario residuo.
+2. **Sprint Multi-Tenant Foundations completato** — tabella `organizations` reale creata in produzione + UUID seed per la "default org" attuale + backfill coerente dei 2424 record `org_id='default'` su 22 tabelle + `get_my_org_id()` che risolve via JOIN. ⚠️ **Riformulato 20/5 sera** dopo scoperta che la mig 032 dichiarata "applicata" in realtà non era mai stata applicata in produzione: lo schema attuale è pre-multi-tenant by design, non sporco. ADR-007 transitato a `superseded by future Sprint Multi-Tenant Foundations`.
 3. Sprint dedicato Interventi v2 creato in roadmap con stima.
 
-**Stato 20/5**: blocker (2) è il vero gate. Decision drivers consigliano di prioritizzare ADR-007 mig 056 come prossimo sprint architetturale, prima di scrivere migration 057+ di Interventi v2. La chiusura Q2/Q4/Q5 può procedere in parallelo (è docs-only, non blocca codice).
+**Stato 20/5 sera**: il blocker primario (2) si è rivelato **più grande di quanto pensavamo a inizio giornata**. Non è una migration di hardening idempotente (ADR-007 mig 056) — è uno sprint architetturale che costruisce la fondazione multi-tenant da zero (tabella organizations + backfill + RLS validation). Resta però **non urgente**: finché Andrea lavora single-tenant per il proprio caso d'uso reale, l'isolamento RLS attuale (`org_id='default'` matcha sempre `get_my_org_id()='default'`, ogni utente vede tutto della "org fittizia") funziona correttamente. Lo sprint si apre quando ManuTech serve un secondo cliente reale.
+
+Conseguenza per ADR-008: il pivot a `accepted` resta **bloccato**, ma il blocco non è più "scrivi mig 056" — è "decidi se aprire Multi-Tenant Foundations". Q2/Q4/Q5 possono continuare a chiudersi in parallelo (docs-only, non blocca codice). Lo schema delta δ di questo ADR resta valido come progetto: nulla in esso dipende dal tipo TEXT vs UUID di `org_id`, solo dal fatto che esista coerentemente.
 
 Questo ADR è **docs-only**. Nessuna migration scritta, nessun codice applicativo toccato.

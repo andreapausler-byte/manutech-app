@@ -1,6 +1,63 @@
 # ADR-007 — org_id schema hardening
 
-**Status**: proposal expanded · **Date**: 2026-05-14 · **Last update**: 2026-05-20 · **Sprint target**: 1d (post-Sprint 1b chiusura) · **Priorità**: alta (pre-FASE 5 multi-tenant; blocca pivot ADR-008 a `accepted`)
+**Status**: **superseded by future Sprint Multi-Tenant Foundations** · **Date**: 2026-05-14 · **Last update**: 2026-05-20 (sera) · **Sprint target originale**: 1d (sospeso 20/5 sera) · **Priorità**: posticipata (multi-tenant fuori focus corrente)
+
+---
+
+## Scoperta 2026-05-20 — pre-check mig 056 abortito
+
+A fine giornata 20/5, dopo audit client pulito (`docs/audits/2026-05-20-org-id-client-audit.md`) e proposta migration `056_org_id_hardening.sql` (opzione C) pronta per review, l'esecuzione del solo Step 1 (pre-check `org_id='default'`) ha fatto abortire la migration con uno scenario radicalmente diverso da quello assunto in tutto questo ADR.
+
+### Fatti scoperti via SQL diagnostico in produzione
+
+1. **2424 record con `org_id='default'` su 22 tabelle**. Non è "sporcizia residua" da cleanup, è il **valore di default usato sistematicamente dall'inizio** dell'app. Ogni INSERT che è andato in produzione finora ha scritto `org_id='default'` perché nessuna org reale è mai esistita.
+
+2. **`users.org_id` ha un solo valore distinto: `'default'`** (29 utenti su 29). Gli utenti che usano ManuTech oggi (Andrea + manutentore reale + utenti demo + tester) appartengono tutti alla stessa "org fittizia" rappresentata dalla stringa letterale `'default'`.
+
+3. **Nessuna tabella `organizations` / `orgs` / `tenants` / `companies` esiste nel public schema**. La discovery contraddice direttamente quanto dichiarato in `032_organizations.sql`, che ipotizzava di averla creata e di aver fatto backfill verso un seed UUID. **Quella migration non è mai stata applicata in produzione**, oppure è stata revertita senza traccia. Il codice client la presume esistente (vedi `_client.js:29` che invoca `supabase.rpc('get_my_org_id')`) ma in produzione l'RPC ritorna verosimilmente la stringa `'default'` (o NULL coperto da fallback client `DEMO_ORG_ID`).
+
+4. **L'UUID `1235103f-45e5-4fa5-a256-3ca5f39dcf1e`** citato nelle note storiche ADR-007 e nelle 5 query diagnostiche di ADR-008 (`/* contro l'org 1235103f-... */`) **non esiste in produzione**. Era un valore pianificato — probabilmente preso dalla testa o da un ambiente di staging dismesso — ma mai applicato. Le note storiche su ManuTech multi-tenant scritte fino al 20/5 sono in larga parte **wishful thinking documentato come fatto**.
+
+### Riclassificazione dello stato del DB
+
+Lo schema attuale **non è "sporco da bonificare"**. È **pre-multi-tenant by design**:
+
+- `org_id TEXT NOT NULL DEFAULT 'default'` su 27 tabelle = una colonna che è formalmente cross-tenant ma di fatto serve solo a tenere il posto per il giorno in cui multi-tenant arriverà davvero.
+- `get_my_org_id()` ritorna `'default'` (o NULL → fallback) — in pratica le RLS `org_id = get_my_org_id()` confrontano sempre `'default' = 'default'` → match, ogni utente vede tutto. Non c'è isolamento tenant, perché non c'è multi-tenant da isolare.
+- Il sistema funziona correttamente per **un singolo tenant fittizio**, che è esattamente lo scenario d'uso reale (Andrea + il suo manutentore, single-org).
+
+Conseguenze:
+
+- **Migration 056 (opzione C) non applicabile come progettata**. Il CHECK `org_id <> 'default' AND org_id ~* '<uuid-regex>'` rifiuterebbe 2424 record esistenti + ogni nuovo INSERT futuro. Aborto al pre-check Step 1 è la risposta corretta — bloccare l'utente prima di rompere il DB.
+- **Mig 032 va trattata come dichiarata-ma-non-applicata** finché non si verifica caso per caso. L'audit dello schema reale è prerequisito per qualunque sprint di hardening org_id.
+- **L'intent di questo ADR resta valido per il futuro**, ma il percorso cambia: serve prima costruire la fondamenta multi-tenant (tabella `organizations` reale, backfill dei record esistenti verso un UUID seed reale, get_my_org_id() che risolve via JOIN), poi il CHECK hardening diventa banale.
+
+### Decisione di rotta (20/5 sera)
+
+Andrea ha scelto di **mettere da parte il tema multi-tenant/commercializzazione** e concentrarsi sull'evoluzione del prodotto come single-tenant tool per il proprio caso d'uso reale. La fondazione multi-tenant resta valida come strategia futura ma esce dalla short-term roadmap.
+
+**Questo ADR transita a `superseded by future Sprint Multi-Tenant Foundations`**. La proposta di hardening org_id (opzione C, opzione B) e l'audit client del 20/5 restano nel repository come riferimento per quando lo Sprint Multi-Tenant Foundations sarà aperto. Non si applica nulla nel frattempo.
+
+**File correlati impattati**:
+- `supabase/migrations/056_org_id_hardening.sql` — marcato `DO NOT APPLY` in cima
+- `supabase/migrations/056_org_id_hardening_down.sql` — marcato `DO NOT APPLY` in cima
+- `docs/audits/2026-05-20-org-id-client-audit.md` — resta valido come fotografia client al 20/5
+- `docs/decisions/ADR-008-interventions-v2-data-model.md` — prereq #2 riformulato (vedi ADR-008)
+
+### Cosa servirà davvero in Sprint Multi-Tenant Foundations
+
+Quando il momento arriverà (decisione futura), lo sprint dovrà:
+
+1. **Audit live** con query diagnostiche su DB reale **prima** di scrivere proposta (lezione operativa, vedi journal 20/5 sera).
+2. **CREATE TABLE organizations** vera, con seed UUID per la "default org" attuale.
+3. **Backfill atomico**: `UPDATE <tabella> SET org_id = '<seed-uuid>' WHERE org_id = 'default'` su tutte le 27 tabelle.
+4. **Update `get_my_org_id()`** per risolvere via JOIN con organizations (la versione 032-dichiarata, mai applicata davvero).
+5. **CHECK constraint** (l'opzione C di questo ADR) come step finale di hardening.
+6. **Smoke test multi-tenant**: creare seconda org, verificare isolamento RLS.
+
+Tutto questo ha valore SE/QUANDO ManuTech serve un secondo cliente. Non prima.
+
+---
 
 ## Problema
 

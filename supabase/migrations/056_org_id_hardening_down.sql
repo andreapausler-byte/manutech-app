@@ -1,4 +1,16 @@
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- ⚠️  DO NOT APPLY — sospeso 2026-05-20 (sera)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--
+-- Down della mig 056, anch'essa sospesa. La mig 056 non è mai stata
+-- applicata in produzione (pre-check abortito): non c'è nulla da
+-- revertire oggi. Questo file resta come riferimento per il futuro
+-- Sprint Multi-Tenant Foundations.
+--
+-- Vedi ADR-007 sezione "Scoperta 2026-05-20 — pre-check mig 056
+-- abortito" per il contesto completo.
+--
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- Migration 056 DOWN — rimuove CHECK constraints org_id UUID-shape
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 --

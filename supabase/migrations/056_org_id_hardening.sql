@@ -1,4 +1,26 @@
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- ⚠️  DO NOT APPLY — sospeso 2026-05-20 (sera)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--
+-- Il pre-check Step 1 ha rivelato 2424 record con org_id='default' su
+-- 22 tabelle in produzione — NON sporcizia residua, è il valore
+-- sistematicamente usato dall'inizio dell'app. La tabella organizations
+-- citata in mig 032 non esiste in produzione (mig 032 dichiarata ma
+-- mai applicata davvero). Lo schema attuale è pre-multi-tenant by
+-- design, non sporco da bonificare.
+--
+-- Applicare questa migration ora rifiuterebbe 2424 record esistenti
+-- + ogni INSERT futuro (il client passa 'default' via getMyOrgId
+-- fallback). L'aborto al pre-check è il comportamento corretto.
+--
+-- Questo file resta nel repo come riferimento per il futuro Sprint
+-- Multi-Tenant Foundations, che dovrà PRIMA creare organizations reale
+-- + backfill, POI applicare hardening tipo questo.
+--
+-- Vedi ADR-007 sezione "Scoperta 2026-05-20 — pre-check mig 056
+-- abortito" per il contesto completo.
+--
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- Migration 056 — org_id schema hardening (ADR-007, opzione C)
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 --
