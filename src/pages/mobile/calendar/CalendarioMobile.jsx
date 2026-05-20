@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, EyeOff, Eye } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, EyeOff, Eye, CalendarOff } from 'lucide-react'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useInterventionsCalendar } from '../../../hooks/useInterventionsCalendar'
 import MobileWeekStrip from './MobileWeekStrip'
 import MobileDayContextSheet from './MobileDayContextSheet'
 import MobileMonthMicroOverlay from './MobileMonthMicroOverlay'
+import MobileInterventionPillola from './MobileInterventionPillola'
 
 const MONTHS = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
   'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
 ]
+
+// getDay(): 0=Domenica, 1=Lunedì, ..., 6=Sabato — ordine ISO italiano
+const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 
 function startOfWeek(d) {
   const date = new Date(d)
@@ -63,10 +67,11 @@ export default function CalendarioMobile({
   const [currentMonth, setCurrentMonth] = useState(() => initialMonth || startOfMonth(new Date()))
   const [weekStart, setWeekStart] = useState(() => startOfWeek(initialOpenDay || new Date()))
   const [selectedDay, setSelectedDay] = useState(() => initialOpenDay || today)
-  // Fix UX 1b-A: sheet è la single source of truth per il giorno.
-  // Apre automaticamente al mount (anche se selectedDay === today) così
-  // l'utente vede subito gli interventi senza dover toccare la strip.
-  const [sheetOpen, setSheetOpen] = useState(true)
+  // Fix UX 20/5: default sheet CHIUSO — al mount l'utente vede la lista
+  // settimanale completa (raggruppata per giorno) sotto la week strip,
+  // senza dover toccare nulla. Il sheet diventa zoom opzionale sul singolo
+  // giorno (apre al tap su giorno della strip o su bottone esplicito).
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [overlayOpen, setOverlayOpen] = useState(false)
 
   const [showCancelled, setShowCancelled] = useState(() => {
@@ -141,6 +146,47 @@ export default function CalendarioMobile({
         return new Date(a.scheduled_start_at) - new Date(b.scheduled_start_at)
       })
   }, [visibleInterventions, selectedDay])
+
+  // Interventi della settimana corrente, raggruppati per giorno.
+  // Ogni gruppo è ordinato critica-first + orario crescente (stesso criterio
+  // del sheet). I giorni vuoti sono omessi dalla lista.
+  const weekGroupedByDay = useMemo(() => {
+    if (!weekStart) return []
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekStart.getDate() + 6)
+    weekEnd.setHours(23, 59, 59, 999)
+
+    const groups = new Map()
+    for (const intv of visibleInterventions) {
+      if (!intv.scheduled_start_at) continue
+      const d = new Date(intv.scheduled_start_at)
+      if (d < weekStart || d > weekEnd) continue
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          date: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+          items: [],
+        })
+      }
+      groups.get(key).items.push(intv)
+    }
+
+    const sortItems = (a, b) => {
+      const aCrit = a.severity === 'critica' ? 0 : 1
+      const bCrit = b.severity === 'critica' ? 0 : 1
+      if (aCrit !== bCrit) return aCrit - bCrit
+      return new Date(a.scheduled_start_at) - new Date(b.scheduled_start_at)
+    }
+    return Array.from(groups.values())
+      .map(g => ({ ...g, items: g.items.sort(sortItems) }))
+      .sort((a, b) => a.date - b.date)
+  }, [visibleInterventions, weekStart])
+
+  const weekTotalCount = useMemo(
+    () => weekGroupedByDay.reduce((acc, g) => acc + g.items.length, 0),
+    [weekGroupedByDay]
+  )
 
   const goPrevWeek = () => {
     setWeekStart(d => {
@@ -353,25 +399,75 @@ export default function CalendarioMobile({
         )}
       </div>
 
-      {/* CTA per riaprire il sheet se l'utente lo ha chiuso (single source
-          of truth = sheet). Visibile solo se sheet è chiuso. Il giorno è
-          comunque selezionato nella week-strip. */}
+      {/* Lista interventi della settimana, raggruppata per giorno.
+          Visibile quando il sheet è chiuso (single source of truth: quando
+          sheet aperto, ha pieno focus sul giorno selezionato). Empty state
+          dedicato se la settimana non ha interventi. */}
       {!sheetOpen && (
-        <div style={{ marginTop: 16, padding: '0 4px' }}>
-          <button
-            onClick={() => setSheetOpen(true)}
-            className="press-scale"
-            style={{
-              width: '100%', minHeight: 48,
-              padding: '10px 12px', borderRadius: 12,
+        <div style={{
+          marginTop: 16, flex: 1, minHeight: 0,
+          overflowY: 'auto', paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
+        }}>
+          {weekTotalCount === 0 ? (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+              padding: '40px 16px',
+              textAlign: 'center',
               background: 'var(--color-surface-1)',
               border: '1px dashed var(--color-border)',
-              color: 'var(--color-text-secondary)',
-              fontSize: 13, fontWeight: 600,
-              cursor: 'pointer',
+              borderRadius: 12,
             }}>
-            Mostra interventi del giorno
-          </button>
+              <CalendarOff size={40} style={{ color: '#a1a1aa' }} />
+              <p style={{
+                fontSize: 14, fontWeight: 500, color: '#e4e4e7',
+                margin: 0, lineHeight: 1.5,
+              }}>
+                Nessun intervento previsto questa settimana
+              </p>
+              <p style={{
+                fontSize: 12, color: '#a1a1aa',
+                margin: 0, lineHeight: 1.5, maxWidth: 280,
+              }}>
+                Naviga ad altre settimane con le frecce sopra, o tocca il mese per saltare a un'altra data.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 2px' }}>
+              {weekGroupedByDay.map(group => (
+                <div key={group.key}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.6,
+                    color: '#a1a1aa',
+                    fontFamily: '"JetBrains Mono", monospace',
+                    marginBottom: 8,
+                    padding: '0 4px',
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <span>{DAY_LABELS[group.date.getDay()]} {group.date.getDate()} {MONTHS[group.date.getMonth()].slice(0, 3)}</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 800,
+                      padding: '1px 6px', borderRadius: 999,
+                      background: 'var(--color-surface-2)',
+                      color: '#d4d4d8',
+                    }}>
+                      {group.items.length}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {group.items.map(intv => (
+                      <MobileInterventionPillola
+                        key={intv.id}
+                        intervention={intv}
+                        onOpenReport={handleOpenReport}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
