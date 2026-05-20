@@ -348,12 +348,13 @@ export default function CalendarioMobile({
           <span
             aria-label={`Settimana ${weekNumber}`}
             style={{
-              fontSize: 11, fontWeight: 800,
-              padding: '2px 7px', borderRadius: 6,
-              background: 'var(--color-surface-2)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-primary)',
-              letterSpacing: 0.3,
+              fontSize: 15, fontWeight: 900,
+              padding: '4px 10px', borderRadius: 8,
+              background: 'var(--color-primary)',
+              color: '#fff',
+              letterSpacing: 0.4,
+              boxShadow: 'var(--shadow-glow-primary)',
+              fontFamily: '"JetBrains Mono", monospace',
             }}>
             S{weekNumber}
           </span>
