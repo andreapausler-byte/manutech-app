@@ -575,14 +575,13 @@ export default function AdminMachines({ onOpenAssistant }) {
             <div className="flex flex-col items-center flex-1 min-w-0">
               <div
                 className="rounded-lg p-2 mb-2 w-full flex justify-center h-24 items-center shadow-inner"
-                style={{ background: '#ffffff' }}
+                style={{ background: 'var(--color-surface-2)' }}
               >
                 {m.photo_url ? (
                   <img
                     src={m.photo_url}
                     alt={m.name}
                     className="max-h-full object-contain"
-                    style={{ mixBlendMode: 'multiply' }}
                   />
                 ) : (
                   <Cog size={40} style={{ color: '#94a3b8' }} />
