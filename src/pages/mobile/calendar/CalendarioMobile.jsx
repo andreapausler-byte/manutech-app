@@ -25,6 +25,16 @@ function startOfWeek(d) {
   return date
 }
 
+// ISO 8601 week number: la settimana 1 contiene il primo giovedì dell'anno.
+// Standard usato in Italia/Europa per pianificazione industriale.
+function getISOWeekNumber(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  const dayNum = date.getUTCDay() || 7
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1))
+  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7)
+}
+
 function startOfMonth(d) {
   return new Date(d.getFullYear(), d.getMonth(), 1)
 }
@@ -244,6 +254,7 @@ export default function CalendarioMobile({
     if (sameMonth(weekStart, end)) return `${sd}–${ed} ${MONTHS[weekStart.getMonth()].slice(0, 3)}`
     return `${sd} ${MONTHS[weekStart.getMonth()].slice(0, 3)} – ${ed} ${MONTHS[end.getMonth()].slice(0, 3)}`
   }, [weekStart])
+  const weekNumber = useMemo(() => getISOWeekNumber(weekStart), [weekStart])
 
   return (
     <div style={{
@@ -326,14 +337,27 @@ export default function CalendarioMobile({
           <ChevronLeft size={18} />
         </button>
         <div style={{
-          flex: 1, textAlign: 'center',
+          flex: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           fontSize: 13, fontWeight: 700,
           color: '#d4d4d8',
           fontFamily: '"JetBrains Mono", monospace',
           letterSpacing: 0.4,
           textTransform: 'uppercase',
         }}>
-          {weekLabel}
+          <span
+            aria-label={`Settimana ${weekNumber}`}
+            style={{
+              fontSize: 11, fontWeight: 800,
+              padding: '2px 7px', borderRadius: 6,
+              background: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-primary)',
+              letterSpacing: 0.3,
+            }}>
+            S{weekNumber}
+          </span>
+          <span>{weekLabel}</span>
         </div>
         <button
           onClick={goNextWeek}
