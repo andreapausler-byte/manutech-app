@@ -2,8 +2,8 @@
 
 Bussola di lungo periodo. Si aggiorna a fine fase o quando cambia la direzione, non più spesso. Il battito mensile sta in `journal/`. Il focus della sessione corrente sta in `CLAUDE.md`.
 
-**Ultima review**: 9 maggio 2026
-**Fase corrente**: Fase 4 anticipata — RAG sui commenti (use case "casi simili")
+**Ultima review**: 20 maggio 2026
+**Fase corrente**: Layer 0 fondamenta — Sprint 1b chiuso in produzione il 20/5 (push end-to-end + lista settimanale mobile). Prossima decisione di rotta a freddo.
 **Prossima review trimestrale**: 2 agosto 2026
 
 ---
@@ -42,6 +42,7 @@ Bussola di lungo periodo. Si aggiorna a fine fase o quando cambia la direzione, 
 **Obiettivo**: MTBF per macchina × tipo intervento, stock minimi dinamici, score multifattoriale fornitori (specialty match, tempo medio risposta, accuratezza preventivo, tasso re-intervento). Tutto SQL, niente AI esotica.
 **Why**: l'admin smette di registrare e inizia a decidere con i fatti. È la fase più admin-first di tutta la roadmap.
 **Aggiunta backlog (15/5/2026)**: Agenda tecnico mobile (vista temporale lista, non calendario; tecnico priorità più alta di operatore). Sequenziale rispetto a Interventi v2 in produzione — vedi ADR-008 (schema) + futuro ADR-009 (UI agenda).
+**Update 20/5/2026**: l'overview settimanale (lista interventi della settimana sotto la week strip mobile) consegnata come completion di Sprint 1b-A (vedi journal 20/5). Copre il caso d'uso "prepararsi psicologicamente ai prossimi impegni" sulla settimana corrente. L'Agenda tecnico FASE 3 piena (workflow scheduling, drag&drop interventi, propose-time fornitori, vista lista temporale oltre la settimana) resta da disegnare in ADR-009 quando Interventi v2 sarà accepted.
 
 ## Fase 4 · Knowledge che sopravvive
 
@@ -91,6 +92,7 @@ Quando cambi piano, scrivi qui perché. Niente di lungo, una frase basta.
 - **9 maggio 2026 (pomeriggio)** — Inserito sub-sprint non pianificato di **navigabilità lista mobile + schema TK-id parlante**. Emerso come bisogno operativo durante il test reale del pannello "Casi simili" (utente: "destreggiarsi tra le segnalazioni quando sono tante è arduo"). Razionale: il pannello AI funziona, ma se la lista non è navigabile l'AI non viene mai invocata. La navigabilità è prerequisito infrastrutturale per qualsiasi feature successiva — non un nice-to-have. Costo: spostata indietro la decisione su Fase 1 events vs continuazione Fase 4. Beneficio: schema TK-id e trigger updated_at sono fondazioni che non si rifaranno.
 - **15 maggio 2026** — Confronto col manutentore reale fa emergere 4 insight strutturali sul modello Interventi (origine varia, modalità operative, partecipanti multipli, visibilità=accountability). 3/4 già parzialmente coperti dallo schema attuale (ADR-006 mig 055 + supervised_by mig 054). Delta schema reale = nuova colonna `execution_mode` + nuova tabella `intervention_participants`. Conseguenza: Agenda tecnico mobile (entrava come "nice-to-have FASE 3 later") promossa a "early FASE 3" ma sequenziale dopo Interventi v2. Tracked in ADR-008 (proposed, 5 open questions blocking).
 - **15 maggio 2026 (sera)** — Formalizzata AI strategy come layer trasversale del prodotto (ADR-010 Vision living, non transita ad Accepted). Principio fondante vincolante: l'AI esiste per tutelare e aiutare in primis operatore e tecnico, non per management/investor/demo. Ogni feature AI deve superare il test "rende più facile la giornata di operatore/tecnico?". Sequencing 4 layer (L0 fondamenta → L1 applicata → L2 memoria operativa → L3 commerciale) con L3 esplicitamente subordinato a L1/L2. Razionale: prevenire feature drift AI nei prossimi sprint e ancorare ogni decisione tecnica al beneficiario operativo reale.
+- **20 maggio 2026** — Sprint 1b chiuso end-to-end in produzione: 1b-B push notifications validate sul telefono la mattina, 1b-A completion lista settimanale mergiata la sera (5 PR consecutive #244-#249 con 1 revert per flex+overflow nidificato → retry conservativo con layout naturale). Pattern emerso: la lista settimanale era classificata "Agenda tecnico mobile FASE 3 backlog" → ricontestualizzata come completion di Sprint 1b-A (Mobile Calendar Parity) grazie a screenshot del founder che identificava spazio vuoto già esistente da riempire. Layer 0 fondamenta mobile sostanzialmente stabile in produzione. Prossima decisione di rotta a freddo tra (a) Interventi v2 ADR-008 [blocking per FASE 3], (b) Fase 1 events rinviata 9/5, (c) test live + polish post sprint 1b. Lezione operativa: fissare a tavolino "non più di 2 retry sulla stessa feature in una sessione" — il terzo retry è segnale che la specifica non è chiara, non che il codice è sbagliato.
 
 ---
 
