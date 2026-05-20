@@ -1,6 +1,10 @@
 # ADR-008 — Interventi v2 · data model (execution_mode + intervention_participants)
 
-**Status**: Proposed · **Date**: 2026-05-15 · **Sprint target**: TBD (post-1c-bis, post-1d/ADR-007) · **Schema delta**: δ (su γ di ADR-006)
+**Status**: Proposed · **Date**: 2026-05-15 · **Last update**: 2026-05-20 · **Sprint target**: TBD (post-ADR-007 mig 056) · **Schema delta**: δ (su γ di ADR-006)
+
+> **Decision history**:
+> - 15/5 sera — confronto manutentore #1: chiuse Open Q #1 (workflow approvazione = informativa, non gating) e Open Q #3 (account fornitori = contatto esterno, no estensione `users.role`).
+> - 20/5 — status review: ADR-007 mig 056 NON ancora in produzione (verificato `ls supabase/migrations/`). Prereq #2 di pivot a `accepted` non soddisfatto. Open Q #2/#4/#5 residue con raccomandazione tecnica preliminare aggiunta in questo update — da chiudere col manutentore #2.
 
 ## Context
 
@@ -56,7 +60,11 @@ CREATE TABLE public.intervention_participants (
   intervention_id    UUID NOT NULL REFERENCES public.interventions(id) ON DELETE CASCADE,
   user_id            UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
   role               TEXT NOT NULL
-    CHECK (role IN ('lead','supporto','operatore_linea','approvatore','osservatore','fornitore')),
+    CHECK (role IN ('lead','supporto','operatore_linea','approvatore','osservatore')),
+  -- NB: `'fornitore'` rimosso a seguito Q3 chiusa il 15/5 sera (contatto
+  -- esterno, no users.role extension). I fornitori esterni sono modellati
+  -- come FK opzionale `interventions.external_supplier_id` (vedi 4.5),
+  -- non come participants. La pipeline notifiche/chat resta invariata.
   status             TEXT NOT NULL DEFAULT 'invitato'
     CHECK (status IN ('invitato','confermato','rifiutato','completato')),
   notified_at        TIMESTAMPTZ,
@@ -70,7 +78,7 @@ CREATE TABLE public.intervention_participants (
 );
 ```
 
-> **Nota su `user_id` e fornitori**: lo schema SQL qui mostrato assume che i fornitori abbiano un record in `users` (richiede estensione futura di `users.role` CHECK con `'fornitore'`). Decisione rinviata a Open Question #3. Alternativa schema-side: FK polimorfica (`user_id UUID NULL`, `supplier_id UUID NULL`) + CHECK constraint che esattamente uno sia popolato. La scelta finale verrà presa in chiusura di Open Q #3, prima della migration di implementazione. Lo schema mostrato qui è quindi **indicativo della direzione preferita, non vincolante**.
+> **Aggiornamento Q3 (15/5 sera, decisione chiusa)**: i fornitori esterni NON entrano in `intervention_participants`. Restano contatti esterni, gestiti via riferimento a `supplier_profiles` (mig 030) come FK opzionale `interventions.external_supplier_id` — vedi sezione 4.5. `users.role` CHECK resta invariato (`operatore`, `tecnico`, `admin`, `super_admin`). La pipeline notifiche/chat verso il fornitore esterno passa per il tecnico interno (lead), non per la piattaforma. Nessuna FK polimorfica, nessun signup fornitore self-service.
 
 Più indici:
 - `idx_intervention_participants_intervention ON (intervention_id)`
@@ -100,21 +108,92 @@ Decisione esplicita: **NON modificare la CHECK su `interventions.origin`** (valo
 | `origin='maintenance_plan'` + `execution_mode='fermo_pianificato'` | Manutenzione programmata in shutdown |
 | `origin='manuale'` + `execution_mode='opportunistica'` | Intervento opportunistico durante altra visita |
 
-## Open questions (blocking implementazione)
+### 4.5 `interventions.external_supplier_id` (nuovo, da Q3)
 
-Da chiudere col manutentore reale prima di scrivere la migration.
+A seguito chiusura Q3 (contatto esterno, no `users.role` extension), il fornitore esterno è modellato come FK opzionale a `supplier_profiles` direttamente su `interventions`:
 
-1. **Workflow approvazione** — `execution_mode='fermo_pianificato'` (e forse `'fornitore_esterno'` sopra una certa soglia di costo?) richiede approvatore? Blocking o informativo? Lo status workflow `bozza→pianificato→confermato→…` basta o serve un nuovo `approvato` tra `pianificato` e `confermato`?
-2. **Notifica operatore di linea su fermo macchina** — quando un intervento `execution_mode='fermo_pianificato'` viene creato sulla macchina X, l'operatore di linea che la usa va notificato come? Solo push? Stato visivo sulla scheda macchina? Email se è OFF turno?
-3. **Account fornitori in ManuTech**
-   - **3a. Workflow**: come un fornitore esterno conferma la sua partecipazione a un intervento? Email con link signup → account `users` con `role='fornitore'`? Oppure solo notifica al tecnico interno che gestisce la comunicazione offline?
-   - **3b. (schema-blocking)** In funzione della 3a: estendere `users.role` CHECK con `'fornitore'` (path semplice, riusa pipeline notifiche/chat esistenti), OPPURE mantenere `supplier_profiles` separato e introdurre FK polimorfica (`user_id` NULL, `supplier_id` NULL) su `intervention_participants` (più rigoroso, separa entità ma duplica logica).
-   - **Raccomandazione tecnica preliminare**: 3b → estendere `users.role`. Riduce complessità, allinea ai pattern esistenti, permette ai fornitori di ricevere notifiche/chat via la stessa pipeline. Sconsiglio polimorfismo a meno di vincoli legali/contrattuali specifici sui fornitori (es. NDA che impedisca trattarli come "utenti del sistema").
-   - **Decisione finale**: bloccata in attesa di chiarimento manutentore.
-4. **Reschedulazione** — quando `scheduled_start_at` cambia, tutti i partecipanti ri-notificati automaticamente? Solo il lead? Configurable per `execution_mode` (es. `fermo_pianificato` notifica TUTTI, `ordinaria` solo lead+operatore_linea)?
-5. **Storico visibilità** — un operatore di linea che era stato linkato a un intervento poi rimosso, vede ancora l'intervento nello storico? Filtro temporale (es. solo ultimi 90 giorni) o filtro per ruolo (es. lead vede sempre, osservatore solo se attualmente linkato)?
+```sql
+ALTER TABLE public.interventions
+  ADD COLUMN external_supplier_id UUID NULL
+    REFERENCES public.supplier_profiles(id) ON DELETE SET NULL;
+CREATE INDEX idx_interventions_external_supplier
+  ON public.interventions(external_supplier_id)
+  WHERE external_supplier_id IS NOT NULL;
+```
 
-**Raccomandazione priorità**: #3 (account fornitori) e #1 (workflow approvazione) sono **blocking-design** per la migration. #2, #4, #5 sono raffinamenti del flusso applicativo, possono restare aperte oltre la migration e chiuse iterativamente in fase di implementazione UI.
+**Semantica**: popolato (nullable) quando il fornitore è identificato. Coerenza con `execution_mode='fornitore_esterno'` resta UI-driven, non DB-enforced (un intervento può essere `'fornitore_esterno'` con fornitore "da definire" durante la pianificazione). Nessun CHECK su `(execution_mode='fornitore_esterno') = (external_supplier_id IS NOT NULL)`: troppo rigido per flussi reali.
+
+**Pipeline comunicazione**: invariata. Il tecnico interno (lead in `intervention_participants`) gestisce email/telefono/WhatsApp col fornitore offline. ManuTech non invia push/email al fornitore — è una decisione esplicita di Q3, non un debito tecnico.
+
+**Backward compatibility**: zero. Colonna nuova, nullable, default NULL. Nessun client legge `external_supplier_id` oggi.
+
+## Open questions
+
+Le 5 questions originali sono ora in 3 stati: CLOSED (Q1, Q3), OPEN con raccomandazione tecnica preliminare (Q2, Q4, Q5).
+
+### Q1 — Workflow approvazione · CLOSED 2026-05-15 (sera)
+
+**Decisione**: il workflow di approvazione è **informativo, non gating**. Lo status workflow esistente `bozza→pianificato→confermato→in_corso→completato` resta invariato. Nessun nuovo stato `approvato` tra `pianificato` e `confermato`.
+
+**Implicazioni schema**: il ruolo `'approvatore'` resta nel CHECK di `intervention_participants.role` come **canale di notifica** (riceve push/email quando creato un intervento `execution_mode='fermo_pianificato'`), non come gating del workflow. Un intervento può procedere a `confermato` anche senza approvatore presente in `intervention_participants`. Nessun trigger di blocco workflow.
+
+**Da riconfermare nel confronto #2** (interpretazione tecnica): se per "informativa" il manutentore intende invece "il ruolo approvatore proprio non esiste, è un concetto solo del management", rimuovere `'approvatore'` dal CHECK + delle 4 modalità di notifica per `fermo_pianificato`. Mantenuto conservativo nello schema attuale perché più facile rimuovere che aggiungere.
+
+### Q2 — Notifica operatore di linea su fermo macchina · OPEN
+
+**Domanda**: quando viene creato un intervento `execution_mode='fermo_pianificato'` sulla macchina X, come va notificato l'operatore di linea?
+
+**Sub-questione critica (preliminare)**: chi è "l'operatore di linea della macchina X"? Esiste oggi un mapping operatore↔macchina nello schema? Verifica rapida: nessuna colonna `operator_id` su `machines` né tabella `machine_operators`. Va introdotto un mapping nuovo, oppure si notifica a tutti gli operatori dell'org.
+
+**Opzioni**:
+- (a) Push immediato (se subscription attiva) + banner permanente sulla scheda macchina ("Manutenzione programmata: 23/05 14:00")
+- (b) Solo banner sulla scheda macchina, no push intrusivo (push solo se severità del report linkato è alta)
+- (c) Push + email se l'operatore è OFF turno (richiede schema turni — fuori scope L0)
+
+**Raccomandazione tecnica preliminare**: (a). Riusa pipeline push Sprint 1b-B + banner come query `interventions WHERE machine_id=X AND status IN ('pianificato','confermato') AND scheduled_start_at > now()` su scheda macchina mobile. Email off-turno è iperingegnerizzata per il valore attuale, defer.
+
+**Sub-questione bonus per manutentore #2**: la macchina X ha un solo operatore "principale" o N operatori che ruotano? Se N, si notificano tutti o solo il "responsabile di linea"?
+
+### Q3 — Account fornitori · CLOSED 2026-05-15 (sera)
+
+**Decisione**: i fornitori sono **contatti esterni**, non utenti ManuTech. Nessuna estensione di `users.role` CHECK con `'fornitore'`. `users.role` resta `('operatore','tecnico','admin','super_admin')` invariato.
+
+**Implicazioni schema**:
+- `intervention_participants.role` CHECK: 5 valori (`lead, supporto, operatore_linea, approvatore, osservatore`). `'fornitore'` rimosso (vedi 4.2).
+- `interventions.external_supplier_id UUID NULL REFERENCES supplier_profiles(id)`: nuova FK opzionale per identificare il fornitore esterno (vedi 4.5).
+- Comunicazione col fornitore esterno via canale offline (email/telefono/WhatsApp) gestita dal tecnico interno lead. ManuTech NON invia push/email al fornitore.
+
+**Debt collaterale identificato (fuori scope ADR-008)**: il codice client ha ancora riferimenti residui a `role === 'fornitore'` (es. `InterventionForm.jsx:120`, `UserPicker.jsx:62`, `PendingSuppliersPanel.jsx:23`) — bug latente già pre-esistente (mig 044 lo documenta: "in pratica i fornitori sono registrati con role='tecnico'"). Cleanup separato da pianificare quando si scrive il client di Interventi v2.
+
+### Q4 — Reschedulazione · OPEN
+
+**Domanda**: quando `scheduled_start_at` cambia, chi viene ri-notificato?
+
+**Opzioni**:
+- (a) Tutti i participants di `intervention_participants` (uniforme, no policy per execution_mode)
+- (b) Solo il lead (minimale, il lead poi propaga manualmente)
+- (c) Configurable per `execution_mode`: `fermo_pianificato` notifica tutti + operatore di linea, `ordinaria` solo lead + supporto, `fornitore_esterno` solo lead (che ripassa al fornitore offline)
+
+**Raccomandazione tecnica preliminare**: (c). Pattern già coerente col dominio (`execution_mode` come driver di policy). `notified_at` su `intervention_participants` si re-resetta a NULL al rescheduling per audit trail. Implementazione: trigger BEFORE UPDATE su `interventions` che, se `OLD.scheduled_start_at IS DISTINCT FROM NEW.scheduled_start_at`, inserisce job in queue notifiche con policy `execution_mode`-aware.
+
+**Sub-questione per manutentore #2**: la notifica di reschedule sostituisce semanticamente quella iniziale (1 push sola, "ora alle X invece di Y"), o si aggiunge (2 push storici)? Da UX founder-side: probabilmente sostituisce — replace dell'ultima notifica `intervention_scheduled` con `intervention_rescheduled`.
+
+### Q5 — Storico visibilità · OPEN
+
+**Domanda**: un operatore di linea linkato a un intervento poi rimosso lo vede ancora nello storico?
+
+**Opzioni**:
+- (a) "Snapshot semantico": chi era participant al momento della `status='completato'` vede l'intervento per sempre (anche se rimosso prima della completion: vede solo se era ancora linkato al completamento)
+- (b) "Filtro per ruolo": lead vede sempre, osservatore solo se attualmente linkato (visibilità diversa per role)
+- (c) "Filtro temporale": tutti vedono ultimi 90 giorni, oltre solo se attualmente linkato
+
+**Raccomandazione tecnica preliminare**: (a). Snapshot semantico è naturale e accountable: chi c'era al completamento è co-responsabile e mantiene visibilità storica. Pattern `*_snapshot` su `intervention_participants.user_name_snapshot/user_role_snapshot` (già in 4.2) preserva il dato anche se l'utente viene cancellato (`ON DELETE RESTRICT` impedisce hard delete, ma il pattern serve per snapshot del ruolo al momento). Persistenza garantita anche se la persona cambia ruolo.
+
+**Sub-questione per manutentore #2**: deletion di un participant pre-completion (operatore_linea sbagliato → rimosso prima dell'intervento) cancella la sua visibilità retroattiva, oppure resta come "linkato il X, rimosso il Y" in audit trail? Default proposto: soft-removal con `removed_at TIMESTAMPTZ` invece di `DELETE` — l'audit trail resta, la visibilità no.
+
+### Priorità chiusura Q2/Q4/Q5
+
+Tutte e 3 sono raffinamenti applicativi, non schema-blocking. La migration di implementazione può procedere con default tecnici (raccomandazioni (a)/(c)/(a) sopra) e i comportamenti possono essere raffinati iterativamente in fase di implementazione UI. Conviene comunque chiuderle nel confronto manutentore #2 prima di pivotare ADR-008 a `accepted`: il costo del confronto è basso (30 min stimati), la chiarezza che si ottiene è alta.
 
 ## Anti-patterns vincolanti
 
@@ -223,9 +302,11 @@ Tutte read-only, nessun DML, nessun DDL.
 
 ## Notes
 
-Status pivota a **`accepted`** quando:
-1. Le 5 open questions sono chiuse (#3 e #1 blocking, le altre opzionalmente)
-2. ADR-007 mergiato (mig 056 in produzione: `org_id UUID`)
-3. Sprint dedicato Interventi v2 creato in roadmap con stima
+Status pivota a **`accepted`** quando tutti e 3:
+1. ~~Q1 e Q3 chiuse~~ ✓ (15/5 sera). Q2/Q4/Q5 chiuse (preferenza: confronto manutentore #2; ammesso default tecnico se conferma orale veloce su raccomandazioni in 4.5 + sezione Open questions).
+2. ADR-007 mergiato — mig 056 in produzione (`org_id UUID`). **Verificato 20/5 via `ls supabase/migrations/`: NON ANCORA in produzione**. È il blocker primario residuo.
+3. Sprint dedicato Interventi v2 creato in roadmap con stima.
 
-Questo ADR è **docs-only**. Nessuna migration scritta, nessun codice applicativo toccato. Sprint 1c-bis (Frizione #4 calendar nav) resta priorità per lunedì 18/5 e non viene rallentato da questa discovery.
+**Stato 20/5**: blocker (2) è il vero gate. Decision drivers consigliano di prioritizzare ADR-007 mig 056 come prossimo sprint architetturale, prima di scrivere migration 057+ di Interventi v2. La chiusura Q2/Q4/Q5 può procedere in parallelo (è docs-only, non blocca codice).
+
+Questo ADR è **docs-only**. Nessuna migration scritta, nessun codice applicativo toccato.
