@@ -1166,10 +1166,10 @@ export const interventions = {
   },
 
   // ─── Sprint 1c MVP — intervention_participants (N→M) ──────────────────
-  // Mig 056. Modello additivo da ADR-008 senza role/status. Vedi
-  // useInterventionPeople (client hook) per la composizione finale di
-  // assigned_to + supervised_by + participants (dedup lato applicativo,
-  // niente trigger di sync DB in MVP).
+  // Mig 056. Modello additivo da ADR-008 senza role/status. La
+  // composizione finale (assigned_to + supervised_by + participants) e
+  // il dedup sono gestiti lato applicativo dai consumer; niente trigger
+  // di sync DB in MVP.
 
   // Lista partecipanti per intervento, ordinati per added_at crescente.
   async getInterventionParticipants(interventionId) {

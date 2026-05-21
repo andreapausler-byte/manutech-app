@@ -243,7 +243,7 @@ Il bisogno di "coinvolgere uno o più utenti in un intervento" è emerso come ri
 | Pezzo | Stato Sprint 1c | Nota |
 |---|---|---|
 | `intervention_participants` tabella | ✓ migrazione 056 | Senza `role`, senza `status`, senza `notified_at`/`responded_at` |
-| Backward compat trigger ↔ `assigned_to`/`supervised_by` | ✗ NON implementato | Dedup lato applicativo via `useInterventionPeople.allUserIds` |
+| Backward compat trigger ↔ `assigned_to`/`supervised_by` | ✗ NON implementato | Dedup lato applicativo nei consumer (es. fan-out push `notifyInterventionEvent`) |
 | Backfill iniziale | ✗ NON implementato | Tabella nuova, no dati legacy da migrare |
 | RLS (4 policy) | ✓ implementate | Solo check `org_id = get_my_org_id()`, niente check ruolo (tech debt) |
 | Realtime su `intervention_participants` | ✓ implementato | Aggiunta a `supabase_realtime` |
@@ -253,7 +253,7 @@ Il bisogno di "coinvolgere uno o più utenti in un intervento" è emerso come ri
 
 - **`role`** (lead/supporto/operatore_linea/approvatore/osservatore/fornitore): bloccato da OQ #1 (workflow approvazione) e OQ #3 (account fornitori). Quando le OQ saranno chiuse → `ALTER TABLE intervention_participants ADD COLUMN role TEXT NOT NULL DEFAULT 'supporto' CHECK (...)`. Backfill: tutte le righe MVP ottengono `role='supporto'` (semantica "altro coinvolto" ≈ supporto generico).
 - **`status`** (invitato/confermato/rifiutato/completato): wait OQ #1 (workflow approvazione → forse anche workflow di invito). Backfill: `status='confermato'` per tutte le righe MVP (l'admin aggiunge esplicitamente, quindi de-facto confermato).
-- **Trigger di sync** con `assigned_to` / `supervised_by`: non necessari finché lavoriamo con i 3 ruoli denormalizzati separatamente (assigned + supervised + participants). Il dedup è lato applicativo (`useInterventionPeople.allUserIds`).
+- **Trigger di sync** con `assigned_to` / `supervised_by`: non necessari finché lavoriamo con i 3 ruoli denormalizzati separatamente (assigned + supervised + participants). Il dedup è lato applicativo (Set di userId nei consumer, es. `useInterventionMutations.notifyStatusChange` e `InterventionRequestSidePanel.handleSubmit`).
 - **Fornitori come participants**: filtrati out dal `UserMultiSelect` (`role === 'fornitore'` escluso). Wait OQ #3.
 
 ### Path additivo verso la versione full
@@ -290,7 +290,6 @@ ALTER TABLE public.intervention_participants
 - `supabase/functions/send-push-notification/index.ts` (estensione ROLE_DEFAULTS)
 - `src/lib/db/interventions.js` (metodi + `notifyInterventionEvent`)
 - `src/lib/db/_demoStore.js` (KEYS.interventionParticipants)
-- `src/hooks/useInterventionPeople.js` (nuovo)
 - `src/hooks/useInterventionMutations.js` (fan-out status_change)
 - `src/hooks/useInterventionsCalendar.js` (scope='mine' esteso)
 - `src/components/ui/UserMultiSelect.jsx` (nuovo)

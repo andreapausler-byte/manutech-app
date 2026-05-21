@@ -16,8 +16,8 @@
 --
 -- Backward compat: NIENTE trigger di sync con interventions.assigned_to /
 -- supervised_by in questo MVP. Il client deduplica lato applicativo
--- (allUserIds in useInterventionPeople). I trigger di sync vengono quando
--- arriverà il modello completo con role.
+-- (Set di userId nei consumer del fan-out push). I trigger di sync
+-- arriveranno col modello completo (role/status) post-chiusura OQ ADR-008.
 --
 -- Nota commit migration counter: il briefing originale prevedeva 055, ma
 -- 055 è già occupata da intervention_reports (Sprint 1c-bis, ADR-006).
