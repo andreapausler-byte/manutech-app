@@ -138,16 +138,22 @@ export default function CalendarioMobile({
   // Filtra per giorno selezionato (dal pool VISIBLE, così il toggle agisce
   // anche sul sheet — diverso da desktop dove DayContextPanel ignora il
   // filtro perché è un accesso esplicito. Su mobile la coerenza UX vince.)
+  // Include interventi multi-day che coprono il giorno (non solo quelli che
+  // iniziano nel giorno).
   // Sort: critica in cima (priorità assoluta), poi orario crescente.
   const dayInterventions = useMemo(() => {
     if (!selectedDay) return []
+    const dayStart = new Date(selectedDay.getFullYear(), selectedDay.getMonth(), selectedDay.getDate(), 0, 0, 0, 0).getTime()
+    const dayEnd = new Date(selectedDay.getFullYear(), selectedDay.getMonth(), selectedDay.getDate(), 23, 59, 59, 999).getTime()
     return visibleInterventions
       .filter(intv => {
         if (!intv.scheduled_start_at) return false
-        const d = new Date(intv.scheduled_start_at)
-        return d.getFullYear() === selectedDay.getFullYear()
-          && d.getMonth() === selectedDay.getMonth()
-          && d.getDate() === selectedDay.getDate()
+        const startT = new Date(intv.scheduled_start_at).getTime()
+        if (startT > dayEnd) return false
+        if (intv.scheduled_end_at) {
+          return new Date(intv.scheduled_end_at).getTime() >= dayStart
+        }
+        return startT >= dayStart
       })
       .sort((a, b) => {
         const aCrit = a.severity === 'critica' ? 0 : 1
@@ -160,26 +166,46 @@ export default function CalendarioMobile({
   // Interventi della settimana corrente, raggruppati per giorno.
   // Setup conservativo: layout naturale, niente flex/overflow nidificati;
   // lo scroll è gestito dal <main> di MobileLayout (overflow-y-auto attivo).
+  // Multi-day: ogni intervento appare in ogni giorno della settimana coperto
+  // dallo span, non solo in quello di inizio.
   const weekGroupedByDay = useMemo(() => {
     if (!weekStart) return []
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 6)
     weekEnd.setHours(23, 59, 59, 999)
+    const weekEndMs = weekEnd.getTime()
+    const weekStartMs = weekStart.getTime()
 
     const groups = new Map()
     for (const intv of visibleInterventions) {
       if (!intv.scheduled_start_at) continue
-      const d = new Date(intv.scheduled_start_at)
-      if (d < weekStart || d > weekEnd) continue
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          date: new Date(d.getFullYear(), d.getMonth(), d.getDate()),
-          items: [],
-        })
+      const startMs = new Date(intv.scheduled_start_at).getTime()
+      const endMs = intv.scheduled_end_at
+        ? new Date(intv.scheduled_end_at).getTime()
+        : startMs
+      // Skip se non si sovrappone alla settimana
+      if (startMs > weekEndMs || endMs < weekStartMs) continue
+
+      // Itera sui giorni locali coperti, clampati alla settimana
+      const start = new Date(intv.scheduled_start_at)
+      const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+      const endDate = intv.scheduled_end_at ? new Date(intv.scheduled_end_at) : start
+      const endDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+      let guard = 0
+      while (cursor <= endDay && guard++ < 366) {
+        if (cursor >= weekStart && cursor <= weekEnd) {
+          const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+          if (!groups.has(key)) {
+            groups.set(key, {
+              key,
+              date: new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()),
+              items: [],
+            })
+          }
+          groups.get(key).items.push(intv)
+        }
+        cursor.setDate(cursor.getDate() + 1)
       }
-      groups.get(key).items.push(intv)
     }
 
     const sortItems = (a, b) => {
@@ -193,10 +219,15 @@ export default function CalendarioMobile({
       .sort((a, b) => a.date - b.date)
   }, [visibleInterventions, weekStart])
 
-  const weekTotalCount = useMemo(
-    () => weekGroupedByDay.reduce((acc, g) => acc + g.items.length, 0),
-    [weekGroupedByDay]
-  )
+  // Conta interventi unici nella settimana (multi-day contati una sola volta
+  // anche se appaiono in più giorni dello span).
+  const weekTotalCount = useMemo(() => {
+    const ids = new Set()
+    for (const g of weekGroupedByDay) {
+      for (const intv of g.items) ids.add(intv.id)
+    }
+    return ids.size
+  }, [weekGroupedByDay])
 
   const goPrevWeek = () => {
     setWeekStart(d => {

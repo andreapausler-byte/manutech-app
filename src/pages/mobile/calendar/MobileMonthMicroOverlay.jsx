@@ -55,13 +55,21 @@ export default function MobileMonthMicroOverlay({
     return result
   }, [currentMonth])
 
+  // Multi-day: l'intervento conta per ogni giorno del suo span.
   const countByDayKey = useMemo(() => {
     const map = new Map()
     for (const intv of interventions) {
       if (!intv.scheduled_start_at) continue
-      const d = new Date(intv.scheduled_start_at)
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-      map.set(key, (map.get(key) || 0) + 1)
+      const start = new Date(intv.scheduled_start_at)
+      const endDate = intv.scheduled_end_at ? new Date(intv.scheduled_end_at) : start
+      const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+      const endDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+      let guard = 0
+      while (cursor <= endDay && guard++ < 366) {
+        const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`
+        map.set(key, (map.get(key) || 0) + 1)
+        cursor.setDate(cursor.getDate() + 1)
+      }
     }
     return map
   }, [interventions])

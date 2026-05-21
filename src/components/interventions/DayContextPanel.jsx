@@ -32,16 +32,22 @@ export default function DayContextPanel({
   onMatchIntervention,
   onOpenReport,
 }) {
+  // Filtra interventi che coprono il giorno selezionato. Per gli interventi
+  // multi-day questo include anche i giorni intermedi/finali dello span,
+  // non solo quello di inizio.
   const dayInterventions = useMemo(() => {
     if (!date) return []
-    const y = date.getFullYear()
-    const m = date.getMonth()
-    const d = date.getDate()
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0).getTime()
+    const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999).getTime()
     return monthInterventions
       .filter(intv => {
         if (!intv.scheduled_start_at) return false
-        const start = new Date(intv.scheduled_start_at)
-        return start.getFullYear() === y && start.getMonth() === m && start.getDate() === d
+        const startT = new Date(intv.scheduled_start_at).getTime()
+        if (startT > dayEnd) return false
+        if (intv.scheduled_end_at) {
+          return new Date(intv.scheduled_end_at).getTime() >= dayStart
+        }
+        return startT >= dayStart
       })
       .sort((a, b) => new Date(a.scheduled_start_at) - new Date(b.scheduled_start_at))
   }, [date, monthInterventions])
