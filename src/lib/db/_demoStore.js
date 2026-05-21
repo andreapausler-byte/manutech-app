@@ -11,6 +11,7 @@ export const KEYS = {
   reportStars: 'manutech_report_stars',
   interventions: 'manutech_interventions',
   interventionReports: 'manutech_intervention_reports',
+  interventionParticipants: 'manutech_intervention_participants',
 }
 
 export function getStore(key) {

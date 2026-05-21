@@ -72,7 +72,10 @@ export function useInterventionsCalendar({
       if (!ev.scheduled_start_at) return false
       const t = new Date(ev.scheduled_start_at).getTime()
       if (t < startMs || t > endMs) return false
-      if (scope === 'mine' && ev.assigned_to !== currentUserId) return false
+      // Sprint 1c — scope='mine' include assigned_to OR supervised_by
+      // (i participants si gestiscono tramite refetch via subscription
+      // separata su intervention_participants — vedi sotto).
+      if (scope === 'mine' && ev.assigned_to !== currentUserId && ev.supervised_by !== currentUserId) return false
       if (scope === 'pending_supplier') {
         if (ev.status !== 'pianificato') return false
         if (ev.assigned_to_role !== 'fornitore') return false
@@ -110,6 +113,26 @@ export function useInterventionsCalendar({
       supabase.removeChannel(channel)
     }
   }, [startMs, endMs])
+
+  // Sprint 1c — realtime su intervention_participants:
+  // se l'utente corrente viene aggiunto/rimosso da un intervento
+  // (scope='mine'), refetch l'intero calendario (la matchesScope dei
+  // payload `interventions` non ha modo di sapere se diventiamo
+  // participant). Costo: 1 refetch per evento, accettabile in MVP.
+  useEffect(() => {
+    if (!supabase) return undefined
+    if (scope !== 'mine' || !currentUserId) return undefined
+    const ch = supabase
+      .channel(`intervention_participants:mine:${currentUserId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'intervention_participants',
+        filter: `user_id=eq.${currentUserId}`,
+      }, () => { fetchInterventions() })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [scope, currentUserId, fetchInterventions])
 
   return { interventions, loading, error, refetch: fetchInterventions }
 }
