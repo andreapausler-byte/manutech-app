@@ -232,7 +232,7 @@ export default function InterventionRequestSidePanel({
             color: isReschedule ? '#f59e0b' : 'var(--color-primary)',
             margin: 0,
           }}>
-            {isReschedule ? 'Riprogrammazione' : 'Nuovo intervento'}
+            {isReschedule ? 'Modifica intervento' : 'Nuovo intervento'}
           </p>
           <p style={{
             fontSize: 14, fontWeight: 600, color: 'var(--color-text)',
