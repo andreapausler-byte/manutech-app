@@ -15,6 +15,7 @@ import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import UserPicker from './UserPicker'
 import LinkedReportsSection from './LinkedReportsSection'
+import UserMultiSelect from '../ui/UserMultiSelect'
 
 /**
  * InterventionForm — form puro per creazione/edit intervento.
@@ -52,6 +53,11 @@ export default function InterventionForm({
   initialLinks = [],
   linksReadOnly = false,
   hideLinkedReportsSection = false,
+  // Sprint 1c MVP — partecipanti N→M (oltre ad assigned_to e supervised_by).
+  // initialParticipantUserIds: array di user_id già coinvolti (edit mode).
+  // Al submit, il form passa la lista finale come 4° arg di onSubmit; la
+  // shell calcola il diff e gestisce add/remove + push notification.
+  initialParticipantUserIds = [],
 }) {
   const toast = useToast()
   const haptic = useHaptic()
@@ -102,6 +108,11 @@ export default function InterventionForm({
   const [assignedToRole, setAssignedToRole] = useState(defaults.assigned_to_role || null)
   const [supervisedById, setSupervisedById] = useState(defaults.supervised_by || null)
   const [supervisedByName, setSupervisedByName] = useState(defaults.supervised_by_name || null)
+
+  // ── Participants (Sprint 1c MVP) ──────────────────────────────────────
+  const [participantUserIds, setParticipantUserIds] = useState(
+    Array.isArray(initialParticipantUserIds) ? initialParticipantUserIds : []
+  )
 
   // Enrich users con role/counters/specialty/hourlyRate per UserPicker
   const enrichedUsers = useMemo(() => {
@@ -261,7 +272,7 @@ export default function InterventionForm({
       },
     }
 
-    onSubmit?.(payload, { urgency, specialty }, linkedReports)
+    onSubmit?.(payload, { urgency, specialty }, linkedReports, participantUserIds)
   }
 
   return (
@@ -451,6 +462,20 @@ export default function InterventionForm({
           inheritedFrom={defaults.supervised_by_inherited_from || undefined}
           loading={loadingUsers}
         />
+
+        {/* Altri utenti coinvolti (Sprint 1c MVP) — N→M oltre ad
+            assigned_to e supervised_by. Esclude i due picker già impostati
+            e i fornitori (out-of-scope MVP, vedi ADR-008 OQ #3). */}
+        <div style={{ marginTop: 4, marginBottom: 14 }}>
+          <UserMultiSelect
+            selectedUserIds={participantUserIds}
+            onChange={setParticipantUserIds}
+            excludeUserIds={[assignedToId, supervisedById].filter(Boolean)}
+            users={enrichedUsers}
+            label="Altri utenti coinvolti (opzionale)"
+            placeholder="Aggiungi tecnici, operatori o admin..."
+          />
+        </div>
 
         {/* Schedule INIZIO con chips + input nativo (custom) */}
         <FieldLabel>

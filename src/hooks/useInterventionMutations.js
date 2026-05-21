@@ -57,20 +57,60 @@ export function useInterventionMutations() {
     { successMsg: 'Intervento modificato', errorMsgPrefix: 'Errore modifica' },
   ), [wrap, user?.id, user?.name])
 
-  const start = useCallback((id) => wrap(
-    () => db.startIntervention(id, { user_id: user?.id, user_name: user?.name }),
-    { successMsg: 'Intervento avviato', errorMsgPrefix: 'Errore avvio' },
-  ), [wrap, user?.id, user?.name])
+  // Sprint 1c — fan-out push 'intervention_status_change' a tutti i
+  // coinvolti (assigned + supervised + participants), best-effort.
+  // Eseguito post-mutation, non blocca la UI in caso di errore.
+  const notifyStatusChange = useCallback(async (interventionId, newStatusLabel) => {
+    if (!interventionId) return
+    try {
+      const intv = await db.getIntervention(interventionId)
+      if (!intv) return
+      const participants = await db.getInterventionParticipants(interventionId)
+      const allIds = [
+        intv.assigned_to,
+        intv.supervised_by,
+        ...((participants || []).map(p => p.user_id)),
+      ].filter(Boolean)
+      await db.notifyInterventionEvent({
+        intervention_id: interventionId,
+        target_user_ids: allIds,
+        from_user: user?.id,
+        type: 'intervention_status_change',
+        title: 'Stato intervento aggiornato',
+        body: `${intv.title || 'Intervento'}: ${newStatusLabel}`,
+        org_id: intv.org_id,
+      })
+    } catch (e) {
+      console.warn('[mutations] notifyStatusChange failed:', e?.message)
+    }
+  }, [user?.id])
 
-  const complete = useCallback((id, { notes, media } = {}) => wrap(
-    () => db.completeIntervention(id, { notes, media }, { user_id: user?.id, user_name: user?.name }),
-    { successMsg: 'Intervento completato', errorMsgPrefix: 'Errore completamento' },
-  ), [wrap, user?.id, user?.name])
+  const start = useCallback(async (id) => {
+    const r = await wrap(
+      () => db.startIntervention(id, { user_id: user?.id, user_name: user?.name }),
+      { successMsg: 'Intervento avviato', errorMsgPrefix: 'Errore avvio' },
+    )
+    notifyStatusChange(id, 'avviato')
+    return r
+  }, [wrap, user?.id, user?.name, notifyStatusChange])
 
-  const cancel = useCallback((id, reason) => wrap(
-    () => db.cancelIntervention(id, reason, { user_id: user?.id, user_name: user?.name }),
-    { successMsg: 'Intervento annullato', errorMsgPrefix: 'Errore annullamento' },
-  ), [wrap, user?.id, user?.name])
+  const complete = useCallback(async (id, { notes, media } = {}) => {
+    const r = await wrap(
+      () => db.completeIntervention(id, { notes, media }, { user_id: user?.id, user_name: user?.name }),
+      { successMsg: 'Intervento completato', errorMsgPrefix: 'Errore completamento' },
+    )
+    notifyStatusChange(id, 'completato')
+    return r
+  }, [wrap, user?.id, user?.name, notifyStatusChange])
+
+  const cancel = useCallback(async (id, reason) => {
+    const r = await wrap(
+      () => db.cancelIntervention(id, reason, { user_id: user?.id, user_name: user?.name }),
+      { successMsg: 'Intervento annullato', errorMsgPrefix: 'Errore annullamento' },
+    )
+    notifyStatusChange(id, 'annullato')
+    return r
+  }, [wrap, user?.id, user?.name, notifyStatusChange])
 
   const remindSupplier = useCallback((id) => wrap(
     () => db.sendSupplierReminder(id, { user_id: user?.id, user_name: user?.name }),

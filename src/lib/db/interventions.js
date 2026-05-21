@@ -1,5 +1,5 @@
 import { supabase, getMyOrgId } from './_client'
-import { KEYS, getStore, setStore } from './_demoStore'
+import { KEYS, getStore, setStore, demoToken } from './_demoStore'
 import { formatPlannedComment, formatRescheduledComment } from '../interventions'
 
 // ─── Helpers interni ───────────────────────────────────────────────────
@@ -309,7 +309,21 @@ export const interventions = {
         .or(`scheduled_end_at.gte.${startISO},and(scheduled_end_at.is.null,scheduled_start_at.gte.${startISO})`)
         .order('scheduled_start_at', { ascending: true })
 
-      if (scope === 'mine' && currentUserId) query = query.eq('assigned_to', currentUserId)
+      // Sprint 1c — scope='mine' include: assigned_to, supervised_by,
+      // intervention_participants. Pre-fetch degli intervention_id dove
+      // currentUser è participant (round-trip extra ma necessario: PostgREST
+      // non supporta join condizionali tra tabelle in .or()).
+      if (scope === 'mine' && currentUserId) {
+        const participantIds = await this.getInterventionIdsForParticipantUser(currentUserId)
+        const orParts = [
+          `assigned_to.eq.${currentUserId}`,
+          `supervised_by.eq.${currentUserId}`,
+        ]
+        if (participantIds.length > 0) {
+          orParts.push(`id.in.(${participantIds.join(',')})`)
+        }
+        query = query.or(orParts.join(','))
+      }
       if (scope === 'pending_supplier') query = query.eq('status', 'pianificato').eq('assigned_to_role', 'fornitore')
       if (filters.types?.length) query = query.in('type', filters.types)
       if (filters.statuses?.length) query = query.in('status', filters.statuses)
@@ -352,7 +366,19 @@ export const interventions = {
       }
       return startT >= startMs
     })
-    if (scope === 'mine' && currentUserId) list = list.filter(i => i.assigned_to === currentUserId)
+    if (scope === 'mine' && currentUserId) {
+      // Demo mode: stessa semantica di Supabase (assigned + supervised + participants)
+      const partSet = new Set(
+        getStore(KEYS.interventionParticipants)
+          .filter(p => p.user_id === currentUserId)
+          .map(p => p.intervention_id)
+      )
+      list = list.filter(i =>
+        i.assigned_to === currentUserId
+        || i.supervised_by === currentUserId
+        || partSet.has(i.id)
+      )
+    }
     if (scope === 'pending_supplier') list = list.filter(i => i.status === 'pianificato' && i.assigned_to_role === 'fornitore')
     if (filters.types?.length) list = list.filter(i => filters.types.includes(i.type))
     if (filters.statuses?.length) list = list.filter(i => filters.statuses.includes(i.status))
@@ -1083,5 +1109,210 @@ export const interventions = {
       org_id: after.org_id,
     })
     return after
+  },
+
+  // Fan-out di una notifica intervento a N utenti (Sprint 1c).
+  // Insert in public.notifications (uno per target_user). La pipeline
+  // push esistente (mig 009: trigger pg_net → Edge Function) si occupa
+  // del web push reale. Dedup userIds per evitare doppi messaggi.
+  // Skip silenzioso se from_user è anche un target (non notifichi te stesso).
+  async notifyInterventionEvent({ intervention_id, target_user_ids = [], from_user = null, type, title, body, org_id }) {
+    if (!intervention_id || !type || !title) return { sent: 0 }
+    const seen = new Set()
+    const targets = target_user_ids.filter(uid => {
+      if (!uid) return false
+      if (from_user && uid === from_user) return false
+      if (seen.has(uid)) return false
+      seen.add(uid)
+      return true
+    })
+    if (targets.length === 0) return { sent: 0 }
+
+    if (supabase) {
+      const rows = targets.map(uid => ({
+        intervention_id,
+        target_user: uid,
+        from_user: from_user || null,
+        type,
+        title,
+        body: body || null,
+        org_id: org_id || null,
+      }))
+      const { error } = await supabase.from('notifications').insert(rows)
+      if (error) console.warn('[interventions] notifyInterventionEvent error:', error.message)
+      return { sent: targets.length }
+    }
+
+    // Demo fallback
+    const list = getStore(KEYS.notifications)
+    const now = new Date().toISOString()
+    for (const uid of targets) {
+      list.unshift({
+        id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        intervention_id,
+        target_user: uid,
+        from_user,
+        type,
+        title,
+        body,
+        org_id,
+        read: false,
+        created_at: now,
+      })
+    }
+    if (list.length > 200) list.length = 200
+    setStore(KEYS.notifications, list)
+    return { sent: targets.length }
+  },
+
+  // ─── Sprint 1c MVP — intervention_participants (N→M) ──────────────────
+  // Mig 056. Modello additivo da ADR-008 senza role/status. La
+  // composizione finale (assigned_to + supervised_by + participants) e
+  // il dedup sono gestiti lato applicativo dai consumer; niente trigger
+  // di sync DB in MVP.
+
+  // Lista partecipanti per intervento, ordinati per added_at crescente.
+  async getInterventionParticipants(interventionId) {
+    if (!interventionId) return []
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('intervention_participants')
+        .select('*')
+        .eq('intervention_id', interventionId)
+        .order('added_at', { ascending: true })
+      if (error) throw error
+      return data || []
+    }
+    return getStore(KEYS.interventionParticipants)
+      .filter(p => p.intervention_id === interventionId)
+      .sort((a, b) => new Date(a.added_at) - new Date(b.added_at))
+  },
+
+  // Lista intervention_id per i quali userId è participant. Usata dal
+  // calendario in scope='mine' per estendere la visibilità oltre
+  // assigned_to / supervised_by.
+  async getInterventionIdsForParticipantUser(userId) {
+    if (!userId) return []
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('intervention_participants')
+        .select('intervention_id')
+        .eq('user_id', userId)
+      if (error) throw error
+      return (data || []).map(r => r.intervention_id)
+    }
+    return getStore(KEYS.interventionParticipants)
+      .filter(p => p.user_id === userId)
+      .map(p => p.intervention_id)
+  },
+
+  // Aggiunge un partecipante. Snapshot del nome utente al momento
+  // dell'insert (denormalizzazione coerente con assigned_to_name /
+  // supervised_by_name). Idempotente sul UNIQUE(intervention_id, user_id):
+  // se il record esiste già, ritorna il record esistente senza errore.
+  async addInterventionParticipant({ interventionId, userId, actor = {} }) {
+    if (!interventionId || !userId) {
+      throw new Error('addInterventionParticipant: interventionId e userId obbligatori')
+    }
+    const intervention = await this.getIntervention(interventionId)
+    if (!intervention) throw new Error('Intervento non trovato')
+    const orgId = intervention.org_id
+
+    // Snapshot nome utente
+    let userName = null
+    if (supabase) {
+      const { data: u } = await supabase
+        .from('users')
+        .select('name')
+        .eq('id', userId)
+        .maybeSingle()
+      userName = u?.name || null
+    } else {
+      const u = getStore(KEYS.users).find(x => x.id === userId)
+      userName = u?.name || null
+    }
+    if (!userName) userName = 'Sconosciuto'
+
+    const row = {
+      intervention_id: interventionId,
+      user_id: userId,
+      user_name_snapshot: userName,
+      added_by: actor.user_id || null,
+      added_by_name: actor.user_name || null,
+      org_id: orgId,
+    }
+
+    if (supabase) {
+      // Idempotente: ON CONFLICT (UNIQUE) → ritorna riga esistente.
+      const { data, error } = await supabase
+        .from('intervention_participants')
+        .upsert(row, { onConflict: 'intervention_id,user_id', ignoreDuplicates: false })
+        .select()
+        .maybeSingle()
+      if (error) throw error
+      await logActivity({
+        intervention_id: interventionId,
+        type: 'participant_added',
+        detail: `Coinvolto: ${userName}`,
+        user_id: actor.user_id || null,
+        user_name: actor.user_name || null,
+        org_id: orgId,
+      })
+      return data
+    }
+
+    // Demo fallback
+    const list = getStore(KEYS.interventionParticipants)
+    const existing = list.find(p =>
+      p.intervention_id === interventionId && p.user_id === userId
+    )
+    if (existing) return existing
+    const created = {
+      id: demoToken(),
+      ...row,
+      added_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    list.push(created)
+    setStore(KEYS.interventionParticipants, list)
+    return created
+  },
+
+  // Rimuove un partecipante. Accetta `participantId` (preferito) oppure
+  // la coppia `{ interventionId, userId }` come fallback.
+  async removeInterventionParticipant({ participantId, interventionId, userId, actor = {} } = {}) {
+    if (!participantId && !(interventionId && userId)) {
+      throw new Error('removeInterventionParticipant: participantId o (interventionId,userId) obbligatori')
+    }
+
+    if (supabase) {
+      let query = supabase.from('intervention_participants').delete()
+      query = participantId
+        ? query.eq('id', participantId)
+        : query.eq('intervention_id', interventionId).eq('user_id', userId)
+      const { data, error } = await query.select().maybeSingle()
+      if (error) throw error
+      if (data) {
+        await logActivity({
+          intervention_id: data.intervention_id,
+          type: 'participant_removed',
+          detail: `Rimosso: ${data.user_name_snapshot || data.user_id}`,
+          user_id: actor.user_id || null,
+          user_name: actor.user_name || null,
+          org_id: data.org_id,
+        })
+      }
+      return data
+    }
+
+    // Demo fallback
+    const list = getStore(KEYS.interventionParticipants)
+    const match = (p) => participantId
+      ? p.id === participantId
+      : p.intervention_id === interventionId && p.user_id === userId
+    const removed = list.find(match)
+    const next = list.filter(p => !match(p))
+    setStore(KEYS.interventionParticipants, next)
+    return removed || null
   },
 }

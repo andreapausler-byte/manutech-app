@@ -1,6 +1,8 @@
 # ADR-008 — Interventi v2 · data model (execution_mode + intervention_participants)
 
-**Status**: Proposed · **Date**: 2026-05-15 · **Sprint target**: TBD (post-1c-bis, post-1d/ADR-007) · **Schema delta**: δ (su γ di ADR-006)
+**Status**: Partially Superseded by Sprint 1c MVP · **Date**: 2026-05-15 (orig.) · 2026-05-21 (update Sprint 1c) · **Sprint target**: 1c MVP rilasciato; full implementation TBD (post-1d/ADR-007, dopo chiusura OQ #1 + #3) · **Schema delta**: δ (su γ di ADR-006) — partially applied
+
+> **Update 2026-05-21**: la parte `intervention_participants` di questo ADR è stata implementata in MVP nel Sprint 1c (`supabase/migrations/056_intervention_participants.sql`) senza colonne `role` e `status`, senza trigger di sync con `assigned_to`/`supervised_by`. Vedi sezione **"Sprint 1c — MVP implementation"** in fondo a questo documento.
 
 ## Context
 
@@ -229,3 +231,71 @@ Status pivota a **`accepted`** quando:
 3. Sprint dedicato Interventi v2 creato in roadmap con stima
 
 Questo ADR è **docs-only**. Nessuna migration scritta, nessun codice applicativo toccato. Sprint 1c-bis (Frizione #4 calendar nav) resta priorità per lunedì 18/5 e non viene rallentato da questa discovery.
+
+---
+
+## Sprint 1c — MVP implementation (2026-05-21)
+
+Il bisogno di "coinvolgere uno o più utenti in un intervento" è emerso come richiesta diretta (founder 21/5) prima della chiusura delle 5 OQ. Decisione: **anticipare la sola parte `intervention_participants`** in modo additivo, lasciando `role` / `status` / approvazione fuori scope.
+
+### Cosa è stato implementato
+
+| Pezzo | Stato Sprint 1c | Nota |
+|---|---|---|
+| `intervention_participants` tabella | ✓ migrazione 056 | Senza `role`, senza `status`, senza `notified_at`/`responded_at` |
+| Backward compat trigger ↔ `assigned_to`/`supervised_by` | ✗ NON implementato | Dedup lato applicativo nei consumer (es. fan-out push `notifyInterventionEvent`) |
+| Backfill iniziale | ✗ NON implementato | Tabella nuova, no dati legacy da migrare |
+| RLS (4 policy) | ✓ implementate | Solo check `org_id = get_my_org_id()`, niente check ruolo (tech debt) |
+| Realtime su `intervention_participants` | ✓ implementato | Aggiunta a `supabase_realtime` |
+| `execution_mode` colonna su `interventions` | ✗ NON implementato | Resta su ADR-008 originale, fuori scope MVP |
+
+### Cosa è stato esplicitamente lasciato fuori (e perché)
+
+- **`role`** (lead/supporto/operatore_linea/approvatore/osservatore/fornitore): bloccato da OQ #1 (workflow approvazione) e OQ #3 (account fornitori). Quando le OQ saranno chiuse → `ALTER TABLE intervention_participants ADD COLUMN role TEXT NOT NULL DEFAULT 'supporto' CHECK (...)`. Backfill: tutte le righe MVP ottengono `role='supporto'` (semantica "altro coinvolto" ≈ supporto generico).
+- **`status`** (invitato/confermato/rifiutato/completato): wait OQ #1 (workflow approvazione → forse anche workflow di invito). Backfill: `status='confermato'` per tutte le righe MVP (l'admin aggiunge esplicitamente, quindi de-facto confermato).
+- **Trigger di sync** con `assigned_to` / `supervised_by`: non necessari finché lavoriamo con i 3 ruoli denormalizzati separatamente (assigned + supervised + participants). Il dedup è lato applicativo (Set di userId nei consumer, es. `useInterventionMutations.notifyStatusChange` e `InterventionRequestSidePanel.handleSubmit`).
+- **Fornitori come participants**: filtrati out dal `UserMultiSelect` (`role === 'fornitore'` escluso). Wait OQ #3.
+
+### Path additivo verso la versione full
+
+```sql
+-- 1. Aggiungi role/status (post-chiusura OQ)
+ALTER TABLE public.intervention_participants
+  ADD COLUMN role   TEXT NOT NULL DEFAULT 'supporto'
+    CHECK (role IN ('lead','supporto','operatore_linea','approvatore','osservatore','fornitore')),
+  ADD COLUMN status TEXT NOT NULL DEFAULT 'confermato'
+    CHECK (status IN ('invitato','confermato','rifiutato','completato')),
+  ADD COLUMN notified_at  TIMESTAMPTZ,
+  ADD COLUMN responded_at TIMESTAMPTZ;
+
+-- 2. UNIQUE constraint diventa per (intervention_id, user_id, role)
+ALTER TABLE public.intervention_participants
+  DROP CONSTRAINT intervention_participants_intervention_id_user_id_key,
+  ADD CONSTRAINT intervention_participants_intervention_id_user_id_role_key
+    UNIQUE (intervention_id, user_id, role);
+
+-- 3. Trigger di sync (assigned_to = lead, supervised_by = supporto principale)
+-- (vedi sezione 4.3 dell'ADR originale)
+```
+
+### Vincoli MVP che restano validi nel passaggio alla versione full
+
+- TEXT + CHECK, NO Postgres enum
+- `assigned_to` / `supervised_by` denormalizzati restano (path semantico: lead → assigned_to via trigger)
+- Tabella additiva, niente breaking change
+
+### File toccati Sprint 1c
+
+- `supabase/migrations/056_intervention_participants.sql` (+ down)
+- `supabase/functions/send-push-notification/index.ts` (estensione ROLE_DEFAULTS)
+- `src/lib/db/interventions.js` (metodi + `notifyInterventionEvent`)
+- `src/lib/db/_demoStore.js` (KEYS.interventionParticipants)
+- `src/hooks/useInterventionMutations.js` (fan-out status_change)
+- `src/hooks/useInterventionsCalendar.js` (scope='mine' esteso)
+- `src/components/ui/UserMultiSelect.jsx` (nuovo)
+- `src/components/interventions/InterventionForm.jsx` (integrazione UI)
+- `src/components/interventions/InterventionRequestSidePanel.jsx` (sync save handler)
+
+### OQ ancora aperte (blocking per versione full)
+
+#1 workflow approvazione, #3 account fornitori (entrambe schema-blocking). #2, #4, #5 restano refinement applicativo, possono evolvere iterativamente sopra l'MVP.

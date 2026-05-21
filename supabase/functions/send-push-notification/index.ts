@@ -386,10 +386,20 @@ Deno.serve(async (req: Request) => {
     //     ON di default — è il loro lavoro del giorno. Admin ON come courtesy
     //     per chi pianifica e vuole follow-up. Operatore OFF (non gestisce
     //     interventi, vede già le notifiche via status_change del report).
+    // Sprint 1c (21/5):
+    //   - participant_added / participant_removed = l'utente è stato
+    //     aggiunto/rimosso come "altro coinvolto" su un intervento. ON
+    //     per tutti i ruoli: è il loro stato che cambia, lo devono
+    //     sapere indipendentemente dal ruolo.
+    //   - intervention_scheduled_change / intervention_status_change =
+    //     l'intervento a cui partecipano cambia data o status. ON per
+    //     tutti i ruoli quando l'utente è già coinvolto (assigned /
+    //     supervised / participant) — il fan-out è già filtrato a monte
+    //     dal client lato InterventionForm save handler.
     const ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
-      admin: { new_report: true, new_report_critical: true, quick_report: true, assigned: true, status_change: true, comment: true, intervention_assigned: true, intervention_rescheduled: true, intervention_cancelled: true, maintenance_taken: true, maintenance_completed: true, maintenance_reminder: true, maintenance_overdue: true },
-      tecnico: { new_report: false, new_report_critical: true, quick_report: false, assigned: true, status_change: true, comment: true, intervention_assigned: true, intervention_rescheduled: true, intervention_cancelled: true, maintenance_taken: false, maintenance_completed: false, maintenance_reminder: true, maintenance_overdue: true },
-      operatore: { new_report: false, new_report_critical: false, quick_report: false, assigned: true, status_change: true, comment: true, intervention_assigned: false, intervention_rescheduled: false, intervention_cancelled: false, maintenance_taken: false, maintenance_completed: false, maintenance_reminder: true, maintenance_overdue: true },
+      admin: { new_report: true, new_report_critical: true, quick_report: true, assigned: true, status_change: true, comment: true, intervention_assigned: true, intervention_rescheduled: true, intervention_cancelled: true, maintenance_taken: true, maintenance_completed: true, maintenance_reminder: true, maintenance_overdue: true, participant_added: true, participant_removed: true, intervention_scheduled_change: true, intervention_status_change: true },
+      tecnico: { new_report: false, new_report_critical: true, quick_report: false, assigned: true, status_change: true, comment: true, intervention_assigned: true, intervention_rescheduled: true, intervention_cancelled: true, maintenance_taken: false, maintenance_completed: false, maintenance_reminder: true, maintenance_overdue: true, participant_added: true, participant_removed: true, intervention_scheduled_change: true, intervention_status_change: true },
+      operatore: { new_report: false, new_report_critical: false, quick_report: false, assigned: true, status_change: true, comment: true, intervention_assigned: false, intervention_rescheduled: false, intervention_cancelled: false, maintenance_taken: false, maintenance_completed: false, maintenance_reminder: true, maintenance_overdue: true, participant_added: true, participant_removed: true, intervention_scheduled_change: true, intervention_status_change: true },
     }
 
     // Preferenze per utente

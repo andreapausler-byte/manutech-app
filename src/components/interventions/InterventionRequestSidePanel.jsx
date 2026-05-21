@@ -61,6 +61,8 @@ export default function InterventionRequestSidePanel({
   const [supplierProfiles, setSupplierProfiles] = useState([])
   const [userCounters, setUserCounters] = useState({ active: {}, completedOnMachine: {} })
   const [loadingUsers, setLoadingUsers] = useState(true)
+  // Sprint 1c — participants già coinvolti (precarica in reschedule).
+  const [initialParticipantUserIds, setInitialParticipantUserIds] = useState([])
 
   // Carica utenti + supplier_profiles + counters una volta al mount.
   // machineId per i counter di "interventi su questa macchina" è:
@@ -86,6 +88,23 @@ export default function InterventionRequestSidePanel({
     })
     return () => { alive = false }
   }, [machineIdForCounters])
+
+  // Sprint 1c — fetch participants attuali solo in reschedule.
+  // Per create: lista vuota (default state); il form la popolerà via
+  // UserMultiSelect e ce la restituirà nel 4° arg di onSubmit.
+  useEffect(() => {
+    if (!isReschedule || !existingIntervention?.id) return
+    let alive = true
+    db.getInterventionParticipants(existingIntervention.id)
+      .then(rows => {
+        if (!alive) return
+        setInitialParticipantUserIds((rows || []).map(r => r.user_id))
+      })
+      .catch(e => {
+        console.warn('[SidePanel] getInterventionParticipants failed:', e?.message)
+      })
+    return () => { alive = false }
+  }, [isReschedule, existingIntervention?.id])
 
   // Sprint 1c post-review: il caricamento dei link in reschedule mode è
   // gestito dal componente inline LinkedReportsLive (sotto) tramite hook
@@ -181,11 +200,18 @@ export default function InterventionRequestSidePanel({
     return 'Nuovo intervento'
   })()
 
-  const handleSubmit = async (payload, _formContext, linkedReports) => {
+  const handleSubmit = async (payload, _formContext, linkedReports, participantUserIds = []) => {
     if (submitting) return
     setSubmitting(true)
     try {
+      let interventionId
+      let orgIdForNotify = payload.org_id || null
+      let scheduleChanged = false
       if (isReschedule) {
+        const before = existingIntervention
+        scheduleChanged =
+          before?.scheduled_start_at !== payload.scheduled_start_at
+          || before?.scheduled_end_at !== payload.scheduled_end_at
         // Reschedule: aggiorniamo solo i campi base, NON tocchiamo i link
         // (gestiti dal DetailPanel sezione "Segnalazioni associate")
         await db.updateIntervention(existingIntervention.id, {
@@ -193,9 +219,10 @@ export default function InterventionRequestSidePanel({
           updated_by_user_id: user.id,
           updated_by_user_name: user.name,
         })
+        interventionId = existingIntervention.id
+        orgIdForNotify = orgIdForNotify || existingIntervention.org_id
         toast.success('Intervento modificato')
         haptic.success?.()
-        onUpdated?.(existingIntervention.id)
       } else {
         // Create: API principale Sprint 1c con link N→M
         const intervention = await db.createInterventionWithReports({
@@ -203,10 +230,84 @@ export default function InterventionRequestSidePanel({
           created_by: user.id,
           created_by_name: user.name,
         }, linkedReports || [])
+        interventionId = intervention?.id
+        orgIdForNotify = orgIdForNotify || intervention?.org_id
         toast.success('Intervento creato')
         haptic.success?.()
-        onCreated?.(intervention)
       }
+
+      // ── Sprint 1c — sync participants + push notifications ────────────
+      // Best-effort: errori sul fan-out partecipanti NON fanno rollback
+      // dell'intervento. Toast warning ma il save principale è già OK.
+      if (interventionId) {
+        try {
+          const newSet = new Set((participantUserIds || []).filter(Boolean))
+          const oldSet = new Set(isReschedule ? initialParticipantUserIds : [])
+          const toAdd = [...newSet].filter(id => !oldSet.has(id))
+          const toRemove = [...oldSet].filter(id => !newSet.has(id))
+
+          for (const uid of toAdd) {
+            await db.addInterventionParticipant({
+              interventionId,
+              userId: uid,
+              actor: { user_id: user.id, user_name: user.name },
+            })
+            await db.notifyInterventionEvent({
+              intervention_id: interventionId,
+              target_user_ids: [uid],
+              from_user: user.id,
+              type: 'participant_added',
+              title: 'Coinvolto in un intervento',
+              body: `Sei stato aggiunto all'intervento: ${payload.title}`,
+              org_id: orgIdForNotify,
+            })
+          }
+          for (const uid of toRemove) {
+            await db.removeInterventionParticipant({
+              interventionId,
+              userId: uid,
+              actor: { user_id: user.id, user_name: user.name },
+            })
+            await db.notifyInterventionEvent({
+              intervention_id: interventionId,
+              target_user_ids: [uid],
+              from_user: user.id,
+              type: 'participant_removed',
+              title: 'Rimosso da un intervento',
+              body: `Non sei più coinvolto in: ${payload.title}`,
+              org_id: orgIdForNotify,
+            })
+          }
+
+          // Reschedule + data cambiata → notifica a TUTTI i coinvolti
+          // (assigned + supervised + participants finali), dedup.
+          if (isReschedule && scheduleChanged) {
+            const all = [
+              payload.assigned_to,
+              payload.supervised_by,
+              ...newSet,
+            ].filter(Boolean)
+            const newStart = payload.scheduled_start_at
+              ? new Date(payload.scheduled_start_at).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
+              : 'data non impostata'
+            await db.notifyInterventionEvent({
+              intervention_id: interventionId,
+              target_user_ids: all,
+              from_user: user.id,
+              type: 'intervention_scheduled_change',
+              title: 'Intervento modificato',
+              body: `${payload.title}: nuovo inizio ${newStart}`,
+              org_id: orgIdForNotify,
+            })
+          }
+        } catch (e) {
+          console.warn('[SidePanel] participants/push sync failed:', e?.message)
+          toast.error('Intervento salvato, ma errore nella gestione dei coinvolti. Riprova dalla scheda intervento.')
+        }
+      }
+
+      if (isReschedule) onUpdated?.(existingIntervention.id)
+      else onCreated?.({ id: interventionId })
     } catch (err) {
       toast.error('Errore: ' + (err?.message || 'riprova'))
       setSubmitting(false)
@@ -303,6 +404,7 @@ export default function InterventionRequestSidePanel({
           initialLinks={[]}
           linksReadOnly={false}
           hideLinkedReportsSection={isReschedule}
+          initialParticipantUserIds={initialParticipantUserIds}
         />
       </div>
     </div>
