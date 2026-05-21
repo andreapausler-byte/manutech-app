@@ -54,7 +54,7 @@ export function useInterventionMutations() {
 
   const reschedule = useCallback((id, newStart, newEnd, reason) => wrap(
     () => db.rescheduleIntervention(id, newStart, newEnd, reason, { user_id: user?.id, user_name: user?.name }),
-    { successMsg: 'Intervento riprogrammato', errorMsgPrefix: 'Errore riprogrammazione' },
+    { successMsg: 'Intervento modificato', errorMsgPrefix: 'Errore modifica' },
   ), [wrap, user?.id, user?.name])
 
   const start = useCallback((id) => wrap(

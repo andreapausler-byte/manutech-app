@@ -997,7 +997,7 @@ export const interventions = {
         target_user: after.assigned_to,
         from_user: actor.user_id || null,
         type: 'intervention_rescheduled',
-        title: 'Intervento riprogrammato',
+        title: 'Intervento modificato',
         body: after.title,
         org_id: after.org_id,
       })

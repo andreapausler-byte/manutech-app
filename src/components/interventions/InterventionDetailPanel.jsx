@@ -224,7 +224,7 @@ export default function InterventionDetailPanel({ interventionId, onClose, onRes
           )}
           {canReschedule && (
             <ActionButton onClick={() => onReschedule(intervention)} color="#f59e0b" variant="ghost" icon={<CalendarClock size={14} />} disabled={mutations.loading}>
-              Riprogramma
+              Modifica
             </ActionButton>
           )}
           {canCancel && (
