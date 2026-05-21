@@ -4,17 +4,16 @@ on:
   # Lancio manuale dall'interfaccia GitHub (tab Actions → Run workflow)
   workflow_dispatch:
     inputs:
-      functions:
-        description: 'Funzioni da deployare (comma-separated, "all" per tutte)'
+      function_name:
+        description: 'Nome della function da deployare (vuoto = deploya tutte, escluso _shared). Es. send-push-notification'
         required: false
-        default: 'all'
+        default: ''
         type: string
 
   # Trigger automatico quando cambia qualcosa dentro supabase/functions/
   push:
     branches:
-      - main
-      - 'claude/**'
+      - master
     paths:
       - 'supabase/functions/**'
 
@@ -68,20 +67,35 @@ jobs:
 
       - name: Deploy functions
         run: |
-          FUNCS="${{ github.event.inputs.functions }}"
-          if [ -z "$FUNCS" ] || [ "$FUNCS" = "all" ]; then
-            # "all" = scopri dinamicamente tutte le directory in supabase/functions/
-            FUNCS=$(ls -1d supabase/functions/*/ 2>/dev/null | sed 's|supabase/functions/||;s|/$||' | paste -sd ',')
+          FN="${{ github.event.inputs.function_name }}"
+          if [ -z "$FN" ]; then
+            # vuoto = deploya tutte le directory in supabase/functions/, escluso _shared
+            FUNCS=$(ls -1d supabase/functions/*/ 2>/dev/null \
+              | sed 's|supabase/functions/||;s|/$||' \
+              | grep -v '^_shared$' \
+              | paste -sd ',')
+            if [ -z "$FUNCS" ]; then
+              echo "::warning::Nessuna function trovata in supabase/functions/ (oltre a _shared)"
+              exit 0
+            fi
             echo "ℹ Deploying tutte le funzioni: $FUNCS"
+          else
+            FUNCS="$FN"
+            echo "ℹ Deploying funzione singola: $FN"
           fi
           IFS=',' read -ra LIST <<< "$FUNCS"
           for fn in "${LIST[@]}"; do
             fn=$(echo "$fn" | xargs)  # trim
+            if [ "$fn" = "_shared" ]; then
+              echo "::warning::Skip '_shared' (libreria condivisa, non deployabile)"
+              continue
+            fi
             if [ -d "supabase/functions/$fn" ]; then
               echo "▶ Deploying $fn..."
               supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"
             else
-              echo "::warning::Funzione '$fn' non trovata in supabase/functions/"
+              echo "::error::Funzione '$fn' non trovata in supabase/functions/"
+              exit 1
             fi
           done
 
@@ -90,4 +104,4 @@ jobs:
           echo "### Deploy completato" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Project: \`$SUPABASE_PROJECT_REF\`" >> $GITHUB_STEP_SUMMARY
-          echo "Funzioni: \`${{ github.event.inputs.functions || 'all' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Funzioni: \`${{ github.event.inputs.function_name || 'tutte' }}\`" >> $GITHUB_STEP_SUMMARY
