@@ -193,7 +193,7 @@ export default function InterventionRequestSidePanel({
           updated_by_user_id: user.id,
           updated_by_user_name: user.name,
         })
-        toast.success('Intervento riprogrammato')
+        toast.success('Intervento modificato')
         haptic.success?.()
         onUpdated?.(existingIntervention.id)
       } else {
@@ -273,9 +273,9 @@ export default function InterventionRequestSidePanel({
           color: 'var(--color-text-secondary)',
           lineHeight: 1.4,
         }}>
-          Modifica data/ora di inizio o fine. Le altre modifiche al form vengono salvate insieme alla riprogrammazione tramite il bottone <strong style={{ color: 'var(--color-text)' }}>Salva modifiche</strong>.
+          Modifica data/ora di inizio o fine. Le altre modifiche al form vengono salvate insieme alla modifica tramite il bottone <strong style={{ color: 'var(--color-text)' }}>Salva modifiche</strong>.
           {' '}
-          <strong style={{ color: 'var(--color-text)' }}>Le modifiche alle Segnalazioni associate (sotto) vengono salvate immediatamente, anche se annulli la riprogrammazione.</strong>
+          <strong style={{ color: 'var(--color-text)' }}>Le modifiche alle Segnalazioni associate (sotto) vengono salvate immediatamente, anche se annulli la modifica.</strong>
         </div>
       )}
 
