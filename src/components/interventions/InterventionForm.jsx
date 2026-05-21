@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Camera, X, Calendar as CalendarIcon, MapPin, Clock, Send } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { SPARE_URGENCY, SUPPLIER_SPECIALTIES } from '../../lib/constants'
@@ -113,6 +113,14 @@ export default function InterventionForm({
   const [participantUserIds, setParticipantUserIds] = useState(
     Array.isArray(initialParticipantUserIds) ? initialParticipantUserIds : []
   )
+  // In edit/reschedule mode la shell fetcha intervention_participants in
+  // useEffect, quindi initialParticipantUserIds arriva async DOPO il primo
+  // render del form. Senza questo sync, il multi-select resterebbe vuoto.
+  useEffect(() => {
+    setParticipantUserIds(
+      Array.isArray(initialParticipantUserIds) ? initialParticipantUserIds : []
+    )
+  }, [initialParticipantUserIds])
 
   // Enrich users con role/counters/specialty/hourlyRate per UserPicker
   const enrichedUsers = useMemo(() => {
