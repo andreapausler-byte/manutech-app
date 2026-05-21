@@ -45,6 +45,36 @@ function isSameDay(a, b) {
     && a.getDate() === b.getDate()
 }
 
+function dayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Restituisce array di {key, date} con un elemento per ogni giorno locale
+// coperto dall'intervento (inclusivo). Se end è null o uguale al giorno di
+// start, ritorna un singolo elemento.
+function spanDays(intv) {
+  const start = new Date(intv.scheduled_start_at)
+  const days = [{
+    key: dayKey(start),
+    date: new Date(start.getFullYear(), start.getMonth(), start.getDate()),
+  }]
+  if (!intv.scheduled_end_at) return days
+  const end = new Date(intv.scheduled_end_at)
+  if (end <= start) return days
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+  // Safety cap: 366 giorni — evita loop infiniti con dati corrotti
+  let guard = 0
+  while (cursor < endDay && guard++ < 366) {
+    cursor.setDate(cursor.getDate() + 1)
+    days.push({
+      key: dayKey(cursor),
+      date: new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()),
+    })
+  }
+  return days
+}
+
 export default function CalendarMonthGrid({
   year,
   month, // 0-11
@@ -57,19 +87,37 @@ export default function CalendarMonthGrid({
   const weeks = useMemo(() => buildMonthMatrix(year, month), [year, month])
   const today = new Date()
 
-  // Indicizza interventi per giorno (chiave YYYY-MM-DD).
+  // Indicizza interventi per giorno (chiave YYYY-MM-DD). Per gli interventi
+  // multi-day, viene inserito un entry in ogni giorno coperto dallo span
+  // [scheduled_start_at, scheduled_end_at], con flag continuesLeft/Right
+  // che la pillola usa per la resa "barra continua".
+  //
+  // Sort: multi-day prima dei single-day, così la stessa intervention occupa
+  // lo stesso slot Y in tutti i suoi giorni e la barra visiva resta allineata
+  // anche se altri interventi single-day esistono nei giorni intermedi.
   const byDay = useMemo(() => {
     const map = {}
     for (const i of interventions) {
       if (!i.scheduled_start_at) continue
-      const d = new Date(i.scheduled_start_at)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      if (!map[key]) map[key] = []
-      map[key].push(i)
+      const days = spanDays(i)
+      const lastIdx = days.length - 1
+      days.forEach((d, idx) => {
+        if (!map[d.key]) map[d.key] = []
+        map[d.key].push({
+          intervention: i,
+          continuesLeft: idx > 0,
+          continuesRight: idx < lastIdx,
+        })
+      })
     }
-    // Ordina per orario crescente dentro ogni giorno
+    const isMulti = (entry) => entry.continuesLeft || entry.continuesRight
     for (const k of Object.keys(map)) {
-      map[k].sort((a, b) => new Date(a.scheduled_start_at) - new Date(b.scheduled_start_at))
+      map[k].sort((a, b) => {
+        const aMulti = isMulti(a) ? 0 : 1
+        const bMulti = isMulti(b) ? 0 : 1
+        if (aMulti !== bMulti) return aMulti - bMulti
+        return new Date(a.intervention.scheduled_start_at) - new Date(b.intervention.scheduled_start_at)
+      })
     }
     return map
   }, [interventions])
@@ -133,7 +181,12 @@ export default function CalendarMonthGrid({
                     flexDirection: 'column',
                     gap: 4,
                     opacity: cell.inMonth ? 1 : 0.4,
-                    overflow: 'hidden',
+                    // overflow-x: visible per far sborder le pillole multi-day
+                    // verso le celle adiacenti (barra continua). overflow-y
+                    // resta hidden per non sfondare verticalmente.
+                    overflowX: 'visible',
+                    overflowY: 'hidden',
+                    position: 'relative',
                   }}
                 >
                   <div style={{
@@ -156,15 +209,28 @@ export default function CalendarMonthGrid({
                       }}>{items.length}</span>
                     )}
                   </div>
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    {items.slice(0, maxPillsPerCell).map(intv => (
-                      <InterventionPill
-                        key={intv.id}
-                        intervention={intv}
-                        active={intv.id === selectedInterventionId}
-                        onClick={onInterventionClick}
-                      />
-                    ))}
+                  <div style={{ flex: 1, overflowX: 'visible', overflowY: 'hidden' }}>
+                    {items.slice(0, maxPillsPerCell).map(entry => {
+                      const intv = entry.intervention
+                      // Sui bordi di settimana la barra "spezza": l'ultima cella
+                      // della riga non deve sborder a destra (non c'è cella
+                      // adiacente lì), la prima della riga successiva non deve
+                      // sborder a sinistra. Mantiene continuità solo intra-row.
+                      const isLastInWeek = week[week.length - 1].key === cell.key
+                      const isFirstInWeek = week[0].key === cell.key
+                      const continuesRight = entry.continuesRight && !isLastInWeek
+                      const continuesLeft = entry.continuesLeft && !isFirstInWeek
+                      return (
+                        <InterventionPill
+                          key={intv.id}
+                          intervention={intv}
+                          active={intv.id === selectedInterventionId}
+                          onClick={onInterventionClick}
+                          continuesLeft={continuesLeft}
+                          continuesRight={continuesRight}
+                        />
+                      )
+                    })}
                     {overflow > 0 && (
                       <p style={{
                         fontSize: 10,

@@ -300,9 +300,13 @@ export const interventions = {
     const endISO = rangeEnd instanceof Date ? rangeEnd.toISOString() : rangeEnd
 
     if (supabase) {
+      // Range overlap: include interventi multi-day che iniziano prima del range
+      // ma finiscono dentro (es. start 30/4 end 2/5 deve apparire nella vista
+      // di maggio). Predicato: start <= rangeEnd AND (end >= rangeStart
+      // OR (end IS NULL AND start >= rangeStart)).
       let query = supabase.from('interventions').select('*')
-        .gte('scheduled_start_at', startISO)
         .lte('scheduled_start_at', endISO)
+        .or(`scheduled_end_at.gte.${startISO},and(scheduled_end_at.is.null,scheduled_start_at.gte.${startISO})`)
         .order('scheduled_start_at', { ascending: true })
 
       if (scope === 'mine' && currentUserId) query = query.eq('assigned_to', currentUserId)
@@ -341,8 +345,12 @@ export const interventions = {
     const endMs = new Date(endISO).getTime()
     list = list.filter(i => {
       if (!i.scheduled_start_at) return false
-      const t = new Date(i.scheduled_start_at).getTime()
-      return t >= startMs && t <= endMs
+      const startT = new Date(i.scheduled_start_at).getTime()
+      if (startT > endMs) return false
+      if (i.scheduled_end_at) {
+        return new Date(i.scheduled_end_at).getTime() >= startMs
+      }
+      return startT >= startMs
     })
     if (scope === 'mine' && currentUserId) list = list.filter(i => i.assigned_to === currentUserId)
     if (scope === 'pending_supplier') list = list.filter(i => i.status === 'pianificato' && i.assigned_to_role === 'fornitore')

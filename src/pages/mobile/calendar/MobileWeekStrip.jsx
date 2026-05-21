@@ -48,16 +48,25 @@ export default function MobileWeekStrip({
   // Aggrega per giorno: count + flag "hasCritical" così il dot indicator
   // può virare al rosso quando il giorno contiene almeno un intervento
   // critica (segnale immediato senza dover aprire il sheet).
+  // Multi-day: l'intervento contribuisce al puntino di ogni giorno del suo
+  // span, non solo a quello di inizio.
   const dayMetaByKey = useMemo(() => {
     const map = new Map()
     for (const intv of interventions) {
       if (!intv.scheduled_start_at) continue
-      const d = new Date(intv.scheduled_start_at)
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-      const prev = map.get(key) || { count: 0, hasCritical: false }
-      prev.count += 1
-      if (intv.severity === 'critica') prev.hasCritical = true
-      map.set(key, prev)
+      const start = new Date(intv.scheduled_start_at)
+      const endDate = intv.scheduled_end_at ? new Date(intv.scheduled_end_at) : start
+      const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+      const endDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+      let guard = 0
+      while (cursor <= endDay && guard++ < 366) {
+        const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`
+        const prev = map.get(key) || { count: 0, hasCritical: false }
+        prev.count += 1
+        if (intv.severity === 'critica') prev.hasCritical = true
+        map.set(key, prev)
+        cursor.setDate(cursor.getDate() + 1)
+      }
     }
     return map
   }, [interventions])

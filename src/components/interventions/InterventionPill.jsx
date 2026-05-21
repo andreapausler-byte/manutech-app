@@ -3,7 +3,18 @@
 
 import { INTERVENTION_STATUSES, INTERVENTION_TYPES } from '../../lib/interventions'
 
-export default function InterventionPill({ intervention, onClick, active = false }) {
+// Multi-day rendering: continuesLeft/continuesRight indicano che la pillola
+// "prosegue" verso la cella adiacente. La pillola si estende con marginLeft/
+// Right negativi per coprire il padding (6px) e il borderRight (1px) della
+// cella, producendo una barra visiva continua tra giorni adiacenti dentro la
+// stessa riga settimanale. Z-index 1 per stare sopra al border-right cella.
+export default function InterventionPill({
+  intervention,
+  onClick,
+  active = false,
+  continuesLeft = false,
+  continuesRight = false,
+}) {
   if (!intervention) return null
   const statusMeta = INTERVENTION_STATUSES[intervention.status] || INTERVENTION_STATUSES.pianificato
   const typeMeta = INTERVENTION_TYPES[intervention.type] || null
@@ -13,7 +24,10 @@ export default function InterventionPill({ intervention, onClick, active = false
   const border = statusMeta.color
   const text = typeMeta ? typeMeta.color : statusMeta.color
 
-  const hh = intervention.scheduled_start_at
+  // L'orario appare solo all'inizio dello span visibile (primo giorno o
+  // primo giorno dopo un a-capo di settimana). Sui giorni di continuazione
+  // il titolo va a tutta larghezza.
+  const hh = intervention.scheduled_start_at && !continuesLeft
     ? new Date(intervention.scheduled_start_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
     : null
 
@@ -26,10 +40,21 @@ export default function InterventionPill({ intervention, onClick, active = false
         textAlign: 'left',
         background: bg,
         border: `1px solid ${active ? border : 'transparent'}`,
-        borderLeft: `3px solid ${border}`,
-        borderRadius: 6,
+        // Bordo-bandiera sinistro solo all'inizio dello span. Sui giorni
+        // di continuazione la barra è uniforme senza tacca.
+        borderLeft: continuesLeft ? '1px solid transparent' : `3px solid ${border}`,
+        borderTopLeftRadius: continuesLeft ? 0 : 6,
+        borderBottomLeftRadius: continuesLeft ? 0 : 6,
+        borderTopRightRadius: continuesRight ? 0 : 6,
+        borderBottomRightRadius: continuesRight ? 0 : 6,
         padding: '3px 6px',
         marginBottom: 3,
+        // Bleed orizzontale: -6 per coprire il padding cella, +1 a destra
+        // per coprire anche il borderRight della cella sorgente.
+        marginLeft: continuesLeft ? -6 : 0,
+        marginRight: continuesRight ? -7 : 0,
+        position: 'relative',
+        zIndex: 1,
         cursor: 'pointer',
         fontSize: 11,
         color: text,
