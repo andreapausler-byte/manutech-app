@@ -286,28 +286,20 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   const [machines, setMachines] = useState([])
 
   // Filtri + ordinamento personalizzati per tecnico, persistiti in localStorage.
-  // Il default è 'created' (data di creazione, dal più recente). 'updated'
-  // resta selezionabile esplicitamente nel dropdown ma non è più default
-  // per evitare confusione quando i ticket si riordinano per attività in
-  // chat invece che per quando sono nati.
+  // Default: 'updated' (ultimo aggiornamento, dal più recente) — coerente
+  // con la vista admin: i ticket "vivi" (commenti nuovi o cambio stato)
+  // salgono in cima naturalmente.
   const filtersKey = `manutech_reports_filters_${user?.id || 'anon'}`
   const [filters, setFilters] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(filtersKey) || '{}')
-      // Migrazione: chi aveva il vecchio default 'updated' salvato
-      // (probabilmente perché era il default precedente, non scelto)
-      // viene riportato al nuovo default 'created'. Chi aveva
-      // severity/status li ha scelti esplicitamente, li manteniamo.
-      const sortBy = (!saved.sortBy || saved.sortBy === 'updated')
-        ? 'created'
-        : saved.sortBy
       return {
         onlyMine: !!saved.onlyMine,
         machineFilter: saved.machineFilter || '',
-        sortBy,
+        sortBy: saved.sortBy || 'updated',
       }
     } catch {
-      return { onlyMine: false, machineFilter: '', sortBy: 'created' }
+      return { onlyMine: false, machineFilter: '', sortBy: 'updated' }
     }
   })
   const updateFilters = (patch) => {
@@ -596,13 +588,13 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               fontSize: 12,
               fontWeight: 600,
               borderRadius: 999,
-              border: filters.sortBy !== 'created' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-              background: filters.sortBy !== 'created' ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
-              color: filters.sortBy !== 'created' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              border: filters.sortBy !== 'updated' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: filters.sortBy !== 'updated' ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
+              color: filters.sortBy !== 'updated' ? 'var(--color-primary)' : 'var(--color-text-muted)',
               cursor: 'pointer',
             }}>
-            <option value="created">Ordina: data creazione</option>
             <option value="updated">Ordina: ultimo aggiornamento</option>
+            <option value="created">Ordina: data creazione</option>
             <option value="severity">Ordina: severità</option>
             <option value="status">Ordina: workflow</option>
           </select>
