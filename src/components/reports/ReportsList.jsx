@@ -16,7 +16,16 @@ import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive } from 'l
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
 const ARCHIVED_STATUSES = ['risolta', 'chiuso']
+const RECENT_COMPLETED_WINDOW_HOURS = 24
 const isArchived = (r) => ARCHIVED_STATUSES.includes(r.status)
+// Terminale aggiornato entro la finestra recente: resta visibile nelle viste
+// "attive" (chrono / grouped) per dare conferma del completamento appena fatto.
+// Esce dall'Archivio per evitare doppio conteggio.
+const isRecentTerminal = (r, nowMs) => {
+  if (!ARCHIVED_STATUSES.includes(r.status)) return false
+  const ts = new Date(r.updated_at || r.created_at).getTime()
+  return Number.isFinite(ts) && (nowMs - ts) < RECENT_COMPLETED_WINDOW_HOURS * 3600 * 1000
+}
 
 // ── Avatar with initials ──
 function AvatarInitials({ name, color }) {
@@ -355,6 +364,23 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
 
   useEffect(() => { load() }, [load])
 
+  // Auto-refresh quando la pagina torna visibile (ritorno tab, app PWA da
+  // background): senza subscription realtime su reports l'utente vedrebbe
+  // dati stantii al rientro. Throttle 30s + handleRefresh (no setLoading,
+  // niente flicker dello skeleton).
+  useEffect(() => {
+    let lastVisibleLoadAt = Date.now()
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastVisibleLoadAt < 30_000) return
+      lastVisibleLoadAt = now
+      handleRefresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [handleRefresh])
+
   // Filter di base: search testuale + onlyMine + macchina.
   // Search supporta TK-id senza trattini/prefissi (vedi qNorm) e cerca su tutti
   // i campi che il manutentore vede nella card (titolo, descrizione, macchina,
@@ -390,13 +416,19 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   })
 
   // Conteggi per i chip del segmented control.
-  const activeCount = baseFiltered.filter(r => !isArchived(r)).length
-  const archivedCount = baseFiltered.filter(isArchived).length
+  // I terminali freschi (< RECENT_COMPLETED_WINDOW_HOURS) restano in "Recenti"
+  // e sono esclusi da "Archivio": coerenza counter ↔ contenuto della vista,
+  // zero doppio conteggio.
+  // eslint-disable-next-line react-hooks/purity, react-hooks/exhaustive-deps -- Date.now stabile dentro useMemo([reports])
+  const nowMs = useMemo(() => Date.now(), [reports])
+  const activeCount = baseFiltered.filter(r => !isArchived(r) || isRecentTerminal(r, nowMs)).length
+  const archivedCount = baseFiltered.filter(r => isArchived(r) && !isRecentTerminal(r, nowMs)).length
 
-  // viewMode='archive' mostra solo chiusi/risolti, gli altri solo gli attivi.
+  // viewMode='archive' mostra solo terminali "vecchi" (fuori finestra recente);
+  // gli altri (chrono, grouped) mostrano attivi + terminali recenti.
   const filtered = viewMode === 'archive'
-    ? baseFiltered.filter(isArchived)
-    : baseFiltered.filter(r => !isArchived(r))
+    ? baseFiltered.filter(r => isArchived(r) && !isRecentTerminal(r, nowMs))
+    : baseFiltered.filter(r => !isArchived(r) || isRecentTerminal(r, nowMs))
 
   // Sort logic in base a filters.sortBy. Tiebreak comune: created_at desc
   // (più stabile di updated_at, che cambia con i commenti/eventi).

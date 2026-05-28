@@ -61,15 +61,16 @@ export default function AdminReports({ initialReportId }) {
   // reports_with_planning (mig 053). Mostrato come chip accanto al titolo.
   const [planningMap, setPlanningMap] = useState({})
 
-  const load = async () => {
-    setLoading(true)
+  const load = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     const [r, u, m, s] = await Promise.all([
       db.getReports(),
       db.getUsers(),
       db.getMachines(),
       db.getStarredReportIds(user?.id),
     ])
-    setReports(r); setUsers(u); setMachines(m); setStarred(s); setLoading(false)
+    setReports(r); setUsers(u); setMachines(m); setStarred(s)
+    if (!silent) setLoading(false)
     // Planning state in second pass — non bloccare il primo paint.
     if (r?.length) {
       db.getPlanningStateForReports(r.map(rep => rep.id))
@@ -79,6 +80,24 @@ export default function AdminReports({ initialReportId }) {
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-refresh quando la pagina torna visibile (ritorno tab, app PWA da
+  // background): allinea l'ordinamento "Ultima attività" per modifiche
+  // server-side che non passano dalla subscription realtime sui commenti
+  // (es. cambio status da altro device). Throttle 30s + silent (no spinner)
+  // per evitare flicker.
+  useEffect(() => {
+    let lastVisibleLoadAt = Date.now()
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastVisibleLoadAt < 30_000) return
+      lastVisibleLoadAt = now
+      load({ silent: true })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounce 200ms: stesso pattern del mobile per coerenza UX.
   useEffect(() => {
