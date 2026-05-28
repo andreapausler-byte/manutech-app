@@ -10,6 +10,7 @@ import { avatarGradient } from '../../hooks/usePremiumUI'
 import { Plus, Search, X, ChevronUp, ChevronDown, ChevronRight, Star } from 'lucide-react'
 
 const TERMINAL_STATUSES = ['risolta', 'chiuso']
+const RECENT_COMPLETED_WINDOW_HOURS = 24
 
 // ── CellBadge: piccolo badge bordato per celle tabella (gravità/tipo/stato) ──
 function CellBadge({ color, label }) {
@@ -213,14 +214,30 @@ export default function AdminReports({ initialReportId }) {
   })
 
   // Split in attive + archivio (risolta/chiuso).
-  // Se l'utente filtra esplicitamente su uno stato terminale, mostra lista piatta.
+  // I terminali aggiornati entro RECENT_COMPLETED_WINDOW_HOURS restano nella
+  // lista attiva al loro posto per updated_at: così l'admin vede subito il
+  // completamento appena avvenuto come conferma visiva, e scendono in Archivio
+  // solo quando "raffreddano". Se l'utente filtra esplicitamente su uno stato
+  // terminale, mostra lista piatta come prima.
   const isFilteringArchive = TERMINAL_STATUSES.includes(filterStatus)
+  const recentWindowMs = RECENT_COMPLETED_WINDOW_HOURS * 3600 * 1000
+  // Rinfresca quando il dataset cambia (load() dopo create/update o realtime
+  // bump da nuovi commenti): coerente con la spec "ricalcolo al prossimo
+  // load(), niente timer". `reports` qui è dep come invalidator del memo,
+  // non letto nella closure.
+  // eslint-disable-next-line react-hooks/purity, react-hooks/exhaustive-deps -- Date.now stabile dentro useMemo([reports])
+  const nowMs = useMemo(() => Date.now(), [reports])
+  const isRecentTerminal = (r) => {
+    if (!TERMINAL_STATUSES.includes(r.status)) return false
+    const ts = new Date(r.updated_at || r.created_at).getTime()
+    return Number.isFinite(ts) && (nowMs - ts) < recentWindowMs
+  }
   const activeReports = isFilteringArchive
     ? sorted
-    : sorted.filter(r => !TERMINAL_STATUSES.includes(r.status))
+    : sorted.filter(r => !TERMINAL_STATUSES.includes(r.status) || isRecentTerminal(r))
   const archivedReports = isFilteringArchive
     ? []
-    : sorted.filter(r => TERMINAL_STATUSES.includes(r.status))
+    : sorted.filter(r => TERMINAL_STATUSES.includes(r.status) && !isRecentTerminal(r))
   const hasArchiveSeparator = !isFilteringArchive && archivedReports.length > 0
   const autoExpandArchive = !!search && archivedReports.length > 0
   const archiveVisible = archiveOpen || autoExpandArchive
