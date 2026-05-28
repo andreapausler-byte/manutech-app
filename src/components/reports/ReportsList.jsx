@@ -364,6 +364,23 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
 
   useEffect(() => { load() }, [load])
 
+  // Auto-refresh quando la pagina torna visibile (ritorno tab, app PWA da
+  // background): senza subscription realtime su reports l'utente vedrebbe
+  // dati stantii al rientro. Throttle 30s + handleRefresh (no setLoading,
+  // niente flicker dello skeleton).
+  useEffect(() => {
+    let lastVisibleLoadAt = Date.now()
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastVisibleLoadAt < 30_000) return
+      lastVisibleLoadAt = now
+      handleRefresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [handleRefresh])
+
   // Filter di base: search testuale + onlyMine + macchina.
   // Search supporta TK-id senza trattini/prefissi (vedi qNorm) e cerca su tutti
   // i campi che il manutentore vede nella card (titolo, descrizione, macchina,
