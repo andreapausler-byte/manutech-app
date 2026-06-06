@@ -347,6 +347,17 @@ interface MaintenanceLogEntry {
   machine_id?: string | null
 }
 
+// Commento (chat) di una segnalazione aperta — per la correlazione cross-ticket
+// in modalità approfondita.
+interface OpenTicketComment {
+  report_id: string
+  user_name: string | null
+  user_role: string | null
+  text: string | null
+  kind: string | null
+  created_at: string | null
+}
+
 // ── Prompt builder ──
 function buildSystemPrompt(): string {
   return `Sei il "cervello operativo" di ManuTech: un assistente AI esperto di manutenzione industriale che guida tecnici, operatori e manager di un'azienda manifatturiera. Il tuo obiettivo strategico è aiutare l'organizzazione a ridurre i tempi di riparazione e a prevenire i fermi macchina straordinari (che impattano direttamente il fatturato). Per farlo attingi alle fonti dati dell'organizzazione che ti vengono fornite ad ogni richiesta.
@@ -364,6 +375,7 @@ Fonti che puoi ricevere nel contesto:
 10. **Fornitori esterni** — anagrafica completa delle ditte esterne dell'org: nome, specialita', referente, ticket aperti correnti (con titolo/severita'/macchina/giorni aperti), conteggio interventi storici, ultimo intervento. Distingue tra fornitori registrati (con account) e "ombra" (presenti solo nello storico interventi)
 11. **Agenda interventi pianificati (calendario)** — gli interventi a calendario dai giorni scorsi in avanti: data/ora, titolo, stato, tipo, severità, macchinario, tecnico/fornitore assegnato. È la fotografia dei PROSSIMI IMPEGNI della squadra (ciò che operatore/tecnico vede nel Calendario)
 12. **Manutenzioni eseguite (storico)** — registro delle manutenzioni ordinarie e straordinarie GIÀ effettuate (data, macchina, tipo, esecutore interno o ditta esterna, durata, ricambi). Da usare per "cosa è stato fatto", frequenza reale degli interventi, attività di una ditta esterna, ultima manutenzione di un certo tipo
+13. **Discussioni in corso (segnalazioni aperte)** — disponibile solo a massima potenza: i messaggi recenti delle chat di PIÙ segnalazioni aperte contemporaneamente, raggruppati per ticket. Serve a CORRELARE ciò che il team sta dicendo su ticket diversi (problemi simili in corso, stesso ricambio citato altrove, possibili duplicati)
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
@@ -374,6 +386,7 @@ Regole di risposta:
 - Per domande sui PIANI DI MANUTENZIONE ("quanti piani abbiamo", "che cadenza hanno i piani", "quali piani sono attivi", "piani per macchina X", "manutenzioni programmate"): usa il blocco "Piani di manutenzione (overview)" come fonte primaria. Riporta totale piani, numero di macchine coperte, distribuzione per stato/frequenza, e — se richiesto — il dettaglio per macchina. Distingui chiaramente fra "piani attivi" (l'overview) e "piani scaduti / in scadenza" (Insight strategici). Se la domanda riguarda una macchina specifica e nell'overview non risulta, dichiaralo esplicitamente
 - Per domande su AGENDA / CALENDARIO ("cosa è in programma", "interventi di questa settimana", "che impegni abbiamo", "agenda di domani", "carico dei tecnici"): usa il blocco "Agenda interventi pianificati" come fonte primaria. Raggruppa per giorno, evidenzia urgenze/critici, carichi sui tecnici e giorni scarichi/sovrapposti. Se la finestra non contiene interventi, dillo esplicitamente
 - Per domande su MANUTENZIONI ESEGUITE / STORICO LAVORI ("cosa abbiamo fatto", "quante manutenzioni su X", "ultimi interventi della ditta Y", "quando è stata fatta la manutenzione Z", "quante straordinarie quest'anno"): usa il blocco "Manutenzioni eseguite (storico)". Distingui ordinaria (programmata) da straordinaria e segnala se eseguita da ditta esterna. Se la finestra non copre il periodo chiesto, dichiaralo
+- Se è presente il blocco "Discussioni in corso (segnalazioni aperte)", usalo per CORRELARE tra loro i ticket aperti: segnala problemi simili in corso su più segnalazioni, ricambi/sintomi citati in più chat, e possibili duplicati. Cita i ticket coinvolti. Resta su ipotesi da verificare, non su certezze
 - PROPOSTA DI PIANI DI MANUTENZIONE: quando l'utente lo chiede ("proponi un piano", "che manutenzione preventiva servirebbe", "come pianifico") o quando dai dati emerge un bisogno chiaro (guasti ricorrenti su una macchina dagli Insight strategici, preventive scadute, macchina ad alta criticità senza piani attivi), PROPONI 1-3 piani di manutenzione concreti. Per ciascuno indica: macchina (con matricola se nota), cadenza suggerita (es. ogni 30/90/180gg), cosa controllare/sostituire, e il PERCHÉ basato sui dati (es. "3 guasti al gruppo X in 90gg"). Proponili come SUGGERIMENTI da validare, mai come piani già creati: tu non crei nulla nel sistema, suggerisci. Tieni conto dell'agenda esistente per non sovrapporre carichi
 - Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili, Storia macchina e Biblioteca tecnica
 - Per domande DOCUMENTALI ("che dice il manuale", "coppia di serraggio", "specifica", "come si monta"): usa PRIMA la Biblioteca tecnica; privilegia il manuale ufficiale
@@ -921,6 +934,45 @@ function buildMaintenanceLogsBlock(list: MaintenanceLogEntry[]): string {
   return lines.join('\n')
 }
 
+// ── Builder: discussioni in corso su segnalazioni aperte (cross-ticket) ──
+// Solo modalità approfondita. Raggruppa i commenti per segnalazione aperta,
+// tiene gli ultimi ~6 messaggi per ticket e max ~15 ticket per non gonfiare.
+function buildOpenTicketsChatBlock(
+  comments: OpenTicketComment[],
+  reportMap: Map<string, OpenReport>,
+): string {
+  if (!comments || comments.length === 0) return ''
+  const byReport = new Map<string, OpenTicketComment[]>()
+  for (const c of comments) {
+    if (!c.text || !c.text.trim()) continue
+    const arr = byReport.get(c.report_id) || []
+    if (arr.length < 6) arr.push(c) // comments arrivano dal più recente: tieni i 6 più nuovi
+    byReport.set(c.report_id, arr)
+  }
+  if (byReport.size === 0) return ''
+  const lines: string[] = []
+  lines.push(`Discussioni in corso su segnalazioni aperte (${byReport.size} ticket con chat recente):`)
+  let shown = 0
+  for (const [rid, arr] of byReport) {
+    if (shown >= 15) break
+    shown++
+    const r = reportMap.get(rid)
+    const head = r
+      ? `${r.title || '(senza titolo)'}${r.machine ? ` — ${r.machine}` : ''}${r.severity ? ` [${r.severity}]` : ''}`
+      : 'Segnalazione aperta'
+    lines.push('')
+    lines.push(`• ${head}:`)
+    for (const c of arr.slice().reverse()) { // ordine cronologico
+      const who = c.user_name || 'Utente'
+      const role = c.user_role ? ` (${c.user_role})` : ''
+      const kindTag = c.kind && c.kind !== 'chat' ? ` [${c.kind}]` : ''
+      const txt = (c.text || '').trim().slice(0, 300)
+      lines.push(`   - ${who}${role}${kindTag}: ${txt}`)
+    }
+  }
+  return lines.join('\n')
+}
+
 // ── Heuristic: classifica il tipo di domanda ──
 // Decide se caricare: anagrafica, statistiche, segnalazioni aperte,
 // aspetti diagnostici, biblioteca tecnica (documentale), insight
@@ -1387,8 +1439,37 @@ Deno.serve(async (req: Request) => {
       ? (mlogsRes.data as MaintenanceLogEntry[])
       : []
 
+    // Modalità approfondita (Opus 4.8): chat delle segnalazioni APERTE per
+    // correlare discussioni cross-ticket. Round-trip extra deliberato, solo a
+    // max potenza; riusa gli id delle aperte già recuperati (snapshot).
+    let openTicketsChat: OpenTicketComment[] = []
+    if (deep && scope !== 'ticket' && openReports.length > 0) {
+      const openIds = openReports.map(r => r.id).filter(Boolean).slice(0, 30)
+      if (openIds.length > 0) {
+        let res = await supabase
+          .from('comments')
+          .select('report_id, user_name, user_role, text, kind, created_at, deleted_at')
+          .in('report_id', openIds)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(120)
+        if (res.error) {
+          // Fallback senza deleted_at (colonna assente su DB non migrati)
+          res = await supabase
+            .from('comments')
+            .select('report_id, user_name, user_role, text, kind, created_at')
+            .in('report_id', openIds)
+            .order('created_at', { ascending: false })
+            .limit(120)
+        }
+        if (res.error) console.warn('open-tickets-chat error:', res.error.message)
+        openTicketsChat = (res.data as OpenTicketComment[]) || []
+        console.info(`[open-tickets-chat] reports=${openIds.length} comments=${openTicketsChat.length}`)
+      }
+    }
+
     // ── Diagnostic trace: retrieval summary ──
-    console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} wantMplan=${classify.wantMaintenancePlans} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} mplans=${maintenancePlans?.total ?? 'N'} agenda=${scheduledInterventions.length} mlogs=${maintenanceLogs.length} currentChat=${currentChat.length}`)
+    console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} wantMplan=${classify.wantMaintenancePlans} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} mplans=${maintenancePlans?.total ?? 'N'} agenda=${scheduledInterventions.length} mlogs=${maintenanceLogs.length} openChat=${openTicketsChat.length} currentChat=${currentChat.length}`)
     if (currentChat.length > 0) {
       const preview = currentChat.slice(0, 3).map(c => `${c.user_name || '?'}: ${(c.text || '').slice(0, 60)}`).join(' | ')
       console.info(`[current-chat-preview] ${preview}`)
@@ -1469,6 +1550,14 @@ Deno.serve(async (req: Request) => {
 
     const openBlock = buildOpenReportsBlock(openReports, hasMachineContext)
     if (openBlock) sections.push(`## Segnalazioni aperte\n\n${openBlock}`)
+
+    // Discussioni in corso su più segnalazioni aperte (solo approfondito):
+    // permette all'AI di correlare ciò che il team sta dicendo su ticket diversi.
+    if (openTicketsChat.length > 0) {
+      const openReportsMap = new Map(openReports.map(r => [r.id, r]))
+      const openChatBlock = buildOpenTicketsChatBlock(openTicketsChat, openReportsMap)
+      if (openChatBlock) sections.push(`## Discussioni in corso (segnalazioni aperte)\n\n${openChatBlock}`)
+    }
 
     // Anagrafica fornitori esterni: serve per domande tipo "cosa pendente
     // con PTS?", "storico Manara", "quali fornitori abbiamo per
