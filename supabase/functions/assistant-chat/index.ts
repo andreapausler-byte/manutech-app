@@ -333,6 +333,20 @@ interface ScheduledIntervention {
   location: string | null
 }
 
+// Manutenzione eseguita (tabella maintenance_logs) — per lo storico org.
+interface MaintenanceLogEntry {
+  type: string | null            // 'programmata' (ordinaria) | 'straordinaria' | ...
+  title: string | null
+  description: string | null
+  performed_by_name: string | null
+  contractor_name?: string | null
+  parts_replaced: string | null
+  duration_minutes: number | null
+  performed_at: string | null
+  machine?: { name: string | null; serial_number: string | null } | null
+  machine_id?: string | null
+}
+
 // ── Prompt builder ──
 function buildSystemPrompt(): string {
   return `Sei il "cervello operativo" di ManuTech: un assistente AI esperto di manutenzione industriale che guida tecnici, operatori e manager di un'azienda manifatturiera. Il tuo obiettivo strategico è aiutare l'organizzazione a ridurre i tempi di riparazione e a prevenire i fermi macchina straordinari (che impattano direttamente il fatturato). Per farlo attingi alle fonti dati dell'organizzazione che ti vengono fornite ad ogni richiesta.
@@ -349,6 +363,7 @@ Fonti che puoi ricevere nel contesto:
 9. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne), certificati della macchina, e **conversazioni dei ticket gia' risolti** (titolo + descrizione iniziale + causa radice + azione + chat dei tecnici che hanno trovato la soluzione)
 10. **Fornitori esterni** — anagrafica completa delle ditte esterne dell'org: nome, specialita', referente, ticket aperti correnti (con titolo/severita'/macchina/giorni aperti), conteggio interventi storici, ultimo intervento. Distingue tra fornitori registrati (con account) e "ombra" (presenti solo nello storico interventi)
 11. **Agenda interventi pianificati (calendario)** — gli interventi a calendario dai giorni scorsi in avanti: data/ora, titolo, stato, tipo, severità, macchinario, tecnico/fornitore assegnato. È la fotografia dei PROSSIMI IMPEGNI della squadra (ciò che operatore/tecnico vede nel Calendario)
+12. **Manutenzioni eseguite (storico)** — registro delle manutenzioni ordinarie e straordinarie GIÀ effettuate (data, macchina, tipo, esecutore interno o ditta esterna, durata, ricambi). Da usare per "cosa è stato fatto", frequenza reale degli interventi, attività di una ditta esterna, ultima manutenzione di un certo tipo
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
@@ -358,6 +373,7 @@ Regole di risposta:
 - Per domande STRATEGICHE / MANAGERIALI ("su cosa concentrarmi", "come riduco i fermi", "priorità", "cosa sta peggiorando", "dove perdo tempo"): usa Insight strategici come fonte principale; proponi 2-4 azioni concrete ordinate per impatto, citando numeri (matricole, MTTR, giorni di ritardo)
 - Per domande sui PIANI DI MANUTENZIONE ("quanti piani abbiamo", "che cadenza hanno i piani", "quali piani sono attivi", "piani per macchina X", "manutenzioni programmate"): usa il blocco "Piani di manutenzione (overview)" come fonte primaria. Riporta totale piani, numero di macchine coperte, distribuzione per stato/frequenza, e — se richiesto — il dettaglio per macchina. Distingui chiaramente fra "piani attivi" (l'overview) e "piani scaduti / in scadenza" (Insight strategici). Se la domanda riguarda una macchina specifica e nell'overview non risulta, dichiaralo esplicitamente
 - Per domande su AGENDA / CALENDARIO ("cosa è in programma", "interventi di questa settimana", "che impegni abbiamo", "agenda di domani", "carico dei tecnici"): usa il blocco "Agenda interventi pianificati" come fonte primaria. Raggruppa per giorno, evidenzia urgenze/critici, carichi sui tecnici e giorni scarichi/sovrapposti. Se la finestra non contiene interventi, dillo esplicitamente
+- Per domande su MANUTENZIONI ESEGUITE / STORICO LAVORI ("cosa abbiamo fatto", "quante manutenzioni su X", "ultimi interventi della ditta Y", "quando è stata fatta la manutenzione Z", "quante straordinarie quest'anno"): usa il blocco "Manutenzioni eseguite (storico)". Distingui ordinaria (programmata) da straordinaria e segnala se eseguita da ditta esterna. Se la finestra non copre il periodo chiesto, dichiaralo
 - PROPOSTA DI PIANI DI MANUTENZIONE: quando l'utente lo chiede ("proponi un piano", "che manutenzione preventiva servirebbe", "come pianifico") o quando dai dati emerge un bisogno chiaro (guasti ricorrenti su una macchina dagli Insight strategici, preventive scadute, macchina ad alta criticità senza piani attivi), PROPONI 1-3 piani di manutenzione concreti. Per ciascuno indica: macchina (con matricola se nota), cadenza suggerita (es. ogni 30/90/180gg), cosa controllare/sostituire, e il PERCHÉ basato sui dati (es. "3 guasti al gruppo X in 90gg"). Proponili come SUGGERIMENTI da validare, mai come piani già creati: tu non crei nulla nel sistema, suggerisci. Tieni conto dell'agenda esistente per non sovrapporre carichi
 - Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili, Storia macchina e Biblioteca tecnica
 - Per domande DOCUMENTALI ("che dice il manuale", "coppia di serraggio", "specifica", "come si monta"): usa PRIMA la Biblioteca tecnica; privilegia il manuale ufficiale
@@ -885,6 +901,26 @@ function buildAgendaBlock(list: ScheduledIntervention[]): string {
   return lines.join('\n')
 }
 
+// ── Builder: storico manutenzioni eseguite (maintenance_logs) ──
+function buildMaintenanceLogsBlock(list: MaintenanceLogEntry[]): string {
+  if (!list || list.length === 0) return ''
+  const lines: string[] = []
+  lines.push(`Manutenzioni eseguite (storico organizzazione, ${list.length} più recenti):`)
+  for (const l of list) {
+    const when = fmtDateIt(l.performed_at)
+    const machine = l.machine?.name
+      ? `${l.machine.name}${l.machine.serial_number ? ` [${l.machine.serial_number}]` : ''}`
+      : '—'
+    const who = l.contractor_name ? `ditta ${l.contractor_name}` : (l.performed_by_name || 'interno')
+    lines.push(`- ${when} — ${machine} — [${l.type || 'manutenzione'}] ${l.title || '(senza titolo)'}`)
+    const extra: string[] = [who]
+    if (l.duration_minutes) extra.push(`${l.duration_minutes} min`)
+    if (l.parts_replaced) extra.push(`ricambi: ${String(l.parts_replaced).slice(0, 120)}`)
+    lines.push(`  ${extra.join(' · ')}`)
+  }
+  return lines.join('\n')
+}
+
 // ── Heuristic: classifica il tipo di domanda ──
 // Decide se caricare: anagrafica, statistiche, segnalazioni aperte,
 // aspetti diagnostici, biblioteca tecnica (documentale), insight
@@ -1080,28 +1116,50 @@ Deno.serve(async (req: Request) => {
 
     // Knowledge retrieval: carichiamo la biblioteca tecnica quando
     // l'utente chiede documenti, diagnostica o è in contesto macchina.
+    //
+    // Potenza "approfondito" (Opus 4.8) = massima potenza di calcolo → diamo
+    // all'AI accesso a TUTTO lo storico: bypassa il gating per-intento
+    // (carica tutte le fonti) e allarga le finestre temporali / i cap.
+    const deep = power === 'approfondito'
+
     const shouldFetchKnowledge =
-      classify.wantKnowledge || classify.wantDiagnostic || hasMachineContext
+      deep || classify.wantKnowledge || classify.wantDiagnostic || hasMachineContext
     // Inventario: lo carichiamo quando l'utente chiede matricole/anagrafica,
     // quando fa domande meta (serve per referenziare le macchine),
     // strategiche, o quando NON è in contesto macchina (org-wide overview).
     const shouldFetchInventory =
-      classify.wantInventory || classify.wantStats || classify.wantStrategic
+      deep || classify.wantInventory || classify.wantStats || classify.wantStrategic
     // Insight strategici: solo se domanda strategica o meta.
     const shouldFetchStrategic =
-      classify.wantStrategic || classify.wantStats
+      deep || classify.wantStrategic || classify.wantStats
     // Overview piani di manutenzione: caricato per domande dirette sui
     // piani e per domande strategiche (i piani sono complemento
     // naturale degli insight). NON caricato se l'utente sta guardando
     // una macchina specifica: in quel caso i piani della macchina
     // arrivano già da get_machine_history.
     const shouldFetchMaintenancePlans =
-      !hasMachineContext && (classify.wantMaintenancePlans || classify.wantStrategic)
+      !hasMachineContext && (deep || classify.wantMaintenancePlans || classify.wantStrategic)
     // Agenda interventi pianificati (tabella interventions). Caricata per
     // domande su calendario/agenda e per domande strategiche o sui piani
     // (servono a proporre/ricollocare manutenzioni). Non in scope 'ticket'.
     const shouldFetchAgenda =
-      scope !== 'ticket' && (classify.wantAgenda || classify.wantStrategic || classify.wantMaintenancePlans)
+      scope !== 'ticket' && (deep || classify.wantAgenda || classify.wantStrategic || classify.wantMaintenancePlans)
+    // Storico manutenzioni EFFETTUATE (maintenance_logs) a livello org:
+    // ordinaria/straordinaria con data, macchina, esecutore, ricambi. In
+    // contesto macchina arriva già da get_machine_history; qui copriamo la
+    // chat globale. Sempre in modalità approfondita.
+    const shouldFetchMaintenanceLogs =
+      !hasMachineContext && (deep || classify.wantMaintenancePlans || classify.wantStrategic || classify.wantDiagnostic)
+
+    // Cap e finestre temporali scalano con la potenza: "approfondito" tira su
+    // molto più storico (costo/latenza maggiori, accettati per la max potenza).
+    const topK = deep ? 12 : TOP_K
+    const knowledgeLimit = deep ? 12 : 6
+    const agendaSinceDays = deep ? 60 : 7
+    const agendaLimit = deep ? 150 : 40
+    const mlogsMonthsBack = deep ? 24 : 6
+    const mlogsLimit = deep ? 100 : 30
+
     const voyageKey = Deno.env.get('VOYAGE_API_KEY')
     let queryEmbedding: number[] | null = null
     if (shouldFetchKnowledge && voyageKey) {
@@ -1114,18 +1172,18 @@ Deno.serve(async (req: Request) => {
       similarRes, statsRes, openRes, historyRes,
       knowledgeRes, inventoryRes, strategicRes,
       currentReportRes, currentChatRes, suppliersRes,
-      maintenancePlansRes, sameMachineRes, agendaRes,
+      maintenancePlansRes, sameMachineRes, agendaRes, mlogsRes,
     ] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
-        p_limit: TOP_K,
+        p_limit: topK,
         p_machine_id: machineId ?? null,
         p_include_open: includeOpenInRetrieval,
       }),
-      classify.wantStats || classify.wantDiagnostic || classify.wantStrategic
+      deep || classify.wantStats || classify.wantDiagnostic || classify.wantStrategic
         ? supabase.rpc('get_assistant_org_stats')
         : Promise.resolve({ data: null, error: null }),
-      classify.wantOpen || classify.wantDiagnostic || classify.wantStrategic || hasMachineContext
+      deep || classify.wantOpen || classify.wantDiagnostic || classify.wantStrategic || hasMachineContext
         ? supabase.rpc('get_open_reports_snapshot', { p_machine_id: machineId ?? null })
         : Promise.resolve({ data: null, error: null }),
       hasMachineContext
@@ -1136,7 +1194,7 @@ Deno.serve(async (req: Request) => {
             query_text: query,
             query_embedding: queryEmbedding,
             p_machine_id: machineId ?? null,
-            p_limit: 6,
+            p_limit: knowledgeLimit,
           })
         : Promise.resolve({ data: null, error: null }),
       shouldFetchInventory
@@ -1254,15 +1312,39 @@ Deno.serve(async (req: Request) => {
       shouldFetchAgenda
         ? (async () => {
             const since = new Date()
-            since.setDate(since.getDate() - 7)
+            since.setDate(since.getDate() - agendaSinceDays)
             const res = await supabase
               .from('interventions')
               .select('title, scheduled_start_at, scheduled_end_at, status, type, severity, machine_name, assigned_to_name, assigned_to_role, location')
               .gte('scheduled_start_at', since.toISOString())
               .neq('status', 'annullato')
               .order('scheduled_start_at', { ascending: true })
-              .limit(40)
+              .limit(agendaLimit)
             console.info(`[agenda] count=${res.data?.length ?? 0} error=${res.error?.message ?? 'none'}`)
+            return res
+          })()
+        : Promise.resolve({ data: null, error: null }),
+      // Storico manutenzioni effettuate (maintenance_logs) org-wide, RLS-scoped.
+      // Finestra e cap scalano con la potenza. Embed del nome macchina via FK;
+      // fallback senza embed se la relazione non è risolvibile.
+      shouldFetchMaintenanceLogs
+        ? (async () => {
+            const since = new Date()
+            since.setMonth(since.getMonth() - mlogsMonthsBack)
+            const cols = 'type, title, description, performed_by_name, contractor_name, parts_replaced, duration_minutes, performed_at, machine:machines(name, serial_number)'
+            const colsNoJoin = 'type, title, description, performed_by_name, parts_replaced, duration_minutes, performed_at, machine_id'
+            const q = (sel: string) => supabase
+              .from('maintenance_logs')
+              .select(sel)
+              .gte('performed_at', since.toISOString())
+              .order('performed_at', { ascending: false })
+              .limit(mlogsLimit)
+            let res = await q(cols)
+            if (res.error) {
+              console.warn(`[mlogs] select esteso fallito (${res.error.message}), retry base`)
+              res = await q(colsNoJoin)
+            }
+            console.info(`[mlogs] count=${res.data?.length ?? 0} error=${res.error?.message ?? 'none'}`)
             return res
           })()
         : Promise.resolve({ data: null, error: null }),
@@ -1300,9 +1382,13 @@ Deno.serve(async (req: Request) => {
     const scheduledInterventions: ScheduledIntervention[] = Array.isArray(agendaRes.data)
       ? (agendaRes.data as ScheduledIntervention[])
       : []
+    if (mlogsRes.error) console.warn('maintenance_logs error:', mlogsRes.error.message)
+    const maintenanceLogs: MaintenanceLogEntry[] = Array.isArray(mlogsRes.data)
+      ? (mlogsRes.data as MaintenanceLogEntry[])
+      : []
 
     // ── Diagnostic trace: retrieval summary ──
-    console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} wantMplan=${classify.wantMaintenancePlans} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} mplans=${maintenancePlans?.total ?? 'N'} agenda=${scheduledInterventions.length} currentChat=${currentChat.length}`)
+    console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} wantMplan=${classify.wantMaintenancePlans} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} mplans=${maintenancePlans?.total ?? 'N'} agenda=${scheduledInterventions.length} mlogs=${maintenanceLogs.length} currentChat=${currentChat.length}`)
     if (currentChat.length > 0) {
       const preview = currentChat.slice(0, 3).map(c => `${c.user_name || '?'}: ${(c.text || '').slice(0, 60)}`).join(' | ')
       console.info(`[current-chat-preview] ${preview}`)
@@ -1370,6 +1456,10 @@ Deno.serve(async (req: Request) => {
     // proporre/ricollocare manutenzioni.
     const agendaBlock = buildAgendaBlock(scheduledInterventions)
     if (agendaBlock) sections.push(`## Agenda interventi pianificati (calendario)\n\n${agendaBlock}`)
+
+    // Storico manutenzioni effettuate (ordinaria/straordinaria) a livello org.
+    const maintenanceLogsBlock = buildMaintenanceLogsBlock(maintenanceLogs)
+    if (maintenanceLogsBlock) sections.push(`## Manutenzioni eseguite (storico)\n\n${maintenanceLogsBlock}`)
 
     const knowledgeBlock = buildKnowledgeBlock(knowledgeChunks)
     if (knowledgeBlock) sections.push(`## Biblioteca tecnica (manuali, schede, interventi)\n\n${knowledgeBlock}`)
