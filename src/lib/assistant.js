@@ -24,15 +24,41 @@ export function isAssistantAvailable() {
 
 // ── Invia messaggio all'assistente ────────────────────────
 // Ritorna { conversation_id, content, sources, assistant_message_id, user_message_id }
-export async function sendMessage({ query, conversation_id, machine_id, report_id }) {
+//
+// scope: 'global' (default) | 'ticket' — modalità chat. Per 'ticket' il
+//        contesto (scheda tecnica macchina + storico stessa macchina) è
+//        assemblato server-side dall'Edge Function via RLS (JWT utente).
+// power: 'veloce' | 'equilibrato' | 'approfondito' — potenza AI → modello (default lato server).
+export async function sendMessage({ query, conversation_id, machine_id, report_id, scope, power }) {
   if (!supabase) throw new DemoModeError()
   const { data, error } = await supabase.functions.invoke('assistant-chat', {
-    body: { query, conversation_id, machine_id, report_id },
+    body: { query, conversation_id, machine_id, report_id, scope, power },
   })
   if (error) {
     // supabase.functions.invoke non include il body JSON in caso di !ok
     throw new Error(error.message || 'Errore chiamata assistente')
   }
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+// ── Riassunto AI generico (primitivo trasversale) ─────────
+// Genera un riassunto in italiano da un set di elementi già recuperati
+// lato client sotto RLS (quindi org-scoped). Usato da AISummaryCard su
+// calendario / macchina / intervento nell'admin desktop.
+//
+// kind:  'agenda' | 'machine_history' | 'intervention'
+// items: array di oggetti (interventi, report, ...) — già filtrati da RLS.
+// meta:  oggetto opzionale di contesto (es. { machine, periodo }).
+// power: 'veloce' | 'equilibrato' | 'approfondito' — risolto a modello server-side.
+//
+// Ritorna { content, model, power }.
+export async function generateSummary({ kind, items, meta, power }) {
+  if (!supabase) throw new DemoModeError()
+  const { data, error } = await supabase.functions.invoke('summarize', {
+    body: { kind, items, meta, power },
+  })
+  if (error) throw new Error(error.message || 'Errore generazione riassunto')
   if (data?.error) throw new Error(data.error)
   return data
 }

@@ -11,6 +11,7 @@ import {
   Star, Sparkles, BookOpen, Image as ImageIcon, FileSignature, ShieldCheck,
 } from 'lucide-react'
 import MachineDocumentationTab from './MachineDocumentationTab'
+import AISummaryCard from '../../../components/assistant/AISummaryCard'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
 
@@ -86,6 +87,47 @@ function OverviewTab({
     return sorted[0]
   }, [logs])
 
+  // ── Dati per il riassunto AI dello storico macchina ──
+  // Proiezione compatta: segnalazioni recenti + manutenzioni recenti.
+  const aiHistoryItems = useMemo(() => {
+    const fmt = (d) => { try { return d ? new Date(d).toLocaleDateString('it-IT') : null } catch { return null } }
+    const reps = (machineReports || [])
+      .slice()
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      .slice(0, 25)
+      .map(r => ({
+        elemento: 'segnalazione',
+        titolo: r.title || '(senza titolo)',
+        severita: r.severity || null,
+        stato: r.status || null,
+        tipo: r.type || null,
+        data: fmt(r.created_at),
+        causa_radice: r.closure_root_cause || null,
+        azione: r.closure_action || null,
+      }))
+    const maint = (logs || [])
+      .slice()
+      .sort((a, b) => new Date(b.performed_at || b.created_at || 0) - new Date(a.performed_at || a.created_at || 0))
+      .slice(0, 15)
+      .map(l => ({
+        elemento: 'manutenzione',
+        titolo: l.title || l.description || '(intervento)',
+        data: fmt(l.performed_at || l.created_at),
+        eseguito_da: l.performed_by_name || null,
+        ricambi: l.parts_replaced || null,
+      }))
+    return [...reps, ...maint]
+  }, [machineReports, logs])
+
+  const aiHistoryMeta = {
+    macchina: sel.name,
+    matricola: sel.serial_number,
+    produttore: sel.manufacturer,
+    modello: sel.model,
+    criticita: sel.criticality,
+    totale_segnalazioni: machineReports.length,
+  }
+
   // ── Stats derivati ──
   const totalReports = machineReports.length
   const resolvedReports = totalReports - activeReports.length
@@ -131,6 +173,15 @@ function OverviewTab({
           </span>
         </div>
       </div>
+
+      {/* ── Riassunto AI dello storico macchina ── */}
+      <AISummaryCard
+        kind="machine_history"
+        buttonLabel="Riassunto storico AI"
+        emptyHint="Nessuno storico (segnalazioni o manutenzioni) da riassumere per questa macchina."
+        items={aiHistoryItems}
+        meta={aiHistoryMeta}
+      />
 
       {/* ── Main grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">

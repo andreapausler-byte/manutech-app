@@ -18,10 +18,11 @@
 // sono UI placeholders che mostrano toast "Disponibile prossimamente".
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Users as UsersIcon, EyeOff, Eye } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Users as UsersIcon, EyeOff, Eye, Sparkles, X } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useInterventionsCalendar } from '../../hooks/useInterventionsCalendar'
+import AISummaryCard from '../../components/assistant/AISummaryCard'
 import CalendarMonthGrid from '../../components/interventions/CalendarMonthGrid'
 import InterventionDetailPanel from '../../components/interventions/InterventionDetailPanel'
 import PendingSuppliersPanel from '../../components/interventions/PendingSuppliersPanel'
@@ -162,6 +163,27 @@ export default function AdminCalendar({
   const openCreateNew = () => setSidebar({ mode: 'create', createPrefillDate: new Date() })
   const openReschedule = (intervention) => setSidebar({ mode: 'reschedule', rescheduleIntervention: intervention })
   const togglePending = () => setSidebar(s => s.mode === 'pending' ? { mode: 'hidden' } : { mode: 'pending' })
+  const toggleAiSummary = () => setSidebar(s => s.mode === 'ai_summary' ? { mode: 'hidden' } : { mode: 'ai_summary' })
+
+  // Proiezione compatta degli interventi del mese per il riassunto AI: solo i
+  // campi utili, niente blob enormi. Ordinati per data pianificata.
+  const agendaSummaryItems = useMemo(() => {
+    return (visibleInterventions || [])
+      .slice()
+      .sort((a, b) => new Date(a.scheduled_start_at || 0) - new Date(b.scheduled_start_at || 0))
+      .map(i => ({
+        titolo: i.title || i.report_title || '(senza titolo)',
+        data: i.scheduled_start_at
+          ? new Date(i.scheduled_start_at).toLocaleString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+          : null,
+        stato: i.status || null,
+        tipo: i.type || null,
+        severita: i.severity || null,
+        macchina: i.machine_name || i.machine || null,
+        assegnato_a: i.assigned_to_name || null,
+        ruolo_assegnato: i.assigned_to_role || null,
+      }))
+  }, [visibleInterventions])
 
   const handleOpenReport = (reportId) => {
     if (onNavigate) onNavigate('reports', { reportId })
@@ -329,6 +351,20 @@ export default function AdminCalendar({
           <UsersIcon size={14} /> Fornitori in attesa
         </button>
 
+        <button onClick={toggleAiSummary} className="press-scale"
+          title="Riassunto AI degli interventi del mese"
+          style={{
+            padding: '7px 12px', borderRadius: 8,
+            background: sidebar.mode === 'ai_summary' ? 'var(--color-primary)' : 'var(--color-primary-glow)',
+            border: `1px solid ${sidebar.mode === 'ai_summary' ? 'transparent' : 'var(--color-border-active)'}`,
+            color: sidebar.mode === 'ai_summary' ? '#fff' : 'var(--color-primary)',
+            fontSize: 12, fontWeight: 700,
+            cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}>
+          <Sparkles size={14} /> Riassunto mese
+        </button>
+
         <button onClick={openCreateNew} className="press-scale"
           style={{
             padding: '7px 12px', borderRadius: 8,
@@ -386,6 +422,39 @@ export default function AdminCalendar({
                 onReschedule={openReschedule}
                 onMatch={openCreateBase}
               />
+            )}
+            {sidebar.mode === 'ai_summary' && (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                <div style={{
+                  flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 16px', borderBottom: '1px solid var(--color-border)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>
+                    <Sparkles size={16} style={{ color: 'var(--color-primary)' }} />
+                    Riassunto del mese
+                  </div>
+                  <button onClick={closeSidebar} aria-label="Chiudi" className="press-scale"
+                    style={{
+                      width: 30, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer',
+                      background: 'var(--color-surface-2)', color: 'var(--color-text-muted)',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                    <X size={16} />
+                  </button>
+                </div>
+                <div style={{ padding: 16 }}>
+                  <AISummaryCard
+                    key={`${currentMonth.getFullYear()}-${currentMonth.getMonth()}`}
+                    kind="agenda"
+                    items={agendaSummaryItems}
+                    meta={{ periodo: title, totale_interventi: agendaSummaryItems.length }}
+                    emptyHint="Nessun intervento in questo mese da riassumere."
+                    autoRun
+                    hideClose
+                  />
+                </div>
+              </div>
             )}
             {sidebar.mode === 'pending' && (
               <PendingSuppliersPanel

@@ -57,7 +57,7 @@ function looksLikeHallucination(text) {
     return true
   }
   // Sigle MAIUSCOLE/MISTE corte separate da virgole tipo "ABplS, CBT15, HVB"
-  const tokens = t.split(/[\s,.\-]+/).filter(Boolean)
+  const tokens = t.split(/[\s,.-]+/).filter(Boolean)
   if (tokens.length >= 6) {
     const acronymish = tokens.filter(w =>
       w.length >= 3 && w.length <= 8 &&

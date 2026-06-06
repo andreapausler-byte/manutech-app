@@ -10,6 +10,7 @@ import { useInterventionMutations } from '../../hooks/useInterventionMutations'
 import { useInterventionReports } from '../../hooks/useInterventionReports'
 import InterventionBadge from './InterventionBadge'
 import LinkedReportsSection from './LinkedReportsSection'
+import AISummaryCard from '../assistant/AISummaryCard'
 
 // Nota Sprint 1c: il prop `onOpenReport` (Sprint 1a/1b) NON è più consumato
 // internamente: la sezione "Segnalazioni associate" mostra già i link via
@@ -198,6 +199,30 @@ export default function InterventionDetailPanel({ interventionId, onClose, onRes
             onChange={handleLinksChange}
             currentMachineId={intervention.machine_id}
             currentInterventionId={intervention.id}
+          />
+        </div>
+
+        {/* Riassunto AI dell'intervento (handoff/sintesi) */}
+        <div style={{ marginTop: 16 }}>
+          <AISummaryCard
+            kind="intervention"
+            buttonLabel="Riassunto AI"
+            emptyHint="Dati intervento insufficienti per il riassunto."
+            items={[{
+              titolo: intervention.title,
+              stato: intervention.status,
+              tipo: intervention.type,
+              severita: intervention.severity,
+              quando: formatScheduledShort(intervention.scheduled_start_at),
+              durata_min: duration,
+              assegnato_a: intervention.assigned_to_name,
+              ruolo_assegnato: intervention.assigned_to_role,
+              macchina: intervention.machine_name,
+              dove: intervention.location,
+              descrizione: intervention.description,
+              note_pianificazione: intervention.planning_notes,
+            }]}
+            meta={{ contesto: 'singolo intervento' }}
           />
         </div>
 

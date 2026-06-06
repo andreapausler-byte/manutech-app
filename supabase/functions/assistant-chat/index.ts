@@ -48,6 +48,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { resolveModel, normalizePower, type Power } from '../_shared/models.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +56,9 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
+// Modello di default storico per la chat globale (scope 'global' → potenza
+// 'veloce'). La risoluzione effettiva passa ora da resolveModel(power, surface):
+// vedi _shared/models.ts. Costante mantenuta solo come riferimento legacy.
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const MAX_MESSAGES_PER_HOUR = 30
 const MAX_TOKENS = 2048
@@ -353,6 +356,67 @@ Regole di risposta:
 - Per domande strategiche struttura: "Situazione → Priorità → Azioni concrete"
 - Massimo 300 parole, vai al sodo. Per liste anagrafiche puoi essere più compatto (usa tabelle/bullet)
 - Non inventare dati né valori numerici: se non li trovi nel contesto, di' che servono i documenti o un operatore esperto`
+}
+
+// ── Scope 'ticket': prompt focalizzato su una singola segnalazione ──
+// L'assistente lavora su QUESTO ticket, usa la scheda tecnica del macchinario
+// e mette in relazione le altre segnalazioni dello stesso macchinario per far
+// emergere ricorrenze — come ipotesi, non come certezze.
+function buildTicketSystemPrompt(): string {
+  return `Sei l'assistente AI di ManuTech, qui in modalità "approfondimento ticket". L'utente (tecnico/admin) sta guardando UNA segnalazione specifica e vuole capirla a fondo. Ti vengono forniti, già filtrati per la sua organizzazione:
+
+1. **Segnalazione corrente** — il ticket su cui sei focalizzato: titolo, descrizione, severità, tipo, stato, eventuale chiusura.
+2. **Scheda tecnica del macchinario** — anagrafica della macchina coinvolta (matricola, produttore, modello, anno, reparto, criticità).
+3. **Altre segnalazioni sullo stesso macchinario** — storico (aperte + chiuse recenti) della STESSA macchina, esclusa quella corrente. Servono a far emergere ricorrenze e pattern.
+4. (Eventuale) Biblioteca tecnica e report simili semanticamente, se presenti.
+
+Regole di risposta:
+- Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu"). Sintetico, leggibile a colpo d'occhio.
+- Parti SEMPRE dalla segnalazione corrente: cita almeno un dato specifico di quel ticket prima di andare oltre.
+- Usa la scheda tecnica per contestualizzare (es. tipo di macchina, criticità).
+- Quando metti in relazione le altre segnalazioni della stessa macchina, presenta le ricorrenze come **ipotesi da verificare**, non come certezze ("potrebbe esserci un pattern: 3 guasti simili al gruppo X negli ultimi mesi"). Cita i ticket a cui ti riferisci.
+- **Dichiara esplicitamente quando un'informazione manca o è incerta.** Non inventare correlazioni, cause o numeri che non sono nel contesto fornito. Se il contesto non basta per rispondere, dillo e indica cosa servirebbe.
+- Le tue conclusioni sono spunti per il tecnico, non verdetti: l'utente ha sempre l'ultima parola.
+- Massimo ~300 parole.`
+}
+
+// ── Builder: storico segnalazioni stessa macchina (scope 'ticket') ──
+// Recupero server-side con client JWT-utente (RLS attiva → già org-scoped).
+// Lista deterministica delle ricorrenze: aperte (qualunque età) + chiuse
+// negli ultimi 12 mesi, esclusa la corrente, più recenti prima, cap 20.
+interface SameMachineReport {
+  display_id?: string | null
+  title?: string | null
+  severity?: string | null
+  status?: string | null
+  type?: string | null
+  created_at?: string | null
+  closed_at?: string | null
+  closure_root_cause?: string | null
+}
+
+function fmtDateIt(d?: string | null): string {
+  if (!d) return '—'
+  try {
+    return new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  } catch {
+    return String(d).slice(0, 10)
+  }
+}
+
+function buildSameMachineReportsBlock(list: SameMachineReport[], hasMachine: boolean): string {
+  if (!hasMachine) {
+    return 'Macchinario non collegato a questo ticket (nessun `machine_id`): impossibile derivare le altre segnalazioni della stessa macchina.'
+  }
+  if (!list || list.length === 0) {
+    return 'Nessun\'altra segnalazione per questo macchinario nel periodo considerato (aperte + chiuse ultimi 12 mesi).'
+  }
+  return list.map((r) => {
+    const when = r.closed_at ? `chiusa ${fmtDateIt(r.closed_at)}` : `aperta ${fmtDateIt(r.created_at)}`
+    const tag = r.display_id ? `[${r.display_id}] ` : ''
+    const cause = r.closure_root_cause ? ` — causa: ${r.closure_root_cause.slice(0, 160)}` : ''
+    return `- ${tag}[${r.severity || '—'}/${r.status || '—'}] ${r.title || '(senza titolo)'} (${when})${cause}`
+  }).join('\n')
 }
 
 function buildContextBlock(reports: SimilarReport[]): string {
@@ -858,7 +922,15 @@ async function embedUserQuery(text: string, apiKey: string): Promise<number[] | 
 }
 
 // ── Claude call ──
-async function callClaude(systemPrompt: string, userMessage: string, apiKey: string) {
+// model + extraBody arrivano dal resolver (_shared/models.ts): extraBody porta
+// i parametri specifici del tier (es. thinking adaptive + effort per Opus 4.8).
+async function callClaude(
+  systemPrompt: string,
+  userMessage: string,
+  apiKey: string,
+  model: string,
+  extraBody: Record<string, unknown> = {},
+) {
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
@@ -867,10 +939,11 @@ async function callClaude(systemPrompt: string, userMessage: string, apiKey: str
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
+      model,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
+      ...extraBody,
     }),
   })
 
@@ -921,6 +994,15 @@ Deno.serve(async (req: Request) => {
     const machineId: string | undefined = body.machine_id
     const reportId: string | undefined = body.report_id
 
+    // Scope chat: 'global' (default, comportamento storico) o 'ticket'
+    // (approfondimento su una singola segnalazione con contesto fornito dal client).
+    const scope: 'global' | 'ticket' = body.scope === 'ticket' ? 'ticket' : 'global'
+    // Potenza AI → modello. Default per scope finché non esiste il selettore UI:
+    // ticket→equilibrato (Sonnet 4.6), global→veloce (Haiku, comportamento storico).
+    const power: Power = normalizePower(body.power, scope === 'ticket' ? 'equilibrato' : 'veloce')
+    const { model: anthropicModel, extraBody: anthropicExtraBody } = resolveModel(power, 'assistant_chat')
+    console.info(`[scope] scope=${scope} power=${power} model=${anthropicModel}`)
+
     if (!query) return jsonResponse({ error: 'query è obbligatoria' }, 400)
     if (query.length > 2000) return jsonResponse({ error: 'query troppo lunga (max 2000)' }, 400)
 
@@ -970,7 +1052,7 @@ Deno.serve(async (req: Request) => {
       similarRes, statsRes, openRes, historyRes,
       knowledgeRes, inventoryRes, strategicRes,
       currentReportRes, currentChatRes, suppliersRes,
-      maintenancePlansRes,
+      maintenancePlansRes, sameMachineRes,
     ] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
@@ -1076,6 +1158,34 @@ Deno.serve(async (req: Request) => {
             return res
           })()
         : Promise.resolve({ data: null, error: null }),
+      // Scope 'ticket': storico deterministico delle altre segnalazioni della
+      // STESSA macchina (aperte qualunque età + chiuse ultimi 12 mesi, esclusa
+      // la corrente, più recenti prima, cap 20). Client JWT-utente → RLS attiva
+      // (già org-scoped). Fallback senza display_id se la migration 049 manca.
+      scope === 'ticket' && machineId
+        ? (async () => {
+            const since = new Date()
+            since.setMonth(since.getMonth() - 12)
+            const orFilter = `status.not.in.(risolta,chiuso),closed_at.gte.${since.toISOString()}`
+            const cols = 'id, display_id, title, severity, status, type, created_at, closed_at, closure_root_cause'
+            const colsNoDid = 'id, title, severity, status, type, created_at, closed_at, closure_root_cause'
+            const q = (sel: string) => supabase
+              .from('reports')
+              .select(sel)
+              .eq('machine_id', machineId)
+              .neq('id', reportId ?? '')
+              .or(orFilter)
+              .order('created_at', { ascending: false })
+              .limit(20)
+            let res = await q(cols)
+            if (res.error) {
+              console.warn(`[same-machine] select con display_id fallito (${res.error.message}), retry senza`)
+              res = await q(colsNoDid)
+            }
+            console.info(`[same-machine] count=${res.data?.length ?? 0} error=${res.error?.message ?? 'none'}`)
+            return res
+          })()
+        : Promise.resolve({ data: null, error: null }),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
@@ -1102,6 +1212,10 @@ Deno.serve(async (req: Request) => {
     const suppliers: SupplierOverview[] = Array.isArray(suppliersRes.data) ? (suppliersRes.data as SupplierOverview[]) : []
     const maintenancePlans: MaintenancePlansOverview | null =
       (maintenancePlansRes.data as MaintenancePlansOverview | null) || null
+    if (sameMachineRes.error) console.warn('same-machine reports error:', sameMachineRes.error.message)
+    const sameMachineReports: SameMachineReport[] = Array.isArray(sameMachineRes.data)
+      ? (sameMachineRes.data as SameMachineReport[])
+      : []
 
     // ── Diagnostic trace: retrieval summary ──
     console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} wantMplan=${classify.wantMaintenancePlans} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} mplans=${maintenancePlans?.total ?? 'N'} currentChat=${currentChat.length}`)
@@ -1142,9 +1256,18 @@ Deno.serve(async (req: Request) => {
     if (userMsgErr || !userMsg) return jsonResponse({ error: 'Errore salvataggio messaggio: ' + userMsgErr?.message }, 500)
 
     // ── 8. Costruisci prompt e chiama Claude ──
-    const systemPrompt = buildSystemPrompt()
+    // Scope 'ticket': prompt focalizzato + contesto fornito dal client in cima.
+    const systemPrompt = scope === 'ticket' ? buildTicketSystemPrompt() : buildSystemPrompt()
 
     const sections: string[] = []
+
+    // Scope 'ticket': storico deterministico delle altre segnalazioni della
+    // stessa macchina (ricorrenze). La scheda tecnica del macchinario arriva
+    // già dal blocco "Storia macchina" (get_machine_history) più sotto.
+    if (scope === 'ticket') {
+      const sameMachineBlock = buildSameMachineReportsBlock(sameMachineReports, !!machineId)
+      sections.push(`## Altre segnalazioni sullo stesso macchinario (storico ricorrenze)\n\n${sameMachineBlock}`)
+    }
 
     const inventoryBlock = buildInventoryBlock(inventory)
     if (inventoryBlock) sections.push(`## Anagrafica macchinari\n\n${inventoryBlock}`)
@@ -1201,7 +1324,7 @@ Deno.serve(async (req: Request) => {
     let assistantText = ''
     let tokensUsed = 0
     try {
-      const result = await callClaude(systemPrompt, userMessage, apiKey)
+      const result = await callClaude(systemPrompt, userMessage, apiKey, anthropicModel, anthropicExtraBody)
       assistantText = result.content
       tokensUsed = result.tokensUsed
     } catch (err) {

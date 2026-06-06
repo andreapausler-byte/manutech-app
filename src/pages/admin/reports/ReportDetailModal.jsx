@@ -381,14 +381,16 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
               <div className="flex-1 min-h-0 p-3">
                 {isAssistantAvailable() ? (
                   <AssistantChat
+                    key={selected.id}
                     machineId={selected.machine_id}
                     reportId={selected.id}
+                    scope="ticket"
                     initialQuery={[selected.title, selected.description].filter(Boolean).join('. ').slice(0, 600)}
                     fillParent
                     suggestions={[
+                      'Ci sono ricorrenze su questo macchinario?',
                       'Quale ricambio è stato usato più spesso per casi simili?',
                       'Passi tipici per diagnosticare questo problema',
-                      'Quanto dura mediamente questo tipo di intervento?',
                     ]}
                   />
                 ) : (
