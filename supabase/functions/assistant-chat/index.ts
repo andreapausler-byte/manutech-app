@@ -319,6 +319,20 @@ interface CurrentReport {
   closed_at: string | null
 }
 
+// Intervento pianificato (tabella interventions) — per il blocco "Agenda".
+interface ScheduledIntervention {
+  title: string | null
+  scheduled_start_at: string | null
+  scheduled_end_at: string | null
+  status: string | null
+  type: string | null
+  severity: string | null
+  machine_name: string | null
+  assigned_to_name: string | null
+  assigned_to_role: string | null
+  location: string | null
+}
+
 // ── Prompt builder ──
 function buildSystemPrompt(): string {
   return `Sei il "cervello operativo" di ManuTech: un assistente AI esperto di manutenzione industriale che guida tecnici, operatori e manager di un'azienda manifatturiera. Il tuo obiettivo strategico è aiutare l'organizzazione a ridurre i tempi di riparazione e a prevenire i fermi macchina straordinari (che impattano direttamente il fatturato). Per farlo attingi alle fonti dati dell'organizzazione che ti vengono fornite ad ogni richiesta.
@@ -334,6 +348,7 @@ Fonti che puoi ricevere nel contesto:
 8. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
 9. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne), certificati della macchina, e **conversazioni dei ticket gia' risolti** (titolo + descrizione iniziale + causa radice + azione + chat dei tecnici che hanno trovato la soluzione)
 10. **Fornitori esterni** — anagrafica completa delle ditte esterne dell'org: nome, specialita', referente, ticket aperti correnti (con titolo/severita'/macchina/giorni aperti), conteggio interventi storici, ultimo intervento. Distingue tra fornitori registrati (con account) e "ombra" (presenti solo nello storico interventi)
+11. **Agenda interventi pianificati (calendario)** — gli interventi a calendario dai giorni scorsi in avanti: data/ora, titolo, stato, tipo, severità, macchinario, tecnico/fornitore assegnato. È la fotografia dei PROSSIMI IMPEGNI della squadra (ciò che operatore/tecnico vede nel Calendario)
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
@@ -342,6 +357,8 @@ Regole di risposta:
 - Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa Statistiche, Anagrafica e Segnalazioni aperte
 - Per domande STRATEGICHE / MANAGERIALI ("su cosa concentrarmi", "come riduco i fermi", "priorità", "cosa sta peggiorando", "dove perdo tempo"): usa Insight strategici come fonte principale; proponi 2-4 azioni concrete ordinate per impatto, citando numeri (matricole, MTTR, giorni di ritardo)
 - Per domande sui PIANI DI MANUTENZIONE ("quanti piani abbiamo", "che cadenza hanno i piani", "quali piani sono attivi", "piani per macchina X", "manutenzioni programmate"): usa il blocco "Piani di manutenzione (overview)" come fonte primaria. Riporta totale piani, numero di macchine coperte, distribuzione per stato/frequenza, e — se richiesto — il dettaglio per macchina. Distingui chiaramente fra "piani attivi" (l'overview) e "piani scaduti / in scadenza" (Insight strategici). Se la domanda riguarda una macchina specifica e nell'overview non risulta, dichiaralo esplicitamente
+- Per domande su AGENDA / CALENDARIO ("cosa è in programma", "interventi di questa settimana", "che impegni abbiamo", "agenda di domani", "carico dei tecnici"): usa il blocco "Agenda interventi pianificati" come fonte primaria. Raggruppa per giorno, evidenzia urgenze/critici, carichi sui tecnici e giorni scarichi/sovrapposti. Se la finestra non contiene interventi, dillo esplicitamente
+- PROPOSTA DI PIANI DI MANUTENZIONE: quando l'utente lo chiede ("proponi un piano", "che manutenzione preventiva servirebbe", "come pianifico") o quando dai dati emerge un bisogno chiaro (guasti ricorrenti su una macchina dagli Insight strategici, preventive scadute, macchina ad alta criticità senza piani attivi), PROPONI 1-3 piani di manutenzione concreti. Per ciascuno indica: macchina (con matricola se nota), cadenza suggerita (es. ogni 30/90/180gg), cosa controllare/sostituire, e il PERCHÉ basato sui dati (es. "3 guasti al gruppo X in 90gg"). Proponili come SUGGERIMENTI da validare, mai come piani già creati: tu non crei nulla nel sistema, suggerisci. Tieni conto dell'agenda esistente per non sovrapporre carichi
 - Per domande DIAGNOSTICHE ("come risolvo X", "perché Y non va"): usa Report storici simili, Storia macchina e Biblioteca tecnica
 - Per domande DOCUMENTALI ("che dice il manuale", "coppia di serraggio", "specifica", "come si monta"): usa PRIMA la Biblioteca tecnica; privilegia il manuale ufficiale
 - Quando citi una macchina includi nome e matricola se disponibile (es. "Imbottigliatrice [matricola IMB-023]")
@@ -834,6 +851,40 @@ function buildMaintenancePlansBlock(o: MaintenancePlansOverview | null): string 
   return lines.join('\n')
 }
 
+// ── Builder: agenda interventi pianificati (tabella interventions) ──
+// Fotografia del calendario: interventi dai ~7 giorni scorsi in avanti,
+// raggruppati per giorno, ordinati cronologicamente. Esclude gli annullati.
+function buildAgendaBlock(list: ScheduledIntervention[]): string {
+  if (!list || list.length === 0) return ''
+  const now = Date.now()
+  const lines: string[] = []
+  let upcoming = 0
+  for (const i of list) {
+    if (i.scheduled_start_at && new Date(i.scheduled_start_at).getTime() >= now) upcoming += 1
+  }
+  lines.push(`Interventi a calendario (${list.length} in finestra, di cui ${upcoming} futuri):`)
+  lines.push('')
+  let lastDay = ''
+  for (const i of list) {
+    const d = i.scheduled_start_at ? new Date(i.scheduled_start_at) : null
+    const dayLabel = d
+      ? d.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
+      : 'Senza data'
+    if (dayLabel !== lastDay) {
+      lines.push(`${dayLabel}:`)
+      lastDay = dayLabel
+    }
+    const time = d ? d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '--:--'
+    const who = i.assigned_to_name
+      ? ` — ${i.assigned_to_name}${i.assigned_to_role ? ` (${i.assigned_to_role})` : ''}`
+      : ' — non assegnato'
+    const machine = i.machine_name ? ` — ${i.machine_name}` : ''
+    const meta = [i.status, i.type, i.severity].filter(Boolean).join('/')
+    lines.push(`  - ${time} ${i.title || '(senza titolo)'}${meta ? ` [${meta}]` : ''}${machine}${who}`)
+  }
+  return lines.join('\n')
+}
+
 // ── Heuristic: classifica il tipo di domanda ──
 // Decide se caricare: anagrafica, statistiche, segnalazioni aperte,
 // aspetti diagnostici, biblioteca tecnica (documentale), insight
@@ -847,6 +898,7 @@ function classifyQuery(query: string): {
   wantInventory: boolean
   wantStrategic: boolean
   wantMaintenancePlans: boolean
+  wantAgenda: boolean
 } {
   const q = query.toLowerCase()
   const metaKW = ['quale', 'quali', 'quanti', 'quante', 'top', 'classifica', 'classific', 'media', 'totale', 'totali', 'statistic', 'percentuale', 'più segnalazion', 'piu segnalazion', 'più guast', 'piu guast', 'meglio', 'peggio', 'frequent']
@@ -858,6 +910,9 @@ function classifyQuery(query: string): {
   // Domande sui piani di manutenzione (overview completo, non solo i
   // piani scaduti coperti da Insight strategici).
   const mplanKW = ['piano di manuten', 'piani di manuten', 'piani manuten', 'piano manuten', 'manutenzione preventiva', 'manutenzioni preventive', 'manutenzione programmata', 'manutenzioni programmate', 'cadenza', 'frequenza manuten', 'piani attivi', 'piano attivo', 'piani di lavoro', 'preventiv', 'routine', 'tagliando', 'tagliand']
+  // Agenda / calendario degli interventi pianificati (tabella interventions):
+  // "cosa è in programma", "interventi di questa settimana", "agenda", ecc.
+  const agendaKW = ['agenda', 'calendario', 'pianificat', 'programmat', 'in programma', 'schedulat', 'calendarizz', 'appuntament', 'prossimi intervent', 'prossime attività', 'prossime attivita', 'questa settimana', 'settimana prossima', 'prossima settimana', 'prossimi giorni', 'in agenda', 'oggi', 'domani', 'questo mese', 'che interventi', 'quali intervent', 'interventi previst', 'interventi in', 'carico di lavoro', 'impegni']
 
   const wantStats = metaKW.some(k => q.includes(k))
   const wantOpen = openKW.some(k => q.includes(k))
@@ -866,6 +921,7 @@ function classifyQuery(query: string): {
   const wantInventory = invKW.some(k => q.includes(k))
   const wantStrategic = stratKW.some(k => q.includes(k))
   const wantMaintenancePlans = mplanKW.some(k => q.includes(k))
+  const wantAgenda = agendaKW.some(k => q.includes(k))
   // "piani" da solo è ambiguo (può essere "piani di lavoro" o ufficio
   // tecnico). Lo accettiamo solo se compare in un contesto chiaro
   // (es. "quanti piani", "i piani", "tutti i piani", "piani sono",
@@ -878,17 +934,18 @@ function classifyQuery(query: string): {
   const finalWantMaintenance = wantMaintenancePlans || looseMplan
 
   // Se non matcha nulla, includi tutto (default conservativo)
-  if (!wantStats && !wantOpen && !wantDiagnostic && !wantKnowledge && !wantInventory && !wantStrategic && !finalWantMaintenance) {
+  if (!wantStats && !wantOpen && !wantDiagnostic && !wantKnowledge && !wantInventory && !wantStrategic && !finalWantMaintenance && !wantAgenda) {
     return {
       wantStats: true, wantOpen: true, wantDiagnostic: true,
       wantKnowledge: true, wantInventory: true, wantStrategic: true,
-      wantMaintenancePlans: true,
+      wantMaintenancePlans: true, wantAgenda: true,
     }
   }
   return {
     wantStats, wantOpen, wantDiagnostic, wantKnowledge,
     wantInventory, wantStrategic,
     wantMaintenancePlans: finalWantMaintenance,
+    wantAgenda,
   }
 }
 
@@ -1040,6 +1097,11 @@ Deno.serve(async (req: Request) => {
     // arrivano già da get_machine_history.
     const shouldFetchMaintenancePlans =
       !hasMachineContext && (classify.wantMaintenancePlans || classify.wantStrategic)
+    // Agenda interventi pianificati (tabella interventions). Caricata per
+    // domande su calendario/agenda e per domande strategiche o sui piani
+    // (servono a proporre/ricollocare manutenzioni). Non in scope 'ticket'.
+    const shouldFetchAgenda =
+      scope !== 'ticket' && (classify.wantAgenda || classify.wantStrategic || classify.wantMaintenancePlans)
     const voyageKey = Deno.env.get('VOYAGE_API_KEY')
     let queryEmbedding: number[] | null = null
     if (shouldFetchKnowledge && voyageKey) {
@@ -1052,7 +1114,7 @@ Deno.serve(async (req: Request) => {
       similarRes, statsRes, openRes, historyRes,
       knowledgeRes, inventoryRes, strategicRes,
       currentReportRes, currentChatRes, suppliersRes,
-      maintenancePlansRes, sameMachineRes,
+      maintenancePlansRes, sameMachineRes, agendaRes,
     ] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
@@ -1186,6 +1248,24 @@ Deno.serve(async (req: Request) => {
             return res
           })()
         : Promise.resolve({ data: null, error: null }),
+      // Agenda interventi pianificati: tabella interventions, RLS-scoped (client
+      // JWT-utente). Finestra dagli ultimi 7 giorni in avanti, esclusi annullati,
+      // ordinati cronologicamente, cap 40.
+      shouldFetchAgenda
+        ? (async () => {
+            const since = new Date()
+            since.setDate(since.getDate() - 7)
+            const res = await supabase
+              .from('interventions')
+              .select('title, scheduled_start_at, scheduled_end_at, status, type, severity, machine_name, assigned_to_name, assigned_to_role, location')
+              .gte('scheduled_start_at', since.toISOString())
+              .neq('status', 'annullato')
+              .order('scheduled_start_at', { ascending: true })
+              .limit(40)
+            console.info(`[agenda] count=${res.data?.length ?? 0} error=${res.error?.message ?? 'none'}`)
+            return res
+          })()
+        : Promise.resolve({ data: null, error: null }),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
@@ -1216,9 +1296,13 @@ Deno.serve(async (req: Request) => {
     const sameMachineReports: SameMachineReport[] = Array.isArray(sameMachineRes.data)
       ? (sameMachineRes.data as SameMachineReport[])
       : []
+    if (agendaRes.error) console.warn('agenda(interventions) error:', agendaRes.error.message)
+    const scheduledInterventions: ScheduledIntervention[] = Array.isArray(agendaRes.data)
+      ? (agendaRes.data as ScheduledIntervention[])
+      : []
 
     // ── Diagnostic trace: retrieval summary ──
-    console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} wantMplan=${classify.wantMaintenancePlans} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} mplans=${maintenancePlans?.total ?? 'N'} currentChat=${currentChat.length}`)
+    console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} wantMplan=${classify.wantMaintenancePlans} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} mplans=${maintenancePlans?.total ?? 'N'} agenda=${scheduledInterventions.length} currentChat=${currentChat.length}`)
     if (currentChat.length > 0) {
       const preview = currentChat.slice(0, 3).map(c => `${c.user_name || '?'}: ${(c.text || '').slice(0, 60)}`).join(' | ')
       console.info(`[current-chat-preview] ${preview}`)
@@ -1280,6 +1364,12 @@ Deno.serve(async (req: Request) => {
     // in scadenza imminente.
     const maintenancePlansBlock = buildMaintenancePlansBlock(maintenancePlans)
     if (maintenancePlansBlock) sections.push(`## Piani di manutenzione (overview)\n\n${maintenancePlansBlock}`)
+
+    // Agenda: calendario degli interventi pianificati (prossimi impegni della
+    // squadra). Fonte primaria per domande su agenda/calendario e base per
+    // proporre/ricollocare manutenzioni.
+    const agendaBlock = buildAgendaBlock(scheduledInterventions)
+    if (agendaBlock) sections.push(`## Agenda interventi pianificati (calendario)\n\n${agendaBlock}`)
 
     const knowledgeBlock = buildKnowledgeBlock(knowledgeChunks)
     if (knowledgeBlock) sections.push(`## Biblioteca tecnica (manuali, schede, interventi)\n\n${knowledgeBlock}`)
