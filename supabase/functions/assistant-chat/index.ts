@@ -48,6 +48,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { resolveModel, normalizePower, type Power } from '../_shared/models.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +56,9 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
+// Modello di default storico per la chat globale (scope 'global' → potenza
+// 'veloce'). La risoluzione effettiva passa ora da resolveModel(power, surface):
+// vedi _shared/models.ts. Costante mantenuta solo come riferimento legacy.
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const MAX_MESSAGES_PER_HOUR = 30
 const MAX_TOKENS = 2048
@@ -353,6 +356,120 @@ Regole di risposta:
 - Per domande strategiche struttura: "Situazione → Priorità → Azioni concrete"
 - Massimo 300 parole, vai al sodo. Per liste anagrafiche puoi essere più compatto (usa tabelle/bullet)
 - Non inventare dati né valori numerici: se non li trovi nel contesto, di' che servono i documenti o un operatore esperto`
+}
+
+// ── Scope 'ticket': prompt focalizzato su una singola segnalazione ──
+// L'assistente lavora su QUESTO ticket, usa la scheda tecnica del macchinario
+// e mette in relazione le altre segnalazioni dello stesso macchinario per far
+// emergere ricorrenze — come ipotesi, non come certezze.
+function buildTicketSystemPrompt(): string {
+  return `Sei l'assistente AI di ManuTech, qui in modalità "approfondimento ticket". L'utente (tecnico/admin) sta guardando UNA segnalazione specifica e vuole capirla a fondo. Ti vengono forniti, già filtrati per la sua organizzazione:
+
+1. **Segnalazione corrente** — il ticket su cui sei focalizzato: titolo, descrizione, severità, tipo, stato, eventuale chiusura.
+2. **Scheda tecnica del macchinario** — anagrafica della macchina coinvolta (matricola, produttore, modello, anno, reparto, criticità).
+3. **Altre segnalazioni sullo stesso macchinario** — storico (aperte + chiuse recenti) della STESSA macchina, esclusa quella corrente. Servono a far emergere ricorrenze e pattern.
+4. (Eventuale) Biblioteca tecnica e report simili semanticamente, se presenti.
+
+Regole di risposta:
+- Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu"). Sintetico, leggibile a colpo d'occhio.
+- Parti SEMPRE dalla segnalazione corrente: cita almeno un dato specifico di quel ticket prima di andare oltre.
+- Usa la scheda tecnica per contestualizzare (es. tipo di macchina, criticità).
+- Quando metti in relazione le altre segnalazioni della stessa macchina, presenta le ricorrenze come **ipotesi da verificare**, non come certezze ("potrebbe esserci un pattern: 3 guasti simili al gruppo X negli ultimi mesi"). Cita i ticket a cui ti riferisci.
+- **Dichiara esplicitamente quando un'informazione manca o è incerta.** Non inventare correlazioni, cause o numeri che non sono nel contesto fornito. Se il contesto non basta per rispondere, dillo e indica cosa servirebbe.
+- Le tue conclusioni sono spunti per il tecnico, non verdetti: l'utente ha sempre l'ultima parola.
+- Massimo ~300 parole.`
+}
+
+// ── Builder: contesto ticket fornito dal client (scope 'ticket') ──
+// Il frontend assembla questo pacchetto con il client Supabase dell'utente
+// (RLS attiva), così è già scoped all'org dell'utente. Lo includiamo come
+// sezione autorevole in cima al messaggio.
+interface ProvidedTicketContext {
+  report?: {
+    display_id?: string | null
+    title?: string | null
+    description?: string | null
+    severity?: string | null
+    status?: string | null
+    type?: string | null
+    created_at?: string | null
+    closed_at?: string | null
+    closure_root_cause?: string | null
+    closure_action?: string | null
+    closure_parts?: string | null
+  } | null
+  machine?: {
+    name?: string | null
+    serial_number?: string | null
+    manufacturer?: string | null
+    model?: string | null
+    year?: number | null
+    department?: string | null
+    location?: string | null
+    status?: string | null
+    criticality?: string | null
+  } | null
+  same_machine_reports?: Array<{
+    display_id?: string | null
+    title?: string | null
+    severity?: string | null
+    status?: string | null
+    type?: string | null
+    created_at?: string | null
+    closed_at?: string | null
+    closure_root_cause?: string | null
+  }> | null
+}
+
+function fmtDateIt(d?: string | null): string {
+  if (!d) return '—'
+  try {
+    return new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  } catch {
+    return String(d).slice(0, 10)
+  }
+}
+
+function buildProvidedTicketContextBlock(ctx: ProvidedTicketContext | null): string {
+  if (!ctx) return ''
+  const sections: string[] = []
+
+  // Scheda tecnica macchinario
+  const m = ctx.machine
+  if (m && (m.name || m.serial_number)) {
+    const id: string[] = []
+    if (m.serial_number) id.push(`matricola: ${m.serial_number}`)
+    if (m.manufacturer) id.push(`produttore: ${m.manufacturer}`)
+    if (m.model) id.push(`modello: ${m.model}`)
+    if (m.year) id.push(`anno: ${m.year}`)
+    const loc: string[] = []
+    if (m.department) loc.push(m.department)
+    if (m.location) loc.push(m.location)
+    if (m.criticality) loc.push(`criticità: ${m.criticality}`)
+    if (m.status) loc.push(`stato: ${m.status}`)
+    const lines = [`Macchinario: ${m.name || '(senza nome)'}`]
+    if (id.length) lines.push(id.join(' — '))
+    if (loc.length) lines.push(loc.join(' — '))
+    sections.push(`### Scheda tecnica macchinario\n${lines.join('\n')}`)
+  }
+
+  // Storico stessa macchina
+  const list = ctx.same_machine_reports || []
+  if (list.length > 0) {
+    const items = list.map((r) => {
+      const when = r.closed_at
+        ? `chiusa ${fmtDateIt(r.closed_at)}`
+        : `aperta ${fmtDateIt(r.created_at)}`
+      const tag = r.display_id ? `[${r.display_id}] ` : ''
+      const cause = r.closure_root_cause ? ` — causa: ${r.closure_root_cause.slice(0, 160)}` : ''
+      return `- ${tag}[${r.severity || '—'}/${r.status || '—'}] ${r.title || '(senza titolo)'} (${when})${cause}`
+    })
+    sections.push(`### Altre segnalazioni sullo stesso macchinario (${list.length})\n${items.join('\n')}`)
+  } else {
+    sections.push('### Altre segnalazioni sullo stesso macchinario\nNessuna altra segnalazione trovata per questo macchinario nel periodo considerato (o macchinario non collegato al ticket).')
+  }
+
+  return sections.join('\n\n')
 }
 
 function buildContextBlock(reports: SimilarReport[]): string {
@@ -858,7 +975,15 @@ async function embedUserQuery(text: string, apiKey: string): Promise<number[] | 
 }
 
 // ── Claude call ──
-async function callClaude(systemPrompt: string, userMessage: string, apiKey: string) {
+// model + extraBody arrivano dal resolver (_shared/models.ts): extraBody porta
+// i parametri specifici del tier (es. thinking adaptive + effort per Opus 4.8).
+async function callClaude(
+  systemPrompt: string,
+  userMessage: string,
+  apiKey: string,
+  model: string,
+  extraBody: Record<string, unknown> = {},
+) {
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
@@ -867,10 +992,11 @@ async function callClaude(systemPrompt: string, userMessage: string, apiKey: str
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
+      model,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
+      ...extraBody,
     }),
   })
 
@@ -920,6 +1046,20 @@ Deno.serve(async (req: Request) => {
     const conversationIdIn: string | undefined = body.conversation_id
     const machineId: string | undefined = body.machine_id
     const reportId: string | undefined = body.report_id
+
+    // Scope chat: 'global' (default, comportamento storico) o 'ticket'
+    // (approfondimento su una singola segnalazione con contesto fornito dal client).
+    const scope: 'global' | 'ticket' = body.scope === 'ticket' ? 'ticket' : 'global'
+    // Potenza AI → modello. Default per scope finché non esiste il selettore UI:
+    // ticket→equilibrato (Sonnet 4.6), global→veloce (Haiku, comportamento storico).
+    const power: Power = normalizePower(body.power, scope === 'ticket' ? 'equilibrato' : 'veloce')
+    const { model: anthropicModel, extraBody: anthropicExtraBody } = resolveModel(power, 'assistant_chat')
+    // Contesto ticket pre-assemblato dal frontend (RLS attiva lato client).
+    const ticketContext: ProvidedTicketContext | null =
+      scope === 'ticket' && body.context && typeof body.context === 'object'
+        ? (body.context as ProvidedTicketContext)
+        : null
+    console.info(`[scope] scope=${scope} power=${power} model=${anthropicModel} hasTicketContext=${!!ticketContext}`)
 
     if (!query) return jsonResponse({ error: 'query è obbligatoria' }, 400)
     if (query.length > 2000) return jsonResponse({ error: 'query troppo lunga (max 2000)' }, 400)
@@ -1142,9 +1282,17 @@ Deno.serve(async (req: Request) => {
     if (userMsgErr || !userMsg) return jsonResponse({ error: 'Errore salvataggio messaggio: ' + userMsgErr?.message }, 500)
 
     // ── 8. Costruisci prompt e chiama Claude ──
-    const systemPrompt = buildSystemPrompt()
+    // Scope 'ticket': prompt focalizzato + contesto fornito dal client in cima.
+    const systemPrompt = scope === 'ticket' ? buildTicketSystemPrompt() : buildSystemPrompt()
 
     const sections: string[] = []
+
+    // Contesto ticket assemblato lato frontend (scheda tecnica + storico stessa
+    // macchina, già org-scoped da RLS). Sezione autorevole, va per prima.
+    if (scope === 'ticket') {
+      const providedBlock = buildProvidedTicketContextBlock(ticketContext)
+      if (providedBlock) sections.push(`## Contesto ticket\n\n${providedBlock}`)
+    }
 
     const inventoryBlock = buildInventoryBlock(inventory)
     if (inventoryBlock) sections.push(`## Anagrafica macchinari\n\n${inventoryBlock}`)
@@ -1201,7 +1349,7 @@ Deno.serve(async (req: Request) => {
     let assistantText = ''
     let tokensUsed = 0
     try {
-      const result = await callClaude(systemPrompt, userMessage, apiKey)
+      const result = await callClaude(systemPrompt, userMessage, apiKey, anthropicModel, anthropicExtraBody)
       assistantText = result.content
       tokensUsed = result.tokensUsed
     } catch (err) {
