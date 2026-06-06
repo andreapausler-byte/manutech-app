@@ -10,7 +10,6 @@ import ChatPanel from '../../../components/chat/ChatPanel'
 import AssistantChat from '../../../components/assistant/AssistantChat'
 import DemoBanner from '../../../components/assistant/DemoBanner'
 import { isAssistantAvailable } from '../../../lib/assistant'
-import { useTicketAIContext } from '../../../hooks/useTicketAIContext'
 import { useToast } from '../../../hooks/useToast'
 import InterventionsForReport from '../../../components/interventions/InterventionsForReport'
 import {
@@ -23,21 +22,6 @@ function InfoCard({ label, value, icon }) {
     <div className="bg-surface-2 rounded-xl p-3">
       <p className="text-[11px] text-faint">{label}</p>
       <p className="text-sm text-themed mt-0.5">{icon ? `${icon} ${value}` : value}</p>
-    </div>
-  )
-}
-
-// Skeleton mostrato mentre si assembla il contesto AI del ticket (scheda
-// tecnica + storico stessa macchina). Regola Fase 1: skeleton, non spinner.
-function TicketContextSkeleton() {
-  return (
-    <div className="h-full flex flex-col gap-3 p-2 animate-pulse">
-      <div className="h-4 w-2/3 rounded bg-surface-2" />
-      <div className="h-3 w-full rounded bg-surface-2" />
-      <div className="h-3 w-5/6 rounded bg-surface-2" />
-      <div className="mt-2 h-20 w-full rounded-xl bg-surface-2" />
-      <div className="h-3 w-1/2 rounded bg-surface-2" />
-      <div className="mt-auto h-10 w-full rounded-xl bg-surface-2" />
     </div>
   )
 }
@@ -56,13 +40,6 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
   const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '' })
   const [closureSaving, setClosureSaving] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(null)
-
-  // Contesto per la chat AI in modalità 'ticket' (scheda tecnica macchina +
-  // storico segnalazioni stessa macchina). Org-scoped via RLS lato client.
-  const { context: ticketContext, loading: ticketCtxLoading } = useTicketAIContext({
-    reportId: selected.id,
-    machineId: selected.machine_id,
-  })
 
   const photos = (selected.media || []).filter(m => m.type === 'photo')
 
@@ -403,24 +380,19 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
             ) : (
               <div className="flex-1 min-h-0 p-3">
                 {isAssistantAvailable() ? (
-                  ticketCtxLoading ? (
-                    <TicketContextSkeleton />
-                  ) : (
-                    <AssistantChat
-                      key={selected.id}
-                      machineId={selected.machine_id}
-                      reportId={selected.id}
-                      scope="ticket"
-                      context={ticketContext}
-                      initialQuery={[selected.title, selected.description].filter(Boolean).join('. ').slice(0, 600)}
-                      fillParent
-                      suggestions={[
-                        'Ci sono ricorrenze su questo macchinario?',
-                        'Quale ricambio è stato usato più spesso per casi simili?',
-                        'Passi tipici per diagnosticare questo problema',
-                      ]}
-                    />
-                  )
+                  <AssistantChat
+                    key={selected.id}
+                    machineId={selected.machine_id}
+                    reportId={selected.id}
+                    scope="ticket"
+                    initialQuery={[selected.title, selected.description].filter(Boolean).join('. ').slice(0, 600)}
+                    fillParent
+                    suggestions={[
+                      'Ci sono ricorrenze su questo macchinario?',
+                      'Quale ricambio è stato usato più spesso per casi simili?',
+                      'Passi tipici per diagnosticare questo problema',
+                    ]}
+                  />
                 ) : (
                   <div className="p-4"><DemoBanner /></div>
                 )}

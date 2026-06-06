@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as assistant from '../lib/assistant'
 
-export default function useAssistantChat({ machineId, reportId, initialConversationId, scope, context, power } = {}) {
+export default function useAssistantChat({ machineId, reportId, initialConversationId, scope, power } = {}) {
   const [conversationId, setConversationId] = useState(initialConversationId || null)
   const [messages, setMessages] = useState([])
   const [sending, setSending] = useState(false)
@@ -42,7 +42,6 @@ export default function useAssistantChat({ machineId, reportId, initialConversat
         machine_id: machineId,
         report_id: reportId,
         scope,
-        context,
         power,
       })
       if (resp?.conversation_id && !conversationId) setConversationId(resp.conversation_id)
@@ -72,7 +71,7 @@ export default function useAssistantChat({ machineId, reportId, initialConversat
     } finally {
       setSending(false)
     }
-  }, [conversationId, machineId, reportId, scope, context, power, sending])
+  }, [conversationId, machineId, reportId, scope, power, sending])
 
   const loadConversation = useCallback(async (id) => {
     if (!id) return

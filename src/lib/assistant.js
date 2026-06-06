@@ -25,13 +25,14 @@ export function isAssistantAvailable() {
 // ── Invia messaggio all'assistente ────────────────────────
 // Ritorna { conversation_id, content, sources, assistant_message_id, user_message_id }
 //
-// scope:   'global' (default) | 'ticket' — modalità chat.
-// context: pacchetto contesto già assemblato e org-scoped dal client (solo scope 'ticket').
-// power:   'veloce' | 'equilibrato' | 'approfondito' — potenza AI → modello (default lato server).
-export async function sendMessage({ query, conversation_id, machine_id, report_id, scope, context, power }) {
+// scope: 'global' (default) | 'ticket' — modalità chat. Per 'ticket' il
+//        contesto (scheda tecnica macchina + storico stessa macchina) è
+//        assemblato server-side dall'Edge Function via RLS (JWT utente).
+// power: 'veloce' | 'equilibrato' | 'approfondito' — potenza AI → modello (default lato server).
+export async function sendMessage({ query, conversation_id, machine_id, report_id, scope, power }) {
   if (!supabase) throw new DemoModeError()
   const { data, error } = await supabase.functions.invoke('assistant-chat', {
-    body: { query, conversation_id, machine_id, report_id, scope, context, power },
+    body: { query, conversation_id, machine_id, report_id, scope, power },
   })
   if (error) {
     // supabase.functions.invoke non include il body JSON in caso di !ok

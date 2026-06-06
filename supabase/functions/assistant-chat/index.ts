@@ -380,45 +380,19 @@ Regole di risposta:
 - Massimo ~300 parole.`
 }
 
-// ── Builder: contesto ticket fornito dal client (scope 'ticket') ──
-// Il frontend assembla questo pacchetto con il client Supabase dell'utente
-// (RLS attiva), così è già scoped all'org dell'utente. Lo includiamo come
-// sezione autorevole in cima al messaggio.
-interface ProvidedTicketContext {
-  report?: {
-    display_id?: string | null
-    title?: string | null
-    description?: string | null
-    severity?: string | null
-    status?: string | null
-    type?: string | null
-    created_at?: string | null
-    closed_at?: string | null
-    closure_root_cause?: string | null
-    closure_action?: string | null
-    closure_parts?: string | null
-  } | null
-  machine?: {
-    name?: string | null
-    serial_number?: string | null
-    manufacturer?: string | null
-    model?: string | null
-    year?: number | null
-    department?: string | null
-    location?: string | null
-    status?: string | null
-    criticality?: string | null
-  } | null
-  same_machine_reports?: Array<{
-    display_id?: string | null
-    title?: string | null
-    severity?: string | null
-    status?: string | null
-    type?: string | null
-    created_at?: string | null
-    closed_at?: string | null
-    closure_root_cause?: string | null
-  }> | null
+// ── Builder: storico segnalazioni stessa macchina (scope 'ticket') ──
+// Recupero server-side con client JWT-utente (RLS attiva → già org-scoped).
+// Lista deterministica delle ricorrenze: aperte (qualunque età) + chiuse
+// negli ultimi 12 mesi, esclusa la corrente, più recenti prima, cap 20.
+interface SameMachineReport {
+  display_id?: string | null
+  title?: string | null
+  severity?: string | null
+  status?: string | null
+  type?: string | null
+  created_at?: string | null
+  closed_at?: string | null
+  closure_root_cause?: string | null
 }
 
 function fmtDateIt(d?: string | null): string {
@@ -430,46 +404,19 @@ function fmtDateIt(d?: string | null): string {
   }
 }
 
-function buildProvidedTicketContextBlock(ctx: ProvidedTicketContext | null): string {
-  if (!ctx) return ''
-  const sections: string[] = []
-
-  // Scheda tecnica macchinario
-  const m = ctx.machine
-  if (m && (m.name || m.serial_number)) {
-    const id: string[] = []
-    if (m.serial_number) id.push(`matricola: ${m.serial_number}`)
-    if (m.manufacturer) id.push(`produttore: ${m.manufacturer}`)
-    if (m.model) id.push(`modello: ${m.model}`)
-    if (m.year) id.push(`anno: ${m.year}`)
-    const loc: string[] = []
-    if (m.department) loc.push(m.department)
-    if (m.location) loc.push(m.location)
-    if (m.criticality) loc.push(`criticità: ${m.criticality}`)
-    if (m.status) loc.push(`stato: ${m.status}`)
-    const lines = [`Macchinario: ${m.name || '(senza nome)'}`]
-    if (id.length) lines.push(id.join(' — '))
-    if (loc.length) lines.push(loc.join(' — '))
-    sections.push(`### Scheda tecnica macchinario\n${lines.join('\n')}`)
+function buildSameMachineReportsBlock(list: SameMachineReport[], hasMachine: boolean): string {
+  if (!hasMachine) {
+    return 'Macchinario non collegato a questo ticket (nessun `machine_id`): impossibile derivare le altre segnalazioni della stessa macchina.'
   }
-
-  // Storico stessa macchina
-  const list = ctx.same_machine_reports || []
-  if (list.length > 0) {
-    const items = list.map((r) => {
-      const when = r.closed_at
-        ? `chiusa ${fmtDateIt(r.closed_at)}`
-        : `aperta ${fmtDateIt(r.created_at)}`
-      const tag = r.display_id ? `[${r.display_id}] ` : ''
-      const cause = r.closure_root_cause ? ` — causa: ${r.closure_root_cause.slice(0, 160)}` : ''
-      return `- ${tag}[${r.severity || '—'}/${r.status || '—'}] ${r.title || '(senza titolo)'} (${when})${cause}`
-    })
-    sections.push(`### Altre segnalazioni sullo stesso macchinario (${list.length})\n${items.join('\n')}`)
-  } else {
-    sections.push('### Altre segnalazioni sullo stesso macchinario\nNessuna altra segnalazione trovata per questo macchinario nel periodo considerato (o macchinario non collegato al ticket).')
+  if (!list || list.length === 0) {
+    return 'Nessun\'altra segnalazione per questo macchinario nel periodo considerato (aperte + chiuse ultimi 12 mesi).'
   }
-
-  return sections.join('\n\n')
+  return list.map((r) => {
+    const when = r.closed_at ? `chiusa ${fmtDateIt(r.closed_at)}` : `aperta ${fmtDateIt(r.created_at)}`
+    const tag = r.display_id ? `[${r.display_id}] ` : ''
+    const cause = r.closure_root_cause ? ` — causa: ${r.closure_root_cause.slice(0, 160)}` : ''
+    return `- ${tag}[${r.severity || '—'}/${r.status || '—'}] ${r.title || '(senza titolo)'} (${when})${cause}`
+  }).join('\n')
 }
 
 function buildContextBlock(reports: SimilarReport[]): string {
@@ -1054,12 +1001,7 @@ Deno.serve(async (req: Request) => {
     // ticket→equilibrato (Sonnet 4.6), global→veloce (Haiku, comportamento storico).
     const power: Power = normalizePower(body.power, scope === 'ticket' ? 'equilibrato' : 'veloce')
     const { model: anthropicModel, extraBody: anthropicExtraBody } = resolveModel(power, 'assistant_chat')
-    // Contesto ticket pre-assemblato dal frontend (RLS attiva lato client).
-    const ticketContext: ProvidedTicketContext | null =
-      scope === 'ticket' && body.context && typeof body.context === 'object'
-        ? (body.context as ProvidedTicketContext)
-        : null
-    console.info(`[scope] scope=${scope} power=${power} model=${anthropicModel} hasTicketContext=${!!ticketContext}`)
+    console.info(`[scope] scope=${scope} power=${power} model=${anthropicModel}`)
 
     if (!query) return jsonResponse({ error: 'query è obbligatoria' }, 400)
     if (query.length > 2000) return jsonResponse({ error: 'query troppo lunga (max 2000)' }, 400)
@@ -1110,7 +1052,7 @@ Deno.serve(async (req: Request) => {
       similarRes, statsRes, openRes, historyRes,
       knowledgeRes, inventoryRes, strategicRes,
       currentReportRes, currentChatRes, suppliersRes,
-      maintenancePlansRes,
+      maintenancePlansRes, sameMachineRes,
     ] = await Promise.all([
       supabase.rpc('search_similar_reports', {
         query_text: query,
@@ -1216,6 +1158,34 @@ Deno.serve(async (req: Request) => {
             return res
           })()
         : Promise.resolve({ data: null, error: null }),
+      // Scope 'ticket': storico deterministico delle altre segnalazioni della
+      // STESSA macchina (aperte qualunque età + chiuse ultimi 12 mesi, esclusa
+      // la corrente, più recenti prima, cap 20). Client JWT-utente → RLS attiva
+      // (già org-scoped). Fallback senza display_id se la migration 049 manca.
+      scope === 'ticket' && machineId
+        ? (async () => {
+            const since = new Date()
+            since.setMonth(since.getMonth() - 12)
+            const orFilter = `status.not.in.(risolta,chiuso),closed_at.gte.${since.toISOString()}`
+            const cols = 'id, display_id, title, severity, status, type, created_at, closed_at, closure_root_cause'
+            const colsNoDid = 'id, title, severity, status, type, created_at, closed_at, closure_root_cause'
+            const q = (sel: string) => supabase
+              .from('reports')
+              .select(sel)
+              .eq('machine_id', machineId)
+              .neq('id', reportId ?? '')
+              .or(orFilter)
+              .order('created_at', { ascending: false })
+              .limit(20)
+            let res = await q(cols)
+            if (res.error) {
+              console.warn(`[same-machine] select con display_id fallito (${res.error.message}), retry senza`)
+              res = await q(colsNoDid)
+            }
+            console.info(`[same-machine] count=${res.data?.length ?? 0} error=${res.error?.message ?? 'none'}`)
+            return res
+          })()
+        : Promise.resolve({ data: null, error: null }),
     ])
 
     if (similarRes.error) console.error('search_similar_reports error:', similarRes.error)
@@ -1242,6 +1212,10 @@ Deno.serve(async (req: Request) => {
     const suppliers: SupplierOverview[] = Array.isArray(suppliersRes.data) ? (suppliersRes.data as SupplierOverview[]) : []
     const maintenancePlans: MaintenancePlansOverview | null =
       (maintenancePlansRes.data as MaintenancePlansOverview | null) || null
+    if (sameMachineRes.error) console.warn('same-machine reports error:', sameMachineRes.error.message)
+    const sameMachineReports: SameMachineReport[] = Array.isArray(sameMachineRes.data)
+      ? (sameMachineRes.data as SameMachineReport[])
+      : []
 
     // ── Diagnostic trace: retrieval summary ──
     console.info(`[retrieval] query="${query.slice(0, 80)}" | reportId=${reportId || 'none'} machineId=${machineId || 'none'} | wantInv=${classify.wantInventory} wantStrat=${classify.wantStrategic} wantKnow=${classify.wantKnowledge} wantDiag=${classify.wantDiagnostic} wantMplan=${classify.wantMaintenancePlans} hasMachineCtx=${hasMachineContext} | similar=${similar.length} stats=${orgStats ? 'Y' : 'N'} open=${openReports.length} history=${machineHistory ? 'Y' : 'N'} knowledge=${knowledgeChunks.length} inventory=${inventory.length} strategic=${strategic ? 'Y' : 'N'} mplans=${maintenancePlans?.total ?? 'N'} currentChat=${currentChat.length}`)
@@ -1287,11 +1261,12 @@ Deno.serve(async (req: Request) => {
 
     const sections: string[] = []
 
-    // Contesto ticket assemblato lato frontend (scheda tecnica + storico stessa
-    // macchina, già org-scoped da RLS). Sezione autorevole, va per prima.
+    // Scope 'ticket': storico deterministico delle altre segnalazioni della
+    // stessa macchina (ricorrenze). La scheda tecnica del macchinario arriva
+    // già dal blocco "Storia macchina" (get_machine_history) più sotto.
     if (scope === 'ticket') {
-      const providedBlock = buildProvidedTicketContextBlock(ticketContext)
-      if (providedBlock) sections.push(`## Contesto ticket\n\n${providedBlock}`)
+      const sameMachineBlock = buildSameMachineReportsBlock(sameMachineReports, !!machineId)
+      sections.push(`## Altre segnalazioni sullo stesso macchinario (storico ricorrenze)\n\n${sameMachineBlock}`)
     }
 
     const inventoryBlock = buildInventoryBlock(inventory)

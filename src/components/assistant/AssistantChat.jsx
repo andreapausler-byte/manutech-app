@@ -33,10 +33,9 @@ export default function AssistantChat({
   fillParent = false,
   suggestions = DEFAULT_SUGGESTIONS,
   scope,
-  context,
   power,
 }) {
-  const { messages, sending, loading, error, send } = useAssistantChat({ machineId, reportId, initialConversationId, scope, context, power })
+  const { messages, sending, loading, error, send } = useAssistantChat({ machineId, reportId, initialConversationId, scope, power })
   const inputRef = useRef(null)
   const scrollRef = useRef(null)
   const haptic = useHaptic()
