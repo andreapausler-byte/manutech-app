@@ -12,6 +12,8 @@ import { Plus, History } from 'lucide-react'
 import AssistantChat from '../../components/assistant/AssistantChat'
 import DemoBanner from '../../components/assistant/DemoBanner'
 import PageHeader from '../../components/layout/PageHeader'
+import AIPowerSelector from '../../components/ui/AIPowerSelector'
+import { useAIPower } from '../../hooks/useAIPower'
 import { findNavItem } from '../../lib/adminNav'
 import { isAssistantAvailable, listConversations } from '../../lib/assistant'
 
@@ -19,6 +21,7 @@ const NAV_ITEM = findNavItem('assistant')
 
 export default function AdminAssistantPage({ onOpenReport, initialMachineId }) {
   const available = isAssistantAvailable()
+  const { power, setPower } = useAIPower()
   const [convs, setConvs] = useState([])
   const [convsLoaded, setConvsLoaded] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
@@ -66,7 +69,8 @@ export default function AdminAssistantPage({ onOpenReport, initialMachineId }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: 'calc(100dvh - 180px)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <AIPowerSelector value={power} onChange={setPower} />
           <button
             type="button"
             onClick={toggleHistory}
@@ -144,6 +148,7 @@ export default function AdminAssistantPage({ onOpenReport, initialMachineId }) {
             initialConversationId={selectedId}
             machineId={selectedId ? undefined : initialMachineId}
             onSourceClick={onOpenReport}
+            power={power}
             fillParent
           />
         </div>
