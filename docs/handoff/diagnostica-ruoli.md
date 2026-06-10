@@ -18,6 +18,74 @@ Questa sessione gira in un container remoto **senza accesso diretto al database 
 
 ---
 
+## ⭐ Dati di produzione confermati (2026-06-10)
+
+> Query ①②③④ eseguite in prod da Andrea. **Questi dati hanno la precedenza** sulle previsioni "dai file" delle sezioni sottostanti, e rivelano un **drift sostanziale tra migrazioni versionate e DB reale**.
+
+### Distribuzione ruoli reale (A2)
+
+| role | count |
+|---|---|
+| `tecnico` | 24 |
+| `admin` | 6 |
+| `operatore` | 1 |
+| **totale** | **31** |
+
+- **`super_admin`: 0 righe. `fornitore`: 0 righe.** Nessuno detiene questi ruoli in produzione.
+- Distribuzione **clamorosamente sbilanciata**: `tecnico` è di fatto il ruolo-default/discarica; un solo `operatore` a fronte di un'intera `OperatorApp` dedicata. Parte dei 6 admin + 24 tecnico sono **doppi account della stessa persona** (vedi Sezione C confermata).
+
+### Constraint reale (A4) — 🔴 DRIFT
+
+```
+users_role_check                     → CHECK (role IN ('operatore','tecnico','admin'))
+notification_preferences_role_check  → CHECK (role IN ('operatore','tecnico','admin'))
+assistant_messages_role_check        → CHECK (role IN ('user','assistant'))   -- dominio LLM
+```
+
+**Il constraint in produzione ammette SOLO 3 ruoli.** La migrazione `036_super_admin_role.sql` (che estendeva il constraint a `super_admin`) **NON è applicata in prod** (o è stata fatta girare la sua `_down`). I file di migrazione **divergono dal DB reale**. Conseguenza: in prod `super_admin` è **impossibile da assegnare** (un `UPDATE ... SET role='super_admin'` fallirebbe il check) → tutta l'infrastruttura super_admin (RPC `list_pending_orgs`/`approve_org`/`reject_org`, ramo routing `App.jsx`) è **codice morto in produzione**.
+
+### Policy `public.users` reali (A5 / A5-bis) — 🔴 SELF-ELEVATION + DRIFT
+
+| policyname | cmd | qual | with_check |
+|---|---|---|---|
+| `users_insert_anyone` | INSERT | `null` | `true` |
+| `users_select_same_org` | SELECT | `org_id = get_my_org_id()` | `null` |
+| `users_update` | UPDATE | `auth_id = auth.uid() OR get_my_role() IN ('admin','super_admin')` | **`null`** |
+
+Tre finding confermati dai dati reali:
+
+1. **🔴 Self-elevation reale in produzione.** `users_update` ha `with_check = null` e `qual` include `auth_id = auth.uid()`. Senza `WITH CHECK`, Postgres riusa la `USING`: un utente autenticato può eseguire via API `update public.users set role='admin' where auth_id=auth.uid()` e **la RLS lo consente**. Tetto = solo il constraint (3 ruoli) → non può farsi `super_admin`, ma **può promuoversi ad `admin`**. Buco di privilege-escalation attivo. La UI non lo espone, ma la RLS è il confine reale.
+
+2. **🔴 Stato incoerente su due fronti.** La policy `users_update` **nomina `super_admin`** (quindi la migrazione `039` *è* applicata) mentre il constraint **vieta `super_admin`** (`036` *non* applicata). 039 dipende logicamente da 036, ma in prod c'è 039 senza 036. Funzionalmente innocuo (`get_my_role()` non restituirà mai `super_admin`), ma è drift conclamato.
+
+3. **🟠 Le policy reali divergono dai file anche nei nomi e nell'insieme.** In prod: `users_insert_anyone`, `users_select_same_org`; nei file (`schema.sql`): `users_insert`, `users_select`, `users_delete`. Solo `users_update` combacia nel nome. Inoltre:
+   - **`users_insert_anyone` ha `with_check = true`** → l'INSERT su `public.users` non valida nulla (role/org_id/auth_id arbitrari). Secondo vettore di permissività (mitigato da `auth_id UNIQUE`); verificare se intenzionale per il signup.
+   - **NON esiste policy `users_delete`** in prod (RLS attiva + nessuna policy DELETE = default-deny: nessuno cancella utenti via API). Diverge da `039`.
+   - Implicazione: **la produzione è stata inizializzata da uno script diverso/più vecchio** di `schema.sql` committato, poi patchata da *alcune* migrazioni (039 sì) e non altre (036 no). I file in repo **non sono una rappresentazione affidabile dello stato DB reale** — assunzione da incorporare nella proposal.
+
+### Inventario auth + doppi account (A3 / Sezione C) — parziale (17/31 righe viste)
+
+Tutti gli account osservati hanno `org_id='default'` (singola org "Amarcord"). Il ruolo nei metadata JWT è **solo seed** (alcuni account ne sono privi → non creati dal path di invito standard). **Doppi account confermati / candidati** (stessa persona fisica):
+
+| persona | account A (email · role-seed · created) | account B (email · role-seed · created) | tipo |
+|---|---|---|---|
+| **Lorenzo Pupita** | `ctcantina@amarcord.it` · tecnico · 17/3 | `pupitalorenzo@gmail.com` · admin · 17/4 | ✅ confermato — **è il caso del briefing** (postazione tecnico + personale admin) |
+| **Andrea Pausler** | `andrea.pausler@amarcord.it` · (no seed, org-owner→admin) · 3/3 | `andrea.pausler@gmail.com` · tecnico · 6/3 | ✅ confermato (org-owner + account tecnico personale) |
+| **Aneta** | `aneta@gmail.com` · (no seed) · 3/3 | `anetanwczk@gmail.com` · (no seed) · 2/5 | 🟡 candidato — confermare con Andrea |
+
+**Pattern strutturale scoperto:** convivono **email funzionali di postazione/reparto** (`@amarcord.it`: `ctcantina`, `ctsalacotte`, `ctriempimenti`, `qc`, `manutenzione`, `magazzino`, `tank`) ed **email personali** (gmail/outlook/virgilio). Alcune persone hanno **entrambe** → la duplicazione non è solo "due email a caso", è **"account-postazione (condiviso) + account-personale"**. Questo è più del semplice doppione: tocca anche la questione *identità condivisa vs individuale* (es. `qc@amarcord.it`, `manutenzione@amarcord.it` sembrano caselle di reparto). Da chiarire in proposal se alcune email-postazione sono **account condivisi da più persone** (in tal caso il modello "identità unica" va calibrato).
+
+> ⚠️ Vista solo metà lista (17/31). Manca l'altra metà di `auth.users` e i **conteggi righe collegate** per coppia (query pronta in Sezione C). Per la decisione merge-vs-deprecazione servono entrambi.
+
+### Note correttive alle previsioni sottostanti
+
+- A2/A4: il ruolo reale ha **3 livelli, non 4**. `super_admin` è previsto solo nei file, assente da constraint e dati prod.
+- A5-bis: la previsione "self-elevation possibile" è **confermata** dai dati live (`with_check = null`).
+- Divergenza #1 (`fornitore`): risolta come **scenario (c) — codice dormiente** (0 righe, non nel constraint).
+- Nuova divergenza emersa: **drift migrazioni↔prod** su constraint (036), policy names/insert/delete (vedi §Divergenze #4-bis).
+
+---
+
 ## Sezione A — Diagnostica database
 
 ### A1 — Dove vive il ruolo (colonne)
@@ -286,9 +354,9 @@ Tabella da compilare:
 1. **Dove vive il ruolo?** In `public.users.role` (TEXT), che **fa fede**. `auth.users.raw_user_meta_data->>'role'` esiste ma è **solo seed** alla creazione del profilo, mai riletto a runtime. Altre colonne `*role*` (`comments.user_role`, `direct_messages.sender_role`, `push_subscriptions.role`) sono **snapshot denormalizzati**; `assistant_messages.role` è di un altro dominio (LLM).
 2. **Quali stringhe esistono e c'è un vincolo?** Constraint CHECK `users_role_check` → `('operatore','tecnico','admin','super_admin')` (da `036`). **Nessun ENUM**, è TEXT+CHECK. ⚠️ `'fornitore'` è usato dal frontend ma **non è nei valori ammessi dai file** — confermare in prod con A2/A4. Distribuzione reale dei valori: **da eseguire (A2)**.
 3. **Quante policy RLS dipendono dal ruolo e come lo leggono?** ~20+ policy applicative, **tutte** via la stessa funzione helper `get_my_role()` (subquery su `public.users`, `SECURITY DEFINER`). **Zero** lettura da claim JWT. → unico punto di intervento per il refactint.
-4. **`super_admin`: quanti, chi, semantica?** Numero/identità: **da A2/A3** (atteso 1, `andrea.pausler@gmail.com`, da promozione manuale SQL come da commento `036`). Semantica: **ruolo di piattaforma**, non d'organizzazione — appartiene comunque a un'org ma il suo potere è il moderare le **organizations** (approva/rifiuta) via 3 RPC dedicate; nel frontend bypassa l'app e va dritto a `SuperAdminPendingOrgs`. È sopra `admin` nella gerarchia.
-5. **Il ruolo è auto-modificabile dall'utente?** **SÌ.** La policy `users_update` ha solo `USING (auth_id = auth.uid() OR get_my_role() IN ('admin','super_admin'))` e **nessun `WITH CHECK`** → un utente può fare `update public.users set role='admin' where auth_id=auth.uid()` via API e la RLS lo consente. Self-elevation reale (mitigata solo dal fatto che la UI non lo espone). **Finding prioritario** (A5-bis).
-6. **Quanti doppi account e quanto pesano?** **Da eseguire (Sezione C)** — richiede output A3. Caso noto: responsabile-manutenzione + admin della stessa persona.
+4. **`super_admin`: quanti, chi, semantica?** **CONFERMATO in prod: 0 utenti, e il constraint reale NON ammette nemmeno il valore** (migrazione `036` non applicata). È ruolo *solo nei file*: semantica progettata = **ruolo di piattaforma** (modera le `organizations` via 3 RPC dedicate, bypassa l'app verso `SuperAdminPendingOrgs`), sopra `admin`. In produzione, però, è **inattivo/codice morto**. Il super_admin "atteso" (Andrea) in prod è di fatto un `admin` (`andrea.pausler@amarcord.it`, org-owner). La proposal deve decidere: riattivarlo correttamente (applicare `036`) o rimuoverne il codice.
+5. **Il ruolo è auto-modificabile dall'utente?** **SÌ — CONFERMATO sui dati live.** `users_update` in prod ha `qual = (auth_id = auth.uid() OR get_my_role() IN ('admin','super_admin'))` e `with_check = null` → un utente può fare `update public.users set role='admin' where auth_id=auth.uid()` via API e la RLS lo consente (tetto: il constraint a 3 ruoli, quindi non `super_admin` ma sì `admin`). Self-elevation reale (mitigata solo dal fatto che la UI non lo espone). **Finding prioritario.** Inoltre `users_insert_anyone` ha `with_check=true` (insert non validata) e manca la policy `users_delete`.
+6. **Quanti doppi account e quanto pesano?** **Confermati 2 doppioni + 1 candidato** sulle 17/31 righe viste: Lorenzo Pupita (tecnico+admin, il caso del briefing), Andrea Pausler (admin-owner + tecnico), Aneta (candidato). Pattern: account-postazione `@amarcord.it` + account-personale. **Peso (conteggi righe) e seconda metà lista: ancora da eseguire** (query in Sezione C).
 7. **Il frontend ha un punto unico di lettura?** Sì per la **fonte** (`useAuth().user.role` da `resolve_my_profile`), **no** per la **logica**: nessun `useRole()`/`hasRole()`, ma **56 confronti literal in 25 file**. Branch di routing centralizzato in `App.jsx`. Consolidamento raccomandato verso un hook unico in fase di implementazione.
 
 ---
@@ -307,7 +375,9 @@ Tutto ciò che contraddice le assunzioni del briefing.
 
 3. **🟡 `react-router-dom` è in `package.json` ma NON è importato da nessun file `src/`.** Dipendenza morta. Il routing è davvero custom (`window.location` + switch su `user.role` in `App.jsx`), coerente col vincolo §8 del briefing, ma la dipendenza fantasma può confondere chi cerca le route.
 
-4. **🟡 Il frontend conosce solo 3 ruoli, il DB ne ammette 4.** `ROLES` in `constants.js` = `{operatore, tecnico, admin}`. **Manca `super_admin`** (e `fornitore`). Conseguenza: per un utente `super_admin`, label/icona/colore fanno fallback alla stringa grezza (`ROLES[role]?.label || role`), e il modal di cambio-ruolo (`AdminUsers.jsx`, `Object.entries(ROLES)`) **non può assegnare `super_admin`** (corretto by-design: solo promozione SQL) **né `fornitore`**. `super_admin` è gestito “a parte” (routing in `App.jsx`, RPC dedicate).
+4. **🟡 Il frontend conosce solo 3 ruoli.** `ROLES` in `constants.js` = `{operatore, tecnico, admin}`. **Manca `super_admin`** (e `fornitore`). Conseguenza: per un utente `super_admin`, label/icona/colore fanno fallback alla stringa grezza (`ROLES[role]?.label || role`), e il modal di cambio-ruolo (`AdminUsers.jsx`, `Object.entries(ROLES)`) **non può assegnare `super_admin`** né `fornitore`. (Curiosamente, qui il frontend è *più aderente alla realtà prod* del DB-secondo-i-file: in prod i ruoli sono davvero 3 — vedi #4-bis.)
+
+4-bis. **🔴 DRIFT migrazioni ↔ produzione (confermato dalle query live).** Lo stato reale del DB **non corrisponde** ai file in `supabase/`. In particolare: (a) `users_role_check` in prod ammette 3 ruoli, non 4 → migrazione `036` non applicata; (b) ma `users_update` cita `super_admin` → migrazione `039` applicata (stato incoerente: 039 senza il suo prerequisito 036); (c) le policy `public.users` in prod hanno **nomi diversi** dai file (`users_insert_anyone`/`users_select_same_org` vs `users_insert`/`users_select`), `users_insert_anyone` è `WITH CHECK (true)`, e **manca `users_delete`**. → La produzione è stata bootstrappata da uno script diverso/precedente a `schema.sql` e patchata solo in parte. **Implicazione vincolante per la proposal:** non fidarsi dei file come specchio del DB; ogni migrazione del modello "tetto+modalità" va scritta verificando lo stato reale e va messa in conto una **riconciliazione del drift** (almeno: reintrodurre `users_delete`, decidere su `036`/super_admin, e chiudere `users_update`/`users_insert_anyone`).
 
 5. **🟡 Default di ruolo asimmetrico nei trigger di signup.** Il ramo signup-**organizzazione** (`032`, `034`) usa `COALESCE(...->>'role', 'admin')` (chi crea l'org diventa admin), mentre il ramo invito/standard usa default `'operatore'`. Non un bug, ma una sottigliezza da tenere presente quando si ragiona su `granted_role` iniziale.
 
