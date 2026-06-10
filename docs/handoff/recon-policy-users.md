@@ -23,22 +23,26 @@ where schemaname='public' and tablename='users'
 order by cmd, policyname;
 ```
 
-**Stato vivo noto dalla Fase 0** (10/6, query equivalente senza `permissive/roles`) — **da completare con l'output grezzo integrale** (mancano `permissive` e `roles`):
+**OUTPUT VIVO CONFERMATO (10/6):**
 
-| policyname | cmd | using_expr (`qual`) | check_expr (`with_check`) | permissive | roles |
+| policyname | permissive | roles | cmd | using_expr (`qual`) | check_expr (`with_check`) |
 |---|---|---|---|---|---|
-| `users_insert_anyone` | INSERT | `null` | `true` | _da Q1a_ | _da Q1a_ |
-| `users_select_same_org` | SELECT | `org_id = get_my_org_id()` | `null` | _da Q1a_ | _da Q1a_ |
-| `users_update` | UPDATE | `auth_id = auth.uid() OR get_my_role() IN ('admin','super_admin')` | **`null`** | _da Q1a_ | _da Q1a_ |
+| `users_insert_anyone` | PERMISSIVE | **`{public}`** | INSERT | `null` | **`true`** |
+| `users_select_same_org` | PERMISSIVE | `{authenticated}` | SELECT | `org_id = get_my_org_id()` | `null` |
+| `users_update` | PERMISSIVE | `{authenticated}` | UPDATE | `auth_id = auth.uid() OR get_my_role() IN ('admin','super_admin')` | **`null`** |
 
-> ⚠️ **Nessuna policy DELETE** è risultata presente (la Fase 0 ha restituito solo queste 3 righe). Va **confermato** con l'output integrale di Q1a: se DELETE è assente e RLS è attiva, ogni `DELETE` da ruolo `authenticated` è negato (0 righe, default-deny).
+> ✅ **Nessuna policy DELETE — CONFERMATO** (Q1a restituisce solo queste 3 righe). Con RLS attiva e nessuna policy DELETE, ogni `DELETE` è negato (0 righe, default-deny).
+>
+> 🔴 **NUOVO FINDING — `users_insert_anyone` è `TO {public}`, non `{authenticated}`.** Le altre due policy sono `{authenticated}`; solo l'INSERT è aperta a `public`, che in Postgres **include il ruolo `anon`** (non autenticato). Combinato con `WITH CHECK (true)`, significa che la RLS **non richiede login** per inserire in `public.users`. L'effettiva sfruttabilità da `anon` dipende dal **GRANT di tabella** verso `anon` (default Supabase: `anon`/`authenticated` hanno privilegi DML sulle tabelle `public`, con la RLS come unico cancello). Se il GRANT c'è, **un client con la sola anon key può creare righe arbitrarie in `users`** (qualsiasi `role`/`org_id`/`auth_id`). Da verificare con: `select has_table_privilege('anon','public.users','INSERT');` (SELECT, sola lettura).
 
 ### Query 1b — RLS attiva? forzata?
 ```sql
 select relname, relrowsecurity, relforcerowsecurity
 from pg_class where relname='users';
 ```
-**Da eseguire.** Atteso: `relrowsecurity = true` (la Fase 0 lo conferma indirettamente — le policy filtrano). `relforcerowsecurity` **ignoto**: rilevante perché se `false`, il **proprietario della tabella** (e ruoli con `BYPASSRLS`) salta comunque le policy; `service_role` ha grant DML diretto (vedi Parte 2 §035). Da leggere nell'output.
+**OUTPUT VIVO CONFERMATO:** `relrowsecurity = true`, `relforcerowsecurity = false`.
+- RLS **attiva**, **non forzata**. `force=false` → il **proprietario della tabella** (ruolo `postgres`/owner) e i ruoli con `BYPASSRLS` (incluso `service_role`) **saltano le policy** — coerente con i percorsi P1/P2/P3 della Parte 3 (`SECURITY DEFINER` + `service_role` grant §035) che scrivono `users` aggirando la RLS.
+- _(Nota: la query non filtra lo schema, quindi le 2 righe restituite sono `public.users` **e** `auth.users` — entrambe `rowsecurity=true, force=false`. Quella rilevante è `public.users`.)_
 
 ### Query 1c — Definizione viva di `get_my_role()` e helper `%role%`
 ```sql
@@ -46,14 +50,21 @@ select p.proname, pg_get_functiondef(p.oid)
 from pg_proc p join pg_namespace n on p.pronamespace=n.oid
 where n.nspname='public' and p.proname ilike '%role%';
 ```
-**Da eseguire.** Atteso (da repo) **un solo** match pertinente: `get_my_role()`:
+**OUTPUT VIVO CONFERMATO** — un solo match (`get_my_role`), corpo vivo:
 ```sql
-SELECT role FROM public.users WHERE auth_id = auth.uid() LIMIT 1
--- LANGUAGE sql SECURITY DEFINER STABLE
+CREATE OR REPLACE FUNCTION public.get_my_role()
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$
+  SELECT role FROM public.users WHERE auth_id = auth.uid() LIMIT 1
+$function$
 ```
-Verificare nell'output vivo: (a) che il corpo coincida (nessuna patch fuori-migrazione), (b) `SECURITY DEFINER` presente (necessario: legge `users` aggirando la RLS di `users` stessa, evitando ricorsione), (c) eventuali altre funzioni con `role` nel nome (es. `list_pending_orgs` non matcha `%role%` nel nome → non comparirà; nessun altro helper atteso).
+- ✅ **Coincide ESATTAMENTE con la baseline** del repo (`schema.sql:303`): `LANGUAGE sql`, `STABLE`, **`SECURITY DEFINER`**. **Nessun drift sulla funzione** — l'helper è pulito; il drift è solo su policy e constraint.
+- `SECURITY DEFINER` confermato (necessario: legge `users` aggirando la RLS di `users` stessa → evita ricorsione infinita nelle policy che lo chiamano).
+- **Un solo helper** con `role` nel nome: nessun altro `get_my_*role*`/wrapper nascosto. (`list_pending_orgs`/`approve_org`/`reject_org` non matchano `%role%` nel *nome* → non compaiono qui, ma usano `get_my_role` nel corpo — già mappate in Fase 0.)
 
-> 📌 **Cosa aggiunge la Parte 1 rispetto alla Fase 0:** le colonne `permissive` e `roles` (Q1a), lo stato `relforcerowsecurity` (Q1b) e il **corpo vivo** di `get_my_role()` (Q1c). Questi tre dati non erano stati raccolti e sono necessari per l'hotfix (es. capire se le policy sono `PERMISSIVE`/`RESTRICTIVE` e a quali `roles` DB si applicano).
+> 📌 **Cosa ha aggiunto la Parte 1 rispetto alla Fase 0:** `permissive`+`roles` (Q1a) → ha scoperto l'INSERT `TO {public}`; `relforcerowsecurity=false` (Q1b); corpo vivo di `get_my_role` identico alla baseline (Q1c). Il finding più pesante è il **`{public}` sull'INSERT**, emerso solo grazie alla colonna `roles`.
 
 ---
 
@@ -81,8 +92,8 @@ Verificare nell'output vivo: (a) che il corpo coincida (nessuna patch fuori-migr
 **D1 — `users_select`: nome diverso, logica uguale.**
 Repo: policy chiamata **`users_select`** (`schema.sql:328`). Vivo: **`users_select_same_org`**. Stessa espressione (`org_id = get_my_org_id()`), ma **il nome non esiste da nessuna parte nel repo** (verificato: `grep users_select_same_org` → 0 risultati in `supabase/`). → La policy SELECT viva **non proviene dai file committati**.
 
-**D2 — `users_insert`: nome diverso E logica più permissiva.** 🔴
-Repo: policy **`users_insert`** con **`WITH CHECK (auth_id = auth.uid())`** (`schema.sql:333`) — consente solo di inserire la *propria* riga. Vivo: **`users_insert_anyone`** con **`WITH CHECK (true)`** — consente a qualunque `authenticated` di inserire **qualsiasi** riga (role/org_id/auth_id arbitrari). Il nome `users_insert_anyone` **non esiste nel repo** (`grep` → 0). → La policy INSERT viva **non proviene dai file**, ed è **strutturalmente più larga** della baseline. (Razionale applicativo: vedi Parte 3 — serve a creare voci-anagrafica senza `auth_id`, cosa che la versione repo `auth_id=auth.uid()` **rifiuterebbe**.)
+**D2 — `users_insert`: nome diverso, logica più permissiva, E ruolo `public`.** 🔴🔴
+Repo: policy **`users_insert`**, `TO authenticated`, **`WITH CHECK (auth_id = auth.uid())`** (`schema.sql:333`) — solo la *propria* riga, solo da loggato. Vivo: **`users_insert_anyone`**, **`TO {public}`**, **`WITH CHECK (true)`** — chiunque (incluso `anon`) può inserire **qualsiasi** riga (role/org_id/auth_id arbitrari). Il nome `users_insert_anyone` **non esiste nel repo** (`grep` → 0). → La policy INSERT viva **non proviene dai file** ed è **doppiamente più larga** della baseline: (a) nessun vincolo sui valori (`true` vs `auth_id=auth.uid()`), (b) **estesa a `public`/`anon`** (vs `authenticated`). Le altre due policy `users` sono `{authenticated}`: l'INSERT è l'unica `{public}`, indizio che è stata creata da uno script di bootstrap diverso. (Razionale applicativo legittimo: vedi Parte 3 — serve a creare voci-anagrafica senza `auth_id`; ma né `public`, né l'assenza di gate admin sono giustificati da quel flusso.)
 
 **D3 — `users_update`: applicata (039); `users_delete`: assente.** 🔴
 - `users_update` vivo (`qual = auth_id=auth.uid() OR get_my_role() IN ('admin','super_admin')`, `with_check=null`) **coincide con `039`** (nome + espressione) → **039 §1 applicata**.
@@ -130,14 +141,14 @@ Questo spiega due cose della Fase 0:
 
 ## Fotografia sintetica (per l'autore dell'hotfix)
 
-1. **Tripletta viva:** `users_select_same_org` (SELECT, org-scoped) · `users_insert_anyone` (INSERT, **WITH CHECK true**) · `users_update` (UPDATE, `auth_id=auth.uid() OR get_my_role() IN(admin,super_admin)`, **WITH CHECK null**). **Nessuna DELETE.**
+1. **Tripletta viva (RLS on, force off):** `users_select_same_org` (SELECT, `{authenticated}`, org-scoped) · `users_insert_anyone` (INSERT, **`{public}`**, **WITH CHECK true**) · `users_update` (UPDATE, `{authenticated}`, `auth_id=auth.uid() OR get_my_role() IN(admin,super_admin)`, **WITH CHECK null**). **Nessuna DELETE.** `get_my_role()` vivo = identico alla baseline.
 2. **Due delle tre policy vive hanno nomi che non esistono nel repo** → bootstrap da script non versionato; i file non sono affidabili come specchio.
-3. **`036` non applicata** (constraint a 3 ruoli) e **`039 §2`/`users_delete` non riflessa** → stato incoerente (policy nominano `super_admin` vietato; delete mancante rompe la cancellazione utenti in-app).
-4. **`users_insert_anyone` ha una ragione applicativa reale** (P4 = creazione anagrafica esterni senza `auth_id`, `AdminUsers.jsx:182`): **non si può semplicemente ripristinare** la versione repo `WITH CHECK (auth_id=auth.uid())` senza **rompere** quella feature. Qualsiasi irrigidimento deve preservare l'insert di righe senza `auth_id` da parte di un admin.
-5. **Self-elevation** (`users_update` senza `with_check`) e **INSERT non gatato** (`true`) sono i due buchi su `users`; **nessun flusso app legittimo** richiede l'assenza di gate admin su questi.
+3. **`036` non applicata** (constraint a 3 ruoli) e **`039 §2`/`users_delete` non riflessa** → stato incoerente (policy nominano `super_admin` vietato; delete mancante rende la cancellazione utenti in-app un **no-op silenzioso**).
+4. **`users_insert_anyone` ha una ragione applicativa reale** (P4 = creazione anagrafica esterni senza `auth_id`, `AdminUsers.jsx:182`): **non si può semplicemente ripristinare** la versione repo `WITH CHECK (auth_id=auth.uid())` senza **rompere** quella feature. Qualsiasi irrigidimento deve preservare l'insert di righe senza `auth_id` **da parte di un admin**.
+5. **Tre buchi su `users`**, nessuno richiesto da un flusso app legittimo: (a) 🔴🔴 **INSERT aperta a `public`/`anon` con `WITH CHECK true`** (potenziale insert non autenticato — verificare `has_table_privilege('anon','public.users','INSERT')`); (b) 🔴 **self-elevation** (`users_update` senza `with_check`, l'utente può cambiarsi `role` sulla propria riga); (c) 🟠 **DELETE mancante** (rompe la feature, non un rischio di sicurezza). La priorità d'impatto è (a) → (b) → (c).
 
 ---
 
 ## Gate
 
-Sola lettura. Nessuna modifica a schema/codice; unico write: questo file. Nessun fix proposto, nessun SQL di modifica. Le query di Parte 1 sono `SELECT`. Da completare: incollare l'output grezzo integrale di Q1a/Q1b/Q1c per finalizzare `permissive`/`roles`/`relforcerowsecurity`/corpo vivo di `get_my_role()` e confermare l'assenza della policy DELETE.
+Sola lettura. Nessuna modifica a schema/codice; unico write: questo file. Nessun fix proposto, nessun SQL di modifica. **Parte 1 completata** con output vivo (Q1a/Q1b/Q1c): tripletta policy con `permissive`/`roles`, `relrowsecurity=true`/`relforcerowsecurity=false`, corpo vivo di `get_my_role()` identico alla baseline, **assenza policy DELETE confermata**. Unico residuo opzionale (SELECT, sola lettura): `select has_table_privilege('anon','public.users','INSERT');` per quantificare la sfruttabilità da `anon` del finding D2.
