@@ -1,8 +1,9 @@
-import { useState, Fragment } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { db } from '../../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo } from '../../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo, formatTicketId } from '../../../lib/constants'
 import { Badge } from '../../../components/ui'
+import { useMergeSegnalazione } from '../../../hooks/useMergeSegnalazione'
 import MediaCapture from '../../../components/media/MediaCapture'
 import MediaLightbox from '../../../components/media/MediaLightbox'
 import ActivityTimeline from '../../../components/reports/ActivityTimeline'
@@ -14,7 +15,7 @@ import { useToast } from '../../../hooks/useToast'
 import InterventionsForReport from '../../../components/interventions/InterventionsForReport'
 import {
   X, MessageCircle, Clock, Pencil, Trash2, Save, XCircle,
-  AlertTriangle, UserCheck, Sparkles
+  AlertTriangle, UserCheck, Sparkles, GitMerge, Link2, Unlink, ChevronRight
 } from 'lucide-react'
 
 function InfoCard({ label, value, icon }) {
@@ -26,8 +27,9 @@ function InfoCard({ label, value, icon }) {
   )
 }
 
-export default function ReportDetailModal({ selected, user, users, machines, onClose, onUpdate }) {
+export default function ReportDetailModal({ selected, user, users, machines, allReports = [], onClose, onUpdate, onRequestMerge, onOpenReport }) {
   const toast = useToast()
+  const { unmerge, isLoading: mergeLoading } = useMergeSegnalazione()
   const { position, dragging, dragProps } = useDraggable()
   const [detailTab, setDetailTab] = useState('chat')
   const [editing, setEditing] = useState(false)
@@ -42,6 +44,36 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
   const [lightboxIndex, setLightboxIndex] = useState(null)
 
   const photos = (selected.media || []).filter(m => m.type === 'photo')
+
+  // ── Merge duplicati (mig 057) ──
+  const [masterFetched, setMasterFetched] = useState(null)
+  const [confirmUnmerge, setConfirmUnmerge] = useState(false)
+  const TERMINAL = ['risolta', 'chiuso']
+  const isDuplicate = !!selected.duplicate_of_id
+  const roleOk = ['tecnico', 'admin', 'super_admin'].includes(user?.role)
+  const masterFromList = allReports.find(r => r.id === selected.duplicate_of_id)
+  const master = masterFromList
+    || (masterFetched && masterFetched.id === selected.duplicate_of_id ? masterFetched : null)
+  const children = allReports.filter(r => r.duplicate_of_id === selected.id)
+  const canMerge = roleOk && !isDuplicate && children.length === 0 && !TERMINAL.includes(selected.status)
+
+  // Se la master non è nel set già caricato (es. deep-link al duplicato), falla
+  // fetch una volta sola per popolare il banner.
+  useEffect(() => {
+    let alive = true
+    if (selected.duplicate_of_id && !allReports.some(r => r.id === selected.duplicate_of_id)) {
+      db.getReport(selected.duplicate_of_id).then(r => { if (alive && r) setMasterFetched(r) }).catch(() => {})
+    }
+    return () => { alive = false }
+  }, [selected.duplicate_of_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleUnmerge = async () => {
+    try {
+      const updated = await unmerge(selected.id)
+      setConfirmUnmerge(false)
+      onUpdate(updated)
+    } catch { /* toast già mostrato dall'hook */ }
+  }
 
   const allAssignableUsers = users.filter(u => u.role === 'tecnico' || u.role === 'operatore' || u.role === 'admin')
   const setEdit = (key, val) => setEditForm(f => ({ ...f, [key]: val }))
@@ -279,6 +311,39 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
               </div>
             ) : (
               <>
+                {isDuplicate && (
+                  <div className="rounded-xl p-3 border" style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.3)' }}>
+                    <div className="flex items-start gap-2">
+                      <Link2 size={15} className="text-amber-400 mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400">Segnalazione unita</p>
+                        {master ? (
+                          <button onClick={() => onOpenReport?.(master.id)}
+                            className="text-sm text-themed font-medium hover:text-amber-300 transition-colors mt-0.5 text-left inline-flex items-center gap-1">
+                            Unita a {formatTicketId(master)} · {STATUS[master.status]?.label || master.status}
+                            <ChevronRight size={13} />
+                          </button>
+                        ) : (
+                          <p className="text-sm text-themed mt-0.5">Unita a un'altra segnalazione</p>
+                        )}
+                        {roleOk && (!confirmUnmerge ? (
+                          <button onClick={() => setConfirmUnmerge(true)}
+                            className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-400 hover:text-amber-300">
+                            <Unlink size={12} /> Annulla unione
+                          </button>
+                        ) : (
+                          <div className="mt-2 flex items-center gap-2 flex-wrap">
+                            <button onClick={handleUnmerge} disabled={mergeLoading}
+                              className="inline-flex items-center gap-1.5 text-[12px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-500 text-black hover:bg-amber-400 transition-all disabled:opacity-50">
+                              {mergeLoading ? 'Annullo…' : 'Conferma annullamento'}
+                            </button>
+                            <button onClick={() => setConfirmUnmerge(false)} className="text-[12px] text-muted hover:text-white">Mantieni unione</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {selected.machine && (
                   <div className="bg-surface-2 rounded-xl p-3 flex items-center gap-2">
                     <span className="text-lg">🏭</span>
@@ -349,6 +414,27 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                   {selected.is_quick && <p>Report: <span className="text-amber-400 font-medium">⚡ Quick Report</span></p>}
                 </div>
 
+                {children.length > 0 && (
+                  <div>
+                    <p className="text-[11px] text-faint uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <GitMerge size={12} /> Include {children.length} {children.length === 1 ? 'segnalazione unita' : 'segnalazioni unite'}
+                    </p>
+                    <div className="space-y-1.5">
+                      {children.map(c => (
+                        <button key={c.id} onClick={() => onOpenReport?.(c.id)}
+                          className="w-full text-left bg-surface-2 hover:bg-violet-500/5 rounded-lg px-3 py-2 transition-colors group">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: 'var(--color-primary-glow)', color: 'var(--color-primary)', fontFamily: '"JetBrains Mono", monospace' }}>{formatTicketId(c)}</span>
+                            <span className="text-[13px] text-themed font-medium truncate group-hover:text-violet-300">{c.title}</span>
+                            <ChevronRight size={13} className="ml-auto text-faint shrink-0" />
+                          </div>
+                          <p className="text-[11px] text-faint mt-0.5">{c.created_by_name || 'Sconosciuto'} · {formatDate(c.created_at)}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Interventi pianificati collegati al report (Sprint 1a) */}
                 <InterventionsForReport report={selected} user={user} />
               </>
@@ -402,6 +488,17 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
 
           {/* COL 3: Actions */}
           <div className="col-span-3 overflow-y-auto p-4 space-y-4">
+            {isDuplicate && (
+              <div className="bg-surface-1 rounded-2xl p-4 space-y-2">
+                <p className="text-[11px] text-faint uppercase tracking-wider flex items-center gap-1.5">
+                  <Link2 size={13} /> Unita
+                </p>
+                <p className="text-[12px] text-muted leading-relaxed">
+                  Questa segnalazione è chiusa come duplicato{master ? ` di ${formatTicketId(master)}` : ''}. Usa “Annulla unione” nel riquadro in alto a sinistra per ripristinarla e modificarne stato e assegnazione.
+                </p>
+              </div>
+            )}
+            {!isDuplicate && (<>
             <div className="bg-surface-1 rounded-2xl p-4 space-y-3">
               <p className="text-[11px] text-faint uppercase tracking-wider flex items-center gap-1.5">
                 <UserCheck size={13} /> Assegna a
@@ -443,6 +540,16 @@ export default function ReportDetailModal({ selected, user, users, machines, onC
                 ))}
               </div>
             </div>
+
+            {canMerge && (
+              <div className="bg-surface-1 rounded-2xl p-4">
+                <button onClick={() => onRequestMerge?.()}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-violet-400/80 hover:text-violet-300 hover:bg-violet-500/10 transition-all">
+                  <GitMerge size={15} /> Unisci a un'altra…
+                </button>
+              </div>
+            )}
+            </>)}
 
             <div className="bg-surface-1 rounded-2xl p-4">
               {!showDeleteConfirm ? (
