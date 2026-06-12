@@ -354,6 +354,27 @@ export default function ReportDetailModal({ selected, user, users, machines, all
                   <p className="text-[11px] text-faint uppercase tracking-wider mb-1">Descrizione</p>
                   <p className="text-[14px] text-secondary leading-relaxed">{selected.description}</p>
                 </div>
+                {children.length > 0 && (
+                  <div className="rounded-xl p-3 border" style={{ background: 'rgba(124,106,255,0.08)', borderColor: 'rgba(124,106,255,0.35)' }}>
+                    <p className="text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: 'var(--color-primary)' }}>
+                      <GitMerge size={13} /> Include {children.length} {children.length === 1 ? 'segnalazione unita' : 'segnalazioni unite'}
+                    </p>
+                    <div className="space-y-1.5">
+                      {children.map(c => (
+                        <button key={c.id} onClick={() => onOpenReport?.(c.id)}
+                          className="w-full text-left rounded-lg px-3 py-2 transition-colors group flex items-center gap-2 border press-scale"
+                          style={{ background: 'var(--color-surface-1)', borderColor: 'var(--color-border)' }}>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: 'var(--color-primary-glow)', color: 'var(--color-primary)', fontFamily: '"JetBrains Mono", monospace' }}>{formatTicketId(c)}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] text-themed font-medium truncate group-hover:text-violet-300">{c.title}</span>
+                            <span className="block text-[10px] text-faint">{c.created_by_name || 'Sconosciuto'} · {formatDate(c.created_at)}</span>
+                          </span>
+                          <span className="text-[10px] font-bold shrink-0 inline-flex items-center gap-0.5" style={{ color: 'var(--color-primary)' }}>Apri <ChevronRight size={12} /></span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <InfoCard label="Creato da" value={selected.created_by_name || '—'} />
                   <InfoCard label="Data" value={formatDate(selected.created_at)} />
@@ -413,27 +434,6 @@ export default function ReportDetailModal({ selected, user, users, machines, all
                   {selected.type && <p>Tipo: <span className="text-secondary font-medium">{REPORT_TYPES[selected.type]?.icon} {REPORT_TYPES[selected.type]?.label || selected.type}</span></p>}
                   {selected.is_quick && <p>Report: <span className="text-amber-400 font-medium">⚡ Quick Report</span></p>}
                 </div>
-
-                {children.length > 0 && (
-                  <div>
-                    <p className="text-[11px] text-faint uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <GitMerge size={12} /> Include {children.length} {children.length === 1 ? 'segnalazione unita' : 'segnalazioni unite'}
-                    </p>
-                    <div className="space-y-1.5">
-                      {children.map(c => (
-                        <button key={c.id} onClick={() => onOpenReport?.(c.id)}
-                          className="w-full text-left bg-surface-2 hover:bg-violet-500/5 rounded-lg px-3 py-2 transition-colors group">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: 'var(--color-primary-glow)', color: 'var(--color-primary)', fontFamily: '"JetBrains Mono", monospace' }}>{formatTicketId(c)}</span>
-                            <span className="text-[13px] text-themed font-medium truncate group-hover:text-violet-300">{c.title}</span>
-                            <ChevronRight size={13} className="ml-auto text-faint shrink-0" />
-                          </div>
-                          <p className="text-[11px] text-faint mt-0.5">{c.created_by_name || 'Sconosciuto'} · {formatDate(c.created_at)}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Interventi pianificati collegati al report (Sprint 1a) */}
                 <InterventionsForReport report={selected} user={user} />
