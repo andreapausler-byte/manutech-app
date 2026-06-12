@@ -130,6 +130,12 @@ export default function AdminReports({ initialReportId }) {
     return m
   }, [reports])
 
+  // Le segnalazioni duplicate (mig 058) NON compaiono come righe a sé: vivono
+  // solo dentro la principale (blocco "Include N…" del dettaglio). Restano in
+  // `reports` (passato al dettaglio come allReports) per il lookup dei figli e
+  // per duplicateCountByMaster; lista, conteggi e filtri usano visibleReports.
+  const visibleReports = useMemo(() => reports.filter(r => !r.duplicate_of_id), [reports])
+
   // Toggle stella con optimistic update. Se la chiamata DB fallisce,
   // rollback dello state per coerenza UI ↔ DB.
   const toggleStar = async (reportId, e) => {
@@ -180,10 +186,26 @@ export default function AdminReports({ initialReportId }) {
   }, [])
 
   // ── Deep link da email: apri report specifico ──
+  // Se il target è un duplicato (unito a una master), apri direttamente la
+  // master: la duplicata vive solo dentro la principale, niente dead-end.
   useEffect(() => {
     if (initialReportId && !loading && !selected) {
       db.getReport(initialReportId).then(report => {
-        if (report) setSelected(report)
+        if (!report) return
+        if (report.duplicate_of_id) {
+          db.getReport(report.duplicate_of_id)
+            .then(master => {
+              if (master) {
+                setSelected(master)
+                hotToast('Aperta la segnalazione principale (questa era un duplicato)', { icon: '🔗' })
+              } else {
+                setSelected(report)
+              }
+            })
+            .catch(() => setSelected(report))
+          return
+        }
+        setSelected(report)
       }).catch(() => console.warn('[ManuTech] Impossibile caricare report:', initialReportId))
     }
   }, [initialReportId, loading]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -193,7 +215,7 @@ export default function AdminReports({ initialReportId }) {
   // Search estesa per coerenza con la mobile (ReportsList.jsx): titolo,
   // descrizione, macchina (snapshot + fallback via machine_id), tecnico
   // assegnato, creatore, TK-id (normalizzato) e UUID raw.
-  const filtered = reports.filter(r => {
+  const filtered = visibleReports.filter(r => {
     if (filterStatus && r.status !== filterStatus) return false
     if (filterSeverity && r.severity !== filterSeverity) return false
     if (debouncedSearch) {
@@ -512,7 +534,7 @@ export default function AdminReports({ initialReportId }) {
                 borderColor: 'var(--color-border)',
               }}
             >
-              {reports.length}
+              {visibleReports.length}
             </span>
           </h1>
 
@@ -567,13 +589,13 @@ export default function AdminReports({ initialReportId }) {
               ? { ...glassPanelStyle, background: 'rgba(124,106,255,0.10)', borderColor: 'rgba(124,106,255,0.6)', color: '#a594ff' }
               : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
           >
-            Tutte <span className="ml-2 opacity-60 font-normal">{reports.length}</span>
+            Tutte <span className="ml-2 opacity-60 font-normal">{visibleReports.length}</span>
           </button>
 
           <div className="h-4 w-px mx-1" style={{ background: 'var(--color-border)' }} />
 
           {Object.entries(STATUS).map(([key, { label, color }]) => {
-            const count = reports.filter(r => r.status === key).length
+            const count = visibleReports.filter(r => r.status === key).length
             const isActive = filterStatus === key
             return (
               <button
