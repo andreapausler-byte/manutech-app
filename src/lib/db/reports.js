@@ -266,4 +266,64 @@ export const reports = {
     if (starred) filtered.push({ user_id: userId, report_id: reportId, starred_at: new Date().toISOString() })
     setStore(KEYS.reportStars, filtered)
   },
+
+  // ─── MERGE DUPLICATI (migration 058) ───
+  // Unisce la segnalazione `duplicateId` alla `masterId`: la duplicata viene
+  // chiusa (status='chiuso', closed_reason='duplicato') e linkata via
+  // duplicate_of_id. Atomico e reversibile (unmergeReport). La logica vera e le
+  // validazioni vivono nella RPC SECURITY DEFINER `merge_reports`; qui solo il
+  // dispatch + un fallback demo che replica gli stessi vincoli su localStorage.
+  async mergeReports(duplicateId, masterId) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('merge_reports', {
+        p_duplicate_id: duplicateId,
+        p_master_id: masterId,
+      })
+      if (error) throw new Error(error.message)
+      return data
+    }
+    // Demo: replica i vincoli della RPC su localStorage.
+    if (duplicateId === masterId) throw new Error('Una segnalazione non può essere duplicato di sé stessa')
+    const list = getStore(KEYS.reports)
+    const dup = list.find(r => r.id === duplicateId)
+    const master = list.find(r => r.id === masterId)
+    if (!dup || !master) throw new Error('Segnalazione non trovata')
+    if (dup.duplicate_of_id) throw new Error("La segnalazione è già stata unita a un'altra")
+    if (master.duplicate_of_id) throw new Error('La destinazione è essa stessa un duplicato: unisci direttamente alla segnalazione principale')
+    if (list.some(r => r.duplicate_of_id === dup.id)) throw new Error('Questa segnalazione include altre segnalazioni unite: scollegale prima')
+    if (['risolta', 'chiuso'].includes(master.status)) throw new Error('La destinazione è chiusa: scegli una segnalazione attiva')
+    const now = new Date().toISOString()
+    dup.status = 'chiuso'
+    dup.closed_reason = 'duplicato'
+    dup.duplicate_of_id = masterId
+    dup.merged_at = now
+    dup.merged_by = null
+    dup.updated_at = now
+    setStore(KEYS.reports, list)
+    return { ...dup }
+  },
+
+  // Reverte un merge: ripristina lo stato pre-merge ('assegnata' se assegnatario
+  // presente, altrimenti 'aperta') e azzera i campi di unione.
+  async unmergeReport(duplicateId) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('unmerge_report', {
+        p_duplicate_id: duplicateId,
+      })
+      if (error) throw new Error(error.message)
+      return data
+    }
+    const list = getStore(KEYS.reports)
+    const dup = list.find(r => r.id === duplicateId)
+    if (!dup) throw new Error('Segnalazione non trovata')
+    if (!dup.duplicate_of_id) throw new Error('Questa segnalazione non è unita ad alcuna master')
+    dup.status = dup.assigned_to ? 'assegnata' : 'aperta'
+    dup.closed_reason = null
+    dup.duplicate_of_id = null
+    dup.merged_at = null
+    dup.merged_by = null
+    dup.updated_at = new Date().toISOString()
+    setStore(KEYS.reports, list)
+    return { ...dup }
+  },
 }

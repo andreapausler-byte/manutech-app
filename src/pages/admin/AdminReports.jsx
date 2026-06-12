@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import hotToast from 'react-hot-toast'
 import { db, supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatDate, formatTicketId } from '../../lib/constants'
@@ -6,8 +7,10 @@ import { PLANNING_STATE } from '../../lib/interventions'
 import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner, TicketIdBadge } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
 import ReportDetailModal from './reports/ReportDetailModal'
+import MergeReportModal from './reports/MergeReportModal'
+import { useMergeSegnalazione } from '../../hooks/useMergeSegnalazione'
 import { avatarGradient } from '../../hooks/usePremiumUI'
-import { Plus, Search, X, ChevronUp, ChevronDown, ChevronRight, Star } from 'lucide-react'
+import { Plus, Search, X, ChevronUp, ChevronDown, ChevronRight, Star, GitMerge } from 'lucide-react'
 
 const TERMINAL_STATUSES = ['risolta', 'chiuso']
 const RECENT_COMPLETED_WINDOW_HOURS = 24
@@ -60,6 +63,10 @@ export default function AdminReports({ initialReportId }) {
   // Mappa reportId → { planning_state, active_count, next_at } dalla view
   // reports_with_planning (mig 053). Mostrato come chip accanto al titolo.
   const [planningMap, setPlanningMap] = useState({})
+  // Merge duplicati (mig 058): segnalazione sorgente del modal "Unisci a…".
+  const [mergeSource, setMergeSource] = useState(null)
+  const { unmerge } = useMergeSegnalazione()
+  const canMergeRole = ['tecnico', 'admin', 'super_admin'].includes(user?.role)
 
   const load = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
@@ -111,6 +118,17 @@ export default function AdminReports({ initialReportId }) {
     for (const machine of machines) m.set(machine.id, machine.name)
     return m
   }, [machines])
+
+  // Conteggio duplicati per master (mig 058): calcolato client-side dal set già
+  // caricato (i duplicati hanno duplicate_of_id valorizzato). Niente embedded
+  // count PostgREST → nessun rischio di ambiguità self-join. Vedi corrections §10.
+  const duplicateCountByMaster = useMemo(() => {
+    const m = new Map()
+    for (const r of reports) {
+      if (r.duplicate_of_id) m.set(r.duplicate_of_id, (m.get(r.duplicate_of_id) || 0) + 1)
+    }
+    return m
+  }, [reports])
 
   // Toggle stella con optimistic update. Se la chiamata DB fallisce,
   // rollback dello state per coerenza UI ↔ DB.
@@ -297,11 +315,51 @@ export default function AdminReports({ initialReportId }) {
     if (deleted) load()
   }
 
+  // Apre il dettaglio di un report dato l'id (navigazione banner/figli del merge).
+  const openReportById = (id) => {
+    const inList = reports.find(r => r.id === id)
+    if (inList) { setSelected(inList); return }
+    db.getReport(id).then(r => { if (r) setSelected(r) }).catch(() => {})
+  }
+
+  // Successo merge: chiudi il modal, aggiorna l'eventuale dettaglio aperto sul
+  // duplicato, refetch, e mostra un toast "Annulla" (undo, ~8s) che invoca unmerge.
+  const handleMerged = (result, meta) => {
+    setMergeSource(null)
+    setSelected(s => (s && s.id === meta.duplicateId ? { ...s, ...result } : s))
+    load()
+    hotToast.custom((t) => (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '12px 16px', borderRadius: 12, maxWidth: 380,
+        background: 'var(--color-surface-1)', border: '1px solid var(--color-border)',
+        boxShadow: 'var(--shadow-xl)',
+      }}>
+        <GitMerge size={16} style={{ color: '#a78bfa', flexShrink: 0 }} />
+        <span style={{ fontSize: 13, color: 'var(--color-text)' }}>
+          Unita a <strong>{formatTicketId(meta.masterReport)}</strong>
+        </span>
+        <button
+          onClick={() => { hotToast.dismiss(t.id); unmerge(meta.duplicateId, { onSuccess: () => load() }) }}
+          style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', marginLeft: 4 }}
+        >
+          Annulla
+        </button>
+        <button onClick={() => hotToast.dismiss(t.id)} aria-label="Chiudi"
+          style={{ color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex' }}>
+          <X size={14} />
+        </button>
+      </div>
+    ), { duration: 8000 })
+  }
+
   const renderReportRow = (r, archived) => {
     const sts = STATUS[r.status] || STATUS.aperta
     const sev = SEVERITY[r.severity] || SEVERITY.media
     const typ = r.type && REPORT_TYPES[r.type] ? REPORT_TYPES[r.type] : null
     const isStarred = starred.has(r.id)
+    const dupCount = duplicateCountByMaster.get(r.id) || 0
+    const canMergeRow = canMergeRole && !r.duplicate_of_id && dupCount === 0 && !TERMINAL_STATUSES.includes(r.status)
     const planning = planningMap[r.id]
     const planningMeta = planning && PLANNING_STATE[planning.planning_state]
     // Mostra il chip solo per gli stati informativi (da_pianificare, pianificato,
@@ -344,6 +402,15 @@ export default function AdminReports({ initialReportId }) {
             background: 'var(--color-primary-glow)',
             color: 'var(--color-primary)',
           }} />
+          {dupCount > 0 && (
+            <span
+              className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded align-middle"
+              title={`${dupCount} ${dupCount === 1 ? 'segnalazione unita' : 'segnalazioni unite'}`}
+              style={{ background: 'rgba(124,106,255,0.14)', color: 'var(--color-primary)' }}
+            >
+              ×{dupCount}
+            </span>
+          )}
           <div
             className="font-semibold mb-0.5 group-hover:text-indigo-300 transition-colors truncate"
             style={{ color: 'var(--color-text)' }}
@@ -403,7 +470,19 @@ export default function AdminReports({ initialReportId }) {
           style={{ color: 'var(--color-text-muted)' }}
           title={r.created_at ? `Creata: ${formatDate(r.created_at)}` : undefined}
         >
-          {timeAgo(r.updated_at || r.created_at)}
+          <div className="inline-flex items-center gap-2 justify-end">
+            {canMergeRow && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setMergeSource(r) }}
+                aria-label="Unisci a un'altra segnalazione"
+                title="Unisci a…"
+                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-violet-500/10 text-muted hover:text-violet-400"
+              >
+                <GitMerge size={15} />
+              </button>
+            )}
+            <span>{timeAgo(r.updated_at || r.created_at)}</span>
+          </div>
         </td>
       </tr>
     )
@@ -670,8 +749,20 @@ export default function AdminReports({ initialReportId }) {
           user={user}
           users={users}
           machines={machines}
+          allReports={reports}
           onClose={handleDetailClose}
           onUpdate={handleDetailUpdate}
+          onRequestMerge={() => setMergeSource(selected)}
+          onOpenReport={openReportById}
+        />
+      )}
+
+      {/* Merge duplicati Modal */}
+      {mergeSource && (
+        <MergeReportModal
+          sourceReport={mergeSource}
+          onClose={() => setMergeSource(null)}
+          onMerged={handleMerged}
         />
       )}
     </div>
