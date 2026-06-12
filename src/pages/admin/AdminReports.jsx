@@ -426,11 +426,11 @@ export default function AdminReports({ initialReportId }) {
           }} />
           {dupCount > 0 && (
             <span
-              className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded align-middle"
-              title={`${dupCount} ${dupCount === 1 ? 'segnalazione unita' : 'segnalazioni unite'}`}
-              style={{ background: 'rgba(124,106,255,0.14)', color: 'var(--color-primary)' }}
+              className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded align-middle"
+              title={`Include ${dupCount} ${dupCount === 1 ? 'segnalazione unita' : 'segnalazioni unite'}`}
+              style={{ background: 'rgba(250,204,21,0.16)', color: '#facc15' }}
             >
-              ×{dupCount}
+              <GitMerge size={11} /> {dupCount}
             </span>
           )}
           <div
