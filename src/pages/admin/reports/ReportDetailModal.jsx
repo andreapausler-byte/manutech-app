@@ -354,27 +354,6 @@ export default function ReportDetailModal({ selected, user, users, machines, all
                   <p className="text-[11px] text-faint uppercase tracking-wider mb-1">Descrizione</p>
                   <p className="text-[14px] text-secondary leading-relaxed">{selected.description}</p>
                 </div>
-                {children.length > 0 && (
-                  <div className="rounded-xl p-3 border" style={{ background: 'rgba(124,106,255,0.08)', borderColor: 'rgba(124,106,255,0.35)' }}>
-                    <p className="text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: 'var(--color-primary)' }}>
-                      <GitMerge size={13} /> Include {children.length} {children.length === 1 ? 'segnalazione unita' : 'segnalazioni unite'}
-                    </p>
-                    <div className="space-y-1.5">
-                      {children.map(c => (
-                        <button key={c.id} onClick={() => onOpenReport?.(c.id)}
-                          className="w-full text-left rounded-lg px-3 py-2 transition-colors group flex items-center gap-2 border press-scale"
-                          style={{ background: 'var(--color-surface-1)', borderColor: 'var(--color-border)' }}>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: 'var(--color-primary-glow)', color: 'var(--color-primary)', fontFamily: '"JetBrains Mono", monospace' }}>{formatTicketId(c)}</span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-[13px] text-themed font-medium truncate group-hover:text-violet-300">{c.title}</span>
-                            <span className="block text-[10px] text-faint">{c.created_by_name || 'Sconosciuto'} · {formatDate(c.created_at)}</span>
-                          </span>
-                          <span className="text-[10px] font-bold shrink-0 inline-flex items-center gap-0.5" style={{ color: 'var(--color-primary)' }}>Apri <ChevronRight size={12} /></span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 <div className="grid grid-cols-2 gap-2">
                   <InfoCard label="Creato da" value={selected.created_by_name || '—'} />
                   <InfoCard label="Data" value={formatDate(selected.created_at)} />
@@ -488,6 +467,27 @@ export default function ReportDetailModal({ selected, user, users, machines, all
 
           {/* COL 3: Actions */}
           <div className="col-span-3 overflow-y-auto p-4 space-y-4">
+            {children.length > 0 && (
+              <div className="rounded-2xl p-4 border" style={{ background: 'rgba(250, 204, 21, 0.10)', borderColor: 'rgba(250, 204, 21, 0.40)' }}>
+                <p className="text-[11px] font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5" style={{ color: '#facc15' }}>
+                  <GitMerge size={13} /> Include {children.length} {children.length === 1 ? 'segnalazione unita' : 'segnalazioni unite'}
+                </p>
+                <div className="space-y-1.5">
+                  {children.map(c => (
+                    <button key={c.id} onClick={() => onOpenReport?.(c.id)}
+                      className="w-full text-left rounded-lg px-3 py-2 transition-colors group flex items-center gap-2 border press-scale"
+                      style={{ background: 'var(--color-surface-1)', borderColor: 'rgba(250, 204, 21, 0.25)' }}>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(250,204,21,0.16)', color: '#facc15', fontFamily: '"JetBrains Mono", monospace' }}>{formatTicketId(c)}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] text-themed font-medium truncate group-hover:text-yellow-200">{c.title}</span>
+                        <span className="block text-[10px] text-faint">{c.created_by_name || 'Sconosciuto'} · {formatDate(c.created_at)}</span>
+                      </span>
+                      <span className="text-[10px] font-bold shrink-0 inline-flex items-center gap-0.5" style={{ color: '#facc15' }}>Apri <ChevronRight size={12} /></span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {isDuplicate && (
               <div className="bg-surface-1 rounded-2xl p-4 space-y-2">
                 <p className="text-[11px] text-faint uppercase tracking-wider flex items-center gap-1.5">
