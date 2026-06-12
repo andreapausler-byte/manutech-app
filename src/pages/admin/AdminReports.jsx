@@ -63,7 +63,7 @@ export default function AdminReports({ initialReportId }) {
   // Mappa reportId → { planning_state, active_count, next_at } dalla view
   // reports_with_planning (mig 053). Mostrato come chip accanto al titolo.
   const [planningMap, setPlanningMap] = useState({})
-  // Merge duplicati (mig 057): segnalazione sorgente del modal "Unisci a…".
+  // Merge duplicati (mig 058): segnalazione sorgente del modal "Unisci a…".
   const [mergeSource, setMergeSource] = useState(null)
   const { unmerge } = useMergeSegnalazione()
   const canMergeRole = ['tecnico', 'admin', 'super_admin'].includes(user?.role)
@@ -119,7 +119,7 @@ export default function AdminReports({ initialReportId }) {
     return m
   }, [machines])
 
-  // Conteggio duplicati per master (mig 057): calcolato client-side dal set già
+  // Conteggio duplicati per master (mig 058): calcolato client-side dal set già
   // caricato (i duplicati hanno duplicate_of_id valorizzato). Niente embedded
   // count PostgREST → nessun rischio di ambiguità self-join. Vedi corrections §10.
   const duplicateCountByMaster = useMemo(() => {

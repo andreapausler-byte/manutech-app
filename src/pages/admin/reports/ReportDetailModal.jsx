@@ -45,7 +45,7 @@ export default function ReportDetailModal({ selected, user, users, machines, all
 
   const photos = (selected.media || []).filter(m => m.type === 'photo')
 
-  // ── Merge duplicati (mig 057) ──
+  // ── Merge duplicati (mig 058) ──
   const [masterFetched, setMasterFetched] = useState(null)
   const [confirmUnmerge, setConfirmUnmerge] = useState(false)
   const TERMINAL = ['risolta', 'chiuso']

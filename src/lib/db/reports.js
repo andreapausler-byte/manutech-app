@@ -267,7 +267,7 @@ export const reports = {
     setStore(KEYS.reportStars, filtered)
   },
 
-  // ─── MERGE DUPLICATI (migration 057) ───
+  // ─── MERGE DUPLICATI (migration 058) ───
   // Unisce la segnalazione `duplicateId` alla `masterId`: la duplicata viene
   // chiusa (status='chiuso', closed_reason='duplicato') e linkata via
   // duplicate_of_id. Atomico e reversibile (unmergeReport). La logica vera e le

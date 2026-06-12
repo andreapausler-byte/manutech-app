@@ -1,7 +1,7 @@
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- Migration 057 — DOWN
+-- Migration 058 — DOWN
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- Reverte 057_merge_duplicate_reports.sql.
+-- Reverte 058_merge_duplicate_reports.sql.
 -- Ordine inverso: funzioni, indice, colonne.
 --
 -- NB: eventuali merge già effettuati vengono persi (le colonne sono droppate).

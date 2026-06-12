@@ -1,6 +1,9 @@
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- Migration 057 — Merge duplicati segnalazioni
+-- Migration 058 — Merge duplicati segnalazioni
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- NB numerazione: il numero 057 è stato preso da un branch parallelo
+-- (claude/migration-057-harden-users-rls, ADR-007). Questa migrazione, additiva
+-- e indipendente, cede ed è rinumerata a 058 per evitare la collisione.
 --
 -- Permette a tecnici/admin/super_admin di unire una segnalazione "duplicata" a
 -- una "master": la duplicata viene chiusa (status='chiuso', closed_reason=
@@ -23,7 +26,7 @@
 -- ⚠️  APPLICARE via Supabase Dashboard SQL Editor PRIMA del deploy frontend
 --     (vedi "Sequenza di rilascio" nel briefing / corrections §10).
 --
--- DOWN: 057_merge_duplicate_reports_down.sql
+-- DOWN: 058_merge_duplicate_reports_down.sql
 
 
 -- ── 1. Colonne + indice ────────────────────────────────────────────────

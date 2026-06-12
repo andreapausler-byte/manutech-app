@@ -76,8 +76,12 @@ esecuzione). Il briefing indicava `claude/merge-duplicati-segnalazioni`: vedi §
 - **Reale**: `056_intervention_participants.sql` è una **migrazione normale**
   (Sprint 1c MVP), senza alcun marcatore "DO NOT APPLY". L'ultimo numero usato è
   **056**.
-- **Risoluzione**: prossimo numero libero = **057** (stessa conclusione del
-  briefing). File: `057_merge_duplicate_reports.sql` (+ `_down.sql`).
+- **Risoluzione**: su `master` il prossimo numero libero era 057. Ma un branch
+  parallelo non ancora mergiato, `claude/migration-057-harden-users-rls`
+  (ADR-007, hardening org_id), aggiunge `057_harden_users_rls.sql`. Per evitare
+  la collisione, questa migrazione — additiva e indipendente — **cede e usa il
+  058**: `058_merge_duplicate_reports.sql` (+ `_down.sql`). Se quel branch venisse
+  rinumerato o abbandonato, 058 resta comunque valido.
 
 ## 7. Naming RPC, hook, componenti (lingua codice = inglese)
 
@@ -174,7 +178,7 @@ esecuzione). Il briefing indicava `claude/merge-duplicati-segnalazioni`: vedi §
 
 ### Sequenza di rilascio (invariata rispetto al briefing)
 
-1. Migrazione consegnata nel repo: `057_merge_duplicate_reports.sql`.
+1. Migrazione consegnata nel repo: `058_merge_duplicate_reports.sql`.
 2. **Andrea applica la migrazione** via Supabase Dashboard SQL Editor (progetto
    `jjrgrkxcnqltlkcnqyoi`) — **prima** del deploy.
 3. Solo dopo: deploy del frontend.
