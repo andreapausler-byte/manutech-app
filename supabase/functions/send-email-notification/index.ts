@@ -183,17 +183,22 @@ Deno.serve(async (req: Request) => {
     let targetUsers: Array<{ id: string; email: string; role: string }> = []
 
     if (notification.target_user) {
+      // Solo utenti attivi: un invito ancora 'pending' (o un account 'disabled')
+      // non deve ricevere email di notifica.
       const { data } = await supabase
         .from('users')
         .select('id, email, role')
         .eq('id', notification.target_user)
+        .eq('status', 'active')
       targetUsers = data || []
     } else {
-      // Broadcast: tutti gli utenti della stessa org (escluso il mittente)
+      // Broadcast: tutti gli utenti ATTIVI della stessa org (escluso il mittente).
+      // Il filtro status esclude inviti 'pending' mai accettati e account 'disabled'.
       let query = supabase
         .from('users')
         .select('id, email, role')
         .eq('org_id', notification.org_id || 'default')
+        .eq('status', 'active')
 
       if (notification.from_user) {
         query = query.neq('id', notification.from_user)

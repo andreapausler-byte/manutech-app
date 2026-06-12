@@ -417,10 +417,12 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Ottieni tutte le organizzazioni attive
+    // Solo utenti attivi: esclude inviti 'pending' mai accettati e account 'disabled',
+    // che altrimenti riceverebbero il digest settimanale.
     const { data: allUsers } = await supabase
       .from('users')
       .select('id, name, email, role, org_id')
+      .eq('status', 'active')
 
     if (!allUsers || allUsers.length === 0) {
       return new Response(JSON.stringify({ sent: 0, message: 'No users found' }), {
