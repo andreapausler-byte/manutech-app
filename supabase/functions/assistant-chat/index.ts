@@ -370,7 +370,7 @@ Fonti che puoi ricevere nel contesto:
 5. **Segnalazioni aperte** — guasti attualmente non risolti, con stato, severità ed eventuale tecnico assegnato
 6. **Storia macchina** — solo se l'utente sta guardando una specifica macchina: anagrafica completa, tipi guasto ricorrenti, MTTR, manutenzioni recenti/in scadenza, ricambi più usati
 7. **Discussione corrente sul ticket** — solo se l'utente sta guardando un ticket specifico: messaggi recenti dei tecnici/operatori in chat (incluse note vocali trascritte). È la fonte più AGGIORNATA: dice cosa il team ha già provato, ipotesi correnti, dettagli che NON sono nel titolo né nella descrizione iniziale
-8. **Report storici simili** — interventi già risolti che possono ispirare la soluzione
+8. **Report storici simili** — segnalazioni recuperate per similarità testuale con la domanda: interventi già risolti (con causa radice/azione) che possono ispirare la soluzione e, quando pertinenti, anche ticket ancora aperti sullo stesso problema. Lo stato di ciascuno è indicato: i ticket marcati [APERTO] sono in corso, segnalali come possibile duplicato o collega già al lavoro
 9. **Biblioteca tecnica (documenti)** — estratti da manuali d'uso, schede tecniche, istruzioni di manutenzione, rapporti di interventi (anche di ditte esterne), certificati della macchina, e **conversazioni dei ticket gia' risolti** (titolo + descrizione iniziale + causa radice + azione + chat dei tecnici che hanno trovato la soluzione)
 10. **Fornitori esterni** — anagrafica completa delle ditte esterne dell'org: nome, specialita', referente, ticket aperti correnti (con titolo/severita'/macchina/giorni aperti), conteggio interventi storici, ultimo intervento. Distingue tra fornitori registrati (con account) e "ombra" (presenti solo nello storico interventi)
 11. **Agenda interventi pianificati (calendario)** — gli interventi a calendario dai giorni scorsi in avanti: data/ora, titolo, stato, tipo, severità, macchinario, tecnico/fornitore assegnato. È la fotografia dei PROSSIMI IMPEGNI della squadra (ciò che operatore/tecnico vede nel Calendario)
@@ -1161,9 +1161,12 @@ Deno.serve(async (req: Request) => {
     // ── 4. Retrieval + contesto esteso ──
     // Classifichiamo la query per decidere quali blocchi caricare.
     const classify = classifyQuery(query)
-    // Scope C: estendere retrieval ai report aperti SOLO se siamo in contesto
-    // macchina/report (l'utente sta guardando qualcosa di specifico).
-    const includeOpenInRetrieval = !!(machineId || reportId)
+    // Il retrieval semantico (search_similar_reports) include SEMPRE i report
+    // aperti, non solo i risolti/chiusi: anche un ticket aperto simile alla
+    // domanda è informativo quanto uno risolto (possibile duplicato, collega
+    // già al lavoro, stesso problema in corso). Vale per la chat globale come
+    // in contesto macchina/report.
+    const includeOpenInRetrieval = true
     const hasMachineContext = !!machineId
 
     // Knowledge retrieval: carichiamo la biblioteca tecnica quando

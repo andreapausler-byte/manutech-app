@@ -236,7 +236,7 @@ function WelcomeState({ suggestions, onPick }) {
           lineHeight: 1.5,
         }}
       >
-        Descrivi il guasto: cercherò soluzioni negli interventi già risolti dalla tua squadra.
+        Descrivi il guasto: cercherò soluzioni negli interventi della tua squadra, risolti e ancora aperti.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
         {suggestions.map((s) => (
