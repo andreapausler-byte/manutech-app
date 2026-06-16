@@ -1177,8 +1177,12 @@ Deno.serve(async (req: Request) => {
     // (carica tutte le fonti) e allarga le finestre temporali / i cap.
     const deep = power === 'approfondito'
 
+    // Baseline chat globale: la biblioteca tecnica (manuali + chat dei ticket
+    // GIÀ RISOLTI indicizzati) è sempre caricata in scope 'global', così la
+    // chat sonda i ticket invece di limitarsi a pianificazioni/agenda anche
+    // quando il classificatore a parole-chiave non la "indovina".
     const shouldFetchKnowledge =
-      deep || classify.wantKnowledge || classify.wantDiagnostic || hasMachineContext
+      scope === 'global' || deep || classify.wantKnowledge || classify.wantDiagnostic || hasMachineContext
     // Inventario: lo carichiamo quando l'utente chiede matricole/anagrafica,
     // quando fa domande meta (serve per referenziare le macchine),
     // strategiche, o quando NON è in contesto macchina (org-wide overview).
@@ -1238,7 +1242,10 @@ Deno.serve(async (req: Request) => {
       deep || classify.wantStats || classify.wantDiagnostic || classify.wantStrategic
         ? supabase.rpc('get_assistant_org_stats')
         : Promise.resolve({ data: null, error: null }),
-      deep || classify.wantOpen || classify.wantDiagnostic || classify.wantStrategic || hasMachineContext
+      // Baseline chat globale: snapshot delle segnalazioni aperte sempre
+      // caricato in scope 'global' (non solo quando il classificatore vede
+      // parole tipo "aperti"/"in corso"), così la chat parte sempre dai ticket.
+      scope === 'global' || deep || classify.wantOpen || classify.wantDiagnostic || classify.wantStrategic || hasMachineContext
         ? supabase.rpc('get_open_reports_snapshot', { p_machine_id: machineId ?? null })
         : Promise.resolve({ data: null, error: null }),
       hasMachineContext
