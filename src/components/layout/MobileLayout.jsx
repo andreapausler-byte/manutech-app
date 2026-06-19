@@ -20,6 +20,7 @@ import NewReport from '../reports/NewReport'
 import QuickReport from '../reports/QuickReport'
 import ReportDetail from '../reports/ReportDetail'
 import VoiceNewTicketFlow from '../voice/VoiceNewTicketFlow'
+import PendingVoiceRecordings from '../voice/PendingVoiceRecordings'
 import MobileMachinesList from '../machines/MobileMachinesList'
 import MobileMachineDetail from '../machines/MobileMachineDetail'
 import ProfilePage from '../../pages/mobile/ProfilePage'
@@ -752,6 +753,8 @@ export default function MobileLayout({ initialReportId }) {
           {tab === 'profile' && <ProfilePage onOpenWallet={() => switchTab('wallet')} />}
         </div>
       </main>
+
+      <PendingVoiceRecordings />
 
       <ContextualFAB
         tab={tab}

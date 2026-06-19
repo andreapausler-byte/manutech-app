@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../../lib/supabase'
 import { useVoiceCapture } from '../../hooks/useVoiceCapture'
+import { submitVoice } from '../../lib/voiceOutbox'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import { STATUS } from '../../lib/constants'
@@ -36,6 +37,7 @@ export default function VoiceUpdateFlow({ report, user, onClose, onApplied }) {
 
   const voice = useVoiceCapture({
     context: 'tech_update',
+    user,
     contextPayload: {
       ticket_id: report.id,
       ticket_title: report.title,
@@ -84,6 +86,7 @@ export default function VoiceUpdateFlow({ report, user, onClose, onApplied }) {
         setTranscription={voice.setTranscription}
         transcribing={voice.transcribing}
         audioBlob={voice.audioBlob}
+        outboxId={voice.outboxId}
         error={voice.error}
         report={report}
         user={user}
@@ -109,7 +112,7 @@ function buildFormFromFields(fields) {
   }
 }
 
-function ReviewForm({ fields, transcription, setTranscription, transcribing, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
+function ReviewForm({ fields, transcription, setTranscription, transcribing, audioBlob, outboxId, error, report, user, onCancel, onSubmitted, haptic, toast }) {
   const [form, setForm] = useState(() => buildFormFromFields(fields))
   const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
@@ -150,12 +153,31 @@ function ReviewForm({ fields, transcription, setTranscription, transcribing, aud
         tempo_intervento_minuti: tempoMinuti,
       }
 
-      // 1. Aggiorna stato se cambiato
-      let updatedReport = null
       const oldStatus = report.status
       const wantsStatusChange = form.stato_proposto && form.stato_proposto !== oldStatus
+      const commentText = (form.note_tecniche.trim() || transcription || form.diagnosi_confermata || 'Aggiornamento vocale')
+
+      // Consegna unificata: cambio stato (se serve) + audio + commento.
+      // Offline → tutto resta in coda durevole e parte da solo dopo.
+      await submitVoice({
+        outboxId,
+        blob: audioBlob,
+        context: 'tech_update',
+        reportId: report.id,
+        user,
+        text: commentText,
+        extraData: {
+          source: 'voice',
+          ...extractedSummary,
+          stato_proposto: form.stato_proposto || null,
+        },
+        media,
+        reportUpdate: wantsStatusChange ? { status: form.stato_proposto } : null,
+        confidence: fields?.confidence ?? null,
+      })
+
+      // Activity + notifiche: best-effort in primo piano (solo online).
       if (wantsStatusChange) {
-        updatedReport = await db.updateReport(report.id, { status: form.stato_proposto })
         const lbl = STATUS[form.stato_proposto]?.label || form.stato_proposto
         db.addActivity(report.id, {
           type: 'status_change',
@@ -180,39 +202,6 @@ function ReviewForm({ fields, transcription, setTranscription, transcribing, aud
           }).catch(e => console.warn('[voice_update] notif failed:', e?.message))
         }
       }
-
-      // 2. Upload audio + comment voice_update
-      let audioUrl = null
-      if (audioBlob) {
-        try {
-          audioUrl = await db.uploadVoiceAudio(audioBlob, report.id, user.id)
-        } catch (e) {
-          console.warn('[voice_update] audio upload failed:', e?.message)
-        }
-      }
-
-      const commentText = (form.note_tecniche.trim() || transcription || form.diagnosi_confermata || 'Aggiornamento vocale')
-      const allMedia = [
-        ...media,
-        ...(audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-update.webm' }] : []),
-      ]
-      await db.addComment(report.id, {
-        text: commentText,
-        user_id: user.id,
-        user_name: user.name,
-        user_role: user.role,
-        kind: 'voice_update',
-        extra_data: {
-          source: 'voice',
-          ...extractedSummary,
-          stato_proposto: form.stato_proposto || null,
-          transcription: transcription || null,
-        },
-        confidence: fields?.confidence ?? null,
-        media: allMedia.length > 0 ? allMedia : null,
-      })
-
-      // 3. Activity per l'update vocale (non solo status)
       db.addActivity(report.id, {
         type: 'voice_update',
         user_id: user.id,
@@ -224,10 +213,16 @@ function ReviewForm({ fields, transcription, setTranscription, transcribing, aud
 
       toast.success(wantsStatusChange ? 'Aggiornamento + stato' : 'Aggiornamento aggiunto')
       haptic.success?.()
-      onSubmitted?.(updatedReport)
+      onSubmitted?.(wantsStatusChange ? { status: form.stato_proposto } : null)
     } catch (err) {
-      toast.error('Errore: ' + (err?.message || 'riprova'))
-      setLoading(false)
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        toast.success('Offline: aggiornamento e audio salvati, invio automatico al ritorno della linea')
+        haptic.success?.()
+        onSubmitted?.(null)
+      } else {
+        toast.error('Invio non riuscito: l\'audio è salvato in sospeso. ' + (err?.message || ''))
+        setLoading(false)
+      }
     }
   }
 

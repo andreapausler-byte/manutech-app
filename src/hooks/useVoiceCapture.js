@@ -1,146 +1,53 @@
 import { useState, useRef, useCallback } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { useToast } from './useToast'
+import { useHaptic } from './useHaptic'
+import { enqueueVoiceCapture, enrichVoiceItem } from '../lib/voiceOutbox'
+import {
+  requestTranscription, applyCorrections, looksLikeHallucination, buildVocabulary,
+  withTimeout, TRANSCRIPTION_TIMEOUT_MS, MIN_AUDIO_BYTES, MIN_AUDIO_MS,
+} from '../lib/transcription'
 
 /**
  * useVoiceCapture — pipeline vocale generica riusabile per ManuTech.
  *
- * Gestisce SOLO la cattura audio + trascrizione (Whisper) + estrazione
- * campi strutturati (Claude Haiku). NON sa nulla di submit/persistenza:
- * il consumer decide come usare i fields estratti e l'audioBlob.
+ * Cattura audio + trascrizione (Whisper) + estrazione campi (Claude Haiku).
  *
- * Stati:
- *   idle         — pronto a registrare
- *   recording    — MediaRecorder attivo
- *   review       — review form aperta (con o senza trascrizione pronta)
+ * RESILIENZA OFFLINE (contratto "l'audio non si perde"):
+ *   - Appena la registrazione si ferma, il Blob viene salvato SUBITO su
+ *     IndexedDB (`voiceOutbox`) con feedback immediato "Audio salvato". Da
+ *     quel momento l'audio sopravvive a offline, chiusura e riavvio dell'app
+ *     e resta finché non viene consegnato o eliminato esplicitamente.
+ *   - La trascrizione è best-effort e NON blocca mai: offline non viene
+ *     nemmeno tentata (niente attesa di 15s a vuoto), online gira in
+ *     background e in caso di errore l'audio resta comunque al sicuro.
  *
- * Flag separato `transcribing` true mentre Whisper+Claude girano in
- * background. Il consumer può usarlo per mostrare un indicatore inline
- * dentro la review e auto-popolare i campi quando arrivano. Il submit
- * non aspetta la trascrizione: l'utente vede la review immediatamente
- * dopo aver rilasciato il pulsante.
+ * Il consumer riceve `outboxId` e usa `submitVoice` (voiceOutbox) per la
+ * consegna unificata: in primo piano se online, altrimenti il sync worker la
+ * completa al ritorno della rete.
  *
- * Demo mode (Supabase non configurato): bypassa AI, salta a "review" con
- * campi vuoti così il consumer può compilare manualmente.
+ * Stati: idle | recording | review.
  *
  * Props:
- *   context          — contesto edge function (operator_new_ticket,
- *                      tech_new_ticket, tech_update, tech_close,
- *                      tech_note, tech_spare_request)
- *   machines         — array macchine reali per il prompt extract.
- *                      I nomi finiscono ANCHE nel vocabulary hint passato
- *                      a Whisper, migliorando la trascrizione di termini
- *                      tecnici di dominio.
- *   contextPayload   — payload addizionale per context update/close/note/spare
- *                      (es. { ticket_title, ticket_status, machine_name })
+ *   context          — operator_new_ticket | tech_new_ticket | tech_update |
+ *                      tech_close | tech_note
+ *   user             — utente corrente (id/name/role) per l'item durevole
+ *   machines         — array macchine reali per prompt extract + vocabulary
+ *   contextPayload   — payload addizionale (es. { ticket_id, ticket_title })
  *   defaultFields    — fields di partenza in modalità manuale o errore
- *   vocabularyHints  — array di stringhe extra da aggiungere al vocabulary
- *                      Whisper (es. ricambi specifici dell'org). Opzionale.
+ *   vocabularyHints  — array di stringhe extra per il vocabulary Whisper
  */
-
-const TRANSCRIPTION_TIMEOUT_MS = 15000
-const MIN_AUDIO_BYTES = 5000
-const MIN_AUDIO_MS = 1500     // sotto 1.5s consideriamo l'audio non utile
-const MAX_VOCAB_CHARS = 800
-
-// Detection di Whisper hallucination su silenzio o rumore. Il modello a volte
-// inventa parole random in altre lingue ("Brandi naivowi, Nordili Rock
-// Теперь...") quando l'audio non contiene voce comprensibile. Heuristic:
-// - Caratteri non latini (cirillico, asiatico, ecc.) -> hallucination quasi certa
-// - Tante parole MAIUSCOLE corte (sigle inventate tipo "ABplS, CBT15") -> sospetto
-// - Frasi senza verbi italiani comuni e con molte virgole -> sospetto
-function looksLikeHallucination(text) {
-  if (!text || typeof text !== 'string') return false
-  const t = text.trim()
-  if (t.length < 10) return false  // troppo corto per giudicare
-  // Caratteri non latini (cirillico, kanji, ecc.)
-  if (/[Ѐ-ӿ֐-׿؀-ۿ぀-ヿ一-鿿]/.test(t)) {
-    return true
-  }
-  // Sigle MAIUSCOLE/MISTE corte separate da virgole tipo "ABplS, CBT15, HVB"
-  const tokens = t.split(/[\s,.-]+/).filter(Boolean)
-  if (tokens.length >= 6) {
-    const acronymish = tokens.filter(w =>
-      w.length >= 3 && w.length <= 8 &&
-      /[A-Z]/.test(w) && /[a-z0-9]/.test(w) &&
-      !/^[A-Z][a-z]+$/.test(w)  // escludi capitalizzazione normale
-    )
-    if (acronymish.length / tokens.length > 0.35) return true
-  }
-  return false
-}
-
-// Vocabolario tecnico statico per il dominio manutenzione industriale
-// (settore birrificio / linea imbottigliamento). Whisper accetta ~244 token
-// come prompt: questo va concatenato ai nomi macchine reali, totale tronco
-// a 800 caratteri.
-//
-// Aggiungere termini quando l'orecchio di Whisper sbaglia ricorrentemente
-// nomi di dominio (es. "imbottigliatrice" → "imbobiliatrice", "Kosme" →
-// "Cogna").
-const STATIC_VOCAB_TECH = [
-  'Trascrizione di un tecnico/operatore di manutenzione di birrificio.',
-  'Macchine tipo: imbottigliatrice, riempitrice, tappatrice, etichettatrice, sciacquatrice, depalettizzatore, palettizzatore, capsulatrice, pasteurizzatrice tunnel.',
-  'Componenti: valvola DN65, pistoncino, guarnizione OR, cuscinetto, encoder, sonda PT100, elettrovalvola, attuatore, premitreccia, rubinetto, ugello.',
-  // Ripeti i brand "difficili" per Whisper (K iniziale viene italianizzata in C).
-  'Brand: Kosme, Kosme, Kosme, GAI, Bertolaso, Sidel, KHS, Krones, Comac, GEA, Cimaer, Bardi, BBM, SKF, Festo, SMC, Burkert, Endress, Siemens.',
-  'Termini: smontaggio, lubrificazione, sostituzione, taratura, calibrazione, lappatura, service line.',
-].join(' ')
-
-// Correzioni post-trascrizione per pattern noti di Whisper italiano.
-// Whisper a volte italianizza nomi propri o inventa parole foneticamente
-// vicine. Queste sostituzioni vengono applicate al testo PRIMA di passarlo
-// a Claude e PRIMA di mostrarlo all'utente.
-//
-// Regola: aggiungere SOLO pattern dove il falso positivo e' improbabile
-// (es. "Cogna" e "Cosme" non sono brand reali nel settore birrificio).
-const TRANSCRIPTION_CORRECTIONS = [
-  // Kosme: Whisper italianizza la K iniziale in C, oppure non riconosce
-  // "Kosme" e cerca parole comuni (es. "Cogna").
-  { pattern: /\b[ck]osm[ei]\b/gi, replacement: 'Kosme' },
-  { pattern: /\bcogna\b/gi, replacement: 'Kosme' },
-  // imbottigliatrice: parola lunga e tecnica, Whisper inventa varianti.
-  { pattern: /\bimbo[bv][ie]l[ie]atric[ei]\b/gi, replacement: 'imbottigliatrice' },
-]
-
-function applyCorrections(text) {
-  if (!text) return text
-  let corrected = text
-  for (const { pattern, replacement } of TRANSCRIPTION_CORRECTIONS) {
-    corrected = corrected.replace(pattern, replacement)
-  }
-  return corrected
-}
-
-function buildVocabulary(machines, vocabularyHints) {
-  const parts = [STATIC_VOCAB_TECH]
-  if (Array.isArray(machines) && machines.length > 0) {
-    const names = machines
-      .map(m => m?.name)
-      .filter(Boolean)
-      .slice(0, 30) // hard cap per evitare overflow
-      .join(', ')
-    if (names) parts.push(`Macchine: ${names}.`)
-  }
-  if (Array.isArray(vocabularyHints) && vocabularyHints.length > 0) {
-    parts.push(vocabularyHints.filter(Boolean).join(' '))
-  }
-  return parts.join(' ').slice(0, MAX_VOCAB_CHARS)
-}
-
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms)),
-  ])
-}
-
 export function useVoiceCapture({
   context = 'operator_new_ticket',
+  user = null,
   machines = [],
   contextPayload = null,
   defaultFields = null,
   vocabularyHints = null,
 } = {}) {
+  const toast = useToast()
+  const haptic = useHaptic()
+
   const [state, setState] = useState('idle')
   const [transcription, setTranscription] = useState('')
   const [fields, setFields] = useState(null)
@@ -148,6 +55,7 @@ export function useVoiceCapture({
   const [elapsedMs, setElapsedMs] = useState(0)
   const [audioBlob, setAudioBlob] = useState(null)
   const [transcribing, setTranscribing] = useState(false)
+  const [outboxId, setOutboxId] = useState(null)
 
   const mediaRecorderRef = useRef(null)
   const chunksRef = useRef([])
@@ -160,6 +68,9 @@ export function useVoiceCapture({
     && !!navigator?.mediaDevices?.getUserMedia
 
   const reset = useCallback(() => {
+    // NB: reset NON elimina l'item dall'outbox. L'audio sparisce solo per
+    // consegna riuscita (flush) o eliminazione esplicita dell'utente. Un
+    // "Annulla" in review lascia quindi l'audio in "Registrazioni in sospeso".
     setState('idle')
     setTranscription('')
     setFields(null)
@@ -167,6 +78,7 @@ export function useVoiceCapture({
     setElapsedMs(0)
     setAudioBlob(null)
     setTranscribing(false)
+    setOutboxId(null)
   }, [])
 
   const startRecording = useCallback(async () => {
@@ -181,7 +93,6 @@ export function useVoiceCapture({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       // Firefox mobile preferisce audio/ogg;codecs=opus, Chrome/Safari audio/webm.
-      // Selezione del mimeType piu' adatto fra quelli supportati dal browser.
       let mimeType = ''
       const candidates = [
         'audio/webm;codecs=opus',
@@ -244,18 +155,15 @@ export function useVoiceCapture({
     } catch (err) {
       console.warn('[voice] stop tracks failed:', err)
     }
-    // Lo stato successivo lo decide handleStop (review se audio valido,
-    // idle se troppo breve). Niente più stato 'transcribing': la
-    // trascrizione gira in background mentre la review è già aperta.
+    // Lo stato successivo lo decide handleStop.
   }, [])
 
-  // Annulla la registrazione: ferma mediarecorder + tracks, scarta i chunks
-  // raccolti, NON triggera trascrizione, resetta lo stato a idle. Usato
-  // dal pulsante X dei flow vocali quando l'utente vuole desistere.
+  // Annulla la registrazione PRIMA dello stop: nessun item è ancora stato
+  // creato (l'enqueue avviene in handleStop), quindi non c'è audio da
+  // perdere. Scarta i chunks e torna a idle.
   const cancelRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current
     stopTicker()
-    // Sgancia il listener onstop prima di fermare per evitare handleStop
     if (recorder) {
       try { recorder.onstop = null } catch { /* noop */ }
       try { if (recorder.state !== 'inactive') recorder.stop() } catch { /* noop */ }
@@ -267,6 +175,7 @@ export function useVoiceCapture({
     setTranscription('')
     setError(null)
     setTranscribing(false)
+    setOutboxId(null)
     setState('idle')
   }, [])
 
@@ -274,10 +183,7 @@ export function useVoiceCapture({
     const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current || 'audio/webm' })
     setAudioBlob(blob)
 
-    // Calcoliamo la durata DALL'OROLOGIO (ref, sempre fresh) invece che dallo
-    // state React. Su Firefox mobile lo state elapsedMs puo' essere ancora 0
-    // perche' setInterval scatta ogni 200ms e React batcha gli update,
-    // mentre startedAtRef.current viene popolato sincrono in startRecording.
+    // Durata dall'orologio (ref sempre fresh) invece che dallo state React.
     const durationMs = startedAtRef.current > 0
       ? Date.now() - startedAtRef.current
       : elapsedMs
@@ -293,7 +199,30 @@ export function useVoiceCapture({
       return
     }
 
-    // Demo mode: niente AI, consumer compila a mano (review già aperta)
+    // ── 1. SALVATAGGIO DUREVOLE IMMEDIATO ──
+    // Prima di qualsiasi rete: l'audio finisce su IndexedDB. Da qui in poi è
+    // al sicuro qualunque cosa accada (offline, app chiusa, refresh).
+    let newOutboxId = null
+    try {
+      const res = await enqueueVoiceCapture({
+        blob,
+        mimeType: mimeTypeRef.current,
+        durationMs,
+        context,
+        reportId: contextPayload?.ticket_id || null,
+        user,
+      })
+      newOutboxId = res?.id || null
+      setOutboxId(newOutboxId)
+      if (newOutboxId) {
+        toast.success('Audio salvato')
+        haptic.success?.()
+      }
+    } catch (e) {
+      console.warn('[voice] enqueue durevole fallito:', e?.message)
+    }
+
+    // Demo mode: niente AI, consumer compila a mano (review già aperta).
     if (!isSupabaseConfigured()) {
       setTranscription('')
       setFields(defaultFields)
@@ -302,42 +231,28 @@ export function useVoiceCapture({
       return
     }
 
-    // Apri la review subito con campi vuoti, poi gira la trascrizione
-    // in background. Quando arriva, `transcription` e `fields` si
-    // aggiornano e i consumer popolano i loro form se vuoti.
+    // Apri subito la review.
     setTranscription('')
     setFields(defaultFields)
     setError(null)
-    setTranscribing(true)
     setState('review')
 
+    // ── 2. GATE OFFLINE ──
+    // Senza rete NON tentiamo la trascrizione: niente attesa di 15s a vuoto.
+    // L'audio è già salvato e verrà trascritto/inviato al ritorno della linea.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setTranscribing(false)
+      setError('Sei offline: l\'audio è salvato e verrà inviato e trascritto appena torna la linea. Puoi compilare i campi a mano e inviare.')
+      return
+    }
+
+    // ── 3. TRASCRIZIONE BEST-EFFORT (non blocca mai) ──
+    setTranscribing(true)
     try {
-      const form = new FormData()
-      // Estensione coerente con il mimeType usato dal MediaRecorder (utile
-      // per Firefox mobile che produce ogg/opus).
-      const ext = (mimeTypeRef.current || '').includes('ogg') ? 'ogg'
-                : (mimeTypeRef.current || '').includes('mp4') ? 'mp4'
-                : 'webm'
-      form.append('audio', blob, `recording.${ext}`)
-      // Vocabulary hint per Whisper: nomi macchine + termini tecnici.
-      // Riduce drasticamente trascrizioni errate di parole di dominio
-      // (es. "tappatrice" non diventa "tapatrice").
       const vocabulary = buildVocabulary(machines, vocabularyHints)
-      if (vocabulary) form.append('vocabulary', vocabulary)
-      const transcribeResp = await withTimeout(
-        supabase.functions.invoke('transcribe', { body: form }),
-        TRANSCRIPTION_TIMEOUT_MS,
-        'trascrizione',
-      )
-      if (transcribeResp.error) throw transcribeResp.error
-      const rawText = (transcribeResp.data?.text || '').toString().trim()
-      // Post-processing: correggi sostituzioni note che Whisper italiano
-      // sbaglia ricorrentemente (es. "Cosme" → "Kosme").
+      const rawText = await requestTranscription({ blob, mimeType: mimeTypeRef.current, vocabulary })
       const text = applyCorrections(rawText)
 
-      // Hallucination check: se Whisper ha inventato parole random
-      // (succede su silenzio o rumore), restiamo in review con errore —
-      // l'utente può comunque compilare a mano senza perdere il flusso.
       if (looksLikeHallucination(text)) {
         console.warn('[voice] hallucination detected, raw text:', text.slice(0, 200))
         setError('Audio non chiaro: il sistema ha rilevato voci non riconoscibili. Compila manualmente o annulla e riprova.')
@@ -346,6 +261,10 @@ export function useVoiceCapture({
       }
 
       setTranscription(text)
+      if (newOutboxId && text) {
+        enrichVoiceItem(newOutboxId, { transcription: text, transcriptionStatus: 'done' })
+          .catch(() => { /* l'audio resta comunque salvo */ })
+      }
 
       if (!text) {
         setError('Non ho capito l\'audio. Compila manualmente o riprova.')
@@ -381,8 +300,13 @@ export function useVoiceCapture({
       }
       setTranscribing(false)
     } catch (err) {
-      console.error('[voice] transcription failed:', err)
-      setError('Errore durante la trascrizione. Riprova o compila manualmente.')
+      // La trascrizione è fallita (rete instabile?). L'audio è GIÀ salvato:
+      // nessuna perdita. Si potrà ritrascrivere/inviare in seguito.
+      console.warn('[voice] transcription failed:', err?.message)
+      setError('Trascrizione non riuscita: l\'audio è salvato. Compila a mano o riprova; verrà ritrascritto all\'invio.')
+      if (newOutboxId) {
+        enrichVoiceItem(newOutboxId, { transcriptionStatus: 'pending' }).catch(() => {})
+      }
       setTranscribing(false)
     }
   }
@@ -394,6 +318,7 @@ export function useVoiceCapture({
     setError(null)
     setAudioBlob(null)
     setTranscribing(false)
+    setOutboxId(null)
     setState('review')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -408,6 +333,7 @@ export function useVoiceCapture({
     elapsedMs,
     audioBlob,
     transcribing,
+    outboxId,
     supportsMediaRecorder,
     startRecording,
     stopRecording,
