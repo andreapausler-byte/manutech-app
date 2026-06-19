@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { db } from '../../lib/supabase'
 import { useVoiceCapture } from '../../hooks/useVoiceCapture'
+import { submitVoice } from '../../lib/voiceOutbox'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import VoiceRecorder from './VoiceRecorder'
@@ -19,6 +19,7 @@ export default function VoiceNoteFlow({ report, user, onClose, onApplied }) {
 
   const voice = useVoiceCapture({
     context: 'tech_note',
+    user,
     contextPayload: {
       ticket_id: report.id,
       ticket_title: report.title,
@@ -65,6 +66,7 @@ export default function VoiceNoteFlow({ report, user, onClose, onApplied }) {
         setTranscription={voice.setTranscription}
         transcribing={voice.transcribing}
         audioBlob={voice.audioBlob}
+        outboxId={voice.outboxId}
         error={voice.error}
         report={report}
         user={user}
@@ -79,7 +81,7 @@ export default function VoiceNoteFlow({ report, user, onClose, onApplied }) {
   return null
 }
 
-function ReviewForm({ fields, transcription, setTranscription, transcribing, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
+function ReviewForm({ fields, transcription, setTranscription, transcribing, audioBlob, outboxId, error, report, user, onCancel, onSubmitted, haptic, toast }) {
   const [text, setText] = useState(() => fields?.nota_tecnica || transcription || '')
   const [tag, setTag] = useState(() => fields?.tag || '')
   const [media, setMedia] = useState([])
@@ -112,38 +114,29 @@ function ReviewForm({ fields, transcription, setTranscription, transcribing, aud
     setLoading(true)
     haptic.medium()
     try {
-      let audioUrl = null
-      if (audioBlob) {
-        try {
-          audioUrl = await db.uploadVoiceAudio(audioBlob, report.id, user.id)
-        } catch (e) {
-          console.warn('[voice_note] audio upload failed:', e?.message)
-        }
-      }
-      const allMedia = [
-        ...media,
-        ...(audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-note.webm' }] : []),
-      ]
-      await db.addComment(report.id, {
+      await submitVoice({
+        outboxId,
+        blob: audioBlob,
+        context: 'tech_note',
+        reportId: report.id,
+        user,
         text: finalText,
-        user_id: user.id,
-        user_name: user.name,
-        user_role: user.role,
-        kind: 'voice_note',
-        extra_data: {
-          source: 'voice',
-          tag: tag || null,
-          transcription: transcription || null,
-        },
+        extraData: { source: 'voice', tag: tag || null },
+        media,
         confidence: fields?.confidence ?? null,
-        media: allMedia.length > 0 ? allMedia : null,
       })
       toast.success('Nota aggiunta')
       haptic.success?.()
       onSubmitted?.()
     } catch (err) {
-      toast.error('Errore: ' + (err?.message || 'riprova'))
-      setLoading(false)
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        toast.success('Offline: nota e audio salvati, invio automatico al ritorno della linea')
+        haptic.success?.()
+        onSubmitted?.()
+      } else {
+        toast.error('Invio non riuscito: l\'audio è salvato in sospeso. ' + (err?.message || ''))
+        setLoading(false)
+      }
     }
   }
 

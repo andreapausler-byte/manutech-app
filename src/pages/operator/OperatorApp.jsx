@@ -12,6 +12,7 @@ import OperatorRecording from './OperatorRecording'
 import OperatorReview from './OperatorReview'
 import OperatorTicketList from './OperatorTicketList'
 import OperatorTicketDetail from './OperatorTicketDetail'
+import PendingVoiceRecordings from '../../components/voice/PendingVoiceRecordings'
 
 function OperatorProfile({ onLogout }) {
   const { user } = useAuth()
@@ -49,7 +50,7 @@ export default function OperatorApp() {
   const { user, logout } = useAuth()
   const toast = useToast()
   const { machines } = useMachines()
-  const voice = useVoiceTicket(machines)
+  const voice = useVoiceTicket(machines, user)
 
   // tab: home | list | profile
   const [tab, setTab] = useState('home')
@@ -77,12 +78,12 @@ export default function OperatorApp() {
     await voice.startRecording()
   }, [voice, toast])
 
-  const handleSubmit = useCallback(async ({ finalFields, finalText, user: u }) => {
-    const created = await voice.submitTicket({ finalFields, finalText, user: u })
+  const handleSubmit = useCallback(async ({ finalFields, finalText, finalMedia, user: u }) => {
+    const result = await voice.submitTicket({ finalFields, finalText, finalMedia, user: u })
     voice.reset()
     setRefreshKey(k => k + 1)
     setTab('list')
-    return created
+    return result
   }, [voice])
 
   const handleOpenTicket = useCallback((report) => {
@@ -145,6 +146,7 @@ export default function OperatorApp() {
         </div>
       )}
       {screen}
+      {showNav && <PendingVoiceRecordings />}
       {showNav && (
         <OperatorNavBar
           active={tab}

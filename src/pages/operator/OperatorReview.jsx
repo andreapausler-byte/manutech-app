@@ -77,7 +77,7 @@ export default function OperatorReview({
     setLoading(true)
     haptic.medium()
     try {
-      await onSubmit({
+      const result = await onSubmit({
         finalFields: {
           machine_id: form.machine_id || null,
           machine_name: machines.find(m => m.id === form.machine_id)?.name || null,
@@ -90,7 +90,9 @@ export default function OperatorReview({
         finalMedia: media,
         user,
       })
-      toast.success('Ticket inviato')
+      toast.success(result?.queued
+        ? 'Sei offline: ticket e audio salvati, li invio appena torna la linea'
+        : 'Ticket inviato')
     } catch (err) {
       toast.error('Errore invio: ' + (err?.message || 'riprova'))
       setLoading(false)

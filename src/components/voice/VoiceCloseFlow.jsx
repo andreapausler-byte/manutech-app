@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../../lib/supabase'
 import { useVoiceCapture } from '../../hooks/useVoiceCapture'
+import { submitVoice } from '../../lib/voiceOutbox'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import VoiceRecorder from './VoiceRecorder'
@@ -25,6 +26,7 @@ export default function VoiceCloseFlow({ report, user, onClose, onApplied }) {
 
   const voice = useVoiceCapture({
     context: 'tech_close',
+    user,
     contextPayload: {
       ticket_id: report.id,
       ticket_title: report.title,
@@ -71,6 +73,7 @@ export default function VoiceCloseFlow({ report, user, onClose, onApplied }) {
         setTranscription={voice.setTranscription}
         transcribing={voice.transcribing}
         audioBlob={voice.audioBlob}
+        outboxId={voice.outboxId}
         error={voice.error}
         report={report}
         user={user}
@@ -95,7 +98,7 @@ function buildFormFromFields(fields) {
   }
 }
 
-function ReviewForm({ fields, transcription, setTranscription, transcribing, audioBlob, error, report, user, onCancel, onSubmitted, haptic, toast }) {
+function ReviewForm({ fields, transcription, setTranscription, transcribing, audioBlob, outboxId, error, report, user, onCancel, onSubmitted, haptic, toast }) {
   const [form, setForm] = useState(() => buildFormFromFields(fields))
   const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
@@ -130,16 +133,34 @@ function ReviewForm({ fields, transcription, setTranscription, transcribing, aud
         closure_root_cause: form.closure_root_cause.trim(),
         closure_action: form.closure_action.trim(),
       }
-
-      // 1. Update report → status='risolta' + closure data
       const oldStatus = report.status
-      const updatedReport = await db.updateReport(report.id, {
+      const reportUpdate = {
         status: 'risolta',
         ...closureData,
         closed_at: new Date().toISOString(),
+      }
+      const commentText = `Chiusura vocale: ${closureData.closure_root_cause}\n${closureData.closure_action}`
+
+      // Consegna unificata: chiusura (status + dati) + audio + commento.
+      // Offline → tutto resta in coda durevole e parte da solo dopo.
+      await submitVoice({
+        outboxId,
+        blob: audioBlob,
+        context: 'tech_close',
+        reportId: report.id,
+        user,
+        text: commentText,
+        extraData: {
+          source: 'voice',
+          ...closureData,
+          test_eseguiti: form.test_eseguiti.trim() || null,
+        },
+        media,
+        reportUpdate,
+        confidence: fields?.confidence ?? null,
       })
 
-      // 2. Activity status_change
+      // Activity + notifiche: best-effort in primo piano (solo online).
       db.addActivity(report.id, {
         type: 'status_change',
         from_status: oldStatus,
@@ -151,7 +172,6 @@ function ReviewForm({ fields, transcription, setTranscription, transcribing, aud
           : `Voce: chiuso — Causa: ${closureData.closure_root_cause}`,
       }).catch(e => console.warn('[voice_close] activity failed:', e?.message))
 
-      // 3. Notifiche al creatore (se diverso dall'attuale tecnico)
       const recipients = new Set()
       if (report.created_by) recipients.add(report.created_by)
       if (report.assigned_to) recipients.add(report.assigned_to)
@@ -167,43 +187,18 @@ function ReviewForm({ fields, transcription, setTranscription, transcribing, aud
         }).catch(e => console.warn('[voice_close] notif failed:', e?.message))
       }
 
-      // 4. Upload audio + comment voice_close
-      let audioUrl = null
-      if (audioBlob) {
-        try {
-          audioUrl = await db.uploadVoiceAudio(audioBlob, report.id, user.id)
-        } catch (e) {
-          console.warn('[voice_close] audio upload failed:', e?.message)
-        }
-      }
-
-      const commentText = `Chiusura vocale: ${closureData.closure_root_cause}\n${closureData.closure_action}`
-      const allMedia = [
-        ...media,
-        ...(audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-close.webm' }] : []),
-      ]
-      await db.addComment(report.id, {
-        text: commentText,
-        user_id: user.id,
-        user_name: user.name,
-        user_role: user.role,
-        kind: 'voice_close',
-        extra_data: {
-          source: 'voice',
-          ...closureData,
-          test_eseguiti: form.test_eseguiti.trim() || null,
-          transcription: transcription || null,
-        },
-        confidence: fields?.confidence ?? null,
-        media: allMedia.length > 0 ? allMedia : null,
-      })
-
       toast.success('Ticket chiuso')
       haptic.success?.()
-      onSubmitted?.(updatedReport)
+      onSubmitted?.(reportUpdate)
     } catch (err) {
-      toast.error('Errore chiusura: ' + (err?.message || 'riprova'))
-      setLoading(false)
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        toast.success('Offline: chiusura e audio salvati, invio automatico al ritorno della linea')
+        haptic.success?.()
+        onSubmitted?.(null)
+      } else {
+        toast.error('Invio non riuscito: l\'audio è salvato in sospeso. ' + (err?.message || ''))
+        setLoading(false)
+      }
     }
   }
 

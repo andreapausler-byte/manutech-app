@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../../lib/supabase'
 import { useMachines } from '../../hooks/useMachines'
 import { useVoiceCapture } from '../../hooks/useVoiceCapture'
+import { submitVoice } from '../../lib/voiceOutbox'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import VoiceRecorder from './VoiceRecorder'
@@ -71,6 +72,7 @@ export default function VoiceNewTicketFlow({ user, onBack, onCreated }) {
 
   const voice = useVoiceCapture({
     context: 'tech_new_ticket',
+    user,
     machines,
     contextPayload: {
       technician_id: user?.id,
@@ -120,6 +122,7 @@ export default function VoiceNewTicketFlow({ user, onBack, onCreated }) {
         setTranscription={voice.setTranscription}
         transcribing={voice.transcribing}
         audioBlob={voice.audioBlob}
+        outboxId={voice.outboxId}
         error={voice.error}
         user={user}
         onCancel={onBack}
@@ -149,7 +152,7 @@ function buildFormFromFields(fields) {
   }
 }
 
-function ReviewForm({ machines, fields, transcription, setTranscription, transcribing, audioBlob, error, user, onCancel, onSubmitted, haptic, toast }) {
+function ReviewForm({ machines, fields, transcription, setTranscription, transcribing, audioBlob, outboxId, error, user, onCancel, onSubmitted, haptic, toast }) {
   const [form, setForm] = useState(() => buildFormFromFields(fields))
   const [media, setMedia] = useState([])
   const [loading, setLoading] = useState(false)
@@ -187,7 +190,7 @@ function ReviewForm({ machines, fields, transcription, setTranscription, transcr
       const severity = form.priority ? (SEVERITY_TO_DB[form.priority] || 'media') : 'media'
       const type = form.category ? (CATEGORY_TO_TYPE[form.category] || 'correttiva') : 'correttiva'
 
-      const payload = {
+      const reportPayload = {
         title: form.summary.trim().slice(0, 200),
         description: (transcription || '').trim(),
         severity,
@@ -217,51 +220,54 @@ function ReviewForm({ machines, fields, transcription, setTranscription, transcr
         } : {}),
       }
 
-      const created = await db.createReport(payload)
+      // Consegna unificata: crea ticket + allega audio (commento voce).
+      // Offline → ticket+audio restano in coda durevole e partono da soli.
+      const res = await submitVoice({
+        outboxId,
+        blob: audioBlob,
+        context: 'tech_new_ticket',
+        reportId: null,
+        user,
+        text: transcription || form.summary,
+        extraData: reportPayload.extra_data,
+        media: [], // le foto sono già su reportPayload.media
+        reportPayload,
+        confidence: fields?.confidence ?? null,
+      })
+      const created = res?.report || null
 
-      // Upload audio + comment voice_new_ticket (best effort)
-      try {
-        let audioUrl = null
-        if (audioBlob) {
-          audioUrl = await db.uploadVoiceAudio(audioBlob, created.id, user.id)
-        }
-        await db.addComment(created.id, {
-          text: transcription || form.summary,
+      if (created) {
+        db.addActivity(created.id, {
+          type: 'voice_created',
           user_id: user.id,
           user_name: user.name,
-          user_role: user.role,
-          kind: 'voice_new_ticket',
-          extra_data: payload.extra_data,
-          confidence: fields?.confidence ?? null,
-          media: audioUrl ? [{ type: 'audio', url: audioUrl, name: 'voice-new-ticket.webm' }] : null,
-        })
-      } catch (e) {
-        console.warn('[voice_new_ticket] audio/comment failed:', e?.message)
+          detail: `Ticket vocale (Tecnico): ${reportPayload.title}${reportPayload.machine ? ` · ${reportPayload.machine}` : ''}`,
+        }).catch(e => console.warn('[voice] addActivity failed:', e?.message))
+
+        db.addNotification({
+          type: reportPayload.severity === 'critica' ? 'new_report_critical' : 'new_report',
+          title: `Nuovo ticket vocale (Tecnico): ${reportPayload.title}`,
+          body: `${user.name}${reportPayload.machine ? ` — ${reportPayload.machine}` : ''}`,
+          report_id: created.id,
+          from_user: user.id,
+          target_user: null,
+        }).catch(e => console.warn('[voice] addNotification failed:', e?.message))
       }
 
-      // Activity + notification (best effort, non bloccanti)
-      db.addActivity(created.id, {
-        type: 'voice_created',
-        user_id: user.id,
-        user_name: user.name,
-        detail: `Ticket vocale (Tecnico): ${payload.title}${payload.machine ? ` · ${payload.machine}` : ''}`,
-      }).catch(e => console.warn('[voice] addActivity failed:', e?.message))
-
-      db.addNotification({
-        type: payload.severity === 'critica' ? 'new_report_critical' : 'new_report',
-        title: `Nuovo ticket vocale (Tecnico): ${payload.title}`,
-        body: `${user.name}${payload.machine ? ` — ${payload.machine}` : ''}`,
-        report_id: created.id,
-        from_user: user.id,
-        target_user: null,
-      }).catch(e => console.warn('[voice] addNotification failed:', e?.message))
-
-      toast.success('Ticket creato')
+      toast.success(created
+        ? 'Ticket creato'
+        : 'Offline: ticket e audio salvati, invio automatico al ritorno della linea')
       haptic.success?.()
       onSubmitted?.(created)
     } catch (err) {
-      toast.error('Errore creazione: ' + (err?.message || 'riprova'))
-      setLoading(false)
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        toast.success('Offline: ticket e audio salvati, invio automatico al ritorno della linea')
+        haptic.success?.()
+        onSubmitted?.(null)
+      } else {
+        toast.error('Invio non riuscito: dati e audio salvati in sospeso. ' + (err?.message || ''))
+        setLoading(false)
+      }
     }
   }
 
