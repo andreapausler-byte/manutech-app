@@ -16,11 +16,19 @@ export function TicketIdBadge({ report, style, className = '', stopPropagation =
   const tk = formatTicketId(report)
   if (!tk) return null
 
+  // Deep-link diretto alla segnalazione: richiede l'UUID `report.id`, che
+  // esiste solo quando `report` è un oggetto segnalazione completo. In alcuni
+  // call site (es. casi simili) arriva solo il display_id come stringa: in
+  // quel caso copiamo il solo TK-id, senza link rotto.
+  const reportId = report && typeof report === 'object' ? report.id : null
+
   const copy = async (e) => {
     if (stopPropagation && e) e.stopPropagation()
+    const link = reportId ? `${window.location.origin}/reports/${reportId}` : null
+    const text = link ? `${tk}\n${link}` : tk
     try {
-      await navigator.clipboard.writeText(tk)
-      toast.success(`${tk} copiato`)
+      await navigator.clipboard.writeText(text)
+      toast.success(link ? 'Ticket e link copiati' : `${tk} copiato`)
     } catch {
       toast.error('Impossibile copiare')
     }
