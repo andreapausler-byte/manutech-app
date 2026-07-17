@@ -32,7 +32,7 @@ import MediaLightbox from '../media/MediaLightbox'
 import {
   Send, MessageCircle, Camera, Video, Mic, Image,
   Square, X, Paperclip, Play, Pause, FileVideo, FileAudio,
-  Download, ArrowDownToLine, Pencil, Trash2, Check
+  Download, ArrowDownToLine, Pencil, Trash2, Check, SmilePlus
 } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────
@@ -968,12 +968,15 @@ function DiscordMessage({ comment: c, showHeader, isMobile, canEdit, reactions, 
 }
 
 
-// ── MessageReactions — chips 👍 ✅ 🔧 sotto ogni messaggio ─
-// Sul proprio messaggio i chip compaiono solo se qualcuno ha reagito
-// (niente auto-like) e mostrano i nomi: è l'autore che deve sapere
-// chi lo sta seguendo. Sui messaggi altrui sono sempre cliccabili.
+// ── MessageReactions — reazioni sotto ogni messaggio ─────
+// I chip compaiono SOLO quando qualcuno ha reagito (emoji + contatore).
+// Per reagire ai messaggi altrui c'è un "+" discreto (hover su desktop,
+// sempre visibile ma leggero su mobile) che apre le 3 opzioni.
+// Sul proprio messaggio niente auto-like: chip in sola lettura e nomi
+// di chi ha reagito — è l'autore che deve sapere chi lo sta seguendo.
 
 function MessageReactions({ reactions, isMine, currentUserId, onToggle, isMobile }) {
+  const [pickerOpen, setPickerOpen] = useState(false)
   const byType = (type) => reactions.filter(r => r.type === type)
   if (isMine && reactions.length === 0) return null
 
@@ -985,19 +988,25 @@ function MessageReactions({ reactions, isMine, currentUserId, onToggle, isMobile
     .filter(Boolean)
     .join(' · ')
 
+  const pick = (type) => {
+    onToggle(type)
+    setPickerOpen(false)
+  }
+
   return (
-    <div className="mt-1.5">
+    <div className={reactions.length > 0 || pickerOpen ? 'mt-1.5' : ''}>
       <div className="flex items-center gap-1.5 flex-wrap">
+        {/* Chip: solo tipi con almeno una reazione */}
         {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
           const list = byType(type)
-          if (isMine && list.length === 0) return null
+          if (list.length === 0) return null
           const mine = list.some(r => r.user_id === currentUserId)
           return (
             <button
               key={type}
               disabled={isMine}
               onClick={() => onToggle(type)}
-              title={list.length ? `${label}: ${list.map(r => r.user_name).join(', ')}` : label}
+              title={`${label}: ${list.map(r => r.user_name).join(', ')}`}
               className={`flex items-center gap-1 rounded-full border transition-all ${
                 mine
                   ? 'bg-violet-500/20 border-violet-500/40 text-themed'
@@ -1007,10 +1016,48 @@ function MessageReactions({ reactions, isMine, currentUserId, onToggle, isMobile
               }`}
             >
               <span>{emoji}</span>
-              {list.length > 0 && <span className="font-semibold">{list.length}</span>}
+              <span className="font-semibold">{list.length}</span>
             </button>
           )
         })}
+
+        {/* Picker: aperto → le 3 opzioni; chiuso → "+" discreto */}
+        {!isMine && (
+          pickerOpen ? (
+            <div className="flex items-center gap-1 rounded-full border border-token bg-surface-2 px-1 py-0.5">
+              {Object.entries(REACTIONS).map(([type, { emoji, label }]) => (
+                <button
+                  key={type}
+                  onClick={() => pick(type)}
+                  title={label}
+                  className={`rounded-full cursor-pointer hover:bg-surface-3 active:scale-90 transition-all ${
+                    isMobile ? 'px-1.5 py-0.5 text-base' : 'px-1 py-0.5 text-sm'
+                  }`}
+                >
+                  {emoji}
+                </button>
+              ))}
+              <button
+                onClick={() => setPickerOpen(false)}
+                aria-label="Chiudi reazioni"
+                className="rounded-full text-faint hover:text-themed cursor-pointer px-1"
+              >
+                <X size={isMobile ? 14 : 12} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setPickerOpen(true)}
+              title="Aggiungi reazione"
+              aria-label="Aggiungi reazione"
+              className={`flex items-center justify-center rounded-full border border-token bg-surface-2 text-faint hover:text-themed hover:border-border-active cursor-pointer transition-all active:scale-90 ${
+                isMobile ? 'w-7 h-7 opacity-60' : 'w-6 h-6 opacity-0 group-hover:opacity-100'
+              }`}
+            >
+              <SmilePlus size={isMobile ? 15 : 13} />
+            </button>
+          )
+        )}
       </div>
       {isMine && namesSummary && (
         <p className={`text-faint mt-1 ${isMobile ? 'text-[11px]' : 'text-[10px]'}`}>{namesSummary}</p>
