@@ -23,6 +23,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { db } from '../../lib/supabase'
+import { REACTIONS } from '../../lib/constants'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -103,6 +104,7 @@ async function downloadFile(url, filename) {
 export default function ChatPanel({ reportId, user, variant = 'desktop', report, className = '', guestMode }) {
   // State
   const [comments, setComments] = useState([])
+  const [reactions, setReactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
@@ -144,6 +146,11 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
       .then(c => setComments(c || []))
       .catch(() => setComments([]))
       .finally(() => setLoading(false))
+    if (!guestMode) {
+      db.getReactions(reportId)
+        .then(r => setReactions(r || []))
+        .catch(() => setReactions([]))
+    }
   }, [reportId, guestMode])
 
   // ── Guest mode polling (no Realtime available) ──────
@@ -376,6 +383,39 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
+  // ── Reazioni (toggle) ──────────────────────────────────
+  // commentId = null → reazione a livello segnalazione ('grazie')
+  const toggleReaction = async (type, commentId = null) => {
+    if (guestMode || !user?.id) return
+    const existing = reactions.find(r =>
+      r.type === type && r.user_id === user.id && (r.comment_id || null) === commentId
+    )
+    try {
+      if (existing) {
+        await db.removeReaction(existing.id)
+        setReactions(prev => prev.filter(r => r.id !== existing.id))
+      } else {
+        const added = await db.addReaction(reportId, {
+          comment_id: commentId,
+          user_id: user.id,
+          user_name: user.name,
+          type,
+        })
+        setReactions(prev => [...prev, added])
+        hapticRef.current.light()
+      }
+    } catch {
+      toastRef.current.error('Errore reazione')
+    }
+  }
+
+  // ── Ringraziamenti (👏 a livello segnalazione) ─────────
+  const showThanks = !guestMode && ['risolta', 'chiuso'].includes(report?.status)
+  const thanks = reactions.filter(r => r.type === 'grazie' && !r.comment_id)
+  const iThanked = thanks.some(r => r.user_id === user?.id)
+  const isAssignee = !!report?.assigned_to && report.assigned_to === user?.id
+  const assigneeName = report?.assigned_to_name || 'chi se n\'è occupato'
+
   const fmtTime = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
 
   const openLightbox = (comment, photoIndex) => {
@@ -438,6 +478,9 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
                   showHeader={showHeader}
                   isMobile={isMobile}
                   canEdit={canEdit}
+                  reactions={guestMode ? null : reactions.filter(r => r.comment_id === c.id)}
+                  currentUserId={user?.id}
+                  onToggleReaction={(type) => toggleReaction(type, c.id)}
                   onPhotoClick={(idx) => openLightbox(c, idx)}
                   onDownload={downloadFile}
                   onEdit={async (newText) => {
@@ -476,6 +519,36 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
         )}
         <div ref={chatEndRef} />
       </div>
+
+      {/* ═══ Ringraziamenti (segnalazione risolta) ═══ */}
+      {showThanks && (
+        <div className={`shrink-0 border-t border-emerald-500/25 bg-emerald-500/5 ${isMobile ? 'px-[3vw] py-[2.5vw]' : 'px-3 py-2'}`}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`font-semibold text-emerald-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
+              🎉 Intervento completato
+            </span>
+            {thanks.length > 0 && (
+              <span className={`text-faint ${isMobile ? 'text-sm' : 'text-xs'}`}>
+                👏 {isAssignee
+                  ? `${thanks.map(t => t.user_name).join(', ')} ti ringrazi${thanks.length > 1 ? 'ano' : 'a'} per l'intervento!`
+                  : `Grazie da: ${thanks.map(t => t.user_name).join(', ')}`}
+              </span>
+            )}
+            {!isAssignee && (
+              <button
+                onClick={() => toggleReaction('grazie')}
+                className={`ml-auto shrink-0 rounded-xl font-semibold border transition-all active:scale-95 ${
+                  iThanked
+                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                    : 'bg-surface-2 border-token text-faint hover:text-emerald-400 hover:border-emerald-500/40'
+                } ${isMobile ? 'px-3 py-1.5 text-sm' : 'px-2.5 py-1 text-xs'}`}
+              >
+                👏 {iThanked ? 'Grazie inviato' : `Ringrazia ${assigneeName}`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ═══ Pending media preview ═══ */}
       {pendingMedia.length > 0 && (
@@ -646,7 +719,7 @@ function ChatSkeleton({ isMobile }) {
 
 // ── DiscordMessage — Single message in Discord style ─────
 
-function DiscordMessage({ comment: c, showHeader, isMobile, canEdit, onPhotoClick, onDownload, onEdit, onDelete, toast }) {
+function DiscordMessage({ comment: c, showHeader, isMobile, canEdit, reactions, currentUserId, onToggleReaction, onPhotoClick, onDownload, onEdit, onDelete, toast }) {
   const color = ROLE_COLORS[c.user_role] || '#6b7280'
   const media = c.media || []
   const photos = media.filter(m => m.type === 'photo')
@@ -878,7 +951,70 @@ function DiscordMessage({ comment: c, showHeader, isMobile, canEdit, onPhotoClic
             ))}
           </div>
         )}
+
+        {/* ── REAZIONI ── */}
+        {reactions && !editing && (
+          <MessageReactions
+            reactions={reactions}
+            isMine={c.user_id === currentUserId}
+            currentUserId={currentUserId}
+            onToggle={onToggleReaction}
+            isMobile={isMobile}
+          />
+        )}
       </div>
+    </div>
+  )
+}
+
+
+// ── MessageReactions — chips 👍 ✅ 🔧 sotto ogni messaggio ─
+// Sul proprio messaggio i chip compaiono solo se qualcuno ha reagito
+// (niente auto-like) e mostrano i nomi: è l'autore che deve sapere
+// chi lo sta seguendo. Sui messaggi altrui sono sempre cliccabili.
+
+function MessageReactions({ reactions, isMine, currentUserId, onToggle, isMobile }) {
+  const byType = (type) => reactions.filter(r => r.type === type)
+  if (isMine && reactions.length === 0) return null
+
+  const namesSummary = Object.entries(REACTIONS)
+    .map(([type, { emoji }]) => {
+      const list = byType(type)
+      return list.length ? `${emoji} ${list.map(r => r.user_name).join(', ')}` : null
+    })
+    .filter(Boolean)
+    .join(' · ')
+
+  return (
+    <div className="mt-1.5">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
+          const list = byType(type)
+          if (isMine && list.length === 0) return null
+          const mine = list.some(r => r.user_id === currentUserId)
+          return (
+            <button
+              key={type}
+              disabled={isMine}
+              onClick={() => onToggle(type)}
+              title={list.length ? `${label}: ${list.map(r => r.user_name).join(', ')}` : label}
+              className={`flex items-center gap-1 rounded-full border transition-all ${
+                mine
+                  ? 'bg-violet-500/20 border-violet-500/40 text-themed'
+                  : 'bg-surface-2 border-token text-faint'
+              } ${isMine ? 'cursor-default' : 'cursor-pointer hover:border-border-active active:scale-95'} ${
+                isMobile ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs'
+              }`}
+            >
+              <span>{emoji}</span>
+              {list.length > 0 && <span className="font-semibold">{list.length}</span>}
+            </button>
+          )
+        })}
+      </div>
+      {isMine && namesSummary && (
+        <p className={`text-faint mt-1 ${isMobile ? 'text-[11px]' : 'text-[10px]'}`}>{namesSummary}</p>
+      )}
     </div>
   )
 }

@@ -6,6 +6,22 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.11 — Reazioni chat e ringraziamenti
+
+### Added
+- **Reazioni sui messaggi chat** (`ChatPanel.jsx`): 👍 Utile, ✅ Confermo il problema, 🔧 Risolto per me — toggle per utente/tipo, attive su tutte le superfici (admin desktop, mobile; escluse in guest mode). L'autore del messaggio vede i nomi di chi ha reagito; sul proprio messaggio niente auto-like (chip visibili solo se qualcuno ha reagito, non cliccabili).
+- **Ringraziamento 👏 a livello segnalazione**: banner "🎉 Intervento completato" nella chat quando `status ∈ {risolta, chiuso}` con CTA "Ringrazia {tecnico}" (toggle). Il tecnico assegnato vede il messaggio personale con i nomi di chi lo ringrazia (e nessun pulsante per auto-ringraziarsi).
+- **Contatore "Grazie ricevuti"** nel profilo tecnico (`ProfilePage.jsx`), calcolato sulle segnalazioni assegnate (`db.getThanksReceived`).
+- Migration **059** `reactions`: tabella unica per reazioni messaggio (comment_id NOT NULL) e ringraziamenti segnalazione (comment_id NULL), unique index partial per il toggle, RLS org-scoped in lettura e user-scoped in insert/delete (pattern 052). La migration droppa una versione preliminare della tabella creata fuori migration sul primo rollout.
+- Nuovo modulo DB `src/lib/db/reactions.js` (`getReactions`, `addReaction`, `removeReaction`, `getThanksReceived`) registrato nel facade, con fallback demo embedded nel report come i commenti.
+- Costante `REACTIONS` in `constants.js`.
+
+### Out of scope (rinviato)
+- Realtime sulle reazioni (publication + subscribe in ChatPanel) — oggi si caricano al mount come i messaggi.
+- Integrazione ManuCoin (`credit_tokens` su 👏 ricevuto) e badge gamification "thanks" in `useOperatorScore`.
+
+---
+
 ## [Unreleased — Hotfix Sprint 1a-bis] — v5.3.1
 
 Hotfix sul branch `claude/hotfix-search-segnalazioni-SvhFt`. Solo cambi UI, nessuna migration DB.

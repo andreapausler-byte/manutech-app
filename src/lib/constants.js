@@ -27,6 +27,14 @@ export const SEVERITY = {
   critica: { label: 'Critica', color: '#ff5c5c', bg: 'rgba(255,92,92,0.10)' },
 }
 
+// Reazioni sui messaggi chat: feedback con significato operativo,
+// non semplici like. 'grazie' (👏) è riservato al livello segnalazione.
+export const REACTIONS = {
+  utile: { emoji: '👍', label: 'Utile' },
+  confermo: { emoji: '✅', label: 'Confermo il problema' },
+  risolto: { emoji: '🔧', label: 'Risolto per me' },
+}
+
 export const ORDER_STATUS = {
   richiesto:  { label: 'Da elaborare',       color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
   preventivo: { label: 'Preventivo',         color: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },

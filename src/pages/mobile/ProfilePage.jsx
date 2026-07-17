@@ -1,17 +1,25 @@
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { ROLES } from '../../lib/constants'
 import { Button } from '../../components/ui'
 import { LogOut, Mail, Shield, Wifi, Palette, Wallet, ChevronRight } from 'lucide-react'
-import { isSupabaseConfigured } from '../../lib/supabase'
+import { db, isSupabaseConfigured } from '../../lib/supabase'
 
 export default function ProfilePage({ onOpenWallet }) {
   const { user, logout } = useAuth()
   const { accent, resolved } = useTheme()
   const role = ROLES[user.role] || ROLES.operatore
+  const [thanks, setThanks] = useState(null)
 
   // Wallet disponibile per chi guadagna ManuCoin: operatori e tecnici
   const showWallet = user.role === 'operatore' || user.role === 'tecnico'
+
+  // 👏 ricevuti sulle segnalazioni assegnate (solo tecnici)
+  useEffect(() => {
+    if (user.role !== 'tecnico') return
+    db.getThanksReceived(user.id).then(setThanks).catch(() => setThanks(null))
+  }, [user.id, user.role])
 
   return (
     <div className="px-4 py-6 space-y-5 animate-fade-in">
@@ -49,6 +57,23 @@ export default function ProfilePage({ onOpenWallet }) {
         </button>
       )}
 
+      {/* Grazie ricevuti (solo tecnici) */}
+      {user.role === 'tecnico' && thanks !== null && (
+        <div
+          className="card-elevated rounded-2xl flex items-center gap-4 px-5 py-4"
+          style={{ background: 'rgba(61,220,132,0.06)', border: '1px solid rgba(61,220,132,0.25)' }}
+        >
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: 'rgba(61,220,132,0.14)', flexShrink: 0 }}>
+            👏
+          </div>
+          <div>
+            <p className="text-sm uppercase tracking-wider" style={{ color: 'var(--color-text-faint)' }}>Grazie ricevuti</p>
+            <p className="text-lg mt-0.5 font-semibold" style={{ color: 'var(--color-text)' }}>{thanks}</p>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>dalle segnalazioni che hai completato</p>
+          </div>
+        </div>
+      )}
+
       {/* Info cards */}
       <div className="card-elevated rounded-2xl overflow-hidden">
         {[
@@ -77,7 +102,7 @@ export default function ProfilePage({ onOpenWallet }) {
         <LogOut size={22} /> Esci
       </Button>
 
-      <p className="text-center text-sm" style={{ color: 'var(--color-text-faint)' }}>ManuTech v5.3.1 — Hotfix search segnalazioni</p>
+      <p className="text-center text-sm" style={{ color: 'var(--color-text-faint)' }}>ManuTech v5.11 — Reazioni chat e ringraziamenti</p>
     </div>
   )
 }

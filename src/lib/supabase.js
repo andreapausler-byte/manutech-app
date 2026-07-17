@@ -23,6 +23,7 @@ import { messaging } from './db/messaging'
 import { wallet } from './db/wallet'
 import { analytics } from './db/analytics'
 import { interventions } from './db/interventions'
+import { reactions } from './db/reactions'
 
 export const db = {
   ...auth,
@@ -38,4 +39,5 @@ export const db = {
   ...wallet,
   ...analytics,
   ...interventions,
+  ...reactions,
 }
