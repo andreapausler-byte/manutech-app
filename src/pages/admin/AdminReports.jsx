@@ -830,7 +830,13 @@ export default function AdminReports({ initialReportId }) {
               ? { ...glassPanelStyle, padding: '8px 16px', background: 'rgba(124,106,255,0.10)', borderColor: 'rgba(124,106,255,0.6)', color: '#a594ff' }
               : { ...glassPanelStyle, padding: '8px 16px', color: 'var(--color-text-muted)' }}
           >
-            Tutte <span className="ml-2 opacity-60 font-normal">{visibleReports.length}</span>
+            Tutte
+            <span
+              className="text-xs font-semibold tabular-nums rounded-md"
+              style={{ marginLeft: 10, padding: '2px 8px', background: 'rgba(255,255,255,0.09)', color: 'var(--color-text)' }}
+            >
+              {visibleReports.length}
+            </span>
           </button>
 
           <div className="h-4 w-px mx-1" style={{ background: 'var(--color-border)' }} />
@@ -850,7 +856,12 @@ export default function AdminReports({ initialReportId }) {
               >
                 <span className="h-2 w-2 rounded-full" style={{ background: color, marginRight: 10 }} />
                 {label}
-                <span className="ml-2 text-xs opacity-60">{count}</span>
+                <span
+                  className="text-xs font-semibold tabular-nums rounded-md"
+                  style={{ marginLeft: 10, padding: '2px 8px', background: 'rgba(255,255,255,0.09)', color: 'var(--color-text)' }}
+                >
+                  {count}
+                </span>
               </button>
             )
           })}
