@@ -60,13 +60,7 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
   const isCritical = report.severity === 'critica'
   const isAlta = report.severity === 'alta'
   const hasMsg = !!lastMessage
-
-  // Build message preview text
-  const msgPreview = hasMsg
-    ? (lastMessage.text
-      ? `${lastMessage.user_name?.split(' ')[0] || 'Utente'}: ${lastMessage.text}`
-      : `${lastMessage.user_name?.split(' ')[0] || 'Utente'}: 📎 Media`)
-    : null
+  const msgAuthor = hasMsg ? (lastMessage.user_name?.split(' ')[0] || 'Utente') : null
 
   return (
     <button
@@ -110,7 +104,7 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
           </span>
           <span className={isCritical ? 'badge-critical-pulse' : isAlta ? 'badge-alta-pulse' : ''} style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,
-            fontSize: 10, fontWeight: 600, color: severity.color, letterSpacing: 0.2,
+            fontSize: 11, fontWeight: 700, color: severity.color, letterSpacing: 0.2,
           }}>
             <span style={{ width: 5, height: 5, borderRadius: '50%', background: severity.color }} />
             {severity.label}
@@ -119,7 +113,7 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
 
         {/* Title — up to 2 lines */}
         <div style={{
-          fontSize: 14, fontWeight: 600, lineHeight: 1.25, letterSpacing: -0.1,
+          fontSize: 15, fontWeight: 600, lineHeight: 1.25, letterSpacing: -0.1,
           color: 'var(--color-text)',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
@@ -130,22 +124,22 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
         {/* Machine */}
         {report.machine && (
           <div style={{
-            fontSize: 11, color: 'var(--color-text-muted)',
+            fontSize: 12, fontWeight: 500, color: 'var(--color-text-secondary)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {report.machine}
           </div>
         )}
 
-        {/* Last chat message preview */}
-        {msgPreview && (
+        {/* Last chat message preview — autore in evidenza, testo leggibile */}
+        {hasMsg && (
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            fontSize: 11, color: unread > 0 ? 'var(--color-text-secondary)' : 'var(--color-text-muted)',
+            display: 'flex', alignItems: 'center', gap: 5,
+            fontSize: 12, color: unread > 0 ? 'var(--color-text)' : 'var(--color-text-secondary)',
             fontWeight: unread > 0 ? 600 : 400,
             minWidth: 0,
           }}>
-            <MessageCircle size={10} style={{ flexShrink: 0, opacity: 0.6 }} />
+            <MessageCircle size={11} style={{ flexShrink: 0, opacity: 0.8 }} />
             {activity?.comment_count > 0 && (
               <span style={{ flexShrink: 0, fontWeight: 700 }}>{activity.comment_count}</span>
             )}
@@ -153,7 +147,8 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               flex: 1, minWidth: 0,
             }}>
-              {msgPreview}
+              <span style={{ fontWeight: 700 }}>{msgAuthor}: </span>
+              {lastMessage.text || '📎 Media'}
             </span>
           </div>
         )}
@@ -161,17 +156,19 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
         {/* Feedback sui messaggi (utenti distinti): più ✅ = problema
             confermato da più persone, segnale di importanza del ticket */}
         {activity && Object.values(activity.reactions).some(n => n > 0) && (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
             {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
               const n = activity.reactions[type] || 0
               if (!n) return null
               return (
                 <span key={type} title={`${label}: ${n} ${n === 1 ? 'persona' : 'persone'}`} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 3,
-                  fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 8,
-                  background: 'var(--color-surface-2)', color: 'var(--color-text-muted)',
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
+                  background: 'var(--color-surface-3)',
+                  border: '1px solid var(--color-border-hover)',
+                  color: 'var(--color-text)',
                 }}>
-                  {emoji} {n}
+                  <span style={{ fontSize: 13, lineHeight: 1 }}>{emoji}</span> {n}
                 </span>
               )
             })}
@@ -198,7 +195,7 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
           <span aria-hidden="true" style={{ width: 22, height: 22 }} />
         )}
         <span style={{
-          fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 500,
+          fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 600,
           fontFamily: '"JetBrains Mono", monospace',
         }}>
           {shortDate(report.updated_at || report.created_at)}
@@ -584,7 +581,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               borderRadius: 999,
               border: filters.onlyMine ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
               background: filters.onlyMine ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
-              color: filters.onlyMine ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              color: filters.onlyMine ? 'var(--color-primary)' : 'var(--color-text-secondary)',
               cursor: 'pointer',
             }}>
             {filters.onlyMine ? '✓ ' : ''}Solo i miei
@@ -600,7 +597,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               borderRadius: 999,
               border: filters.machineFilter ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
               background: filters.machineFilter ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
-              color: filters.machineFilter ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              color: filters.machineFilter ? 'var(--color-primary)' : 'var(--color-text-secondary)',
               cursor: 'pointer',
               maxWidth: 180,
             }}>
@@ -620,7 +617,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               borderRadius: 999,
               border: filters.sortBy !== 'updated' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
               background: filters.sortBy !== 'updated' ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
-              color: filters.sortBy !== 'updated' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              color: filters.sortBy !== 'updated' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
               cursor: 'pointer',
             }}>
             <option value="updated">Ordina: ultimo aggiornamento</option>
@@ -648,7 +645,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
                   flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   padding: '9px 0', borderRadius: 9, fontSize: 13, fontWeight: 600,
                   background: active ? 'var(--color-card)' : 'transparent',
-                  color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                  color: active ? 'var(--color-primary)' : 'var(--color-text-secondary)',
                   border: 'none', cursor: 'pointer',
                   boxShadow: active ? 'var(--shadow-sm)' : 'none',
                   transition: 'all 0.2s',
