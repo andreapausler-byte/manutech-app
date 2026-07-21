@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import hotToast from 'react-hot-toast'
 import { db, supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, timeAgo, formatDate, formatTicketId } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, formatDate, formatTicketId } from '../../lib/constants'
 import { PLANNING_STATE } from '../../lib/interventions'
 import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner, TicketIdBadge } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
@@ -10,10 +10,51 @@ import ReportDetailModal from './reports/ReportDetailModal'
 import MergeReportModal from './reports/MergeReportModal'
 import { useMergeSegnalazione } from '../../hooks/useMergeSegnalazione'
 import { avatarGradient } from '../../hooks/usePremiumUI'
-import { Plus, Search, X, ChevronUp, ChevronDown, ChevronRight, Star, GitMerge } from 'lucide-react'
+import { Plus, Search, X, ChevronDown, ChevronRight, Star, GitMerge } from 'lucide-react'
 
 const TERMINAL_STATUSES = ['risolta', 'chiuso']
 const RECENT_COMPLETED_WINDOW_HOURS = 24
+// Soglia "ferme da troppo": segnalazioni attive senza attività da 3+ settimane
+// finiscono nel banner recupero e portano il chip ⏳ in lista.
+const STALE_DAYS = 21
+const STALE_MS = STALE_DAYS * 24 * 3600 * 1000
+// Sotto questa età l'etichetta "ultimo aggiornamento" si accende (attività calda).
+const RECENT_UPDATE_MS = 3 * 3600 * 1000
+
+const SEVERITY_RANK = { critica: 0, alta: 1, media: 2, bassa: 3 }
+
+// Gruppi di recenza per il sort "Ultimo aggiornamento" (design 3a):
+// ogni segnalazione attiva cade in un solo gruppo in base all'ultima attività.
+const RECENCY_GROUPS = [
+  { key: 'oggi', label: 'Oggi' },
+  { key: 'ieri', label: 'Ieri' },
+  { key: 'settimana', label: 'Ultimi 7 giorni' },
+  { key: 'indietro', label: 'Più indietro' },
+]
+
+const lastActivityTs = (r) => new Date(r.updated_at || r.created_at || 0).getTime()
+
+const recencyBucket = (ts, nowMs) => {
+  const startOfToday = new Date(nowMs); startOfToday.setHours(0, 0, 0, 0)
+  if (ts >= startOfToday.getTime()) return 'oggi'
+  if (ts >= startOfToday.getTime() - 86400000) return 'ieri'
+  if (ts >= nowMs - 7 * 86400000) return 'settimana'
+  return 'indietro'
+}
+
+const initialsOf = (name) =>
+  (name || '?').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
+// Età compatta per i pannelli riga (design 3a): mai la data estesa,
+// sempre "N g fa" oltre il giorno — le righe restano scandibili.
+const compactAgo = (dateStr, nowMs) => {
+  if (!dateStr) return ''
+  const s = Math.floor((nowMs - new Date(dateStr).getTime()) / 1000)
+  if (s < 60) return 'adesso'
+  if (s < 3600) return `${Math.floor(s / 60)} min fa`
+  if (s < 86400) return `${Math.floor(s / 3600)} h fa`
+  return `${Math.floor(s / 86400)} g fa`
+}
 
 // ── CellBadge: piccolo badge bordato per celle tabella (gravità/tipo/stato) ──
 function CellBadge({ color, label }) {
@@ -54,8 +95,9 @@ export default function AdminReports({ initialReportId }) {
   // Default: ordina per ultima attività (updated_at). Il trigger DB 050
   // propaga updated_at quando arriva un commento, quindi i ticket "vivi"
   // in chat salgono in cima — l'admin vede subito chi sta scrivendo.
+  // Con questo sort la lista è raggruppata per recenza (Oggi/Ieri/…);
+  // gli altri criteri ('severity', 'created_at') mostrano lista piatta.
   const [sortBy, setSortBy] = useState('updated_at')
-  const [sortDir, setSortDir] = useState('desc')
   const [archiveOpen, setArchiveOpen] = useState(false)
   // Set dei report_id stellati dall'admin loggato (preferiti personali).
   // Pinnati sempre in cima al sort, indipendentemente dal criterio.
@@ -67,6 +109,12 @@ export default function AdminReports({ initialReportId }) {
   // utenti distinti). Chip sotto al titolo: l'admin vede a colpo d'occhio
   // quali ticket "scottano" (discussione viva, conferme, roba da leggere).
   const [activityMap, setActivityMap] = useState({})
+  // Mappa reportId → ultimo commento (user_name, text, created_at). Alimenta
+  // il pannello "Ultimo aggiornamento" di ogni riga: chi ha scritto per
+  // ultimo e cosa, senza aprire il dettaglio.
+  const [lastCommentMap, setLastCommentMap] = useState({})
+  // Ancora del gruppo "Più indietro" per il bottone RECUPERA del banner stale.
+  const staleGroupRef = useRef(null)
   // Merge duplicati (mig 058): segnalazione sorgente del modal "Unisci a…".
   const [mergeSource, setMergeSource] = useState(null)
   const { unmerge } = useMergeSegnalazione()
@@ -91,6 +139,9 @@ export default function AdminReports({ initialReportId }) {
       db.getReportsActivity(ids, user?.id)
         .then(map => setActivityMap(map || {}))
         .catch(e => console.warn('[AdminReports] activity load failed:', e?.message))
+      db.getLastCommentsByReports(ids)
+        .then(map => setLastCommentMap(map || {}))
+        .catch(e => console.warn('[AdminReports] last comments load failed:', e?.message))
     }
   }
 
@@ -187,6 +238,18 @@ export default function AdminReports({ initialReportId }) {
           setReports(prev => prev.map(r =>
             r.id === reportId ? { ...r, updated_at: createdAt } : r
           ))
+          // Il pannello "Ultimo aggiornamento" della riga riflette subito il
+          // nuovo messaggio, senza refetch.
+          setLastCommentMap(prev => ({
+            ...prev,
+            [reportId]: {
+              report_id: reportId,
+              text: payload.new?.text || '',
+              user_name: payload.new?.user_name || '',
+              media: payload.new?.media || null,
+              created_at: createdAt,
+            },
+          }))
           // Bump dei chip attività senza refetch: +1 messaggio, +1 non letto
           // se scrive qualcun altro (i propri messaggi non contano come nuovi).
           const isOwn = payload.new?.user_id === user?.id
@@ -285,30 +348,25 @@ export default function AdminReports({ initialReportId }) {
 
   const activeFilters = [filterStatus, filterSeverity].filter(Boolean).length
 
-  const toggleSort = (field) => {
-    if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortBy(field); setSortDir('asc') }
-  }
-
   const sorted = [...filtered].sort((a, b) => {
     // Le stellate vincono sempre, qualunque sia il sort attivo: pin rigido
     // in cima alla GitHub. Tra due stellate (o due non stellate) si applica
-    // il criterio scelto dall'utente.
+    // il criterio scelto dall'utente. Nel sort per recenza il pin agisce
+    // dentro il proprio gruppo (Oggi/Ieri/…), non lo scavalca.
     const aStar = starred.has(a.id) ? 1 : 0
     const bStar = starred.has(b.id) ? 1 : 0
     if (aStar !== bStar) return bStar - aStar
-    let va, vb
     switch (sortBy) {
-      case 'updated_at': va = a.updated_at || a.created_at || ''; vb = b.updated_at || b.created_at || ''; break
-      case 'created_at': va = a.created_at || ''; vb = b.created_at || ''; break
-      case 'machine': va = (a.machine || '').toLowerCase(); vb = (b.machine || '').toLowerCase(); break
-      case 'status': va = a.status || ''; vb = b.status || ''; break
-      case 'assigned_to_name': va = a.assigned_to_name || ''; vb = b.assigned_to_name || ''; break
-      default: return 0
+      case 'severity': {
+        const d = (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9)
+        if (d !== 0) return d
+        return lastActivityTs(b) - lastActivityTs(a)
+      }
+      case 'created_at':
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      default:
+        return lastActivityTs(b) - lastActivityTs(a)
     }
-    if (va < vb) return sortDir === 'asc' ? -1 : 1
-    if (va > vb) return sortDir === 'asc' ? 1 : -1
-    return 0
   })
 
   // Split in attive + archivio (risolta/chiuso).
@@ -339,6 +397,31 @@ export default function AdminReports({ initialReportId }) {
   const hasArchiveSeparator = !isFilteringArchive && archivedReports.length > 0
   const autoExpandArchive = !!search && archivedReports.length > 0
   const archiveVisible = archiveOpen || autoExpandArchive
+
+  // ── Design 3a: raggruppamento per recenza dell'ultimo aggiornamento ──
+  // Attivo solo col sort di default; con Gravità/Data apertura lista piatta.
+  const groupedActive = sortBy === 'updated_at'
+    ? RECENCY_GROUPS
+        .map(g => ({ ...g, list: activeReports.filter(r => recencyBucket(lastActivityTs(r), nowMs) === g.key) }))
+        .filter(g => g.list.length > 0)
+    : [{ key: 'all', label: null, list: activeReports }]
+
+  // ── KPI di testata: dove serve attenzione adesso ──
+  const isStaleReport = (r) =>
+    !TERMINAL_STATUSES.includes(r.status) && (nowMs - lastActivityTs(r)) >= STALE_MS
+  const unreadTicketsCount = visibleReports.filter(r => (activityMap[r.id]?.unread_count || 0) > 0).length
+  const openCount = visibleReports.filter(r => r.status === 'aperta').length
+  const inProgressCount = visibleReports.filter(r => r.status === 'in_lavorazione').length
+  const staleCount = visibleReports.filter(isStaleReport).length
+  const oldestStaleDays = staleCount > 0
+    ? Math.max(...visibleReports.filter(isStaleReport).map(r => Math.floor((nowMs - lastActivityTs(r)) / 86400000)))
+    : 0
+
+  // RECUPERA → porta al gruppo "Più indietro", dove le ferme vivono sempre.
+  const scrollToStale = () => {
+    if (sortBy !== 'updated_at') setSortBy('updated_at')
+    setTimeout(() => staleGroupRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
 
   const createReport = async () => {
     if (!form.title.trim() || !form.description.trim()) return
@@ -414,6 +497,7 @@ export default function AdminReports({ initialReportId }) {
     ), { duration: 8000 })
   }
 
+  // ── Riga-card (design 3a): contenuto | ultimo aggiornamento | assegnatario ──
   const renderReportRow = (r, archived) => {
     const sts = STATUS[r.status] || STATUS.aperta
     const sev = SEVERITY[r.severity] || SEVERITY.media
@@ -423,166 +507,242 @@ export default function AdminReports({ initialReportId }) {
     const canMergeRow = canMergeRole && !r.duplicate_of_id && dupCount === 0 && !TERMINAL_STATUSES.includes(r.status)
     const planning = planningMap[r.id]
     const planningMeta = planning && PLANNING_STATE[planning.planning_state]
-    const activity = activityMap[r.id]
-    const hasFeedback = activity && Object.values(activity.reactions).some(n => n > 0)
-    const hasActivity = activity && (activity.comment_count > 0 || hasFeedback)
     // Mostra il chip solo per gli stati informativi (da_pianificare, pianificato,
     // in_corso). risolta/altro restano impliciti dal status badge esistente.
     const showPlanningChip = planningMeta
       && ['da_pianificare', 'pianificato', 'in_corso'].includes(planning.planning_state)
+    const activity = activityMap[r.id]
+    const lastComment = lastCommentMap[r.id]
+    const unread = activity?.unread_count || 0
+    const stale = isStaleReport(r)
+    const lastTs = r.updated_at || r.created_at
+    const isHotUpdate = (nowMs - lastActivityTs(r)) < RECENT_UPDATE_MS
+    const machineName = r.machine || (r.machine_id ? machineNameById.get(r.machine_id) : null)
+    const snippet = lastComment
+      ? (lastComment.text?.trim() || (lastComment.media?.length ? '📷 Foto allegata' : '…'))
+      : null
+
     return (
-      <tr
+      <div
         key={r.id}
         onClick={() => setSelected(r)}
-        className="hover:bg-indigo-500/5 transition-colors duration-200 group cursor-pointer"
+        className="group cursor-pointer rounded-xl flex items-stretch overflow-hidden transition-all duration-200 hover:-translate-y-px"
         style={{
-          borderBottom: '1px solid var(--color-border-subtle)',
+          background: 'var(--color-surface-1)',
+          border: '1px solid var(--color-border-subtle)',
+          borderLeft: `3px solid ${sev.color}`,
           opacity: archived ? 0.75 : 1,
         }}
       >
-        <td className="pl-5 pr-1 py-5 align-middle text-center w-[44px]">
-          <button
-            onClick={(e) => toggleStar(r.id, e)}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/5 transition-colors"
-            aria-label={isStarred ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
-            aria-pressed={isStarred}
-            title={isStarred ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
-          >
-            <Star
-              size={16}
-              fill={isStarred ? '#facc15' : 'none'}
-              color={isStarred ? '#facc15' : 'var(--color-text-muted)'}
-              strokeWidth={isStarred ? 1.5 : 1.8}
-            />
-          </button>
-        </td>
-        <td className="px-8 py-5 align-middle">
-          <TicketIdBadge report={r} className="text-[10px] font-bold mb-1" style={{
-            display: 'inline-block',
-            padding: '2px 7px',
-            borderRadius: 4,
-            letterSpacing: 1,
-            fontFamily: '"JetBrains Mono", monospace',
-            background: 'var(--color-primary-glow)',
-            color: 'var(--color-primary)',
-          }} />
-          {dupCount > 0 && (
-            <span
-              className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded align-middle"
-              title={`Include ${dupCount} ${dupCount === 1 ? 'segnalazione unita' : 'segnalazioni unite'}`}
-              style={{ background: 'rgba(250,204,21,0.16)', color: '#facc15' }}
+        {/* Colonna principale: meta, titolo, badge */}
+        <div className="flex-1 min-w-0 px-4 py-3.5 flex flex-col gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              onClick={(e) => toggleStar(r.id, e)}
+              className="inline-flex items-center justify-center w-6 h-6 -ml-1 rounded-full hover:bg-white/5 transition-colors shrink-0"
+              aria-label={isStarred ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+              aria-pressed={isStarred}
+              title={isStarred ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
             >
-              <GitMerge size={11} /> {dupCount}
-            </span>
-          )}
+              <Star
+                size={14}
+                fill={isStarred ? '#facc15' : 'none'}
+                color={isStarred ? '#facc15' : 'var(--color-text-muted)'}
+                strokeWidth={isStarred ? 1.5 : 1.8}
+              />
+            </button>
+            <TicketIdBadge report={r} className="text-[10px] font-bold shrink-0" style={{
+              display: 'inline-block',
+              padding: '2px 7px',
+              borderRadius: 4,
+              letterSpacing: 1,
+              fontFamily: '"JetBrains Mono", monospace',
+              background: 'var(--color-primary-glow)',
+              color: 'var(--color-primary)',
+            }} />
+            {dupCount > 0 && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                title={`Include ${dupCount} ${dupCount === 1 ? 'segnalazione unita' : 'segnalazioni unite'}`}
+                style={{ background: 'rgba(250,204,21,0.16)', color: '#facc15' }}
+              >
+                <GitMerge size={11} /> {dupCount}
+              </span>
+            )}
+            {machineName && (
+              <span
+                className="text-[11px] font-semibold truncate"
+                style={{ fontFamily: '"JetBrains Mono", monospace', color: 'var(--color-primary)' }}
+              >
+                {machineName}
+              </span>
+            )}
+            {showPlanningChip && (
+              <span
+                className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
+                style={{ background: planningMeta.bg, color: planningMeta.color }}
+                title={planning.next_at ? `Prossimo: ${formatDate(planning.next_at)}` : undefined}
+              >
+                <span>{planningMeta.icon}</span> {planningMeta.label}
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              {canMergeRow && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMergeSource(r) }}
+                  aria-label="Unisci a un'altra segnalazione"
+                  title="Unisci a…"
+                  className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded-lg hover:bg-violet-500/10 text-muted hover:text-violet-400"
+                >
+                  <GitMerge size={14} />
+                </button>
+              )}
+              {/* Su schermi senza pannello aggiornamento, l'età resta a vista */}
+              <span
+                className="xl:hidden text-[11px] font-medium whitespace-nowrap"
+                style={{ color: 'var(--color-text-muted)' }}
+                title={r.created_at ? `Creata: ${formatDate(r.created_at)}` : undefined}
+              >
+                {compactAgo(lastTs, nowMs)}
+              </span>
+            </div>
+          </div>
+
           <div
-            className="font-semibold mb-0.5 group-hover:text-indigo-300 transition-colors truncate"
+            className="font-semibold text-[15px] leading-snug group-hover:text-indigo-300 transition-colors"
             style={{ color: 'var(--color-text)' }}
           >
             {r.title}
           </div>
-          <div className="text-[11px] font-medium truncate" style={{ color: 'var(--color-text-muted)' }}>
-            {r.created_by_name || 'Sconosciuto'}
-          </div>
-          {showPlanningChip && (
-            <span
-              className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded mt-1"
-              style={{ background: planningMeta.bg, color: planningMeta.color }}
-              title={planning.next_at ? `Prossimo: ${formatDate(planning.next_at)}` : undefined}
-            >
-              <span>{planningMeta.icon}</span> {planningMeta.label}
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <CellBadge color={sev.color} label={sev.label} />
+            <CellBadge color={sts.color} label={sts.label} />
+            {typ && <CellBadge color={typ.color} label={typ.label} />}
+            <span className="text-[11px] font-medium truncate" style={{ color: 'var(--color-text-muted)' }}>
+              · da {r.created_by_name || 'Sconosciuto'}
             </span>
-          )}
-          {hasActivity && (
-            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-              {activity.comment_count > 0 && (
+          </div>
+        </div>
+
+        {/* Pannello "Ultimo aggiornamento": chi ha scritto per ultimo e cosa */}
+        <div
+          className="hidden xl:flex w-[420px] shrink-0 flex-col justify-center gap-2 px-4 py-3"
+          style={{ borderLeft: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-0)' }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--color-text-faint)' }}>
+              Ultimo aggiornamento
+            </span>
+            <span
+              className="text-[11px] font-semibold whitespace-nowrap"
+              style={{ fontFamily: '"JetBrains Mono", monospace', color: isHotUpdate ? 'var(--color-success)' : 'var(--color-text-muted)' }}
+              title={r.created_at ? `Creata: ${formatDate(r.created_at)}` : undefined}
+            >
+              {compactAgo(lastTs, nowMs)}
+            </span>
+          </div>
+          {lastComment ? (
+            <>
+              <div className="flex items-start gap-2.5 min-w-0">
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  title={activity.unread_count > 0
-                    ? `${activity.comment_count} messaggi, ${activity.unread_count} da leggere`
-                    : `${activity.comment_count} ${activity.comment_count === 1 ? 'messaggio' : 'messaggi'} in chat`}
-                  style={activity.unread_count > 0
-                    ? { background: 'var(--color-primary-glow)', color: 'var(--color-primary)' }
-                    : { background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
+                  className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                  style={{ background: avatarGradient(lastComment.user_name) }}
                 >
-                  💬 {activity.comment_count}
-                  {activity.unread_count > 0 && (
-                    <span>· {activity.unread_count} {activity.unread_count === 1 ? 'nuovo' : 'nuovi'}</span>
-                  )}
+                  {initialsOf(lastComment.user_name)}
                 </span>
-              )}
-              {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
-                const n = activity.reactions[type] || 0
-                if (!n) return null
-                return (
+                <div
+                  className="text-[12px] leading-snug overflow-hidden"
+                  style={{ color: 'var(--color-text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                >
+                  <span className="font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                    {lastComment.user_name || 'Team'}:{' '}
+                  </span>
+                  {snippet}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {activity?.comment_count > 0 && (
                   <span
-                    key={type}
-                    title={`${label}: ${n} ${n === 1 ? 'persona' : 'persone'}`}
-                    className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    title={`${activity.comment_count} ${activity.comment_count === 1 ? 'messaggio' : 'messaggi'} in chat`}
                     style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
                   >
-                    {emoji} {n}
+                    💬 {activity.comment_count}
                   </span>
-                )
-              })}
-            </div>
-          )}
-        </td>
-        <td className="px-6 py-5 align-middle hidden lg:table-cell">
-          <span className="italic font-medium truncate block" style={{ color: 'var(--color-text-muted)' }}>
-            {r.machine || '—'}
-          </span>
-        </td>
-        <td className="px-6 py-5 align-middle text-center hidden md:table-cell">
-          <CellBadge color={sev.color} label={sev.label} />
-        </td>
-        <td className="px-6 py-5 align-middle text-center hidden lg:table-cell">
-          {typ ? (
-            <CellBadge color={typ.color} label={typ.label} />
+                )}
+                {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
+                  const n = activity?.reactions?.[type] || 0
+                  if (!n) return null
+                  return (
+                    <span
+                      key={type}
+                      title={`${label}: ${n} ${n === 1 ? 'persona' : 'persone'}`}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
+                    >
+                      {emoji} {n}
+                    </span>
+                  )
+                })}
+                {unread > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: 'var(--color-primary-glow)', color: 'var(--color-primary)' }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-primary)' }} />
+                    {unread} {unread === 1 ? 'nuovo' : 'nuovi'}
+                  </span>
+                )}
+              </div>
+            </>
           ) : (
-            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>—</span>
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>Nessun aggiornamento</span>
+                {stale && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: 'var(--color-warning-glow)', color: 'var(--color-warning)' }}
+                  >
+                    ⏳ {compactAgo(r.created_at, nowMs)}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px]" style={{ fontFamily: '"JetBrains Mono", monospace', color: 'var(--color-text-faint)' }}>
+                Aperta {compactAgo(r.created_at, nowMs)} · nessuno ci ha ancora lavorato
+              </span>
+            </>
           )}
-        </td>
-        <td className="px-6 py-5 align-middle text-center">
-          <CellBadge color={sts.color} label={sts.label} />
-        </td>
-        <td className="px-6 py-5 align-middle hidden lg:table-cell">
+        </div>
+
+        {/* Colonna assegnatario */}
+        <div
+          className="hidden md:flex w-[128px] shrink-0 flex-col items-center justify-center gap-1.5 px-2 py-3 text-center"
+          style={{ borderLeft: '1px solid var(--color-border-subtle)' }}
+        >
           {r.assigned_to_name ? (
-            <div className="flex items-center min-w-0" style={{ color: 'var(--color-text-secondary)' }}>
-              <div
-                className="h-7 w-7 rounded-full mr-3 flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm"
+            <>
+              <span
+                className="w-8 h-8 rounded-full inline-flex items-center justify-center text-[11px] font-bold text-white shadow-sm"
                 style={{ background: avatarGradient(r.assigned_to_name) }}
               >
-                {r.assigned_to_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-              </div>
-              <span className="font-medium truncate">{r.assigned_to_name}</span>
-            </div>
+                {initialsOf(r.assigned_to_name)}
+              </span>
+              <span className="text-[10px] font-medium truncate w-full px-1" style={{ color: 'var(--color-text-secondary)' }}>
+                {r.assigned_to_name}
+              </span>
+            </>
           ) : (
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#f59e0b' }}>
-              Da assegnare
+            <span
+              className="text-[9px] font-bold uppercase tracking-wider px-2 py-1.5 rounded-md"
+              style={{ color: 'var(--color-warning)', border: '1px dashed var(--color-warning)', opacity: 0.9 }}
+            >
+              + Assegna
             </span>
           )}
-        </td>
-        <td
-          className="px-8 py-5 align-middle text-right font-medium whitespace-nowrap"
-          style={{ color: 'var(--color-text-muted)' }}
-          title={r.created_at ? `Creata: ${formatDate(r.created_at)}` : undefined}
-        >
-          <div className="inline-flex items-center gap-2 justify-end">
-            {canMergeRow && (
-              <button
-                onClick={(e) => { e.stopPropagation(); setMergeSource(r) }}
-                aria-label="Unisci a un'altra segnalazione"
-                title="Unisci a…"
-                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-violet-500/10 text-muted hover:text-violet-400"
-              >
-                <GitMerge size={15} />
-              </button>
-            )}
-            <span>{timeAgo(r.updated_at || r.created_at)}</span>
-          </div>
-        </td>
-      </tr>
+        </div>
+      </div>
     )
   }
 
@@ -716,6 +876,61 @@ export default function AdminReports({ initialReportId }) {
             </button>
           )}
         </div>
+
+        {/* ═══ KPI: dove serve attenzione adesso (design 3a) ═══ */}
+        {!loading && (
+          <div className="flex items-stretch gap-3 mt-5 flex-wrap">
+            {[
+              { value: unreadTicketsCount, label: <>Con nuovi<br />aggiornamenti</>, color: 'var(--color-primary)' },
+              { value: openCount, label: <>Da<br />assegnare</>, color: STATUS.aperta.color },
+              { value: inProgressCount, label: <>In corso<br />adesso</>, color: STATUS.in_lavorazione.color },
+            ].map((kpi, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl min-w-[130px]"
+                style={glassPanelStyle}
+              >
+                <span className="text-[28px] font-bold leading-none tabular-nums" style={{ color: kpi.color }}>
+                  {kpi.value}
+                </span>
+                <span
+                  className="text-[9px] font-bold uppercase tracking-wider leading-[1.4]"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  {kpi.label}
+                </span>
+              </div>
+            ))}
+            {staleCount > 0 && (
+              <div
+                className="flex-1 min-w-[300px] flex items-center justify-between gap-4 px-4 py-2.5 rounded-xl"
+                style={{
+                  background: 'linear-gradient(90deg, rgba(245,158,11,0.12), rgba(245,158,11,0.03))',
+                  border: '1px solid rgba(245,158,11,0.35)',
+                }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-xl shrink-0">⏳</span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate" style={{ color: 'var(--color-warning)' }}>
+                      <b className="font-extrabold">{staleCount} {staleCount === 1 ? 'segnalazione ferma' : 'segnalazioni ferme'}</b> da oltre 3 settimane
+                    </div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: 'var(--color-warning)', opacity: 0.65 }}>
+                      Da non perdere — la più vecchia è ferma da {oldestStaleDays} giorni
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={scrollToStale}
+                  className="shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-transform press-scale"
+                  style={{ background: 'var(--color-warning)', color: '#160f04' }}
+                >
+                  Recupera →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       {/* ═══ MAIN DATA AREA ═══ */}
@@ -723,81 +938,100 @@ export default function AdminReports({ initialReportId }) {
         <EmptyState icon="📋" title="Nessuna segnalazione trovata"
           subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined} />
       ) : (
-        <div className="rounded-2xl overflow-hidden shadow-2xl" style={glassPanelStyle}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
-              <thead>
-                <tr
-                  className="text-[11px] uppercase bg-slate-900/40 backdrop-blur-md"
-                  style={{
-                    color: 'var(--color-text-muted)',
-                    borderBottom: '1px solid var(--color-border)',
-                  }}
-                >
-                  {[
-                    { label: '', field: null, className: 'pl-5 pr-1 py-5 w-[44px]' },
-                    { label: 'Segnalazione', field: null, className: 'px-8 py-5 w-[26%]' },
-                    { label: 'Macchinario', field: 'machine', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
-                    { label: 'Gravità', field: null, className: 'px-6 py-5 w-[10%] text-center hidden md:table-cell' },
-                    { label: 'Tipo', field: null, className: 'px-6 py-5 w-[10%] text-center hidden lg:table-cell' },
-                    { label: 'Stato', field: 'status', className: 'px-6 py-5 w-[12%] text-center' },
-                    { label: 'Assegnato', field: 'assigned_to_name', className: 'px-6 py-5 w-[14%] hidden lg:table-cell' },
-                    { label: 'Ultima attività', field: 'updated_at', className: 'px-8 py-5 text-right' },
-                  ].map((col, i) => (
-                    <th
-                      key={i}
-                      className={`font-bold tracking-widest ${col.className} ${col.field ? 'cursor-pointer select-none hover:text-white' : ''}`}
-                      onClick={col.field ? () => toggleSort(col.field) : undefined}
-                    >
-                      <span className={`inline-flex items-center gap-1 ${col.className.includes('text-center') ? 'justify-center w-full' : ''} ${col.className.includes('text-right') ? 'justify-end w-full' : ''}`}>
-                        {col.label}
-                        {col.field && sortBy === col.field && (
-                          sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
-                        )}
-                      </span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="text-[13px]">
-                {activeReports.map(r => renderReportRow(r, false))}
-
-                {hasArchiveSeparator && (
-                  <tr
-                    onClick={() => setArchiveOpen(o => !o)}
-                    className="cursor-pointer select-none hover:bg-white/5 transition-colors"
-                    style={{
-                      background: 'var(--color-surface-2)',
-                      borderTop: '1px solid var(--color-border)',
-                      borderBottom: '1px solid var(--color-border)',
-                    }}
-                    aria-expanded={archiveVisible}
+        <div className="space-y-4">
+          {/* Barra ordinamento (design 3a) */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--color-text-faint)' }}>
+                Ordina per
+              </span>
+              {[
+                { key: 'updated_at', label: '↓ Ultimo aggiornamento' },
+                { key: 'severity', label: 'Gravità' },
+                { key: 'created_at', label: 'Data apertura' },
+              ].map(opt => {
+                const isActive = sortBy === opt.key
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => setSortBy(opt.key)}
+                    aria-pressed={isActive}
+                    className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-all press-scale"
+                    style={isActive
+                      ? { background: 'var(--color-primary-glow)', borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }
+                      : { background: 'var(--color-surface-1)', borderColor: 'var(--color-border-subtle)', color: 'var(--color-text-muted)' }}
                   >
-                    <td colSpan={8} className="px-8 py-3">
-                      <div
-                        className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-widest"
-                        style={{ color: 'var(--color-text-muted)' }}
-                      >
-                        {archiveVisible ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        Archivio
-                        <span
-                          className="px-2 py-0.5 rounded-md"
-                          style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)' }}
-                        >
-                          {archivedReports.length}
-                        </span>
-                        <span className="font-normal normal-case tracking-normal opacity-60">
-                          segnalazioni completate o chiuse
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-
-                {hasArchiveSeparator && archiveVisible && archivedReports.map(r => renderReportRow(r, true))}
-              </tbody>
-            </table>
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+            {unreadTicketsCount > 0 && (
+              <span
+                className="inline-flex items-center gap-2 text-[11px] font-semibold"
+                style={{ fontFamily: '"JetBrains Mono", monospace', color: 'var(--color-primary)' }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-primary)' }} />
+                {unreadTicketsCount} con aggiornamenti nuovi
+              </span>
+            )}
           </div>
+
+          {/* Lista raggruppata per recenza dell'ultimo aggiornamento */}
+          {groupedActive.map(g => (
+            <div
+              key={g.key}
+              ref={g.key === 'indietro' ? staleGroupRef : undefined}
+              className="space-y-2.5 scroll-mt-4"
+            >
+              {g.label && (
+                <div className="flex items-center gap-3 pt-2">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: 'var(--color-text-muted)' }}>
+                    {g.label}
+                  </span>
+                  <span
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
+                    style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
+                  >
+                    {g.list.length}
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: 'var(--color-border-subtle)' }} />
+                </div>
+              )}
+              {g.list.map(r => renderReportRow(r, false))}
+            </div>
+          ))}
+
+          {/* Archivio: completate/chiuse raffreddate (>24h) */}
+          {hasArchiveSeparator && (
+            <button
+              onClick={() => setArchiveOpen(o => !o)}
+              aria-expanded={archiveVisible}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest cursor-pointer select-none hover:bg-white/5 transition-colors"
+              style={{
+                background: 'var(--color-surface-2)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              {archiveVisible ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              Archivio
+              <span
+                className="px-2 py-0.5 rounded-md"
+                style={{ background: 'var(--color-surface-1)', color: 'var(--color-text-muted)' }}
+              >
+                {archivedReports.length}
+              </span>
+              <span className="font-normal normal-case tracking-normal opacity-60">
+                segnalazioni completate o chiuse
+              </span>
+            </button>
+          )}
+          {hasArchiveSeparator && archiveVisible && (
+            <div className="space-y-2.5">
+              {archivedReports.map(r => renderReportRow(r, true))}
+            </div>
+          )}
         </div>
       )}
 
