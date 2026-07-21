@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import hotToast from 'react-hot-toast'
 import { db, supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatDate, formatTicketId } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, timeAgo, formatDate, formatTicketId } from '../../lib/constants'
 import { PLANNING_STATE } from '../../lib/interventions'
 import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner, TicketIdBadge } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
@@ -63,6 +63,10 @@ export default function AdminReports({ initialReportId }) {
   // Mappa reportId → { planning_state, active_count, next_at } dalla view
   // reports_with_planning (mig 053). Mostrato come chip accanto al titolo.
   const [planningMap, setPlanningMap] = useState({})
+  // Mappa reportId → attività chat (n. messaggi, non letti, feedback per
+  // utenti distinti). Chip sotto al titolo: l'admin vede a colpo d'occhio
+  // quali ticket "scottano" (discussione viva, conferme, roba da leggere).
+  const [activityMap, setActivityMap] = useState({})
   // Merge duplicati (mig 058): segnalazione sorgente del modal "Unisci a…".
   const [mergeSource, setMergeSource] = useState(null)
   const { unmerge } = useMergeSegnalazione()
@@ -78,11 +82,15 @@ export default function AdminReports({ initialReportId }) {
     ])
     setReports(r); setUsers(u); setMachines(m); setStarred(s)
     if (!silent) setLoading(false)
-    // Planning state in second pass — non bloccare il primo paint.
+    // Planning state e attività chat in second pass — non bloccare il primo paint.
     if (r?.length) {
-      db.getPlanningStateForReports(r.map(rep => rep.id))
+      const ids = r.map(rep => rep.id)
+      db.getPlanningStateForReports(ids)
         .then(map => setPlanningMap(map || {}))
         .catch(e => console.warn('[AdminReports] planning state load failed:', e?.message))
+      db.getReportsActivity(ids, user?.id)
+        .then(map => setActivityMap(map || {}))
+        .catch(e => console.warn('[AdminReports] activity load failed:', e?.message))
     }
   }
 
@@ -179,11 +187,29 @@ export default function AdminReports({ initialReportId }) {
           setReports(prev => prev.map(r =>
             r.id === reportId ? { ...r, updated_at: createdAt } : r
           ))
+          // Bump dei chip attività senza refetch: +1 messaggio, +1 non letto
+          // se scrive qualcun altro (i propri messaggi non contano come nuovi).
+          const isOwn = payload.new?.user_id === user?.id
+          setActivityMap(prev => {
+            const cur = prev[reportId] || {
+              comment_count: 0, unread_count: 0, last_comment_at: null,
+              reactions: { utile: 0, confermo: 0, risolto: 0 },
+            }
+            return {
+              ...prev,
+              [reportId]: {
+                ...cur,
+                comment_count: cur.comment_count + 1,
+                unread_count: cur.unread_count + (isOwn ? 0 : 1),
+                last_comment_at: createdAt,
+              },
+            }
+          })
         }
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, [user?.id])
 
   // ── Deep link da email: apri report specifico ──
   // Se il target è un duplicato (unito a una master), apri direttamente la
@@ -209,6 +235,19 @@ export default function AdminReports({ initialReportId }) {
       }).catch(() => console.warn('[ManuTech] Impossibile caricare report:', initialReportId))
     }
   }, [initialReportId, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Aprire il dettaglio (che contiene la chat) azzera i non letti per
+  // l'admin corrente: upsert su chat_reads + azzeramento ottimistico del
+  // chip, senza refetch. Stessa semantica del mobile (MobileLayout).
+  useEffect(() => {
+    if (!selected?.id || !user?.id) return
+    db.markChatRead(selected.id, user.id)
+    setActivityMap(prev => {
+      const cur = prev[selected.id]
+      if (!cur?.unread_count) return prev
+      return { ...prev, [selected.id]: { ...cur, unread_count: 0 } }
+    })
+  }, [selected?.id, user?.id])
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
@@ -384,6 +423,9 @@ export default function AdminReports({ initialReportId }) {
     const canMergeRow = canMergeRole && !r.duplicate_of_id && dupCount === 0 && !TERMINAL_STATUSES.includes(r.status)
     const planning = planningMap[r.id]
     const planningMeta = planning && PLANNING_STATE[planning.planning_state]
+    const activity = activityMap[r.id]
+    const hasFeedback = activity && Object.values(activity.reactions).some(n => n > 0)
+    const hasActivity = activity && (activity.comment_count > 0 || hasFeedback)
     // Mostra il chip solo per gli stati informativi (da_pianificare, pianificato,
     // in_corso). risolta/altro restano impliciti dal status badge esistente.
     const showPlanningChip = planningMeta
@@ -450,6 +492,40 @@ export default function AdminReports({ initialReportId }) {
             >
               <span>{planningMeta.icon}</span> {planningMeta.label}
             </span>
+          )}
+          {hasActivity && (
+            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+              {activity.comment_count > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                  title={activity.unread_count > 0
+                    ? `${activity.comment_count} messaggi, ${activity.unread_count} da leggere`
+                    : `${activity.comment_count} ${activity.comment_count === 1 ? 'messaggio' : 'messaggi'} in chat`}
+                  style={activity.unread_count > 0
+                    ? { background: 'var(--color-primary-glow)', color: 'var(--color-primary)' }
+                    : { background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
+                >
+                  💬 {activity.comment_count}
+                  {activity.unread_count > 0 && (
+                    <span>· {activity.unread_count} {activity.unread_count === 1 ? 'nuovo' : 'nuovi'}</span>
+                  )}
+                </span>
+              )}
+              {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
+                const n = activity.reactions[type] || 0
+                if (!n) return null
+                return (
+                  <span
+                    key={type}
+                    title={`${label}: ${n} ${n === 1 ? 'persona' : 'persone'}`}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
+                  >
+                    {emoji} {n}
+                  </span>
+                )
+              })}
+            </div>
           )}
         </td>
         <td className="px-6 py-5 align-middle hidden lg:table-cell">

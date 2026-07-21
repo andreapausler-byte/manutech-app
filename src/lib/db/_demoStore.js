@@ -9,6 +9,7 @@ export const KEYS = {
   activities: 'manutech_activities',
   notifications: 'manutech_notifications',
   reportStars: 'manutech_report_stars',
+  chatReads: 'manutech_chat_reads',
   interventions: 'manutech_interventions',
   interventionReports: 'manutech_intervention_reports',
   interventionParticipants: 'manutech_intervention_participants',

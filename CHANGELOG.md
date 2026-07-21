@@ -6,6 +6,19 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.12 — Attività chat nella lista segnalazioni admin
+
+### Added
+- **Chip attività chat nella lista admin** (`AdminReports.jsx`): sotto al titolo di ogni segnalazione compaiono 💬 numero messaggi (evidenziato con "· N nuovi" in accent quando ci sono non letti per l'admin loggato) e il feedback sui messaggi — ✅ Confermo, 👍 Utile, 🔧 Risolto — contato per **utenti distinti** (chi reagisce a 3 messaggi vale 1 persona). Le conferme multiple segnalano a colpo d'occhio l'importanza reale del ticket. Il 👏 'grazie' a livello segnalazione resta escluso dai chip.
+- **Non letti anche su desktop**: aprire il dettaglio (che contiene la chat) fa upsert su `chat_reads` (mig 003, finora scritta solo dal mobile) e azzera il chip senza refetch. Nuovo `db.markChatRead(reportId, userId)` nel facade.
+- **`db.getReportsActivity(reportIds, userId)`** in `src/lib/db/reports.js`: aggregato bulk (3 query: comments senza soft-deleted, reactions, chat_reads) con merge client-side — niente N+1 sulla lista. Fallback demo su store embedded + nuova chiave `KEYS.chatReads`.
+- La subscription realtime sui commenti già presente in AdminReports ora aggiorna anche i chip (contatore +1, non letti +1 se scrive qualcun altro) oltre a fare il bump di `updated_at`.
+
+### Note
+- Nessuna migration: riusa `chat_reads` (003) e `reactions` (059). Se una delle due manca, degrado silenzioso (niente non letti / niente chip feedback).
+
+---
+
 ## [Unreleased] — v5.11 — Reazioni chat e ringraziamenti
 
 ### Added

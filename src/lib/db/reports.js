@@ -136,6 +136,109 @@ export const reports = {
     return map
   },
 
+  // ─── ATTIVITÀ CHAT PER LE LISTE ───
+  // Aggregato bulk per la lista admin: per ogni report il numero di messaggi,
+  // i non letti dell'utente (commenti altrui dopo chat_reads.last_read_at) e
+  // il feedback sui messaggi contato per utenti distinti — chi conferma 3
+  // messaggi vale 1 persona, non 3. Il 👏 'grazie' (comment_id NULL) resta
+  // fuori: è un ringraziamento, non un segnale di importanza del ticket.
+  // 3 query bulk + merge client-side, niente N+1 sulla lista.
+  async getReportsActivity(reportIds, userId) {
+    const emptyActivity = () => ({
+      comment_count: 0,
+      unread_count: 0,
+      last_comment_at: null,
+      reactions: { utile: 0, confermo: 0, risolto: 0 },
+    })
+    if (!reportIds?.length) return {}
+
+    let comments = []
+    let reactionRows = []
+    let reads = null // null = tracciamento letture non disponibile → 0 non letti
+
+    if (supabase) {
+      // Commenti: esclude i soft-deleted (mig 042), con retry senza filtro
+      // se la colonna non esiste — stesso pattern di getComments.
+      let res = await supabase.from('comments')
+        .select('report_id, user_id, created_at')
+        .in('report_id', reportIds)
+        .is('deleted_at', null)
+      if (res.error) {
+        res = await supabase.from('comments')
+          .select('report_id, user_id, created_at')
+          .in('report_id', reportIds)
+      }
+      comments = res.data || []
+
+      // Reazioni: se la migration 059 non è applicata, fallback a vuoto.
+      const rea = await supabase.from('reactions')
+        .select('report_id, comment_id, user_id, type')
+        .in('report_id', reportIds)
+      if (rea.error) console.warn('[ManuTech] getReportsActivity reactions:', rea.error.message)
+      reactionRows = rea.data || []
+
+      if (userId) {
+        const rd = await supabase.from('chat_reads')
+          .select('report_id, last_read_at')
+          .eq('user_id', userId)
+        if (!rd.error) reads = rd.data || []
+      }
+    } else {
+      const all = getStore(KEYS.reports).filter(r => reportIds.includes(r.id))
+      comments = all.flatMap(r =>
+        (r.comments || []).filter(c => !c.deleted_at).map(c => ({ ...c, report_id: r.id }))
+      )
+      reactionRows = all.flatMap(r => r.reactions || [])
+      if (userId) reads = getStore(KEYS.chatReads).filter(x => x.user_id === userId)
+    }
+
+    const lastReadByReport = {}
+    for (const r of reads || []) lastReadByReport[r.report_id] = r.last_read_at
+
+    const map = {}
+    const entryFor = id => map[id] || (map[id] = { ...emptyActivity(), _voters: { utile: new Set(), confermo: new Set(), risolto: new Set() } })
+
+    for (const c of comments) {
+      const a = entryFor(c.report_id)
+      a.comment_count++
+      if (!a.last_comment_at || c.created_at > a.last_comment_at) a.last_comment_at = c.created_at
+      const lastRead = lastReadByReport[c.report_id]
+      if (reads && userId && c.user_id !== userId && (!lastRead || new Date(c.created_at) > new Date(lastRead))) {
+        a.unread_count++
+      }
+    }
+
+    for (const x of reactionRows) {
+      if (!x.comment_id) continue
+      const voters = entryFor(x.report_id)._voters[x.type]
+      if (voters) voters.add(x.user_id)
+    }
+
+    for (const a of Object.values(map)) {
+      a.reactions = { utile: a._voters.utile.size, confermo: a._voters.confermo.size, risolto: a._voters.risolto.size }
+      delete a._voters
+    }
+    return map
+  },
+
+  // Segna la chat di un report come letta (upsert su chat_reads, mig 003).
+  // Stessa scrittura di useChatRealtime.markAsRead, esposta nel facade per
+  // le superfici senza hook realtime (lista admin desktop).
+  async markChatRead(reportId, userId) {
+    if (!reportId || !userId) return
+    if (supabase) {
+      const { error } = await supabase.from('chat_reads').upsert(
+        { user_id: userId, report_id: reportId, last_read_at: new Date().toISOString() },
+        { onConflict: 'user_id,report_id' }
+      )
+      if (error) console.warn('[ManuTech] markChatRead:', error.message)
+      return
+    }
+    const all = getStore(KEYS.chatReads).filter(x => !(x.report_id === reportId && x.user_id === userId))
+    all.push({ report_id: reportId, user_id: userId, last_read_at: new Date().toISOString() })
+    setStore(KEYS.chatReads, all)
+  },
+
   async addComment(reportId, comment) {
     if (supabase) {
       let insertData = { ...comment, report_id: reportId }
