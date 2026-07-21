@@ -58,10 +58,12 @@ const compactAgo = (dateStr, nowMs) => {
 
 // ── CellBadge: piccolo badge bordato per celle tabella (gravità/tipo/stato) ──
 function CellBadge({ color, label }) {
+  // Padding inline: le utility p-*/m-* di Tailwind sono azzerate dal reset
+  // globale non-layered di index.css (vale per tutta la pagina).
   return (
     <span
-      className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border whitespace-nowrap"
-      style={{ background: `${color}15`, color, borderColor: `${color}30` }}
+      className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider rounded-md border whitespace-nowrap"
+      style={{ background: `${color}15`, color, borderColor: `${color}30`, padding: '3px 10px' }}
     >
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
       {label}
@@ -535,11 +537,11 @@ export default function AdminReports({ initialReportId }) {
         }}
       >
         {/* Colonna principale: meta, titolo, badge */}
-        <div className="flex-1 min-w-0 px-4 py-3.5 flex flex-col gap-2">
+        <div className="flex-1 min-w-0 flex flex-col gap-2.5" style={{ padding: '16px 20px' }}>
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={(e) => toggleStar(r.id, e)}
-              className="inline-flex items-center justify-center w-6 h-6 -ml-1 rounded-full hover:bg-white/5 transition-colors shrink-0"
+              className="inline-flex items-center justify-center w-6 h-6 rounded-full hover:bg-white/5 transition-colors shrink-0"
               aria-label={isStarred ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
               aria-pressed={isStarred}
               title={isStarred ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
@@ -562,9 +564,9 @@ export default function AdminReports({ initialReportId }) {
             }} />
             {dupCount > 0 && (
               <span
-                className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                className="inline-flex items-center gap-0.5 text-[10px] font-bold rounded shrink-0"
                 title={`Include ${dupCount} ${dupCount === 1 ? 'segnalazione unita' : 'segnalazioni unite'}`}
-                style={{ background: 'rgba(250,204,21,0.16)', color: '#facc15' }}
+                style={{ background: 'rgba(250,204,21,0.16)', color: '#facc15', padding: '2px 7px' }}
               >
                 <GitMerge size={11} /> {dupCount}
               </span>
@@ -579,14 +581,14 @@ export default function AdminReports({ initialReportId }) {
             )}
             {showPlanningChip && (
               <span
-                className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
-                style={{ background: planningMeta.bg, color: planningMeta.color }}
+                className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider rounded shrink-0"
+                style={{ background: planningMeta.bg, color: planningMeta.color, padding: '2px 7px' }}
                 title={planning.next_at ? `Prossimo: ${formatDate(planning.next_at)}` : undefined}
               >
                 <span>{planningMeta.icon}</span> {planningMeta.label}
               </span>
             )}
-            <div className="ml-auto flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0" style={{ marginLeft: 'auto' }}>
               {canMergeRow && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setMergeSource(r) }}
@@ -627,8 +629,8 @@ export default function AdminReports({ initialReportId }) {
 
         {/* Pannello "Ultimo aggiornamento": chi ha scritto per ultimo e cosa */}
         <div
-          className="hidden xl:flex w-[420px] shrink-0 flex-col justify-center gap-2 px-4 py-3"
-          style={{ borderLeft: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-0)' }}
+          className="hidden xl:flex w-[420px] shrink-0 flex-col justify-center gap-2.5"
+          style={{ borderLeft: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-0)', padding: '14px 20px' }}
         >
           <div className="flex items-center justify-between gap-2">
             <span className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--color-text-faint)' }}>
@@ -664,9 +666,9 @@ export default function AdminReports({ initialReportId }) {
               <div className="flex items-center gap-1.5 flex-wrap">
                 {activity?.comment_count > 0 && (
                   <span
-                    className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold rounded-full"
                     title={`${activity.comment_count} ${activity.comment_count === 1 ? 'messaggio' : 'messaggi'} in chat`}
-                    style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
+                    style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 9px' }}
                   >
                     💬 {activity.comment_count}
                   </span>
@@ -678,8 +680,8 @@ export default function AdminReports({ initialReportId }) {
                     <span
                       key={type}
                       title={`${label}: ${n} ${n === 1 ? 'persona' : 'persone'}`}
-                      className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                      style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold rounded-full"
+                      style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 9px' }}
                     >
                       {emoji} {n}
                     </span>
@@ -687,8 +689,8 @@ export default function AdminReports({ initialReportId }) {
                 })}
                 {unread > 0 && (
                   <span
-                    className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                    style={{ background: 'var(--color-primary-glow)', color: 'var(--color-primary)' }}
+                    className="inline-flex items-center gap-1.5 text-[10px] font-bold rounded-full"
+                    style={{ background: 'var(--color-primary-glow)', color: 'var(--color-primary)', padding: '3px 10px' }}
                   >
                     <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-primary)' }} />
                     {unread} {unread === 1 ? 'nuovo' : 'nuovi'}
@@ -702,8 +704,8 @@ export default function AdminReports({ initialReportId }) {
                 <span className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>Nessun aggiornamento</span>
                 {stale && (
                   <span
-                    className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: 'var(--color-warning-glow)', color: 'var(--color-warning)' }}
+                    className="inline-flex items-center gap-1 text-[9px] font-bold rounded-full"
+                    style={{ background: 'var(--color-warning-glow)', color: 'var(--color-warning)', padding: '2px 8px' }}
                   >
                     ⏳ {compactAgo(r.created_at, nowMs)}
                   </span>
@@ -718,8 +720,8 @@ export default function AdminReports({ initialReportId }) {
 
         {/* Colonna assegnatario */}
         <div
-          className="hidden md:flex w-[128px] shrink-0 flex-col items-center justify-center gap-1.5 px-2 py-3 text-center"
-          style={{ borderLeft: '1px solid var(--color-border-subtle)' }}
+          className="hidden md:flex w-[132px] shrink-0 flex-col items-center justify-center gap-2 text-center"
+          style={{ borderLeft: '1px solid var(--color-border-subtle)', padding: '14px 8px' }}
         >
           {r.assigned_to_name ? (
             <>
@@ -729,14 +731,14 @@ export default function AdminReports({ initialReportId }) {
               >
                 {initialsOf(r.assigned_to_name)}
               </span>
-              <span className="text-[10px] font-medium truncate w-full px-1" style={{ color: 'var(--color-text-secondary)' }}>
+              <span className="text-[10px] font-medium truncate w-full" style={{ color: 'var(--color-text-secondary)', padding: '0 4px' }}>
                 {r.assigned_to_name}
               </span>
             </>
           ) : (
             <span
-              className="text-[9px] font-bold uppercase tracking-wider px-2 py-1.5 rounded-md"
-              style={{ color: 'var(--color-warning)', border: '1px dashed var(--color-warning)', opacity: 0.9 }}
+              className="text-[9px] font-bold uppercase tracking-wider rounded-md"
+              style={{ color: 'var(--color-warning)', border: '1px dashed var(--color-warning)', opacity: 0.9, padding: '7px 10px' }}
             >
               + Assegna
             </span>
@@ -747,27 +749,28 @@ export default function AdminReports({ initialReportId }) {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="flex flex-col gap-7 animate-fade-in">
 
       {/* ═══ PREMIUM HEADER ═══ */}
-      <header>
+      <header className="flex flex-col gap-4">
         {/* Breadcrumb */}
-        <nav className="flex text-[11px] font-medium uppercase tracking-widest mb-2 gap-2" style={{ color: 'var(--color-text-muted)' }}>
+        <nav className="flex text-[11px] font-medium uppercase tracking-widest gap-2" style={{ color: 'var(--color-text-muted)' }}>
           <span>Gestione</span>
           <span>/</span>
           <span style={{ color: 'var(--color-primary, #7c6aff)' }}>Segnalazioni</span>
         </nav>
 
         {/* Title row */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
-          <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight flex items-center" style={{ color: 'var(--color-text)' }}>
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight flex items-center gap-4" style={{ color: 'var(--color-text)' }}>
             Segnalazioni
             <span
-              className="ml-4 px-2.5 py-0.5 text-sm font-medium rounded-md border"
+              className="text-sm font-medium rounded-md border"
               style={{
                 background: 'var(--color-surface-2)',
                 color: 'var(--color-text-muted)',
                 borderColor: 'var(--color-border)',
+                padding: '2px 10px',
               }}
             >
               {visibleReports.length}
@@ -787,10 +790,11 @@ export default function AdminReports({ initialReportId }) {
                 placeholder="Cerca per titolo, macchinario o autore..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-72 text-sm rounded-full pl-10 pr-9 py-2.5 border border-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                className="w-72 text-sm rounded-full border border-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
                 style={{
                   background: 'var(--color-sidebar-bg)',
                   color: 'var(--color-text)',
+                  padding: '10px 36px 10px 40px',
                 }}
                 aria-label="Cerca segnalazioni"
               />
@@ -807,7 +811,8 @@ export default function AdminReports({ initialReportId }) {
             </div>
             <button
               onClick={() => setShowNew(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-full bg-linear-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all press-scale"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-white rounded-full bg-linear-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all press-scale"
+              style={{ padding: '10px 20px' }}
             >
               <Plus size={16} /> Nuova
             </button>
@@ -820,10 +825,10 @@ export default function AdminReports({ initialReportId }) {
           <button
             onClick={() => setFilterStatus('')}
             aria-pressed={filterStatus === ''}
-            className="text-sm px-4 py-2 rounded-full border flex items-center transition-all press-scale"
+            className="text-sm rounded-full border flex items-center transition-all press-scale"
             style={filterStatus === ''
-              ? { ...glassPanelStyle, background: 'rgba(124,106,255,0.10)', borderColor: 'rgba(124,106,255,0.6)', color: '#a594ff' }
-              : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
+              ? { ...glassPanelStyle, padding: '8px 16px', background: 'rgba(124,106,255,0.10)', borderColor: 'rgba(124,106,255,0.6)', color: '#a594ff' }
+              : { ...glassPanelStyle, padding: '8px 16px', color: 'var(--color-text-muted)' }}
           >
             Tutte <span className="ml-2 opacity-60 font-normal">{visibleReports.length}</span>
           </button>
@@ -838,12 +843,12 @@ export default function AdminReports({ initialReportId }) {
                 key={key}
                 onClick={() => setFilterStatus(filterStatus === key ? '' : key)}
                 aria-pressed={isActive}
-                className="text-sm px-4 py-2 rounded-full border flex items-center transition-all press-scale"
+                className="text-sm rounded-full border flex items-center transition-all press-scale"
                 style={isActive
-                  ? { ...glassPanelStyle, background: `${color}15`, borderColor: `${color}99`, color }
-                  : { ...glassPanelStyle, color: 'var(--color-text-muted)' }}
+                  ? { ...glassPanelStyle, padding: '8px 16px', background: `${color}15`, borderColor: `${color}99`, color }
+                  : { ...glassPanelStyle, padding: '8px 16px', color: 'var(--color-text-muted)' }}
               >
-                <span className="h-2 w-2 rounded-full mr-2.5" style={{ background: color }} />
+                <span className="h-2 w-2 rounded-full" style={{ background: color, marginRight: 10 }} />
                 {label}
                 <span className="ml-2 text-xs opacity-60">{count}</span>
               </button>
@@ -854,11 +859,13 @@ export default function AdminReports({ initialReportId }) {
           <select
             value={filterSeverity}
             onChange={e => setFilterSeverity(e.target.value)}
-            className="ml-auto text-xs rounded-full px-4 py-2 focus:outline-none"
+            className="text-xs rounded-full focus:outline-none"
             style={{
               background: 'var(--color-sidebar-bg)',
               border: '1px solid var(--color-border)',
               color: 'var(--color-text)',
+              padding: '8px 16px',
+              marginLeft: 'auto',
             }}
             aria-label="Filtra per gravità"
           >
@@ -869,8 +876,8 @@ export default function AdminReports({ initialReportId }) {
           {activeFilters > 0 && (
             <button
               onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
-              className="text-xs px-3 py-2 rounded-full transition-colors hover:bg-white/5"
-              style={{ color: 'var(--color-text-muted)' }}
+              className="text-xs rounded-full transition-colors hover:bg-white/5"
+              style={{ color: 'var(--color-text-muted)', padding: '8px 12px' }}
             >
               Rimuovi filtri
             </button>
@@ -879,7 +886,7 @@ export default function AdminReports({ initialReportId }) {
 
         {/* ═══ KPI: dove serve attenzione adesso (design 3a) ═══ */}
         {!loading && (
-          <div className="flex items-stretch gap-3 mt-5 flex-wrap">
+          <div className="flex items-stretch gap-3 flex-wrap">
             {[
               { value: unreadTicketsCount, label: <>Con nuovi<br />aggiornamenti</>, color: 'var(--color-primary)' },
               { value: openCount, label: <>Da<br />assegnare</>, color: STATUS.aperta.color },
@@ -887,8 +894,8 @@ export default function AdminReports({ initialReportId }) {
             ].map((kpi, i) => (
               <div
                 key={i}
-                className="flex items-center gap-3 px-4 py-2.5 rounded-xl min-w-[130px]"
-                style={glassPanelStyle}
+                className="flex items-center gap-3 rounded-xl min-w-[140px]"
+                style={{ ...glassPanelStyle, padding: '14px 20px' }}
               >
                 <span className="text-[28px] font-bold leading-none tabular-nums" style={{ color: kpi.color }}>
                   {kpi.value}
@@ -903,10 +910,11 @@ export default function AdminReports({ initialReportId }) {
             ))}
             {staleCount > 0 && (
               <div
-                className="flex-1 min-w-[300px] flex items-center justify-between gap-4 px-4 py-2.5 rounded-xl"
+                className="flex-1 min-w-[300px] flex items-center justify-between gap-4 rounded-xl"
                 style={{
                   background: 'linear-gradient(90deg, rgba(245,158,11,0.12), rgba(245,158,11,0.03))',
                   border: '1px solid rgba(245,158,11,0.35)',
+                  padding: '14px 20px',
                 }}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -922,8 +930,8 @@ export default function AdminReports({ initialReportId }) {
                 </div>
                 <button
                   onClick={scrollToStale}
-                  className="shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-transform press-scale"
-                  style={{ background: 'var(--color-warning)', color: '#160f04' }}
+                  className="shrink-0 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-transform press-scale"
+                  style={{ background: 'var(--color-warning)', color: '#160f04', padding: '8px 14px' }}
                 >
                   Recupera →
                 </button>
@@ -938,7 +946,7 @@ export default function AdminReports({ initialReportId }) {
         <EmptyState icon="📋" title="Nessuna segnalazione trovata"
           subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined} />
       ) : (
-        <div className="space-y-4">
+        <div className="flex flex-col gap-5">
           {/* Barra ordinamento (design 3a) */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
@@ -956,10 +964,10 @@ export default function AdminReports({ initialReportId }) {
                     key={opt.key}
                     onClick={() => setSortBy(opt.key)}
                     aria-pressed={isActive}
-                    className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-all press-scale"
+                    className="text-[11px] font-semibold rounded-lg border transition-all press-scale"
                     style={isActive
-                      ? { background: 'var(--color-primary-glow)', borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }
-                      : { background: 'var(--color-surface-1)', borderColor: 'var(--color-border-subtle)', color: 'var(--color-text-muted)' }}
+                      ? { padding: '7px 13px', background: 'var(--color-primary-glow)', borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }
+                      : { padding: '7px 13px', background: 'var(--color-surface-1)', borderColor: 'var(--color-border-subtle)', color: 'var(--color-text-muted)' }}
                   >
                     {opt.label}
                   </button>
@@ -982,16 +990,16 @@ export default function AdminReports({ initialReportId }) {
             <div
               key={g.key}
               ref={g.key === 'indietro' ? staleGroupRef : undefined}
-              className="space-y-2.5 scroll-mt-4"
+              className="flex flex-col gap-3 scroll-mt-4"
             >
               {g.label && (
-                <div className="flex items-center gap-3 pt-2">
+                <div className="flex items-center gap-3" style={{ paddingTop: 6 }}>
                   <span className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: 'var(--color-text-muted)' }}>
                     {g.label}
                   </span>
                   <span
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-md tabular-nums"
-                    style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)' }}
+                    className="text-[10px] font-bold rounded-md tabular-nums"
+                    style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '2px 7px' }}
                   >
                     {g.list.length}
                   </span>
@@ -1007,18 +1015,19 @@ export default function AdminReports({ initialReportId }) {
             <button
               onClick={() => setArchiveOpen(o => !o)}
               aria-expanded={archiveVisible}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest cursor-pointer select-none hover:bg-white/5 transition-colors"
+              className="w-full flex items-center gap-3 rounded-xl text-[11px] font-bold uppercase tracking-widest cursor-pointer select-none hover:bg-white/5 transition-colors"
               style={{
                 background: 'var(--color-surface-2)',
                 border: '1px solid var(--color-border)',
                 color: 'var(--color-text-muted)',
+                padding: '12px 16px',
               }}
             >
               {archiveVisible ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               Archivio
               <span
-                className="px-2 py-0.5 rounded-md"
-                style={{ background: 'var(--color-surface-1)', color: 'var(--color-text-muted)' }}
+                className="rounded-md"
+                style={{ background: 'var(--color-surface-1)', color: 'var(--color-text-muted)', padding: '2px 8px' }}
               >
                 {archivedReports.length}
               </span>
@@ -1028,7 +1037,7 @@ export default function AdminReports({ initialReportId }) {
             </button>
           )}
           {hasArchiveSeparator && archiveVisible && (
-            <div className="space-y-2.5">
+            <div className="flex flex-col gap-3">
               {archivedReports.map(r => renderReportRow(r, true))}
             </div>
           )}
