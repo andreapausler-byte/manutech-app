@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, formatTicketId } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, formatTicketId } from '../../lib/constants'
 import { EmptyState, SkeletonReportsPage, TicketIdBadge } from '../ui'
 import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
@@ -53,7 +53,7 @@ function shortDate(dateStr) {
   return `${d.getDate()} ${months[d.getMonth()]}`
 }
 
-function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
+function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }) {
   const severity = SEVERITY[report.severity] || SEVERITY.media
   const reportType = REPORT_TYPES[report.type] || REPORT_TYPES.correttiva
   const rippleRef = useRipple()
@@ -146,12 +146,35 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
             minWidth: 0,
           }}>
             <MessageCircle size={10} style={{ flexShrink: 0, opacity: 0.6 }} />
+            {activity?.comment_count > 0 && (
+              <span style={{ flexShrink: 0, fontWeight: 700 }}>{activity.comment_count}</span>
+            )}
             <span style={{
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               flex: 1, minWidth: 0,
             }}>
               {msgPreview}
             </span>
+          </div>
+        )}
+
+        {/* Feedback sui messaggi (utenti distinti): più ✅ = problema
+            confermato da più persone, segnale di importanza del ticket */}
+        {activity && Object.values(activity.reactions).some(n => n > 0) && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
+              const n = activity.reactions[type] || 0
+              if (!n) return null
+              return (
+                <span key={type} title={`${label}: ${n} ${n === 1 ? 'persona' : 'persone'}`} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3,
+                  fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 8,
+                  background: 'var(--color-surface-2)', color: 'var(--color-text-muted)',
+                }}>
+                  {emoji} {n}
+                </span>
+              )
+            })}
           </div>
         )}
       </div>
@@ -186,7 +209,7 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage }) {
 }
 
 // ── Collapsible accordion section ──
-function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, lastMessages = {}, isExpanded, onToggle }) {
+function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, lastMessages = {}, activityMap = {}, isExpanded, onToggle }) {
   const st = STATUS[statusKey]
   const count = reports.length
 
@@ -236,7 +259,7 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
       {/* Content */}
       <div
         className="accordion-content"
-        style={{ maxHeight: isExpanded ? `${count * 130 + 20}px` : '0' }}
+        style={{ maxHeight: isExpanded ? `${count * 155 + 20}px` : '0' }}
       >
         {count === 0 ? (
           <div style={{
@@ -256,6 +279,7 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
                 onSelect={onSelectReport}
                 unread={unreadByReport[report.id] || 0}
                 lastMessage={lastMessages[report.id]}
+                activity={activityMap[report.id]}
               />
             ))}
           </div>
@@ -283,6 +307,9 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   const [initialized, setInitialized] = useState(false)
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('manutech_reports_view') || 'chrono')
   const [lastMessages, setLastMessages] = useState({})
+  // reportId → { comment_count, reactions } per i chip feedback in card.
+  // I non letti restano di competenza di unreadByReport (hook realtime).
+  const [activityMap, setActivityMap] = useState({})
   const [machines, setMachines] = useState([])
 
   // Filtri + ordinamento personalizzati per tecnico, persistiti in localStorage.
@@ -339,18 +366,21 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       if (data.length > 0) {
         const ids = data.map(r => r.id)
         db.getLastCommentsByReports(ids).then(map => setLastMessages(map)).catch(e => console.error('[ReportsList] getLastCommentsByReports failed:', e))
+        db.getReportsActivity(ids, user?.id).then(map => setActivityMap(map || {})).catch(e => console.warn('[ReportsList] getReportsActivity failed:', e?.message))
       }
     } catch (e) { console.error('[ReportsList] load failed:', e) }
     setLoading(false)
-  }, [])
+  }, [user?.id])
 
   const handleRefresh = useCallback(async () => {
     const data = await db.getReports({})
     setReports(data)
     if (data.length > 0) {
-      db.getLastCommentsByReports(data.map(r => r.id)).then(map => setLastMessages(map)).catch(e => console.error('[ReportsList] getLastCommentsByReports refresh failed:', e))
+      const ids = data.map(r => r.id)
+      db.getLastCommentsByReports(ids).then(map => setLastMessages(map)).catch(e => console.error('[ReportsList] getLastCommentsByReports refresh failed:', e))
+      db.getReportsActivity(ids, user?.id).then(map => setActivityMap(map || {})).catch(e => console.warn('[ReportsList] getReportsActivity refresh failed:', e?.message))
     }
-  }, [])
+  }, [user?.id])
 
   const { pullRef, refreshing, pullDistance, pullProgress, activated } = usePullToRefresh(handleRefresh)
 
@@ -657,6 +687,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
                   onSelect={onSelectReport}
                   unread={unreadByReport[report.id] || 0}
                   lastMessage={lastMessages[report.id]}
+                  activity={activityMap[report.id]}
                 />
               </div>
             ))}
@@ -672,6 +703,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               onSelectReport={onSelectReport}
               unreadByReport={unreadByReport}
               lastMessages={lastMessages}
+              activityMap={activityMap}
               isExpanded={expandedSections.has(s)}
               onToggle={() => toggleSection(s)}
             />
