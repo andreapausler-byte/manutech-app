@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="ManuTech" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180x180.png" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
     <title>ManuTech – Gestione Manutenzione</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -16,7 +17,17 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Splash statico pre-JS: visibile all'avvio (PWA cold start) finché
+         React non monta e sostituisce il contenuto di #root. -->
+    <div id="root">
+      <style>
+        @keyframes bootPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.93); opacity: 0.75; } }
+      </style>
+      <div style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: #0d1e38;">
+        <img src="/logo.png" alt="ManuTech" style="width: 96px; height: 96px; border-radius: 24px; animation: bootPulse 1.6s ease-in-out infinite;" />
+        <div style="font-family: 'Outfit', system-ui, sans-serif; font-size: 20px; font-weight: 700; color: #f2f2f8; letter-spacing: -0.01em;">ManuTech</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

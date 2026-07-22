@@ -10,8 +10,8 @@
 
 // Bump ad ogni release per invalidare la cache.
 // v7.8.0 = AI vede anagrafica fornitori (migration 043)
-// Bump per invalidare le icone/logo cacheati (nuovo logo ManuTech)
-const CACHE_NAME = 'manutech-v7.8.1'
+// Bump per invalidare le icone/logo cacheati (nuovo logo ManuTech + splash)
+const CACHE_NAME = 'manutech-v7.8.2'
 const APP_SHELL = [
   '/',
   '/manifest.json',
