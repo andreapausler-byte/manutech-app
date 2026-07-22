@@ -5,7 +5,7 @@ import { EmptyState, SkeletonReportsPage, TicketIdBadge } from '../ui'
 import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive } from 'lucide-react'
+import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive, Cog } from 'lucide-react'
 
 // Convenzione schema reports: il nome del macchinario è salvato come snapshot
 // denormalizzato nel campo `machine` (TEXT) — NON `machine_name`. Asimmetrico
@@ -53,6 +53,9 @@ function shortDate(dateStr) {
   return `${d.getDate()} ${months[d.getMonth()]}`
 }
 
+// Card in stile "1A — Compatta ad alto contrasto" (design Lista Ticket
+// Operatore): priorità dominante in testata, titolo grande, riga macchina
+// con icona, anteprima chat con chip conteggio, reazioni a pillola.
 function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }) {
   const severity = SEVERITY[report.severity] || SEVERITY.media
   const reportType = REPORT_TYPES[report.type] || REPORT_TYPES.correttiva
@@ -61,6 +64,7 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
   const isAlta = report.severity === 'alta'
   const hasMsg = !!lastMessage
   const msgAuthor = hasMsg ? (lastMessage.user_name?.split(' ')[0] || 'Utente') : null
+  const hasReactions = activity && Object.values(activity.reactions).some(n => n > 0)
 
   return (
     <button
@@ -70,50 +74,65 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
       style={{
         background: 'var(--color-card)',
         border: '1px solid var(--color-border)',
-        borderRadius: 14,
-        padding: '11px 12px 11px 14px',
+        borderRadius: 16,
+        padding: 0,
         cursor: 'pointer',
         transition: 'border-color 0.15s, box-shadow 0.15s',
-        display: 'grid',
-        gridTemplateColumns: '3px 1fr auto',
-        gap: 10,
-        alignItems: 'center',
+        display: 'flex',
+        alignItems: 'stretch',
+        overflow: 'hidden',
       }}
     >
-      {/* Priority strip — full height stretch */}
-      <span aria-hidden="true" style={{
-        alignSelf: 'stretch', background: severity.color, borderRadius: 2,
-      }} />
+      {/* Priority rail — full height */}
+      <span aria-hidden="true" style={{ width: 5, flexShrink: 0, background: severity.color }} />
 
       {/* Body */}
-      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {/* Meta row: TK-id + tag pill + severity */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <TicketIdBadge report={report} style={{
-            fontSize: 9, padding: '2px 6px', borderRadius: 3,
-            background: 'var(--color-primary-glow)', color: 'var(--color-primary)',
-            fontWeight: 700, letterSpacing: 0.8,
-            fontFamily: '"JetBrains Mono", monospace',
-          }} />
+      <div style={{ flex: 1, minWidth: 0, padding: '13px 14px' }}>
+        {/* Meta row: pillola priorità + pillola tipo + unread/TK-id */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
+          <span className={isCritical ? 'badge-critical-pulse' : isAlta ? 'badge-alta-pulse' : ''} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            height: 26, padding: '0 10px', borderRadius: 8,
+            background: `${severity.color}29`, border: `1px solid ${severity.color}8C`,
+            color: severity.color, fontSize: 12, fontWeight: 700,
+            letterSpacing: 0.5, textTransform: 'uppercase', flexShrink: 0,
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: 9, background: severity.color }} />
+            {severity.label}
+          </span>
           <span style={{
-            fontSize: 9, padding: '2px 6px', borderRadius: 3,
-            background: reportType.color, color: '#fff',
-            fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase',
+            display: 'inline-flex', alignItems: 'center',
+            height: 26, padding: '0 9px', borderRadius: 8,
+            background: `${reportType.color}1F`, border: `1px solid ${reportType.color}66`,
+            color: reportType.color, fontSize: 11, fontWeight: 700,
+            letterSpacing: 0.6, textTransform: 'uppercase', flexShrink: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {reportType.label}
           </span>
-          <span className={isCritical ? 'badge-critical-pulse' : isAlta ? 'badge-alta-pulse' : ''} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            fontSize: 11, fontWeight: 700, color: severity.color, letterSpacing: 0.2,
-          }}>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: severity.color }} />
-            {severity.label}
+          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            {unread > 0 && (
+              <span style={{
+                minWidth: 20, height: 20, padding: '0 6px', borderRadius: 20,
+                background: 'var(--color-primary)', color: '#fff',
+                fontSize: 11, fontWeight: 700,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 8px var(--color-primary-glow)',
+              }}>
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+            <TicketIdBadge report={report} style={{
+              fontSize: 11, fontWeight: 600, letterSpacing: 0.5,
+              color: 'var(--color-text-muted)',
+              fontFamily: '"JetBrains Mono", monospace',
+            }} />
           </span>
         </div>
 
-        {/* Title — up to 2 lines */}
+        {/* Title — grande, fino a 2 righe */}
         <div style={{
-          fontSize: 15, fontWeight: 600, lineHeight: 1.25, letterSpacing: -0.1,
+          fontSize: 20, fontWeight: 600, lineHeight: 1.16, letterSpacing: -0.2,
           color: 'var(--color-text)',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
@@ -121,29 +140,43 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
           {report.title}
         </div>
 
-        {/* Machine */}
-        {report.machine && (
-          <div style={{
-            fontSize: 12, fontWeight: 500, color: 'var(--color-text-secondary)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {report.machine}
-          </div>
-        )}
+        {/* Machine + tempo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9, minWidth: 0 }}>
+          {report.machine && (
+            <>
+              <Cog size={15} style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
+              <span style={{
+                fontSize: 14, fontWeight: 500, color: 'var(--color-text-secondary)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {report.machine}
+              </span>
+            </>
+          )}
+          <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--color-text-muted)', flexShrink: 0 }}>
+            {shortDate(report.updated_at || report.created_at)}
+          </span>
+        </div>
 
-        {/* Last chat message preview — autore in evidenza, testo leggibile */}
+        {/* Last chat message preview — chip conteggio + autore in evidenza */}
         {hasMsg && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 12, color: unread > 0 ? 'var(--color-text)' : 'var(--color-text-secondary)',
-            fontWeight: unread > 0 ? 600 : 400,
-            minWidth: 0,
-          }}>
-            <MessageCircle size={11} style={{ flexShrink: 0, opacity: 0.8 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 11, minWidth: 0 }}>
             {activity?.comment_count > 0 && (
-              <span style={{ flexShrink: 0, fontWeight: 700 }}>{activity.comment_count}</span>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                height: 24, padding: '0 9px', borderRadius: 8,
+                background: 'var(--color-surface-2)',
+                color: 'var(--color-text-secondary)',
+                fontSize: 12, fontWeight: 700, flexShrink: 0,
+              }}>
+                <MessageCircle size={13} />
+                {activity.comment_count}
+              </span>
             )}
             <span style={{
+              fontSize: 13.5,
+              color: unread > 0 ? 'var(--color-text)' : 'var(--color-text-secondary)',
+              fontWeight: unread > 0 ? 600 : 400,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               flex: 1, minWidth: 0,
             }}>
@@ -155,51 +188,29 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
 
         {/* Feedback sui messaggi (utenti distinti): più ✅ = problema
             confermato da più persone, segnale di importanza del ticket */}
-        {activity && Object.values(activity.reactions).some(n => n > 0) && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+        {hasReactions && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+            marginTop: 12, paddingTop: 12,
+            borderTop: '1px solid var(--color-border-subtle)',
+          }}>
             {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
               const n = activity.reactions[type] || 0
               if (!n) return null
               return (
                 <span key={type} title={`${label}: ${n} ${n === 1 ? 'persona' : 'persone'}`} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  height: 36, padding: '0 13px', borderRadius: 20,
                   background: 'var(--color-surface-3)',
                   border: '1px solid var(--color-border-hover)',
-                  color: 'var(--color-text)',
                 }}>
-                  <span style={{ fontSize: 13, lineHeight: 1 }}>{emoji}</span> {n}
+                  <span style={{ fontSize: 17, lineHeight: 1 }}>{emoji}</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>{n}</span>
                 </span>
               )
             })}
           </div>
         )}
-      </div>
-
-      {/* Right column — notif + age, no collision */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6,
-        minWidth: 30,
-      }}>
-        {unread > 0 ? (
-          <span style={{
-            minWidth: 22, height: 22, padding: '0 6px', borderRadius: 22,
-            background: 'var(--color-danger)', color: '#fff',
-            fontSize: 11, fontWeight: 700,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 8px rgba(255, 92, 92, 0.5)',
-          }}>
-            {unread > 9 ? '9+' : unread}
-          </span>
-        ) : (
-          <span aria-hidden="true" style={{ width: 22, height: 22 }} />
-        )}
-        <span style={{
-          fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 600,
-          fontFamily: '"JetBrains Mono", monospace',
-        }}>
-          {shortDate(report.updated_at || report.created_at)}
-        </span>
       </div>
     </button>
   )
@@ -256,7 +267,7 @@ function AccordionSection({ statusKey, reports, onSelectReport, unreadByReport, 
       {/* Content */}
       <div
         className="accordion-content"
-        style={{ maxHeight: isExpanded ? `${count * 155 + 20}px` : '0' }}
+        style={{ maxHeight: isExpanded ? `${count * 230 + 20}px` : '0' }}
       >
         {count === 0 ? (
           <div style={{
