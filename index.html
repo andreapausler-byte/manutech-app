@@ -21,8 +21,10 @@
          React non monta e sostituisce il contenuto di #root. -->
     <div id="root">
       <style>
-        /* Ingresso: pop con overshoot e mezzo giro d'ingranaggio */
-        @keyframes bootIn { 0% { transform: scale(0.35) rotate(-90deg); opacity: 0; } 65% { transform: scale(1.08) rotate(6deg); opacity: 1; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
+        /* Ingresso: parte DA FERMO (scala 1, centro schermo) come lo splash
+           di sistema, poi un colpo d'ingranaggio avanti-indietro. Niente
+           salto di posizione o scala rispetto all'icona statica del SO. */
+        @keyframes bootIn { 0% { transform: rotate(0deg) scale(1); } 30% { transform: rotate(-16deg) scale(0.97); } 68% { transform: rotate(9deg) scale(1.04); } 100% { transform: rotate(0deg) scale(1); } }
         /* Loop: fluttuazione leggera */
         @keyframes bootFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
         /* Loop: respiro del glow blu */
@@ -31,12 +33,14 @@
         @keyframes bootRing { 0% { transform: scale(0.75); opacity: 0.55; } 100% { transform: scale(1.9); opacity: 0; } }
         @keyframes bootFadeUp { 0% { transform: translateY(12px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
       </style>
-      <div style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #0d1e38; overflow: hidden;">
-        <div style="position: relative; width: 96px; height: 96px; animation: bootIn 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;">
-          <span aria-hidden="true" style="position: absolute; inset: -8px; border: 2px solid rgba(96, 156, 232, 0.55); border-radius: 30px; animation: bootRing 1.9s ease-out 0.75s infinite;"></span>
-          <img src="/logo.png" alt="ManuTech" style="width: 96px; height: 96px; border-radius: 24px; display: block; animation: bootFloat 2.8s ease-in-out 0.75s infinite, bootGlow 2.8s ease-in-out 0.75s infinite;" />
+      <div style="position: fixed; inset: 0; background: #0d1e38; overflow: hidden;">
+        <!-- Logo ancorato al centro esatto dello schermo, come lo splash del SO -->
+        <div style="position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; animation: bootIn 0.85s ease-in-out 0.15s both;">
+          <span aria-hidden="true" style="position: absolute; inset: -8px; border: 2px solid rgba(96, 156, 232, 0.55); border-radius: 30px; animation: bootRing 1.9s ease-out 1s infinite;"></span>
+          <img src="/logo.png" alt="ManuTech" style="width: 96px; height: 96px; border-radius: 24px; display: block; animation: bootFloat 2.8s ease-in-out 1s infinite, bootGlow 2.8s ease-in-out 1s infinite;" />
         </div>
-        <div style="font-family: 'Outfit', system-ui, sans-serif; font-size: 20px; font-weight: 700; color: #f2f2f8; letter-spacing: -0.01em; animation: bootFadeUp 0.55s ease-out 0.4s both;">ManuTech</div>
+        <!-- Titolo sotto al logo, senza influenzarne il centraggio -->
+        <div style="position: absolute; left: 0; right: 0; top: calc(50% + 66px); text-align: center; font-family: 'Outfit', system-ui, sans-serif; font-size: 20px; font-weight: 700; color: #f2f2f8; letter-spacing: -0.01em; animation: bootFadeUp 0.55s ease-out 0.5s both;">ManuTech</div>
       </div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
