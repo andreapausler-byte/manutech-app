@@ -2,7 +2,7 @@ import { useState, useEffect, Fragment } from 'react'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { db } from '../../../lib/supabase'
 import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo, formatTicketId } from '../../../lib/constants'
-import { Badge } from '../../../components/ui'
+import { Badge, TicketIdBadge } from '../../../components/ui'
 import { useMergeSegnalazione } from '../../../hooks/useMergeSegnalazione'
 import MediaCapture from '../../../components/media/MediaCapture'
 import MediaLightbox from '../../../components/media/MediaLightbox'
@@ -234,6 +234,16 @@ export default function ReportDetailModal({ selected, user, users, machines, all
               </div>
             ) : (
               <>
+                {/* TK-id sempre a vista: riferimento del ticket, tap per copiare */}
+                <TicketIdBadge report={selected} className="text-[11px] font-bold shrink-0" style={{
+                  display: 'inline-block',
+                  padding: '3px 9px',
+                  borderRadius: 6,
+                  letterSpacing: 1,
+                  fontFamily: '"JetBrains Mono", monospace',
+                  background: 'var(--color-primary-glow)',
+                  color: 'var(--color-primary)',
+                }} />
                 <h2 className="text-lg font-bold text-themed truncate">{selected.title}</h2>
                 <Badge {...(STATUS[selected.status] || STATUS.aperta)} />
                 <Badge {...(SEVERITY[selected.severity] || SEVERITY.media)} />
@@ -415,7 +425,8 @@ export default function ReportDetailModal({ selected, user, users, machines, all
                   </div>
                 )}
                 <div className="bg-surface-2/20 rounded-xl p-3 space-y-1.5 text-xs text-faint">
-                  <p>ID: <span className="text-muted font-mono">{selected.id?.slice(0, 8)}…</span></p>
+                  <p>Ticket: <span className="text-secondary font-mono font-bold">{formatTicketId(selected)}</span></p>
+                  <p>ID interno: <span className="text-muted font-mono" title={selected.id}>{selected.id?.slice(0, 8)}…</span></p>
                   {selected.type && <p>Tipo: <span className="text-secondary font-medium">{REPORT_TYPES[selected.type]?.icon} {REPORT_TYPES[selected.type]?.label || selected.type}</span></p>}
                   {selected.is_quick && <p>Report: <span className="text-amber-400 font-medium">⚡ Quick Report</span></p>}
                 </div>
