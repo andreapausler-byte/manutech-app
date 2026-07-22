@@ -4,6 +4,7 @@ import { db, supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, formatDate, formatTicketId } from '../../lib/constants'
 import { PLANNING_STATE } from '../../lib/interventions'
+import { findSimilarTickets } from '../../lib/ticketSearch'
 import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner, TicketIdBadge } from '../../components/ui'
 import MediaCapture from '../../components/media/MediaCapture'
 import ReportDetailModal from './reports/ReportDetailModal'
@@ -418,6 +419,14 @@ export default function AdminReports({ initialReportId }) {
   const oldestStaleDays = staleCount > 0
     ? Math.max(...visibleReports.filter(isStaleReport).map(r => Math.floor((nowMs - lastActivityTs(r)) / 86400000)))
     : 0
+
+  // "Forse cercavi": TK-id a ≤1 errore di battitura dalla query numerica.
+  // Su visibleReports (i duplicati uniti non sono righe apribili) e ignorando
+  // i filtri stato/gravità: un ID esatto nascosto da un filtro riemerge qui.
+  const searchSuggestions = useMemo(
+    () => (debouncedSearch ? findSimilarTickets(debouncedSearch, visibleReports) : []),
+    [debouncedSearch, visibleReports]
+  )
 
   // RECUPERA → porta al gruppo "Più indietro", dove le ferme vivono sempre.
   const scrollToStale = () => {
@@ -954,8 +963,72 @@ export default function AdminReports({ initialReportId }) {
 
       {/* ═══ MAIN DATA AREA ═══ */}
       {loading ? <Spinner /> : filtered.length === 0 ? (
-        <EmptyState icon="📋" title="Nessuna segnalazione trovata"
-          subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined} />
+        debouncedSearch ? (
+          /* Empty state di ricerca: query non trovata, avviso filtri attivi,
+             suggerimenti TK-id a un errore di battitura (come sul mobile). */
+          <div className="rounded-2xl flex flex-col items-center text-center" style={{ ...glassPanelStyle, padding: '40px 24px' }}>
+            <div className="text-4xl" style={{ marginBottom: 12 }}>🔍</div>
+            <div className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
+              Nessun risultato per “{debouncedSearch}”
+            </div>
+            <div className="text-sm" style={{ color: 'var(--color-text-secondary)', marginTop: 6 }}>
+              Controlla l'ID oppure prova con titolo, macchinario, autore o tecnico
+            </div>
+            {activeFilters > 0 && (
+              <button
+                onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
+                className="rounded-lg text-sm font-semibold transition-all press-scale"
+                style={{
+                  marginTop: 16, padding: '9px 16px',
+                  background: 'var(--color-primary-glow)', border: '1px solid var(--color-primary)',
+                  color: 'var(--color-primary)',
+                }}
+              >
+                Hai filtri attivi che possono nascondere risultati — Rimuovi filtri
+              </button>
+            )}
+            {searchSuggestions.length > 0 && (
+              <div className="w-full max-w-xl text-left" style={{ marginTop: 26 }}>
+                <div className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--color-text-muted)', marginBottom: 10 }}>
+                  Forse cercavi
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  {searchSuggestions.map(r => (
+                    <button
+                      key={r.id}
+                      onClick={() => setSelected(r)}
+                      className="w-full text-left flex items-center gap-3 rounded-xl transition-all press-scale min-w-0"
+                      style={{
+                        background: 'var(--color-surface-1)',
+                        border: '1px solid var(--color-border)',
+                        padding: '12px 16px',
+                      }}
+                    >
+                      <span className="shrink-0 text-xs font-bold" style={{
+                        fontFamily: '"JetBrains Mono", monospace',
+                        color: 'var(--color-primary)', letterSpacing: 0.5,
+                      }}>
+                        {formatTicketId(r)}
+                      </span>
+                      <span className="flex-1 min-w-0 truncate text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                        {r.title}
+                      </span>
+                      {r.machine && (
+                        <span className="shrink-0 text-xs" style={{ fontFamily: '"JetBrains Mono", monospace', color: 'var(--color-text-muted)' }}>
+                          {r.machine}
+                        </span>
+                      )}
+                      <span className="shrink-0" style={{ color: 'var(--color-text-muted)' }}>›</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <EmptyState icon="📋" title="Nessuna segnalazione trovata"
+            subtitle={activeFilters > 0 ? 'Prova a modificare i filtri' : undefined} />
+        )
       ) : (
         <div className="flex flex-col gap-5">
           {/* Barra ordinamento (design 3a) */}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, formatTicketId } from '../../lib/constants'
+import { findSimilarTickets } from '../../lib/ticketSearch'
 import { EmptyState, SkeletonReportsPage, TicketIdBadge } from '../ui'
 import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
@@ -25,35 +26,6 @@ const isRecentTerminal = (r, nowMs) => {
   if (!ARCHIVED_STATUSES.includes(r.status)) return false
   const ts = new Date(r.updated_at || r.created_at).getTime()
   return Number.isFinite(ts) && (nowMs - ts) < RECENT_COMPLETED_WINDOW_HOURS * 3600 * 1000
-}
-
-// Distanza di edit tra due stringhe corte (usata sui gruppi di cifre dei
-// TK-id per i suggerimenti "forse cercavi": 1 = un errore di battitura).
-function editDistance(a, b) {
-  const m = a.length, n = b.length
-  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)])
-  for (let j = 0; j <= n; j++) dp[0][j] = j
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
-    }
-  }
-  return dp[m][n]
-}
-
-// Migliore distanza tra la query numerica e una finestra scorrevole delle
-// cifre del TK-id (lunghezze q-1..q+1 per coprire inserzioni/cancellazioni).
-function bestDigitsDistance(query, digits) {
-  if (digits.includes(query)) return 0
-  let best = Infinity
-  for (const len of [query.length - 1, query.length, query.length + 1]) {
-    if (len < 1) continue
-    for (let i = 0; i + len <= digits.length; i++) {
-      best = Math.min(best, editDistance(digits.slice(i, i + len), query))
-      if (best === 0) return 0
-    }
-  }
-  return best
 }
 
 // ── Avatar with initials ──
@@ -544,22 +516,10 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   // battitura). Calcolato su TUTTI i report ignorando i filtri attivi, così
   // un ID esatto nascosto da "Solo i miei" o dal filtro macchina riemerge qui.
   const hasActiveFilters = filters.onlyMine || !!filters.machineFilter
-  const searchSuggestions = useMemo(() => {
-    if (!debouncedSearch) return []
-    const q = debouncedSearch.replace(/\D/g, '')
-    if (q.length < 4) return []
-    const scored = []
-    for (const r of reports) {
-      const digits = formatTicketId(r).replace(/\D/g, '')
-      const d = bestDigitsDistance(q, digits)
-      if (d <= 1) scored.push({ r, d })
-    }
-    return scored
-      .sort((a, b) => a.d - b.d
-        || new Date(b.r.updated_at || b.r.created_at) - new Date(a.r.updated_at || a.r.created_at))
-      .slice(0, 3)
-      .map(x => x.r)
-  }, [debouncedSearch, reports])
+  const searchSuggestions = useMemo(
+    () => (debouncedSearch ? findSimilarTickets(debouncedSearch, reports) : []),
+    [debouncedSearch, reports]
+  )
   // Suggerimenti mostrati solo a lista vuota; se la lista ha risultati la
   // ricerca ha già funzionato e il blocco non compare.
 
