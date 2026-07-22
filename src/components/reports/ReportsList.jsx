@@ -27,6 +27,35 @@ const isRecentTerminal = (r, nowMs) => {
   return Number.isFinite(ts) && (nowMs - ts) < RECENT_COMPLETED_WINDOW_HOURS * 3600 * 1000
 }
 
+// Distanza di edit tra due stringhe corte (usata sui gruppi di cifre dei
+// TK-id per i suggerimenti "forse cercavi": 1 = un errore di battitura).
+function editDistance(a, b) {
+  const m = a.length, n = b.length
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)])
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+    }
+  }
+  return dp[m][n]
+}
+
+// Migliore distanza tra la query numerica e una finestra scorrevole delle
+// cifre del TK-id (lunghezze q-1..q+1 per coprire inserzioni/cancellazioni).
+function bestDigitsDistance(query, digits) {
+  if (digits.includes(query)) return 0
+  let best = Infinity
+  for (const len of [query.length - 1, query.length, query.length + 1]) {
+    if (len < 1) continue
+    for (let i = 0; i + len <= digits.length; i++) {
+      best = Math.min(best, editDistance(digits.slice(i, i + len), query))
+      if (best === 0) return 0
+    }
+  }
+  return best
+}
+
 // ── Avatar with initials ──
 function AvatarInitials({ name, color }) {
   const initials = name
@@ -510,6 +539,30 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
     localStorage.setItem('manutech_reports_view', mode)
   }
 
+  // "Forse cercavi": quando la ricerca non trova nulla e la query contiene
+  // cifre (ID copiato a mano), propone i TK-id più vicini (max 1 errore di
+  // battitura). Calcolato su TUTTI i report ignorando i filtri attivi, così
+  // un ID esatto nascosto da "Solo i miei" o dal filtro macchina riemerge qui.
+  const hasActiveFilters = filters.onlyMine || !!filters.machineFilter
+  const searchSuggestions = useMemo(() => {
+    if (!debouncedSearch) return []
+    const q = debouncedSearch.replace(/\D/g, '')
+    if (q.length < 4) return []
+    const scored = []
+    for (const r of reports) {
+      const digits = formatTicketId(r).replace(/\D/g, '')
+      const d = bestDigitsDistance(q, digits)
+      if (d <= 1) scored.push({ r, d })
+    }
+    return scored
+      .sort((a, b) => a.d - b.d
+        || new Date(b.r.updated_at || b.r.created_at) - new Date(a.r.updated_at || a.r.created_at))
+      .slice(0, 3)
+      .map(x => x.r)
+  }, [debouncedSearch, reports])
+  // Suggerimenti mostrati solo a lista vuota; se la lista ha risultati la
+  // ricerca ha già funzionato e il blocco non compare.
+
   // Auto-expand sections with reports on first load
   useEffect(() => {
     if (!loading && !initialized) {
@@ -680,11 +733,78 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       {loading ? (
         <div className="px-[4vw] pt-[3vw]"><SkeletonReportsPage /></div>
       ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={viewMode === 'archive' ? '📦' : '📋'}
-          title={viewMode === 'archive' ? 'Archivio vuoto' : 'Nessuna segnalazione'}
-          subtitle={viewMode === 'archive' ? 'Niente di completato o chiuso al momento' : 'Tocca + per crearne una'}
-        />
+        debouncedSearch ? (
+          /* Empty state di ricerca: dice cosa non è stato trovato, avvisa dei
+             filtri attivi e propone i TK-id più simili (typo su una cifra). */
+          <div className="px-[4vw]" style={{ paddingTop: 28, textAlign: 'center' }}>
+            <div style={{ fontSize: 38, marginBottom: 10 }}>🔍</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>
+              Nessun risultato per “{debouncedSearch}”
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 6, lineHeight: 1.45 }}>
+              Controlla l'ID oppure prova con titolo, macchina o tecnico
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={() => updateFilters({ onlyMine: false, machineFilter: '' })}
+                className="press-scale"
+                style={{
+                  marginTop: 14, padding: '9px 16px', borderRadius: 12,
+                  background: 'var(--color-primary-glow)', border: '1px solid var(--color-primary)',
+                  color: 'var(--color-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                Hai filtri attivi che possono nascondere risultati — Rimuovi filtri
+              </button>
+            )}
+            {searchSuggestions.length > 0 && (
+              <div style={{ marginTop: 22, textAlign: 'left' }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
+                  color: 'var(--color-text-muted)', marginBottom: 8,
+                }}>
+                  Forse cercavi
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {searchSuggestions.map(r => (
+                    <button
+                      key={r.id}
+                      onClick={() => onSelectReport(r)}
+                      className="press-scale"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        width: '100%', textAlign: 'left', padding: '12px 14px',
+                        background: 'var(--color-card)', border: '1px solid var(--color-border)',
+                        borderRadius: 14, cursor: 'pointer', minWidth: 0,
+                      }}
+                    >
+                      <span style={{
+                        fontFamily: '"JetBrains Mono", monospace', fontSize: 12, fontWeight: 700,
+                        color: 'var(--color-primary)', flexShrink: 0, letterSpacing: 0.5,
+                      }}>
+                        {formatTicketId(r)}
+                      </span>
+                      <span style={{
+                        fontSize: 13.5, fontWeight: 500, color: 'var(--color-text)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        flex: 1, minWidth: 0,
+                      }}>
+                        {r.title}
+                      </span>
+                      <span style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}>›</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <EmptyState
+            icon={viewMode === 'archive' ? '📦' : '📋'}
+            title={viewMode === 'archive' ? 'Archivio vuoto' : 'Nessuna segnalazione'}
+            subtitle={viewMode === 'archive' ? 'Niente di completato o chiuso al momento' : 'Tocca + per crearne una'}
+          />
+        )
       ) : (viewMode === 'chrono' || viewMode === 'archive') ? (
         <div className="px-[4vw] pt-[2vw]">
           <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
