@@ -15,6 +15,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // ── Tipo notifica → label italiana ──
 const TYPE_LABELS: Record<string, string> = {
   new_report: 'Nuova segnalazione',
+  new_report_critical: 'Segnalazione critica',
   quick_report: 'Report rapido',
   assigned: 'Segnalazione assegnata',
   status_change: 'Cambio stato',
@@ -23,6 +24,13 @@ const TYPE_LABELS: Record<string, string> = {
   maintenance_completed: 'Manutenzione completata',
   maintenance_reminder: 'Manutenzione in scadenza',
   maintenance_overdue: 'Manutenzione scaduta',
+  intervention_assigned: 'Intervento assegnato',
+  intervention_rescheduled: 'Intervento riprogrammato',
+  intervention_cancelled: 'Intervento annullato',
+  intervention_scheduled_change: 'Data intervento modificata',
+  intervention_status_change: 'Avanzamento intervento',
+  participant_added: 'Coinvolto in un intervento',
+  participant_removed: 'Rimosso da un intervento',
 }
 
 // ── Template HTML email ──
@@ -38,6 +46,7 @@ function buildEmailHtml(notification: {
 
   const typeLabel = TYPE_LABELS[notification.type] || notification.type
   const hasReportLink = !!notification.report_id
+  const ctaLabel = hasReportLink ? 'Vai alla segnalazione &rarr;' : 'Apri ManuTech &rarr;'
 
   return `<!DOCTYPE html>
 <html lang="it">
@@ -63,14 +72,13 @@ function buildEmailHtml(notification: {
           </h2>
           ${notification.body ? `<p style="margin:0 0 20px;font-size:14px;color:#4a4a68;line-height:1.6">${escapeHtml(notification.body)}</p>` : ''}
 
-          ${hasReportLink ? `
           <table cellpadding="0" cellspacing="0" style="margin:24px 0">
             <tr><td style="background:#6366f1;border-radius:10px;padding:12px 24px">
               <a href="${reportUrl}" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;display:inline-block">
-                Vai alla segnalazione &rarr;
+                ${ctaLabel}
               </a>
             </td></tr>
-          </table>` : ''}
+          </table>
         </td></tr>
 
         <!-- Footer -->
@@ -96,9 +104,16 @@ function escapeHtml(str: string): string {
 }
 
 // ── Default preferenze email per ruolo ──
+//
+// Filosofia (allineata a send-push-notification, ma più selettiva):
+// l'email è il canale "deve arrivare comunque" — ON solo per gli eventi
+// che cambiano il lavoro di qualcuno (assegnazioni, riprogrammazioni,
+// annullamenti, critiche). Il rumore di avanzamento resta su push/in-app.
+// I tipi assenti dalla mappa NON generano email (fallback === true).
 const EMAIL_ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
   admin: {
     email_new_report: true,
+    email_new_report_critical: true,
     email_quick_report: false,
     email_assigned: true,
     email_status_change: true,
@@ -107,9 +122,17 @@ const EMAIL_ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
     email_maintenance_completed: true,
     email_maintenance_reminder: true,
     email_maintenance_overdue: true,
+    email_intervention_assigned: true,
+    email_intervention_rescheduled: true,
+    email_intervention_cancelled: true,
+    email_intervention_scheduled_change: false,
+    email_intervention_status_change: false,
+    email_participant_added: true,
+    email_participant_removed: false,
   },
   tecnico: {
     email_new_report: true,
+    email_new_report_critical: true,
     email_quick_report: false,
     email_assigned: true,
     email_status_change: true,
@@ -118,9 +141,17 @@ const EMAIL_ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
     email_maintenance_completed: false,
     email_maintenance_reminder: true,
     email_maintenance_overdue: true,
+    email_intervention_assigned: true,
+    email_intervention_rescheduled: true,
+    email_intervention_cancelled: true,
+    email_intervention_scheduled_change: true,
+    email_intervention_status_change: false,
+    email_participant_added: true,
+    email_participant_removed: false,
   },
   operatore: {
     email_new_report: false,
+    email_new_report_critical: false,
     email_quick_report: false,
     email_assigned: true,
     email_status_change: true,
@@ -129,6 +160,13 @@ const EMAIL_ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
     email_maintenance_completed: false,
     email_maintenance_reminder: false,
     email_maintenance_overdue: false,
+    email_intervention_assigned: false,
+    email_intervention_rescheduled: false,
+    email_intervention_cancelled: false,
+    email_intervention_scheduled_change: true,
+    email_intervention_status_change: false,
+    email_participant_added: true,
+    email_participant_removed: false,
   },
 }
 
@@ -258,44 +296,45 @@ Deno.serve(async (req: Request) => {
     const html = buildEmailHtml(notification, appUrl)
     const subject = notification.title
 
-    // Invia email in sequenza con delay per evitare rate limit Resend (2 req/s free tier)
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+    // Invia con l'endpoint batch di Resend (max 100 email per chiamata):
+    // una sola richiesta HTTP copre qualsiasi broadcast realistico. Il vecchio
+    // invio sequenziale con pausa 600ms superava il timeout di net.http_post
+    // (~5s) già con 5+ destinatari, troncando la coda a metà.
+    const BATCH_SIZE = 100
     let sent = 0
     let failed = 0
 
-    for (const user of eligible) {
+    for (let i = 0; i < eligible.length; i += BATCH_SIZE) {
+      const chunk = eligible.slice(i, i + BATCH_SIZE)
       try {
-        const res = await fetch('https://api.resend.com/emails', {
+        const res = await fetch('https://api.resend.com/emails/batch', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${resendApiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
+          body: JSON.stringify(chunk.map(u => ({
             from: emailFrom,
-            to: user.email,
+            to: u.email,
             subject,
             html,
-          }),
+          }))),
         })
 
         const result = await res.json()
 
         if (!res.ok) {
-          console.error(`[Email] Failed for ${user.email}:`, result)
-          failed++
+          console.error(`[Email] Batch failed (${chunk.length} recipients):`, result)
+          failed += chunk.length
         } else {
-          console.log(`[Email] Sent to ${user.email}: id=${result.id}`)
-          sent++
+          const ok = result?.data?.length ?? chunk.length
+          console.log(`[Email] Batch sent to ${ok}/${chunk.length} recipient(s)`)
+          sent += ok
+          failed += chunk.length - ok
         }
       } catch (err) {
-        console.error(`[Email] Error for ${user.email}:`, (err as Error).message)
-        failed++
-      }
-
-      // Attendi 600ms tra un invio e l'altro per rispettare il rate limit
-      if (eligible.indexOf(user) < eligible.length - 1) {
-        await delay(600)
+        console.error(`[Email] Batch error (${chunk.length} recipients):`, (err as Error).message)
+        failed += chunk.length
       }
     }
 
