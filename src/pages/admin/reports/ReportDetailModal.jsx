@@ -13,6 +13,7 @@ import DemoBanner from '../../../components/assistant/DemoBanner'
 import { isAssistantAvailable } from '../../../lib/assistant'
 import { useToast } from '../../../hooks/useToast'
 import InterventionsForReport from '../../../components/interventions/InterventionsForReport'
+import MergeReportModal from './MergeReportModal'
 import {
   X, MessageCircle, Clock, Pencil, Trash2, Save, XCircle,
   AlertTriangle, UserCheck, Sparkles, GitMerge, Link2, Unlink, ChevronRight
@@ -48,6 +49,11 @@ export default function ReportDetailModal({ selected, user, users, machines, all
   // ── Merge duplicati (mig 058) ──
   const [masterFetched, setMasterFetched] = useState(null)
   const [confirmUnmerge, setConfirmUnmerge] = useState(false)
+  // Fallback quando il parent non gestisce il merge (onRequestMerge assente,
+  // es. dettaglio aperto da AdminMachines o dalla scheda tecnico): il modal
+  // "Unisci a…" viene aperto e gestito direttamente da qui. Senza questo,
+  // il bottone non faceva nulla in quelle pagine.
+  const [showMergeModal, setShowMergeModal] = useState(false)
   const TERMINAL = ['risolta', 'chiuso']
   const isDuplicate = !!selected.duplicate_of_id
   const roleOk = ['tecnico', 'admin', 'super_admin'].includes(user?.role)
@@ -543,7 +549,7 @@ export default function ReportDetailModal({ selected, user, users, machines, all
 
             {canMerge && (
               <div className="bg-surface-1 rounded-2xl p-4">
-                <button onClick={() => onRequestMerge?.()}
+                <button onClick={() => (onRequestMerge ? onRequestMerge() : setShowMergeModal(true))}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-violet-400/80 hover:text-violet-300 hover:bg-violet-500/10 transition-all">
                   <GitMerge size={15} /> Unisci a un'altra…
                 </button>
@@ -641,6 +647,22 @@ export default function ReportDetailModal({ selected, user, users, machines, all
         images={photos}
         initialIndex={lightboxIndex}
         onClose={() => setLightboxIndex(null)}
+      />
+    )}
+
+    {/* Merge gestito internamente (parent senza onRequestMerge) */}
+    {showMergeModal && (
+      <MergeReportModal
+        sourceReport={selected}
+        onClose={() => setShowMergeModal(false)}
+        onMerged={(result, meta) => {
+          setShowMergeModal(false)
+          toast.success(`Unita a ${formatTicketId(meta.masterReport)}`)
+          // Se la segnalazione aperta è quella chiusa come duplicato, il
+          // pannello si aggiorna e mostra il banner con "Annulla unione";
+          // altrimenti notifica solo il parent per il refresh.
+          onUpdate(meta.duplicateId === selected.id ? result : {})
+        }}
       />
     )}
     </Fragment>
