@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { Button, Input, Spinner } from '../ui'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
-import { LogIn, Wrench, Building2 } from 'lucide-react'
+import { LogIn, Building2 } from 'lucide-react'
 
 const SignupPage = lazy(() => import('./SignupPage'))
 
@@ -46,15 +46,16 @@ export default function LoginPage() {
       <div className="w-full max-w-md animate-scale-in relative z-[1]">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div
-            className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4"
+          <img
+            src="/logo.png"
+            alt="ManuTech"
+            className="inline-block w-20 h-20 rounded-2xl"
             style={{
-              background: 'var(--gradient-primary)',
+              objectFit: 'cover',
               boxShadow: 'var(--shadow-glow-primary)',
+              marginBottom: 16,
             }}
-          >
-            <Wrench className="text-white" size={36} />
-          </div>
+          />
           <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: 'var(--color-text)' }}>ManuTech</h1>
           <p className="text-lg mt-1" style={{ color: 'var(--color-text-muted)' }}>Gestione Manutenzione</p>
           <p className="text-xs mt-1" style={{ color: 'var(--color-text-faint)' }}>v{__APP_VERSION__}</p>

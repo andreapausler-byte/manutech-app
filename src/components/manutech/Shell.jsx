@@ -87,13 +87,12 @@ export function Shell({
           padding: '20px 20px 22px', borderBottom: `1px solid ${MT.border}`,
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
-          <div style={{
-            width: 30, height: 30, background: MT.green,
-            border: `1px solid ${MT.greenLight}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: fDisplay, fontWeight: 700, fontSize: 16, color: '#fff',
+          <img src="/logo.png" alt="ManuTech" style={{
+            width: 30, height: 30, borderRadius: 6,
+            objectFit: 'cover', display: 'block',
+            border: `1px solid ${MT.border}`,
             boxShadow: `0 0 12px ${MT.greenGlow}`,
-          }}>M</div>
+          }} />
           <div>
             <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: 0.3, lineHeight: 1 }}>
               ManuTech
