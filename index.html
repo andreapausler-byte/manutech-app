@@ -34,13 +34,15 @@
         @keyframes bootFadeUp { 0% { transform: translateY(12px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
       </style>
       <div style="position: fixed; inset: 0; background: #0d1e38; overflow: hidden;">
-        <!-- Logo ancorato al centro esatto dello schermo, come lo splash del SO -->
-        <div style="position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; animation: bootIn 0.85s ease-in-out 0.15s both;">
-          <span aria-hidden="true" style="position: absolute; inset: -8px; border: 2px solid rgba(96, 156, 232, 0.55); border-radius: 30px; animation: bootRing 1.9s ease-out 1s infinite;"></span>
-          <img src="/logo.png" alt="ManuTech" style="width: 96px; height: 96px; border-radius: 24px; display: block; animation: bootFloat 2.8s ease-in-out 1s infinite, bootGlow 2.8s ease-in-out 1s infinite;" />
+        <!-- Logo al centro esatto dello schermo: stesso asset (maskable),
+             stessa forma (cerchio) e stessa dimensione (~160dp) dell'icona
+             che Android mostra nello splash di sistema. -->
+        <div style="position: absolute; left: 50%; top: 50%; width: 160px; height: 160px; margin: -80px 0 0 -80px; animation: bootIn 0.85s ease-in-out 0.15s both;">
+          <span aria-hidden="true" style="position: absolute; inset: -9px; border: 2px solid rgba(96, 156, 232, 0.55); border-radius: 50%; animation: bootRing 1.9s ease-out 1s infinite;"></span>
+          <img src="/icons/maskable-512x512.png" alt="ManuTech" style="width: 160px; height: 160px; border-radius: 50%; display: block; animation: bootFloat 2.8s ease-in-out 1s infinite, bootGlow 2.8s ease-in-out 1s infinite;" />
         </div>
         <!-- Titolo sotto al logo, senza influenzarne il centraggio -->
-        <div style="position: absolute; left: 0; right: 0; top: calc(50% + 66px); text-align: center; font-family: 'Outfit', system-ui, sans-serif; font-size: 20px; font-weight: 700; color: #f2f2f8; letter-spacing: -0.01em; animation: bootFadeUp 0.55s ease-out 0.5s both;">ManuTech</div>
+        <div style="position: absolute; left: 0; right: 0; top: calc(50% + 100px); text-align: center; font-family: 'Outfit', system-ui, sans-serif; font-size: 20px; font-weight: 700; color: #f2f2f8; letter-spacing: -0.01em; animation: bootFadeUp 0.55s ease-out 0.5s both;">ManuTech</div>
       </div>
     </div>
     <script type="module" src="/src/main.jsx"></script>

@@ -20,29 +20,29 @@ function AppLoader({ label = 'Caricamento ManuTech...' }) {
       {/* Logo ancorato al centro esatto dello schermo: stessa posizione e
           dimensione dello splash statico in index.html e dello splash di
           sistema della PWA — il passaggio tra le fasi non fa saltare l'icona. */}
-      <div className="absolute" style={{ left: '50%', top: '50%', width: 96, height: 96, margin: '-48px 0 0 -48px' }}>
+      <div className="absolute" style={{ left: '50%', top: '50%', width: 160, height: 160, margin: '-80px 0 0 -80px' }}>
         <span
           aria-hidden="true"
           className="absolute"
           style={{
-            inset: -8, borderRadius: 30,
+            inset: -9, borderRadius: '50%',
             border: '2px solid var(--color-primary)',
             animation: 'logoRing 1.9s ease-out infinite',
           }}
         />
         <img
-          src="/logo.png"
+          src="/icons/maskable-512x512.png"
           alt=""
           aria-hidden="true"
           style={{
-            width: 96, height: 96, borderRadius: 24,
+            width: 160, height: 160, borderRadius: '50%',
             objectFit: 'cover', display: 'block',
             boxShadow: 'var(--shadow-glow-primary)',
             animation: 'logoFloat 2.8s ease-in-out infinite',
           }}
         />
       </div>
-      <div className="absolute text-center" style={{ left: 0, right: 0, top: 'calc(50% + 66px)' }}>
+      <div className="absolute text-center" style={{ left: 0, right: 0, top: 'calc(50% + 104px)' }}>
         <Spinner />
         <p className="text-sm" style={{ color: 'var(--color-text-muted)', marginTop: 8 }}>{label}</p>
       </div>
