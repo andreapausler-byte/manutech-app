@@ -11,10 +11,14 @@
 // Bump ad ogni release per invalidare la cache.
 // v7.8.0 = AI vede anagrafica fornitori (migration 043)
 // Bump per invalidare le icone/logo cacheati (nuovo logo ManuTech + splash)
-const CACHE_NAME = 'manutech-v7.8.2'
+const CACHE_NAME = 'manutech-v7.8.3'
 const APP_SHELL = [
   '/',
   '/manifest.json',
+  // Logo dello splash: precache così il cold start offline non mostra
+  // un'immagine rotta al posto del logo.
+  '/logo.png',
+  '/favicon.png',
 ]
 
 // ── Install: pre-cache app shell ──
@@ -69,6 +73,8 @@ self.addEventListener('fetch', (event) => {
   if (
     request.url.includes('/assets/') ||
     request.url.includes('/icons/') ||
+    request.url.includes('/logo.png') ||
+    request.url.includes('/favicon.png') ||
     request.url.includes('fonts.googleapis') ||
     request.url.includes('fonts.gstatic')
   ) {
