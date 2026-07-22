@@ -240,6 +240,17 @@ h1, h2, h3, h4 {
   100% { box-shadow: 0 0 0 0 rgba(124, 106, 255, 0); }
 }
 
+/* Motion del logo negli splash/loader (stesso linguaggio dello splash
+   statico in index.html: fluttuazione + respiro glow + anello radar) */
+@keyframes logoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes logoRing {
+  0% { transform: scale(0.75); opacity: 0.5; }
+  100% { transform: scale(1.85); opacity: 0; }
+}
+
 @keyframes criticalPulse {
   0%, 100% { border-color: rgba(255, 92, 92, 0.3); }
   50% { border-color: rgba(255, 92, 92, 0.6); }

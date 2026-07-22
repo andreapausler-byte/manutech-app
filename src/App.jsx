@@ -18,13 +18,28 @@ function AppLoader({ label = 'Caricamento ManuTech...' }) {
   return (
     <div className="min-h-screen flex items-center justify-center" role="status" aria-label="Caricamento applicazione" style={{ background: 'var(--color-bg)' }}>
       <div className="text-center">
-        <img
-          src="/logo.png"
-          alt=""
-          aria-hidden="true"
-          className="w-20 h-20 mx-auto rounded-2xl animate-pulse"
-          style={{ objectFit: 'cover', boxShadow: 'var(--shadow-glow-primary)', marginBottom: 16 }}
-        />
+        <div className="relative w-20 h-20 mx-auto" style={{ marginBottom: 18 }}>
+          <span
+            aria-hidden="true"
+            className="absolute"
+            style={{
+              inset: -7, borderRadius: 24,
+              border: '2px solid var(--color-primary)',
+              animation: 'logoRing 1.9s ease-out infinite',
+            }}
+          />
+          <img
+            src="/logo.png"
+            alt=""
+            aria-hidden="true"
+            className="w-20 h-20 rounded-2xl"
+            style={{
+              objectFit: 'cover', display: 'block',
+              boxShadow: 'var(--shadow-glow-primary)',
+              animation: 'logoFloat 2.8s ease-in-out infinite',
+            }}
+          />
+        </div>
         <Spinner />
         <p className="text-sm" style={{ color: 'var(--color-text-muted)', marginTop: 10 }}>{label}</p>
       </div>
