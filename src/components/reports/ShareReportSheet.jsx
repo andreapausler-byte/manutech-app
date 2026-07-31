@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { db } from '../../lib/supabase'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -26,29 +26,62 @@ export default function ShareReportSheet({ open, onClose, report, user }) {
   const canGuest = GUEST_ROLES.includes(user?.role)
   const [guestOn, setGuestOn] = useState(canGuest)
   const [guestUrl, setGuestUrl] = useState(null)
+  const [comments, setComments] = useState(null)
   const [busy, setBusy] = useState(null)
+  const guestFetchRef = useRef(null)
+
+  // Il sheet può restare montato mentre si passa a un'altra segnalazione
+  // (ReportDetailModal cambia `selected` senza smontare): senza reset il
+  // link ospite e la chat resterebbero quelli del report precedente.
+  useEffect(() => {
+    setGuestUrl(null)
+    setComments(null)
+    guestFetchRef.current = null
+  }, [report.id])
+
+  // Deduplica la creazione del token tra prefetch e tap ravvicinati.
+  // In caso di errore il ref si resetta: il prossimo tap ritenta.
+  const fetchGuestUrl = () => {
+    if (!guestFetchRef.current) {
+      guestFetchRef.current = (async () => {
+        const tokens = await db.getGuestTokens(report.id)
+        const active = (tokens || []).find(t =>
+          t.enabled && (!t.expires_at || new Date(t.expires_at) > new Date()))
+        const token = active || await db.createGuestToken(report.id)
+        return guestChatLink(report.id, token.token)
+      })().catch(() => { guestFetchRef.current = null; return null })
+    }
+    return guestFetchRef.current
+  }
+
+  // Prefetch all'apertura: navigator.share e window.open richiedono la
+  // transient activation del tap, che non sopravvive ad await di rete.
+  // Con i dati già in cache il tap sui bottoni resta sincrono.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    db.getComments(report.id)
+      .then(c => { if (!cancelled) setComments((c || []).filter(x => !x.deleted_at)) })
+      .catch(() => { if (!cancelled) setComments([]) })
+    if (canGuest && guestOn && !guestUrl) {
+      fetchGuestUrl().then(url => { if (!cancelled && url) setGuestUrl(url) })
+    }
+    return () => { cancelled = true }
+  }, [open, report.id, guestOn]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null
 
   const tk = formatTicketId(report)
 
   // Link di coda del messaggio: link ospite (riusa il token attivo più
-  // recente o ne genera uno) oppure deep link /reports/:id.
+  // recente o ne genera uno) oppure deep link /reports/:id. Col prefetch
+  // sopra, nel caso normale risolve dalla cache senza await di rete.
   const ensureLink = async () => {
     if (!(canGuest && guestOn)) return { url: reportAppLink(report), guest: false }
-    if (guestUrl) return { url: guestUrl, guest: true }
-    try {
-      const tokens = await db.getGuestTokens(report.id)
-      const active = (tokens || []).find(t =>
-        t.enabled && (!t.expires_at || new Date(t.expires_at) > new Date()))
-      const token = active || await db.createGuestToken(report.id)
-      const url = guestChatLink(report.id, token.token)
-      setGuestUrl(url)
-      return { url, guest: true }
-    } catch {
-      toast.warning('Link ospite non disponibile: uso il link app')
-      return { url: reportAppLink(report), guest: false }
-    }
+    const url = guestUrl || await fetchGuestUrl()
+    if (url) return { url, guest: true }
+    toast.warning('Link ospite non disponibile: uso il link app')
+    return { url: reportAppLink(report), guest: false }
   }
 
   const getSummaryText = async () => {
@@ -57,8 +90,7 @@ export default function ShareReportSheet({ open, onClose, report, user }) {
   }
 
   const getChatText = async () => {
-    const comments = await db.getComments(report.id)
-    const visible = (comments || []).filter(c => !c.deleted_at)
+    const visible = comments ?? (await db.getComments(report.id) || []).filter(c => !c.deleted_at)
     if (!visible.length) {
       toast.info('La chat è ancora vuota')
       return null
@@ -84,12 +116,17 @@ export default function ShareReportSheet({ open, onClose, report, user }) {
 
   const sendWhatsApp = async (text) => {
     const outcome = await openWhatsApp(text)
-    if (outcome === 'copied') toast.info('Testo lungo: copiato, incollalo su WhatsApp')
+    if (outcome === 'copied') toast.info('Testo copiato: incollalo su WhatsApp')
   }
 
+  // Se lo share di sistema fallisce (es. transient activation scaduta su
+  // iOS), il testo finisce comunque in clipboard: l'utente non perde nulla.
   const sendNative = (title) => async (text) => {
     const outcome = await nativeShare({ title, text })
-    if (outcome === 'failed' || outcome === 'unsupported') toast.error('Condivisione non riuscita')
+    if (outcome === 'failed' || outcome === 'unsupported') {
+      await copyText(text)
+      toast.info('Condivisione non disponibile: testo copiato')
+    }
   }
 
   const sendCopy = async (text) => {

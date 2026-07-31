@@ -21,7 +21,7 @@ export default function OperatorTicketDetail({ reportId, onBack }) {
   const handleShareWhatsApp = async () => {
     try {
       const outcome = await openWhatsApp(summaryText())
-      if (outcome === 'copied') toast.info('Testo lungo: copiato, incollalo su WhatsApp')
+      if (outcome === 'copied') toast.info('Testo copiato: incollalo su WhatsApp')
     } catch {
       toast.error('Condivisione non riuscita')
     }

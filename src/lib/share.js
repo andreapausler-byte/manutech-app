@@ -132,10 +132,14 @@ export async function copyText(text) {
 const isIosStandalonePwa = () => {
   const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches
     || window.navigator.standalone === true
-  return standalone && /iPad|iPhone|iPod/.test(navigator.userAgent)
+  // iPadOS si presenta come 'Macintosh': il touch lo distingue da un Mac
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1)
+  return standalone && ios
 }
 
-// Esiti: 'opened' | 'copied' (testo oltre soglia wa.me → clipboard)
+// Esiti: 'opened' | 'copied' (testo oltre soglia wa.me, o popup bloccato
+// dal browser → clipboard)
 export async function openWhatsApp(text) {
   const encoded = encodeURIComponent(text)
   if (encoded.length > WA_TEXT_LIMIT) {
@@ -144,8 +148,12 @@ export async function openWhatsApp(text) {
   }
   if (isIosStandalonePwa()) {
     window.location.href = `whatsapp://send?text=${encoded}`
-  } else {
-    window.open(`https://wa.me/?text=${encoded}`, '_blank', 'noopener,noreferrer')
+    return 'opened'
+  }
+  const win = window.open(`https://wa.me/?text=${encoded}`, '_blank', 'noopener,noreferrer')
+  if (!win) {
+    await copyText(text)
+    return 'copied'
   }
   return 'opened'
 }
