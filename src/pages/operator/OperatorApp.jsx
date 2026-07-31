@@ -46,16 +46,17 @@ function OperatorProfile({ onLogout }) {
   )
 }
 
-export default function OperatorApp() {
+export default function OperatorApp({ initialReportId = null }) {
   const { user, logout } = useAuth()
   const toast = useToast()
   const { machines } = useMachines()
   const voice = useVoiceTicket(machines, user)
 
-  // tab: home | list | profile
-  const [tab, setTab] = useState('home')
+  // tab: home | list | profile — con deep link /reports/:id si parte dalla
+  // lista così il back dal dettaglio ha una destinazione sensata
+  const [tab, setTab] = useState(initialReportId ? 'list' : 'home')
   // selected ticket for detail view
-  const [detailId, setDetailId] = useState(null)
+  const [detailId, setDetailId] = useState(initialReportId)
   // force reload list after insert
   const [refreshKey, setRefreshKey] = useState(0)
 

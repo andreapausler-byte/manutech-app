@@ -10,6 +10,7 @@ import VideoPlayer from '../media/VideoPlayer'
 import ActivityTimeline from './ActivityTimeline'
 import ChatPanel from '../chat/ChatPanel'
 import ShareGuestLink from '../chat/ShareGuestLink'
+import ShareReportSheet from './ShareReportSheet'
 import SimilarCasesLivePanel from './SimilarCasesLivePanel'
 import {
   ArrowLeft, MoreVertical, Send, Paperclip, Mic,
@@ -395,6 +396,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [activeTab, setActiveTab] = useState('details')
   const [statusSheetOpen, setStatusSheetOpen] = useState(false)
   const [closureSheetOpen, setClosureSheetOpen] = useState(false)
+  const [shareSheetOpen, setShareSheetOpen] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [sendingQuick, setSendingQuick] = useState(false)
@@ -659,6 +661,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           <button
             aria-label="Altre opzioni"
             className="press-scale"
+            onClick={() => { haptic.light(); setShareSheetOpen(true) }}
             style={{
               width: 32, height: 32, borderRadius: 8,
               background: D.raised, border: 'none', color: D.textSecondary,
@@ -1047,6 +1050,12 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         onClose={() => setClosureSheetOpen(false)}
         onSubmit={handleClosureSubmit}
         busy={updating}
+      />
+      <ShareReportSheet
+        open={shareSheetOpen}
+        onClose={() => setShareSheetOpen(false)}
+        report={report}
+        user={user}
       />
 
       {/* ═══ Lightbox ═══ */}

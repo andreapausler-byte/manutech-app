@@ -101,7 +101,7 @@ function AuthenticatedApp() {
       </Suspense>
     )
   }
-  if (user.role === 'operatore') return <Suspense fallback={<AppLoader />}><OperatorApp /></Suspense>
+  if (user.role === 'operatore') return <Suspense fallback={<AppLoader />}><OperatorApp initialReportId={initialReportId} /></Suspense>
   return <Suspense fallback={<AppLoader />}><MobileLayout initialReportId={initialReportId} /></Suspense>
 }
 

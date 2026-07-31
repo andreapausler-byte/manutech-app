@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { db } from '../../lib/supabase'
 import { formatDate, SEVERITY } from '../../lib/constants'
+import { buildReportSummary, reportAppLink, openWhatsApp, copyText } from '../../lib/share'
+import { useToast } from '../../hooks/useToast'
 import StatusPill from '../../components/operator/StatusPill'
 import PriorityDot from '../../components/operator/PriorityDot'
 
@@ -12,6 +14,27 @@ function shortId(id) {
 export default function OperatorTicketDetail({ reportId, onBack }) {
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
+  const toast = useToast()
+
+  const summaryText = () => buildReportSummary(report, { url: reportAppLink(report) })
+
+  const handleShareWhatsApp = async () => {
+    try {
+      const outcome = await openWhatsApp(summaryText())
+      if (outcome === 'copied') toast.info('Testo copiato: incollalo su WhatsApp')
+    } catch {
+      toast.error('Condivisione non riuscita')
+    }
+  }
+
+  const handleCopySummary = async () => {
+    try {
+      await copyText(summaryText())
+      toast.success('Riepilogo copiato')
+    } catch {
+      toast.error('Impossibile copiare')
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -90,6 +113,16 @@ export default function OperatorTicketDetail({ reportId, onBack }) {
           </div>
         </div>
       )}
+
+      <div className="op-section-title">Condividi</div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="op-btn op-btn--ghost" onClick={handleShareWhatsApp}>
+          WhatsApp
+        </button>
+        <button className="op-btn op-btn--ghost" onClick={handleCopySummary}>
+          Copia
+        </button>
+      </div>
     </div>
   )
 }
