@@ -6,6 +6,9 @@ import { useToast } from '../../hooks/useToast'
 // ── Skeleton Components (re-export) ──────────────────────
 export { SkeletonBlock, SkeletonKPIGrid, SkeletonReportCard, SkeletonReportList, SkeletonDashboard, SkeletonReportsPage } from './Skeleton'
 
+// ── WhatsAppIcon (re-export) ─────────────────────────────
+export { default as WhatsAppIcon } from './WhatsAppIcon'
+
 // ── TicketIdBadge ────────────────────────────────────────
 // Badge cliccabile che mostra il TK-id e lo copia in clipboard al tap.
 // Applica sempre `slashed-zero tabular-nums` per distinguere 0 da 8/O in

@@ -14,8 +14,9 @@ import { isAssistantAvailable } from '../../../lib/assistant'
 import { useToast } from '../../../hooks/useToast'
 import InterventionsForReport from '../../../components/interventions/InterventionsForReport'
 import MergeReportModal from './MergeReportModal'
+import ShareReportSheet from '../../../components/reports/ShareReportSheet'
 import {
-  X, MessageCircle, Clock, Pencil, Trash2, Save, XCircle,
+  X, MessageCircle, Clock, Pencil, Trash2, Save, XCircle, Share2,
   AlertTriangle, UserCheck, Sparkles, GitMerge, Link2, Unlink, ChevronRight
 } from 'lucide-react'
 
@@ -43,6 +44,7 @@ export default function ReportDetailModal({ selected, user, users, machines, all
   const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '' })
   const [closureSaving, setClosureSaving] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(null)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const photos = (selected.media || []).filter(m => m.type === 'photo')
 
@@ -252,6 +254,12 @@ export default function ReportDetailModal({ selected, user, users, machines, all
             )}
           </div>
           <div className="flex items-center gap-2">
+            {!editing && (
+              <button onClick={() => setShareOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-emerald-400 hover:bg-emerald-400/10 transition-all">
+                <Share2 size={14} /> Condividi
+              </button>
+            )}
             {!editing && (
               <button onClick={startEditing}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-amber-400 hover:bg-amber-400/10 transition-all">
@@ -660,6 +668,13 @@ export default function ReportDetailModal({ selected, user, users, machines, all
         onClose={() => setLightboxIndex(null)}
       />
     )}
+
+    <ShareReportSheet
+      open={shareOpen}
+      onClose={() => setShareOpen(false)}
+      report={selected}
+      user={user}
+    />
 
     {/* Merge gestito internamente (parent senza onRequestMerge) */}
     {showMergeModal && (
