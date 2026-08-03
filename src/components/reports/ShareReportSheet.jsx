@@ -62,7 +62,9 @@ export default function ShareReportSheet({ open, onClose, report, user }) {
     let cancelled = false
     db.getComments(report.id)
       .then(c => { if (!cancelled) setComments((c || []).filter(x => !x.deleted_at)) })
-      .catch(() => { if (!cancelled) setComments([]) })
+      // In errore comments resta null: il tap ritenta il fetch invece di
+      // mostrare un falso "chat vuota"
+      .catch(() => {})
     if (canGuest && guestOn && !guestUrl) {
       fetchGuestUrl().then(url => { if (!cancelled && url) setGuestUrl(url) })
     }
@@ -134,7 +136,9 @@ export default function ShareReportSheet({ open, onClose, report, user }) {
     toast.success('Copiato negli appunti')
   }
 
-  const ActionRow = ({ section, getText, shareTitle }) => (
+  // Funzione di render (non componente): definita nel render prenderebbe
+  // una nuova identità a ogni ciclo e React rimonterebbe i bottoni.
+  const renderActionRow = (section, getText, shareTitle) => (
     <div className="flex gap-2">
       <button
         onClick={() => run(`${section}-wa`, getText, sendWhatsApp)}
@@ -201,6 +205,8 @@ export default function ShareReportSheet({ open, onClose, report, user }) {
           {canGuest && (
             <button
               onClick={() => { setGuestOn(v => !v); haptic.light() }}
+              role="switch"
+              aria-checked={guestOn}
               className="w-full flex items-center justify-between gap-3 rounded-xl p-3 text-left"
               style={{ background: 'var(--color-bg, #0f0f1a)', border: '1px solid var(--color-border, #2a2a3e)' }}
             >
@@ -216,8 +222,7 @@ export default function ShareReportSheet({ open, onClose, report, user }) {
               <div
                 className="rounded-full p-0.5 transition-colors"
                 style={{ width: 40, flexShrink: 0, background: guestOn ? 'var(--color-primary, #7c6aff)' : 'var(--color-surface-2, #2a2a3e)' }}
-                role="switch"
-                aria-checked={guestOn}
+                aria-hidden="true"
               >
                 <div
                   className="rounded-full bg-white transition-transform"
@@ -236,7 +241,7 @@ export default function ShareReportSheet({ open, onClose, report, user }) {
             <p className="text-[11px] mt-0.5 mb-2.5" style={{ color: 'var(--color-text-muted, #888)' }}>
               Stato, gravità, descrizione e link alle foto
             </p>
-            <ActionRow section="summary" getText={getSummaryText} shareTitle={tk ? `Segnalazione ${tk}` : 'Segnalazione'} />
+            {renderActionRow('summary', getSummaryText, tk ? `Segnalazione ${tk}` : 'Segnalazione')}
           </div>
 
           {/* Trascrizione chat */}
@@ -248,7 +253,7 @@ export default function ShareReportSheet({ open, onClose, report, user }) {
             <p className="text-[11px] mt-0.5 mb-2.5" style={{ color: 'var(--color-text-muted, #888)' }}>
               Tutti i messaggi della segnalazione, in ordine cronologico
             </p>
-            <ActionRow section="chat" getText={getChatText} shareTitle={tk ? `Chat ${tk}` : 'Chat segnalazione'} />
+            {renderActionRow('chat', getChatText, tk ? `Chat ${tk}` : 'Chat segnalazione')}
           </div>
         </div>
       </div>

@@ -659,7 +659,8 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             <ShareGuestLink reportId={report.id} reportTitle={report.title} />
           )}
           <button
-            aria-label="Altre opzioni"
+            aria-label="Condividi e copia"
+            title="Condividi e copia"
             className="press-scale"
             onClick={() => { haptic.light(); setShareSheetOpen(true) }}
             style={{
