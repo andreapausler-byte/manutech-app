@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: **Condivisione WhatsApp** (31/7) ✓ — riepilogo segnalazione e trascrizione chat condivisibili/copiabili su WhatsApp da mobile (`ReportDetail`, bottone "Altre opzioni" ora attivo), admin (`ReportDetailModal`, bottone "Condividi") e operatore (`OperatorTicketDetail`). Nuovo `src/lib/share.js` (builder testi IT + canali wa.me/navigator.share/clipboard) e `ShareReportSheet` con toggle link ospite (riusa guest token → chi riceve risponde senza login). `WhatsAppIcon` estratta in `ui/`. Zero schema, zero nuove funzioni db. Dettagli in `journal/2026-07-whatsapp-share.md`.
-- **Branch corrente**: `claude/whatsapp-manutech-integration-5ez4oi` (feature + journal)
-- **Prossimo step**: review trimestrale ROADMAP il **2/8** — in agenda: (a) decidere se/quando Fase 5 "WhatsApp come canale" (Cloud API notifiche utility ~€3-10/mese, ma verifica business Meta + opt-in GDPR numeri dipendenti — sanzioni AEPD/Garante 2025 impongono consenso esplicito); (b) riprendere la decisione Agenda tecnico mobile lista vs post-Interventi v2 (vedi journal 2026-05, concretizzazione da screenshot founder 20/5).
+- **Fase**: **Chiuse vs Completate** (7/8) ✓ — scegliere "Chiuso" al posto di "Completato" ora chiede conferma esplicita con le implicazioni (niente dati intervento, esclusa dai KPI come risolta): bottom sheet in `ReportDetail`, box inline in `ReportDetailModal`. Stati terminali centralizzati in `constants.js` (`TERMINAL_STATUSES`, `isTerminalStatus`, `isReportOpen`) e fix del bug per cui una segnalazione `chiuso` risultava ancora attiva in contatori macchine, carico utenti, top-macchine KPI e health score demo. Mergiato in `master` (v5.16.3–v5.16.4).
+- **Branch corrente**: `master` (feature branch `claude/segnalazioni-chiuse-completate-yodvrt` mergiato)
+- **Prossimo step**: recuperare la review trimestrale ROADMAP (era in agenda il **2/8**, non ancora tracciata): (a) decidere se/quando Fase 5 "WhatsApp come canale" (Cloud API notifiche utility ~€3-10/mese, ma verifica business Meta + opt-in GDPR numeri dipendenti — sanzioni AEPD/Garante 2025 impongono consenso esplicito); (b) riprendere la decisione Agenda tecnico mobile lista vs post-Interventi v2 (vedi journal 2026-05, concretizzazione da screenshot founder 20/5).
 
 ---
 
