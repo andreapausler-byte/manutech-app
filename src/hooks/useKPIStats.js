@@ -10,6 +10,7 @@
  */
 
 import { useMemo } from 'react'
+import { isReportOpen } from '../lib/constants'
 
 export function useKPIStats(reports) {
   return useMemo(() => {
@@ -101,7 +102,7 @@ export function useKPIStats(reports) {
 
     // ── Top macchinari (per report attivi) ──
     const machineMap = {}
-    reports.filter(r => r.machine && r.status !== 'risolta').forEach(r => {
+    reports.filter(r => r.machine && isReportOpen(r)).forEach(r => {
       machineMap[r.machine] = (machineMap[r.machine] || 0) + 1
     })
     const topMachines = Object.entries(machineMap)

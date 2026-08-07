@@ -23,7 +23,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { db } from '../../lib/supabase'
-import { REACTIONS } from '../../lib/constants'
+import { REACTIONS, isTerminalStatus } from '../../lib/constants'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -410,7 +410,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
   }
 
   // ── Ringraziamenti (👏 a livello segnalazione) ─────────
-  const showThanks = !guestMode && ['risolta', 'chiuso'].includes(report?.status)
+  const showThanks = !guestMode && isTerminalStatus(report?.status)
   const thanks = reactions.filter(r => r.type === 'grazie' && !r.comment_id)
   const iThanked = thanks.some(r => r.user_id === user?.id)
   const isAssignee = !!report?.assigned_to && report.assigned_to === user?.id
@@ -489,7 +489,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
                       setComments(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x))
                       toast.success('Messaggio modificato')
                       // Se il ticket e' chiuso, riindicizza la macchina (memoria AI)
-                      if (report?.machine_id && ['risolta', 'chiuso'].includes(report?.status)) {
+                      if (report?.machine_id && isTerminalStatus(report?.status)) {
                         db.queueMachineReindex(report.machine_id)
                           .catch(e => console.warn('[chat-edit] reindex fail:', e?.message))
                       }
@@ -503,7 +503,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
                       await db.deleteComment(c.id)
                       setComments(prev => prev.filter(x => x.id !== c.id))
                       toast.success('Messaggio eliminato')
-                      if (report?.machine_id && ['risolta', 'chiuso'].includes(report?.status)) {
+                      if (report?.machine_id && isTerminalStatus(report?.status)) {
                         db.queueMachineReindex(report.machine_id)
                           .catch(e => console.warn('[chat-delete] reindex fail:', e?.message))
                       }

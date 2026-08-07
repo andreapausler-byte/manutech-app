@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { db } from '../../lib/supabase'
+import { isReportOpen } from '../../lib/constants'
 import { EmptyState, Spinner } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
@@ -493,7 +494,7 @@ export default function AdminMachines({ onOpenAssistant }) {
 
   // ── Machine Card — Stitch mockup style ──
   const MachineCard = ({ m }) => {
-    const activeReports = getReportsForMachine(m.name).filter(r => r.status !== 'risolta')
+    const activeReports = getReportsForMachine(m.name).filter(isReportOpen)
     const active = activeReports.length
     const critical = activeReports.filter(r => r.severity === 'critica' || r.severity === 'alta').length
     const isOperative = active === 0
@@ -788,7 +789,7 @@ export default function AdminMachines({ onOpenAssistant }) {
             const areaId = area?.id || '__unassigned'
             const isCollapsed = collapsedAreas[areaId]
             const areaColor = area?.color || '#6b7280'
-            const areaActive = areaMachines.reduce((sum, m) => sum + getReportsForMachine(m.name).filter(r => r.status !== 'risolta').length, 0)
+            const areaActive = areaMachines.reduce((sum, m) => sum + getReportsForMachine(m.name).filter(isReportOpen).length, 0)
             return (
               <div key={areaId}>
                 {/* ── Area Header Premium ── */}

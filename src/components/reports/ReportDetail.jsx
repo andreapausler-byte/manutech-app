@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, isTerminalStatus } from '../../lib/constants'
 import { TicketIdBadge } from '../ui'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -171,6 +171,84 @@ function StatusSheet({ open, onClose, current, onSelect, busy }) {
               </button>
             )
           })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Confirm close sheet — "Chiuso" archivia senza registrare
+// l'intervento: conferma esplicita con le implicazioni
+// ─────────────────────────────────────────────────────────────
+function ConfirmCloseSheet({ open, onClose, onConfirm, busy }) {
+  if (!open) return null
+  return (
+    <div
+      onClick={onClose}
+      role="dialog" aria-modal="true" aria-labelledby="confirm-close-title"
+      style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+    >
+      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', animation: 'fadeIn 0.18s ease both' }} />
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'relative', width: '100%', maxWidth: 500,
+          background: D.card, borderRadius: '20px 20px 0 0',
+          padding: '14px 14px 28px',
+          animation: 'slideUp 0.22s ease both',
+          border: `1px solid ${D.raised}`, borderBottom: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: D.raised }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, background: 'rgba(245,158,11,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <AlertTriangle size={17} style={{ color: '#f59e0b' }} />
+          </div>
+          <h3 id="confirm-close-title" style={{
+            fontSize: 15, fontWeight: 600, color: D.textPrimary,
+            margin: 0, letterSpacing: -0.2,
+          }}>
+            Chiudere senza completare?
+          </h3>
+        </div>
+        <p style={{ fontSize: 13, color: D.textSecondary, lineHeight: 1.5, margin: '0 0 14px' }}>
+          "Chiuso" archivia la segnalazione senza registrare l'intervento:
+          niente ore lavoro, causa o ricambi, e non verrà conteggiata come
+          risolta nelle statistiche. Se il lavoro è stato fatto, usa "Completato".
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="press-scale"
+            style={{
+              flex: 1, padding: '12px 0', borderRadius: 12,
+              background: D.raised, border: 'none',
+              color: D.textPrimary, fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', opacity: busy ? 0.5 : 1,
+            }}
+          >
+            Annulla
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="press-scale"
+            style={{
+              flex: 1, padding: '12px 0', borderRadius: 12,
+              background: '#f59e0b', border: 'none',
+              color: '#000', fontSize: 13, fontWeight: 700,
+              cursor: 'pointer', opacity: busy ? 0.6 : 1,
+            }}
+          >
+            {busy ? 'Chiudo…' : 'Chiudi comunque'}
+          </button>
         </div>
       </div>
     </div>
@@ -396,6 +474,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [activeTab, setActiveTab] = useState('details')
   const [statusSheetOpen, setStatusSheetOpen] = useState(false)
   const [closureSheetOpen, setClosureSheetOpen] = useState(false)
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false)
   const [shareSheetOpen, setShareSheetOpen] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(null)
@@ -415,7 +494,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const reportType = report.type ? REPORT_TYPES[report.type] : null
   const canUpdate = user.role === 'tecnico' || user.role === 'admin'
   const isMine = report.assigned_to === user.id
-  const isClosed = report.status === 'risolta' || report.status === 'chiuso'
+  const isClosed = isTerminalStatus(report.status)
   // Tutti i tecnici dell'org possono prendere in carico una segnalazione
   // (anche se è già assegnata a qualcun altro): l'assegnazione cambia, la
   // cronologia traccia il passaggio.
@@ -480,7 +559,16 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
       setClosureSheetOpen(true)
       return
     }
+    if (s === 'chiuso' && report.status !== 'chiuso') {
+      setConfirmCloseOpen(true)
+      return
+    }
     updateStatus(s)
+  }
+
+  const handleConfirmClose = async () => {
+    const ok = await updateStatus('chiuso')
+    if (ok) setConfirmCloseOpen(false)
   }
 
   const handleTakeOver = async () => {
@@ -1044,6 +1132,12 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         onClose={() => setStatusSheetOpen(false)}
         current={report.status}
         onSelect={handleStatusSelect}
+        busy={updating}
+      />
+      <ConfirmCloseSheet
+        open={confirmCloseOpen}
+        onClose={() => setConfirmCloseOpen(false)}
+        onConfirm={handleConfirmClose}
         busy={updating}
       />
       <ClosureSheet

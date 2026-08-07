@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, X, ArrowLeftRight, GitMerge, ChevronLeft, Wrench, Check } from 'lucide-react'
 import { db } from '../../../lib/supabase'
-import { STATUS, SEVERITY, formatTicketId, formatDate } from '../../../lib/constants'
+import { STATUS, SEVERITY, TERMINAL_STATUSES, formatTicketId, formatDate } from '../../../lib/constants'
 import { useMergeSegnalazione } from '../../../hooks/useMergeSegnalazione'
 
-const TERMINAL_STATUSES = ['risolta', 'chiuso']
 
 /**
  * MergeReportModal — unisce una segnalazione duplicata a una master.

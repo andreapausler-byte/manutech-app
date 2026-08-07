@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment } from 'react'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { db } from '../../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo, formatTicketId } from '../../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo, formatTicketId, isTerminalStatus } from '../../../lib/constants'
 import { Badge, TicketIdBadge } from '../../../components/ui'
 import { useMergeSegnalazione } from '../../../hooks/useMergeSegnalazione'
 import MediaCapture from '../../../components/media/MediaCapture'
@@ -56,14 +56,14 @@ export default function ReportDetailModal({ selected, user, users, machines, all
   // "Unisci a…" viene aperto e gestito direttamente da qui. Senza questo,
   // il bottone non faceva nulla in quelle pagine.
   const [showMergeModal, setShowMergeModal] = useState(false)
-  const TERMINAL = ['risolta', 'chiuso']
+  const [confirmClose, setConfirmClose] = useState(false)
   const isDuplicate = !!selected.duplicate_of_id
   const roleOk = ['tecnico', 'admin', 'super_admin'].includes(user?.role)
   const masterFromList = allReports.find(r => r.id === selected.duplicate_of_id)
   const master = masterFromList
     || (masterFetched && masterFetched.id === selected.duplicate_of_id ? masterFetched : null)
   const children = allReports.filter(r => r.duplicate_of_id === selected.id)
-  const canMerge = roleOk && !isDuplicate && children.length === 0 && !TERMINAL.includes(selected.status)
+  const canMerge = roleOk && !isDuplicate && children.length === 0 && !isTerminalStatus(selected.status)
 
   // Se la master non è nel set già caricato (es. deep-link al duplicato), falla
   // fetch una volta sola per popolare il banner.
@@ -114,7 +114,16 @@ export default function ReportDetailModal({ selected, user, users, machines, all
       setShowClosureForm(true)
       return
     }
+    if (newStatus === 'chiuso' && selected?.status !== 'chiuso') {
+      setConfirmClose(true)
+      return
+    }
     updateStatus(reportId, newStatus)
+  }
+
+  const handleConfirmClose = async () => {
+    await updateStatus(selected.id, 'chiuso')
+    setConfirmClose(false)
   }
 
   const submitClosure = async () => {
@@ -555,15 +564,39 @@ export default function ReportDetailModal({ selected, user, users, machines, all
 
             <div className="bg-surface-1 rounded-2xl p-4 space-y-3">
               <p className="text-[11px] text-faint uppercase tracking-wider">Cambia Stato</p>
-              <div className="grid grid-cols-1 gap-2">
-                {Object.entries(STATUS).map(([key, { label, color }]) => (
-                  <button key={key} onClick={() => handleStatusClick(selected.id, key)}
-                    className={`flex items-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all ${selected.status === key ? 'text-white' : 'bg-surface-2 text-muted hover:text-white'}`}
-                    style={selected.status === key ? { background: color } : {}}>
-                    <span className="w-2 h-2 rounded-full" style={{ background: color }} />{label}
-                  </button>
-                ))}
-              </div>
+              {!confirmClose ? (
+                <div className="grid grid-cols-1 gap-2">
+                  {Object.entries(STATUS).map(([key, { label, color }]) => (
+                    <button key={key} onClick={() => handleStatusClick(selected.id, key)}
+                      className={`flex items-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all ${selected.status === key ? 'text-white' : 'bg-surface-2 text-muted hover:text-white'}`}
+                      style={selected.status === key ? { background: color } : {}}>
+                      <span className="w-2 h-2 rounded-full" style={{ background: color }} />{label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-amber-400">
+                    <AlertTriangle size={16} />
+                    <span className="text-sm font-bold">Chiudere senza completare?</span>
+                  </div>
+                  <p className="text-xs text-muted leading-relaxed">
+                    "Chiuso" archivia la segnalazione senza registrare l'intervento:
+                    niente ore lavoro, causa o ricambi, e non verrà conteggiata come
+                    risolta nelle statistiche. Se il lavoro è stato fatto, usa "Completato".
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={handleConfirmClose}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-amber-500 text-black hover:bg-amber-400 transition-all">
+                      Chiudi comunque
+                    </button>
+                    <button onClick={() => setConfirmClose(false)}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-surface-2 text-muted hover:text-white transition-all">
+                      Annulla
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {canMerge && (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useDraggable } from '../../../hooks/useDraggable'
-import { STATUS, SEVERITY, timeAgo } from '../../../lib/constants'
+import { STATUS, SEVERITY, timeAgo, isReportOpen } from '../../../lib/constants'
 import { db } from '../../../lib/supabase'
 import { Badge } from '../../../components/ui'
 import {
@@ -616,15 +616,15 @@ export default function MachineDetailSheet({
 }) {
   const machineReports = useMemo(() =>
     reports.filter(r => r.machine === sel.name).sort((a, b) => {
-      const aActive = a.status !== 'risolta' ? 0 : 1
-      const bActive = b.status !== 'risolta' ? 0 : 1
+      const aActive = isReportOpen(a) ? 0 : 1
+      const bActive = isReportOpen(b) ? 0 : 1
       if (aActive !== bActive) return aActive - bActive
       return new Date(b.created_at) - new Date(a.created_at)
     }),
     [reports, sel.name]
   )
 
-  const activeReports = useMemo(() => machineReports.filter(r => r.status !== 'risolta'), [machineReports])
+  const activeReports = useMemo(() => machineReports.filter(isReportOpen), [machineReports])
   const criticalReports = useMemo(() => activeReports.filter(r => r.severity === 'critica' || r.severity === 'alta'), [activeReports])
 
   // Health score assessment
@@ -1133,7 +1133,7 @@ export default function MachineDetailSheet({
                         const s = STATUS[r.status] || STATUS.aperta
                         const sv = SEVERITY[r.severity] || SEVERITY.media
                         const isCritical = r.severity === 'critica'
-                        const isActive = r.status !== 'risolta'
+                        const isActive = isReportOpen(r)
                         return (
                           <div key={r.id} onClick={() => onOpenReport?.(r)}
                             className={`flex items-center gap-3 p-3.5 bg-surface-2 rounded-xl transition-all cursor-pointer hover:bg-surface-3 group ${isCritical && isActive ? 'ring-1 ring-red-500/30 hover:ring-red-500/50' : ''}`}>

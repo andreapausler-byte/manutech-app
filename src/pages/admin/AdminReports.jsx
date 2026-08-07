@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import hotToast from 'react-hot-toast'
 import { db, supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, formatDate, formatTicketId } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, TERMINAL_STATUSES, formatDate, formatTicketId } from '../../lib/constants'
 import { PLANNING_STATE } from '../../lib/interventions'
 import { findSimilarTickets } from '../../lib/ticketSearch'
 import { Button, Modal, Input, Textarea, Select, EmptyState, Spinner, TicketIdBadge } from '../../components/ui'
@@ -13,7 +13,6 @@ import { useMergeSegnalazione } from '../../hooks/useMergeSegnalazione'
 import { avatarGradient } from '../../hooks/usePremiumUI'
 import { Plus, Search, X, ChevronDown, ChevronRight, Star, GitMerge } from 'lucide-react'
 
-const TERMINAL_STATUSES = ['risolta', 'chiuso']
 const RECENT_COMPLETED_WINDOW_HOURS = 24
 // Soglia "ferme da troppo": segnalazioni attive senza attività da 3+ settimane
 // finiscono nel banner recupero e portano il chip ⏳ in lista.
