@@ -3,7 +3,7 @@
 // Sprint 1c: include sezione "Segnalazioni associate (N)" via LinkedReportsSection.
 
 import { useEffect, useMemo, useState } from 'react'
-import { X, Calendar, MapPin, User as UserIcon, Wrench, FileText, Play, Check, AlertOctagon, CalendarClock, Link2 } from 'lucide-react'
+import { X, Calendar, MapPin, User as UserIcon, Users as UsersIcon, Wrench, FileText, Play, Check, AlertOctagon, CalendarClock, Link2 } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { formatScheduledShort, getDurationMinutes } from '../../lib/interventions'
 import { useInterventionMutations } from '../../hooks/useInterventionMutations'
@@ -20,6 +20,10 @@ import AISummaryCard from '../assistant/AISummaryCard'
 export default function InterventionDetailPanel({ interventionId, onClose, onReschedule, onMatch }) {
   const [intervention, setIntervention] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Sprint 1c follow-up: participants. null = loading, [] = nessuno, [...] = lista.
+  // Distinto da `loading` (che gate l'intero pannello) perché la fetch è
+  // indipendente e indipendente da getIntervention.
+  const [participants, setParticipants] = useState(null)
   const mutations = useInterventionMutations()
   const linksHook = useInterventionReports(interventionId)
 
@@ -68,6 +72,25 @@ export default function InterventionDetailPanel({ interventionId, onClose, onRes
       .then(d => { if (alive) setIntervention(d) })
       .catch(e => console.warn('[InterventionDetailPanel] load failed:', e?.message))
       .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [interventionId])
+
+  // Sprint 1c follow-up: fetch participants. Indipendente da getIntervention
+  // (RLS già filtra per org_id). On error degradiamo a "nessuno" — la UI
+  // semplicemente nasconde la sezione invece di mostrare un errore inline.
+  useEffect(() => {
+    let alive = true
+    if (!interventionId) {
+      setParticipants([])
+      return
+    }
+    setParticipants(null)
+    db.getInterventionParticipants(interventionId)
+      .then(rows => { if (alive) setParticipants(rows || []) })
+      .catch(e => {
+        console.warn('[InterventionDetailPanel] getInterventionParticipants failed:', e?.message)
+        if (alive) setParticipants([])
+      })
     return () => { alive = false }
   }, [interventionId])
 
@@ -145,6 +168,24 @@ export default function InterventionDetailPanel({ interventionId, onClose, onRes
             {intervention.assigned_to_role && (
               <span style={{ color: 'var(--color-text-secondary)' }}> ({intervention.assigned_to_role})</span>
             )}
+          </InfoRow>
+        )}
+
+        {/* Sprint 1c follow-up — altri utenti coinvolti (N→M). Skeleton durante
+            la fetch; sezione interamente nascosta se length=0 (no placeholder
+            "Nessuno"). user_name_snapshot e' denormalizzato in DB, no JOIN. */}
+        {participants === null && (
+          <InfoRow icon={<UsersIcon size={14} />} label="Coinvolti">
+            <span style={{
+              display: 'inline-block', width: 140, height: 12,
+              borderRadius: 4, background: 'var(--color-surface-2)',
+              verticalAlign: 'middle',
+            }} />
+          </InfoRow>
+        )}
+        {Array.isArray(participants) && participants.length > 0 && (
+          <InfoRow icon={<UsersIcon size={14} />} label="Coinvolti">
+            {participants.map(p => p.user_name_snapshot || 'Sconosciuto').join(', ')}
           </InfoRow>
         )}
 
