@@ -1,6 +1,6 @@
 import { supabase, getMyOrgId } from './_client'
 import { KEYS, getStore, setStore } from './_demoStore'
-import { julianDay } from '../constants'
+import { julianDay, isTerminalStatus } from '../constants'
 
 // Demo-mode: replica la logica del trigger DB (migration 049) per generare
 // un display_id consistente. In supabase mode non viene usato (il trigger
@@ -394,7 +394,7 @@ export const reports = {
     if (dup.duplicate_of_id) throw new Error("La segnalazione è già stata unita a un'altra")
     if (master.duplicate_of_id) throw new Error('La destinazione è essa stessa un duplicato: unisci direttamente alla segnalazione principale')
     if (list.some(r => r.duplicate_of_id === dup.id)) throw new Error('Questa segnalazione include altre segnalazioni unite: scollegale prima')
-    if (['risolta', 'chiuso'].includes(master.status)) throw new Error('La destinazione è chiusa: scegli una segnalazione attiva')
+    if (isTerminalStatus(master.status)) throw new Error('La destinazione è chiusa: scegli una segnalazione attiva')
     const now = new Date().toISOString()
     dup.status = 'chiuso'
     dup.closed_reason = 'duplicato'

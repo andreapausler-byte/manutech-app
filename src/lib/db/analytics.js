@@ -1,5 +1,6 @@
 import { supabase } from './_client'
 import { KEYS, getStore } from './_demoStore'
+import { isReportOpen } from '../constants'
 
 // Forma del payload restituito da get_optimization_dashboard():
 // {
@@ -90,7 +91,7 @@ function computeDashboardDemo() {
     }
     m.downtime_hours += hours
     m.incident_count++
-    if (!['risolta', 'chiuso'].includes(r.status)) m.open_count++
+    if (isReportOpen(r)) m.open_count++
   }
   const top_machines = Object.values(downtimeByMachine)
     .map(m => ({ ...m, downtime_hours: Math.round(m.downtime_hours * 10) / 10 }))
@@ -121,7 +122,7 @@ function computeDashboardDemo() {
   }
 
   // Aperti per severità + piani in ritardo (semplificato in demo)
-  const isOpen = (r) => !['risolta', 'chiuso'].includes(r.status)
+  const isOpen = isReportOpen
   const open_critical = reports.filter(r => r.severity === 'critica' && isOpen(r)).length
   const open_high = reports.filter(r => r.severity === 'alta' && isOpen(r)).length
 

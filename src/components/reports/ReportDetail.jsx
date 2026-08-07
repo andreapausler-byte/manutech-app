@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, timeAgo } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, isTerminalStatus } from '../../lib/constants'
 import { TicketIdBadge } from '../ui'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -494,7 +494,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const reportType = report.type ? REPORT_TYPES[report.type] : null
   const canUpdate = user.role === 'tecnico' || user.role === 'admin'
   const isMine = report.assigned_to === user.id
-  const isClosed = report.status === 'risolta' || report.status === 'chiuso'
+  const isClosed = isTerminalStatus(report.status)
   // Tutti i tecnici dell'org possono prendere in carico una segnalazione
   // (anche se è già assegnata a qualcun altro): l'assegnazione cambia, la
   // cronologia traccia il passaggio.

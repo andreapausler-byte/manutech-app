@@ -13,6 +13,13 @@ export const STATUS = {
   chiuso: { label: 'Chiuso', color: '#5a5a72', bg: 'rgba(90,90,114,0.10)', icon: '✗' },
 }
 
+// Stati terminali: la segnalazione non è più attiva.
+// 'risolta' = intervento completato (dati closure, conta nei KPI come risolta)
+// 'chiuso'  = archiviazione amministrativa (es. duplicato, nessun intervento)
+export const TERMINAL_STATUSES = ['risolta', 'chiuso']
+export const isTerminalStatus = (status) => TERMINAL_STATUSES.includes(status)
+export const isReportOpen = (report) => !isTerminalStatus(report?.status)
+
 export const REPORT_TYPES = {
   correttiva: { label: 'Correttiva', color: '#ef4444', bg: '#ef444422', icon: '🔧' },
   preventiva: { label: 'Preventiva', color: '#7c6aff', bg: '#7c6aff22', icon: '📅' },

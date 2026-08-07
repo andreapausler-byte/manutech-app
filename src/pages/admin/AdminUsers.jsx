@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { ROLES, STATUS, SEVERITY, SUPPLIER_SPECIALTIES, formatDate, timeAgo } from '../../lib/constants'
+import { ROLES, STATUS, SEVERITY, SUPPLIER_SPECIALTIES, formatDate, timeAgo, isReportOpen } from '../../lib/constants'
 import { Button, Modal, Input, Spinner } from '../../components/ui'
 import { useToast } from '../../hooks/useToast'
 import { Trash2, Search, Truck, Printer, Mail, Copy, Clock, XCircle, MessageCircle, Send, Share2, Phone, MapPin, UserCog } from 'lucide-react'
@@ -230,7 +230,7 @@ export default function AdminUsers() {
     try {
       const allReports = await db.getReports({ assigned_to: targetUser.id })
       const pending = allReports
-        .filter(r => r.status !== 'risolta')
+        .filter(isReportOpen)
         .sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9))
 
       const today = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })

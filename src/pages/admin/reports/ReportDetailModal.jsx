@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment } from 'react'
 import { useDraggable } from '../../../hooks/useDraggable'
 import { db } from '../../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo, formatTicketId } from '../../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, formatDate, timeAgo, formatTicketId, isTerminalStatus } from '../../../lib/constants'
 import { Badge, TicketIdBadge } from '../../../components/ui'
 import { useMergeSegnalazione } from '../../../hooks/useMergeSegnalazione'
 import MediaCapture from '../../../components/media/MediaCapture'
@@ -57,14 +57,13 @@ export default function ReportDetailModal({ selected, user, users, machines, all
   // il bottone non faceva nulla in quelle pagine.
   const [showMergeModal, setShowMergeModal] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
-  const TERMINAL = ['risolta', 'chiuso']
   const isDuplicate = !!selected.duplicate_of_id
   const roleOk = ['tecnico', 'admin', 'super_admin'].includes(user?.role)
   const masterFromList = allReports.find(r => r.id === selected.duplicate_of_id)
   const master = masterFromList
     || (masterFetched && masterFetched.id === selected.duplicate_of_id ? masterFetched : null)
   const children = allReports.filter(r => r.duplicate_of_id === selected.id)
-  const canMerge = roleOk && !isDuplicate && children.length === 0 && !TERMINAL.includes(selected.status)
+  const canMerge = roleOk && !isDuplicate && children.length === 0 && !isTerminalStatus(selected.status)
 
   // Se la master non è nel set già caricato (es. deep-link al duplicato), falla
   // fetch una volta sola per popolare il banner.

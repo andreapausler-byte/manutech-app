@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, timeAgo } from '../../lib/constants'
+import { STATUS, SEVERITY, timeAgo, isReportOpen, isTerminalStatus } from '../../lib/constants'
 import { Badge } from '../ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
@@ -146,8 +146,8 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
     setResolving(false)
   }
 
-  const activeReports = reports.filter(r => r.status !== 'risolta')
-  const resolvedReports = reports.filter(r => r.status === 'risolta')
+  const activeReports = reports.filter(isReportOpen)
+  const resolvedReports = reports.filter(r => isTerminalStatus(r.status))
   const urgentPlans = plans.filter(p => getTrafficLight(p, planLastLogs[p.id]).urgent)
   const okPlans = plans.filter(p => !getTrafficLight(p, planLastLogs[p.id]).urgent)
 
@@ -462,9 +462,9 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         {/* ═══ RESOLVED ═══ */}
         {resolvedReports.length > 0 && (
           <div>
-            <button onClick={() => toggle(setShowResolved)} aria-expanded={showResolved} aria-label={`${showResolved ? 'Nascondi' : 'Mostra'} segnalazioni risolte`} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
+            <button onClick={() => toggle(setShowResolved)} aria-expanded={showResolved} aria-label={`${showResolved ? 'Nascondi' : 'Mostra'} segnalazioni concluse`} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
               <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
-                <CheckCircle size={17} /> Risolte ({resolvedReports.length})
+                <CheckCircle size={17} /> Concluse ({resolvedReports.length})
               </p>
               <ChevronDown
                 size={22}

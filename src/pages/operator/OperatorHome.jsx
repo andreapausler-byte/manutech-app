@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Mic } from 'lucide-react'
 import { db } from '../../lib/supabase'
+import { TERMINAL_STATUSES } from '../../lib/constants'
 import { useAuth } from '../../contexts/AuthContext'
 import TicketCard from '../../components/operator/TicketCard'
 
@@ -53,7 +54,7 @@ export default function OperatorHome({ onStartRecording, onOpenTicket, onOpenLis
   const { assignedToMe, openedToday, closedThisWeek, inProgress } = useMemo(() => {
     const now = new Date()
     const open = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi']
-    const closed = ['risolta', 'chiuso']
+    const closed = TERMINAL_STATUSES
 
     const assignedToMe = reports.filter(r => r.assigned_to === user?.id && open.includes(r.status)).length
     const openedToday = reports.filter(r => {

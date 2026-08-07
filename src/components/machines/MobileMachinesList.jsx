@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
+import { isReportOpen } from '../../lib/constants'
 import { SkeletonReportsPage, EmptyState } from '../ui'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
@@ -63,7 +64,7 @@ export default function MobileMachinesList({ onSelectMachine }) {
     return m.name?.toLowerCase().includes(q) || m.department?.toLowerCase().includes(q) || m.manufacturer?.toLowerCase().includes(q)
   })
 
-  const getActiveReports = (machineName) => reports.filter(r => r.machine === machineName && r.status !== 'risolta').length
+  const getActiveReports = (machineName) => reports.filter(r => r.machine === machineName && isReportOpen(r)).length
 
   return (
     <div ref={pullRef} style={{ padding: '0 16px 16px' }}>

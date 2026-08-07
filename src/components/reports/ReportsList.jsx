@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, formatTicketId } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, TERMINAL_STATUSES, formatTicketId } from '../../lib/constants'
 import { findSimilarTickets } from '../../lib/ticketSearch'
 import { EmptyState, SkeletonReportsPage, TicketIdBadge } from '../ui'
 import { useRipple } from '../../hooks/useMobileEffects'
@@ -16,7 +16,7 @@ import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive, Cog } fr
 
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
-const ARCHIVED_STATUSES = ['risolta', 'chiuso']
+const ARCHIVED_STATUSES = TERMINAL_STATUSES
 const RECENT_COMPLETED_WINDOW_HOURS = 24
 const isArchived = (r) => ARCHIVED_STATUSES.includes(r.status)
 // Terminale aggiornato entro la finestra recente: resta visibile nelle viste

@@ -1,5 +1,6 @@
 import { supabase, supabaseUrl, supabaseAnonKey, getMyOrgId } from './_client'
 import { KEYS, getStore, setStore } from './_demoStore'
+import { isReportOpen } from '../constants'
 
 export const notifications = {
   // ─── NOTIFICATIONS ───
@@ -205,7 +206,7 @@ export const notifications = {
     const target = machineId ? machines.filter(m => m.id === machineId) : machines
     const assessments = target.map(m => {
       const machineReports = reports.filter(r => r.machine === m.name)
-      const open = machineReports.filter(r => r.status !== 'risolta')
+      const open = machineReports.filter(isReportOpen)
       const critical = open.filter(r => r.severity === 'critica').length
       let score = 100 - (critical * 25) - (open.filter(r => r.severity === 'alta').length * 15) - (open.filter(r => r.severity === 'media').length * 8) - (open.filter(r => r.severity === 'bassa').length * 3)
       score = Math.max(0, Math.min(100, score))
