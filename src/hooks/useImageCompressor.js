@@ -107,6 +107,54 @@ export function useImageCompressor(options = {}) {
     })
   }
 
+  // Miniatura quadrata-ish per le griglie di galleria.
+  //
+  // Una foto compressa pesa 300-600KB: una griglia da 60 foto sono decine
+  // di MB sulla rete di uno stabilimento. La miniatura si genera una volta
+  // in fase di upload e costa ~15KB.
+  //
+  // Ritorna null se non è un'immagine o se qualcosa va storto: il
+  // chiamante ricade sull'originale, non fallisce l'upload.
+  const makeThumbnail = (file, { size = 400, quality = 0.7 } = {}) => {
+    return new Promise((resolve) => {
+      if (!file?.type?.startsWith('image/')) { resolve(null); return }
+
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        const ratio = Math.min(size / img.width, size / img.height, 1)
+        const width = Math.max(Math.round(img.width * ratio), 1)
+        const height = Math.max(Math.round(img.height * ratio), 1)
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
+        ctx.drawImage(img, 0, 0, width, height)
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { resolve(null); return }
+            resolve(new File(
+              [blob],
+              file.name.replace(/\.[^.]+$/, '') + '-thumb.jpg',
+              { type: 'image/jpeg', lastModified: Date.now() }
+            ))
+          },
+          'image/jpeg',
+          quality
+        )
+      }
+
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+      img.src = url
+    })
+  }
+
   // Formatta bytes in stringa leggibile
   const formatSize = (bytes) => {
     if (bytes < 1024) return `${bytes} B`
@@ -114,5 +162,5 @@ export function useImageCompressor(options = {}) {
     return `${(bytes / 1048576).toFixed(1)} MB`
   }
 
-  return { compress, formatSize }
+  return { compress, makeThumbnail, formatSize }
 }

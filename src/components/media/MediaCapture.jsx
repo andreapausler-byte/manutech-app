@@ -14,7 +14,7 @@ export default function MediaCapture({ media, onChange }) {
 
   const toast = useToast()
   const haptic = useHaptic()
-  const { compress, formatSize } = useImageCompressor()
+  const { compress, makeThumbnail, formatSize } = useImageCompressor()
 
   const uploadWithFallback = async (path, file) => {
     try {
@@ -25,8 +25,21 @@ export default function MediaCapture({ media, onChange }) {
     }
   }
 
+  // Miniatura per la galleria macchina: la si genera qui, all'upload,
+  // perché retrofittarla su migliaia di foto già caricate non si fa.
+  // Opzionale: se fallisce, la galleria usa l'originale.
+  const uploadThumbnail = async (file, stamp) => {
+    try {
+      const thumb = await makeThumbnail(file)
+      if (!thumb) return null
+      return await uploadWithFallback(`${stamp}-thumb`, thumb)
+    } catch {
+      return null
+    }
+  }
+
   const addFile = async (file, type) => {
-    const loadingId = toast.loading('Caricamento allegato...')
+    let loadingId = toast.loading('Caricamento allegato...')
     try {
       let fileToUpload = file
 
@@ -37,19 +50,17 @@ export default function MediaCapture({ media, onChange }) {
         if (result.wasCompressed) {
           toast.dismiss(loadingId)
           toast.info(`Foto compressa: ${formatSize(result.originalSize)} → ${formatSize(result.compressedSize)}`)
-          // Riapri loading per upload
-          const uploadId = toast.loading('Upload in corso...')
-          const url = await uploadWithFallback(`${Date.now()}-${fileToUpload.name}`, fileToUpload)
-          onChange([...media, { id: Date.now().toString(), type, name: fileToUpload.name, url, size: fileToUpload.size }])
-          toast.dismiss(uploadId)
-          toast.success('Foto aggiunta')
-          haptic.success()
-          return
+          loadingId = toast.loading('Upload in corso...')
         }
       }
 
-      const url = await uploadWithFallback(`${Date.now()}-${fileToUpload.name}`, fileToUpload)
-      onChange([...media, { id: Date.now().toString(), type, name: fileToUpload.name, url, size: fileToUpload.size }])
+      const stamp = `${Date.now()}-${fileToUpload.name}`
+      const url = await uploadWithFallback(stamp, fileToUpload)
+      const thumbUrl = type === 'photo' ? await uploadThumbnail(fileToUpload, stamp) : null
+      onChange([...media, {
+        id: Date.now().toString(), type, name: fileToUpload.name,
+        url, thumb_url: thumbUrl, size: fileToUpload.size,
+      }])
       toast.dismiss(loadingId)
       toast.success(`${type === 'photo' ? 'Foto' : type === 'video' ? 'Video' : 'Audio'} aggiunto`)
       haptic.success()

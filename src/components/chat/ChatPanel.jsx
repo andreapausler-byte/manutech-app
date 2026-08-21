@@ -127,7 +127,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
   const inputRef = useRef(null)
 
   // Hooks — stabilize references with useRef
-  const { compress, formatSize } = useImageCompressor()
+  const { compress, makeThumbnail, formatSize } = useImageCompressor()
   const toast = useToast()
   const haptic = useHaptic()
   const toastRef = useRef(toast)
@@ -202,12 +202,24 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
       }
 
       const ext = fileToUpload.name?.split('.').pop() || (type === 'audio' ? 'webm' : 'jpg')
-      const path = `chat/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`
-      const url = await db.uploadFile('attachments', path, fileToUpload)
+      const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      const url = await db.uploadFile('attachments', `chat/${stamp}.${ext}`, fileToUpload)
+
+      // Miniatura: la galleria macchina mostra decine di foto insieme, e
+      // scaricare gli originali su rete di fabbrica non è sostenibile.
+      // Se fallisce si usa l'originale, l'upload non si blocca.
+      let thumbUrl = null
+      if (type === 'photo') {
+        try {
+          const thumb = await makeThumbnail(fileToUpload)
+          if (thumb) thumbUrl = await db.uploadFile('attachments', `chat/${stamp}-thumb`, thumb)
+        } catch { /* thumbnail opzionale */ }
+      }
 
       setPendingMedia(prev => [...prev, {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 4)}`,
         type, url,
+        thumb_url: thumbUrl,
         name: fileToUpload.name || `${type}-${Date.now()}.${ext}`,
       }])
       hapticRef.current.light()
@@ -217,7 +229,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
 
     setUploading(false)
     setUploadLabel('')
-  }, [compress, formatSize])
+  }, [compress, makeThumbnail, formatSize])
 
   // ── Media capture handlers ─────────────────────────────
   const captureFile = useCallback((accept, captureMode, type) => {
@@ -342,7 +354,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
           user_id: user?.id,
           user_name: user?.name || 'Utente',
           user_role: user?.role || 'operatore',
-          media: hasMedia ? pendingMedia.map(m => ({ type: m.type, url: m.url, name: m.name })) : null,
+          media: hasMedia ? pendingMedia.map(m => ({ type: m.type, url: m.url, thumb_url: m.thumb_url || null, name: m.name })) : null,
         }
 
         c = await db.addComment(reportId, commentData)
