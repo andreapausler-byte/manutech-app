@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: **Chiuse vs Completate** (7/8) ✓ — scegliere "Chiuso" al posto di "Completato" ora chiede conferma esplicita con le implicazioni (niente dati intervento, esclusa dai KPI come risolta): bottom sheet in `ReportDetail`, box inline in `ReportDetailModal`. Stati terminali centralizzati in `constants.js` (`TERMINAL_STATUSES`, `isTerminalStatus`, `isReportOpen`) e fix del bug per cui una segnalazione `chiuso` risultava ancora attiva in contatori macchine, carico utenti, top-macchine KPI e health score demo. Mergiato in `master` (v5.16.3–v5.16.4).
-- **Branch corrente**: `master` (feature branch `claude/segnalazioni-chiuse-completate-yodvrt` mergiato)
-- **Prossimo step**: recuperare la review trimestrale ROADMAP (era in agenda il **2/8**, non ancora tracciata): (a) decidere se/quando Fase 5 "WhatsApp come canale" (Cloud API notifiche utility ~€3-10/mese, ma verifica business Meta + opt-in GDPR numeri dipendenti — sanzioni AEPD/Garante 2025 impongono consenso esplicito); (b) riprendere la decisione Agenda tecnico mobile lista vs post-Interventi v2 (vedi journal 2026-05, concretizzazione da screenshot founder 20/5).
+- **Fase**: **Galleria macchinario** (Sprint A+B) ✓ — le foto e i video sparsi tra segnalazioni, chat, log manutenzione e interventi tornano a galla nella scheda macchina: feed cronologico con origine visibile (chat TK-…, autore, quando) + galleria curata a un tap (★ promuove in `machines.attachments` categoria `foto`, la stessa che il tab Documentazione mostra già). RPC `get_machine_media` + `toggle_machine_media_feature` (migration 060), `thumb_url` generato sui nuovi upload, fix del match macchina per stringa in `MobileMachineDetail`. Decisioni in `docs/decisions/ADR-011-machine-media-gallery.md`.
+- **Branch corrente**: `claude/machinery-photo-video-gallery-whfd6s` (da mergiare in `master`)
+- **Prossimo step**: (a) applicare la migration 060 in produzione e verificare il feed su dati veri; (b) Sprint C — cartella "Dalla chat" nel tab Documentazione admin; (c) sciogliere le open question dell'ADR-011: bucket privato + signed URL, retention GDPR delle foto, limite dimensione video (oggi i video NON sono compressi); (d) resta aperta la review trimestrale ROADMAP (era in agenda il **2/8**): Fase 5 WhatsApp e decisione Agenda tecnico mobile.
 
 ---
 

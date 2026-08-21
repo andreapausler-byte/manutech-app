@@ -50,6 +50,7 @@ Bussola di lungo periodo. Si aggiorna a fine fase o quando cambia la direzione, 
 **Why**: il tribal knowledge non cammina più fuori dalla porta con le persone. Quando Luigi non c'è, il nuovo tecnico fa l'intervento giusto al primo colpo.
 **Cosa è stato consegnato il 9/5**: pannello "Casi simili dallo storico" live in ReportDetail (auto-cerca, no LLM, lista cliccabile), rimozione del vecchio "Soluzioni dal passato" (auto-descrizione tramite LLM), diagnostica empty state + tasto Re-indicizza inline. Riusa l'infra esistente: `document_chunks` (028+041), `ingest-knowledge` edge, `embed-query`, RPC `search_knowledge`. Niente nuove migration relative al RAG.
 **Sub-sprint collaterale (9/5)**: schema TK-id giorno giuliano (migration 049), trigger updated_at su comments (migration 050), navigabilità lista mobile (filtri Solo i miei + Per macchina + dropdown ordinamento + tab Archivio + ricerca TK-id senza trattini). Non era nel PLAN originale di Fase 4 ma è emerso come bisogno operativo durante il test reale.
+**Aggiunta (21/8/2026)**: galleria foto e video per macchinario consegnata (ADR-011, migration 060). Non è una feature di UI a sé: è il prerequisito della componente visiva di questa fase — senza un indice media→macchina non c'è nulla da embeddare con CLIP.
 **Le altre componenti** (foto/CLIP, email fornitori, voice transcript, chiusura "in una frase", deduplicazione duplicati aperti L1+L2+L3) restano `later`.
 
 ## Fase 5 · Una conversazione, molti canali

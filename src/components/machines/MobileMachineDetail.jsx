@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, SEVERITY, timeAgo, isReportOpen, isTerminalStatus } from '../../lib/constants'
 import { Badge } from '../ui'
+import MachineGallery from './MachineGallery'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -68,7 +69,11 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
       ])
       setPlans(p)
       setLogs(l)
-      setReports(r.filter(rep => rep.machine === machine.name))
+      // Match sulla FK, con fallback sullo snapshot testuale per le
+      // segnalazioni vecchie create prima di machine_id.
+      setReports(r.filter(rep =>
+        rep.machine_id === machine.id || (!rep.machine_id && rep.machine === machine.name)
+      ))
       const ll = {}
       for (const plan of p) { ll[plan.id] = await db.getLastLogForPlan(plan.id) }
       setPlanLastLogs(ll)
@@ -383,6 +388,16 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
             })}
           </div>
         )}
+
+        {/* ═══ GALLERY ═══ */}
+        <MachineGallery
+          machine={machine}
+          onOpenReport={(reportId) => {
+            const target = reports.find(r => r.id === reportId)
+            if (target) onViewReport?.(target)
+            else toast.info('Segnalazione non più disponibile')
+          }}
+        />
 
         {/* ═══ DOCUMENTS ═══ */}
         {machine.attachments?.length > 0 && (

@@ -6,6 +6,30 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.17 — Galleria foto e video per macchinario
+
+### Added
+- **Galleria nella scheda macchina** (`MachineGallery.jsx` in `MobileMachineDetail`): le foto e i video depositati nel tempo su segnalazioni, chat, log di manutenzione e interventi della stessa macchina, in un unico feed cronologico. Ogni riquadro mostra l'origine (Chat / Segnalazione / Manutenzione / Intervento), chi l'ha scattata e quando; tap per aprire a schermo intero (`MediaLightbox` per le foto, `VideoPlayer` per i video), freccia per saltare alla segnalazione di origine. Filtri Tutte / In evidenza / Ultimi 30g e paginazione a 60 per volta.
+- **Galleria curata a un tap**: ★ promuove la foto in `machines.attachments` categoria `foto` — la stessa cartella che il tab Documentazione admin mostra già, quindi l'admin la vede senza modifiche lato suo. Toggle: un secondo tap la rimuove. I documenti caricati a mano dall'admin non sono rimovibili da qui (protetti dal campo `promoted_from`).
+- Migration **060**: indice mancante su `reports(machine_id)`, RPC `get_machine_media(machine, limit, offset)` (UNION delle quattro sorgenti, org-scoped via `get_my_org_id()`, audio escluso, dedup per URL tenendo l'occorrenza originale, fallback sullo snapshot testuale `machine` per le segnalazioni senza FK) e RPC `toggle_machine_media_feature` (`SECURITY DEFINER` perché `machines_update` è admin-only, ma chi riconosce la foto che vale è il tecnico).
+- Nuovo modulo DB `src/lib/db/media.js` registrato nel facade, con fallback demo mode (in demo i log di manutenzione non hanno store localStorage: la galleria copre segnalazioni, chat e interventi).
+- Nuovo hook `useMachineMedia(machine)`: feed + incrocio con la galleria curata + `toggleFeature`.
+- **Miniature sui nuovi upload**: `makeThumbnail()` in `useImageCompressor` genera un'anteprima da 400px (~15 KB) caricata insieme alla foto in chat e in `MediaCapture`; l'URL finisce in `thumb_url` dentro l'oggetto media. Serve alla griglia: una foto compressa pesa 300-600 KB, sessanta insieme sono decine di MB sulla rete di stabilimento.
+
+### Fixed
+- `MobileMachineDetail` filtrava le segnalazioni della macchina con un match su stringa (`rep.machine === machine.name`): una macchina rinominata perdeva lo storico. Ora usa `machine_id` con fallback sullo snapshot testuale per i record vecchi.
+
+### Note
+- Decisioni, alternative scartate e rischi aperti in `docs/decisions/ADR-011-machine-media-gallery.md`.
+- Se la migration 060 non è applicata, la galleria resta vuota e la scheda macchina funziona come prima (degrado silenzioso).
+
+### Out of scope (rinviato)
+- Cartella "Dalla chat" nel tab Documentazione admin, con ricerca per periodo/autore/segnalazione (Sprint C).
+- Miniature retroattive sulle foto già caricate; media delle chat 1:1 (`direct_messages` non ha collegamento alla macchina); tag semantici e CLIP.
+- Aperte e non affrontate qui: bucket `attachments` pubblico, video non compressi in upload, retention GDPR delle foto.
+
+---
+
 ## [Unreleased] — v5.12 — Attività chat nella lista segnalazioni admin
 
 ### Added
