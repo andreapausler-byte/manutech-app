@@ -1,6 +1,6 @@
 # ADR-011 — Galleria foto e video per macchinario
 
-**Status**: Accepted · **Date**: 2026-08-21 · **Sprint target**: v5.17 (Sprint A+B rilasciati, Sprint C aperto) · **Schema delta**: nessuna tabella nuova — due RPC + un indice (migration 060)
+**Status**: Accepted · **Date**: 2026-08-21 · **Sprint target**: v5.17 (Sprint A+B+C rilasciati) · **Schema delta**: nessuna tabella nuova — due RPC + un indice (migration 060)
 
 ## Context
 
@@ -80,11 +80,12 @@ La decisione è stata presa **prima** di scrivere la galleria e non dopo, perch�
 - migration 060: indice `reports(machine_id)`, `get_machine_media`, `toggle_machine_media_feature`
 - `src/lib/db/media.js` con fallback demo mode (i log di manutenzione non hanno store localStorage: in demo la galleria copre segnalazioni, chat e interventi)
 - `useMachineMedia`, `MachineGallery`, sezione in `MobileMachineDetail`
+- Sprint C: stesso feed nella scheda macchina admin, dentro il tab Documentazione → cartella **Galleria Foto**, sotto la banda "Dal campo". Non una cartella separata: le foto promosse e quelle ancora nel loro contesto d'origine stanno nello stesso posto, distinte dal badge di origine. Promozione con ★ dall'hover, conteggi allineati nel tree del left-rail e nella status bar.
 - `thumb_url` sui nuovi upload (chat + MediaCapture)
 - fix del match macchina per stringa
 
 **Fuori scope, dichiarato**
-- Sprint C: cartella "Dalla chat" nel tab Documentazione admin, con ricerca per periodo/autore/segnalazione
+- ricerca dedicata per periodo/autore sul feed (la ricerca del tab filtra già nome, origine e autore)
 - miniature retroattive sulle foto già caricate
 - media dei DM (`direct_messages` non ha collegamento alla macchina)
 - tag semantici, CLIP embeddings, ricerca visiva

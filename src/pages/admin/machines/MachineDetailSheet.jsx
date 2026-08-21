@@ -11,6 +11,7 @@ import {
   Star, Sparkles, BookOpen, Image as ImageIcon, FileSignature, ShieldCheck,
 } from 'lucide-react'
 import MachineDocumentationTab from './MachineDocumentationTab'
+import { useMachineMedia } from '../../../hooks/useMachineMedia'
 import AISummaryCard from '../../../components/assistant/AISummaryCard'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
@@ -471,7 +472,7 @@ function FolderMini({ frontColor, backColor, empty }) {
   )
 }
 
-function DocsLeftTree({ attachments, detailTab, docsFolder, docsTypeFilter, onSelectFolder, onSelectFilter }) {
+function DocsLeftTree({ attachments, fieldMediaCount = 0, detailTab, docsFolder, docsTypeFilter, onSelectFolder, onSelectFilter }) {
   // Conteggi per cartella (foto legacy senza category vanno in 'foto')
   const counts = {}
   for (const item of DOCS_TREE_ITEMS) counts[item.id] = 0
@@ -479,6 +480,10 @@ function DocsLeftTree({ attachments, detailTab, docsFolder, docsTypeFilter, onSe
     const id = a.category || (a.type === 'image' ? 'foto' : null)
     if (id && counts[id] != null) counts[id]++
   }
+  // Le foto arrivate da chat, segnalazioni e interventi non sono ancora
+  // attachments: entrano nel conteggio della Galleria Foto perche' e' li'
+  // che l'admin le trova.
+  counts.foto = (counts.foto || 0) + fieldMediaCount
   const favoritesCount = attachments.filter(a => a.is_favorite).length
   const recentsCount = attachments.filter(a => a.uploaded_at).length
   const indexedCount = attachments.filter(a => a.type === 'pdf').length
@@ -611,6 +616,7 @@ export default function MachineDetailSheet({
   onHandleCSVFile,
   onOpenComponentForm, onDeleteComponent,
   onUploadToMachine, onUploadFileToMachine, onRemoveAttachment, onToggleFavoriteAttachment, onSaveField,
+  onToggleMachineMedia,
   onOpenAssistant,
   reindexing = false,
 }) {
@@ -626,6 +632,12 @@ export default function MachineDetailSheet({
 
   const activeReports = useMemo(() => machineReports.filter(isReportOpen), [machineReports])
   const criticalReports = useMemo(() => activeReports.filter(r => r.severity === 'critica' || r.severity === 'alta'), [activeReports])
+
+  // Feed media della macchina (chat, segnalazioni, log, interventi): stesso
+  // hook del mobile. Serve sia al tree (conteggio Galleria Foto) sia al tab
+  // Documentazione, quindi vive qui e scende come prop — una fetch sola.
+  const { items: mediaItems, loading: mediaLoading } = useMachineMedia(sel)
+  const fieldMedia = useMemo(() => mediaItems.filter(i => !i.is_featured), [mediaItems])
 
   // Health score assessment
   const [assessment, setAssessment] = useState(null)
@@ -848,6 +860,7 @@ export default function MachineDetailSheet({
 
               <DocsLeftTree
                 attachments={sel.attachments || []}
+                fieldMediaCount={fieldMedia.length}
                 detailTab={detailTab}
                 docsFolder={docsFolder}
                 docsTypeFilter={docsTypeFilter}
@@ -1090,6 +1103,9 @@ export default function MachineDetailSheet({
                   onRemoveAttachment={onRemoveAttachment}
                   onToggleFavorite={onToggleFavoriteAttachment}
                   onSaveField={onSaveField}
+                  mediaItems={mediaItems}
+                  mediaLoading={mediaLoading}
+                  onToggleMedia={onToggleMachineMedia}
                   onOpenAssistant={onOpenAssistant}
                   reindexing={reindexing}
                   currentFolder={docsFolder}
