@@ -14,6 +14,7 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 - Migration **060**: indice mancante su `reports(machine_id)`, RPC `get_machine_media(machine, limit, offset)` (UNION delle quattro sorgenti, org-scoped via `get_my_org_id()`, audio escluso, dedup per URL tenendo l'occorrenza originale, fallback sullo snapshot testuale `machine` per le segnalazioni senza FK) e RPC `toggle_machine_media_feature` (`SECURITY DEFINER` perché `machines_update` è admin-only, ma chi riconosce la foto che vale è il tecnico).
 - Nuovo modulo DB `src/lib/db/media.js` registrato nel facade, con fallback demo mode (in demo i log di manutenzione non hanno store localStorage: la galleria copre segnalazioni, chat e interventi).
 - Nuovo hook `useMachineMedia(machine)`: feed + incrocio con la galleria curata + `toggleFeature`.
+- **Stesso feed nella scheda admin** (`MachineDocumentationTab`): tab **Documentazione** → cartella **Galleria Foto**, sotto la banda "Dal campo · N file". Ogni riquadro porta il badge dell'origine (Chat / Segnalazione / Manutenzione / Intervento), la segnalazione, l'autore e quando; hover per aprire o per promuovere con ★. Le foto promosse restano nella griglia curata con il badge "★ TK-…" e mostrano l'origine nel pannello Anteprima. I conteggi della cartella (tree del left-rail, card cartella, status bar) includono le foto dal campo, così si vede che ci sono senza doverci entrare.
 - **Miniature sui nuovi upload**: `makeThumbnail()` in `useImageCompressor` genera un'anteprima da 400px (~15 KB) caricata insieme alla foto in chat e in `MediaCapture`; l'URL finisce in `thumb_url` dentro l'oggetto media. Serve alla griglia: una foto compressa pesa 300-600 KB, sessanta insieme sono decine di MB sulla rete di stabilimento.
 
 ### Fixed
@@ -24,7 +25,6 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 - Se la migration 060 non è applicata, la galleria resta vuota e la scheda macchina funziona come prima (degrado silenzioso).
 
 ### Out of scope (rinviato)
-- Cartella "Dalla chat" nel tab Documentazione admin, con ricerca per periodo/autore/segnalazione (Sprint C).
 - Miniature retroattive sulle foto già caricate; media delle chat 1:1 (`direct_messages` non ha collegamento alla macchina); tag semantici e CLIP.
 - Aperte e non affrontate qui: bucket `attachments` pubblico, video non compressi in upload, retention GDPR delle foto.
 

@@ -5,6 +5,7 @@ import {
   ShieldCheck, Sparkles, Loader2, FileSignature,
   Search, Folder, Upload, MessageCircle,
   Star, LayoutGrid, List, Download,
+  AlertTriangle, CalendarClock, Play,
 } from 'lucide-react'
 import { db } from '../../../lib/supabase'
 import { timeAgo, formatDate } from '../../../lib/constants'
@@ -35,6 +36,17 @@ const CATEGORIES = [
     icon: ShieldCheck, frontColor: '#5dd3b8', backColor: '#36a187', uploadType: 'pdf' },
 ]
 const CATEGORY_BY_ID = Object.fromEntries(CATEGORIES.map(c => [c.id, c]))
+
+// Origine dei media che non sono (ancora) attachments: arrivano dal feed
+// della macchina — chat di segnalazione, allegati del ticket, log di
+// manutenzione, interventi. Stessi colori della galleria mobile.
+const SOURCE_META = {
+  chat:         { label: 'Chat',         icon: MessageCircle, color: '#00d4ff' },
+  segnalazione: { label: 'Segnalazione', icon: AlertTriangle, color: '#ffaa2c' },
+  manutenzione: { label: 'Manutenzione', icon: Wrench,        color: '#3ddc84' },
+  intervento:   { label: 'Intervento',   icon: CalendarClock, color: '#8b6ff5' },
+  scheda:       { label: 'Scheda',       icon: ImageIcon,     color: '#8b96a8' },
+}
 
 // ──────────────────────────────────────────────────────────────
 // AiBar: banner compatto in 1 riga (icona · testo · stats · bottone)
@@ -126,7 +138,7 @@ function AiBar({ machineId, reindexing, totalFiles, indexedFiles, onOpenAssistan
 // ──────────────────────────────────────────────────────────────
 // FolderCard COMPATTA: padding 11px, min-h 118px, icona 42×32
 // ──────────────────────────────────────────────────────────────
-function FolderCard({ category, items, onClick, onDropFile }) {
+function FolderCard({ category, items, extraCount = 0, onClick, onDropFile }) {
   const empty = items.length === 0
   const indexed = items.filter(a => a.type === 'pdf').length
   const lastUploaded = items.reduce((latest, a) => {
@@ -211,12 +223,14 @@ function FolderCard({ category, items, onClick, onDropFile }) {
       {/* footer */}
       <div className="flex items-center justify-between text-[9px] uppercase tracking-wide pt-1.5"
         style={{ fontFamily: F_MONO, color: 'var(--color-text-faint)', borderTop: '1px dashed var(--color-border)' }}>
-        {empty
+        {empty && extraCount === 0
           ? <><span>Vuota</span><span>+ {category.uploadType === 'image' ? 'Aggiungi' : 'Carica'}</span></>
           : (
             <>
               <span>{lastUploaded ? `Agg. ${timeAgo(lastUploaded)}` : `${items.length} file`}</span>
-              <span>{items.length} {items.length === 1 ? 'file' : 'file'}</span>
+              {extraCount > 0
+                ? <span style={{ color: '#00d4ff' }}>+{extraCount} dal campo</span>
+                : <span>{items.length} file</span>}
             </>
           )}
       </div>
@@ -331,9 +345,99 @@ function FileRow({ attachment, onSelect, selected, onToggleFavorite, attachmentI
 }
 
 // ──────────────────────────────────────────────────────────────
+// FieldMediaGrid — le foto che vivono fuori dalla scheda
+//
+// Chat di segnalazione, allegati del ticket, log di manutenzione e
+// interventi: qui l'admin le vede tutte insieme e con un click le
+// promuove nella Galleria Foto (diventano attachments veri).
+// ──────────────────────────────────────────────────────────────
+function FieldMediaGrid({ items, loading, onToggleMedia }) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-3 border border-dashed"
+        style={{ borderColor: 'var(--color-border)' }}>
+        <Loader2 size={12} className="animate-spin" style={{ color: 'var(--color-text-muted)' }} />
+        <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+          Cerco le foto nelle segnalazioni e nelle chat…
+        </span>
+      </div>
+    )
+  }
+
+  if (items.length === 0) return null
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-[9px] uppercase tracking-[0.18em]"
+          style={{ fontFamily: F_MONO, color: 'var(--color-text-muted)' }}>
+          Dal campo · {items.length} {items.length === 1 ? 'file' : 'file'}
+        </span>
+        <span className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
+        <span className="text-[9px] uppercase tracking-wider"
+          style={{ fontFamily: F_MONO, color: 'var(--color-text-faint)' }}>
+          ★ per tenerle in galleria
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 lg:grid-cols-4 gap-2">
+        {items.map(item => {
+          const meta = SOURCE_META[item.source] || SOURCE_META.scheda
+          const SourceIcon = meta.icon
+          return (
+            <div key={item.url} className="aspect-[4/3] overflow-hidden border relative group"
+              style={{ borderColor: 'var(--color-border)' }}>
+              <img src={item.thumb_url || item.url} alt="" loading="lazy" decoding="async"
+                className="w-full h-full object-cover"
+                style={{ background: 'var(--color-surface-2)' }} />
+
+              {item.type === 'video' && (
+                <span className="absolute inset-0 grid place-items-center pointer-events-none">
+                  <span className="w-8 h-8 rounded-full grid place-items-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+                    <Play size={14} className="text-white" fill="currentColor" />
+                  </span>
+                </span>
+              )}
+
+              <span className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider"
+                style={{ background: 'rgba(0,0,0,0.6)', color: meta.color, fontFamily: F_MONO }}>
+                <SourceIcon size={9} /> {meta.label}
+              </span>
+
+              <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-1.5">
+                <a href={item.url} target="_blank" rel="noopener"
+                  className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white" title="Apri">
+                  <ExternalLink size={12} />
+                </a>
+                {onToggleMedia && (
+                  <button onClick={() => onToggleMedia(item)}
+                    className="p-1.5 rounded-full text-white"
+                    style={{ background: 'rgba(224,168,46,0.55)' }}
+                    title="Aggiungi alla Galleria Foto">
+                    <Star size={12} />
+                  </button>
+                )}
+              </div>
+
+              <div className="absolute bottom-0 inset-x-0 px-1.5 py-1 pointer-events-none"
+                style={{ background: 'linear-gradient(180deg, transparent, rgba(0,0,0,0.75))' }}>
+                <p className="text-[9px] font-medium truncate text-white">{item.source_label || '—'}</p>
+                <p className="text-[8px] truncate" style={{ fontFamily: F_MONO, color: 'rgba(255,255,255,0.65)' }}>
+                  {item.author_name ? `${item.author_name} · ` : ''}{item.taken_at ? timeAgo(item.taken_at) : ''}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────
 // FolderView (compatto)
 // ──────────────────────────────────────────────────────────────
-function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onToggleFavorite, sel, onSaveField, onSelect, selectedAttachment, viewMode }) {
+function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onToggleFavorite, sel, onSaveField, onSelect, selectedAttachment, viewMode, fieldMedia = [], fieldMediaLoading = false, onToggleMedia }) {
   const Icon = category.icon
   const indexOf = (a) => attachmentsAll.indexOf(a)
   const isPhotoFolder = category.id === 'foto'
@@ -391,8 +495,25 @@ function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onTog
                   <Trash2 size={12} />
                 </button>
               </div>
+              {photo.type === 'video' && (
+                <span className="absolute inset-0 grid place-items-center pointer-events-none">
+                  <span className="w-8 h-8 rounded-full grid place-items-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+                    <Play size={14} className="text-white" fill="currentColor" />
+                  </span>
+                </span>
+              )}
               {photo.is_favorite && (
                 <Star size={11} fill={GOLD} stroke={GOLD} className="absolute top-1.5 right-1.5" />
+              )}
+              {photo.promoted_from && (
+                <span className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider"
+                  style={{
+                    background: 'rgba(0,0,0,0.6)',
+                    color: (SOURCE_META[photo.promoted_from.source] || SOURCE_META.scheda).color,
+                    fontFamily: F_MONO,
+                  }}>
+                  ★ {photo.promoted_from.label || (SOURCE_META[photo.promoted_from.source] || SOURCE_META.scheda).label}
+                </span>
               )}
             </div>
           ))}
@@ -405,7 +526,13 @@ function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onTog
             <span className="text-[10px] font-medium">Aggiungi</span>
           </button>
         </div>
-      ) : viewMode === 'grid' ? (
+      ) : null}
+
+      {isPhotoFolder && (
+        <FieldMediaGrid items={fieldMedia} loading={fieldMediaLoading} onToggleMedia={onToggleMedia} />
+      )}
+
+      {!isPhotoFolder && (viewMode === 'grid' ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
           {items.map((doc, i) => (
             <button key={`${doc.url}-${i}`} onClick={() => onSelect(doc)}
@@ -464,7 +591,7 @@ function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onTog
             <Plus size={12} /> Carica nuovo file
           </button>
         </div>
-      )}
+      ))}
     </div>
   )
 }
@@ -587,6 +714,23 @@ function PreviewPanel({ attachment, attachmentsAll, onRemove, onToggleFavorite, 
         </div>
       </div>
 
+      {/* Origine: solo per le foto promosse dal feed della macchina */}
+      {attachment.promoted_from && (
+        <div className="px-2 py-1.5 border"
+          style={{ background: 'var(--color-surface-1)', borderColor: 'var(--color-border)' }}>
+          <p className="text-[8px] uppercase tracking-wider" style={{ fontFamily: F_MONO, color: 'var(--color-text-faint)' }}>Origine</p>
+          <p className="text-[11px] mt-px truncate" style={{ color: 'var(--color-text)' }}>
+            {(SOURCE_META[attachment.promoted_from.source] || SOURCE_META.scheda).label}
+            {attachment.promoted_from.label ? ` · ${attachment.promoted_from.label}` : ''}
+          </p>
+          {attachment.promoted_by && (
+            <p className="text-[9px] mt-px truncate" style={{ fontFamily: F_MONO, color: 'var(--color-text-muted)' }}>
+              In galleria da {attachment.promoted_by}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Uploader card compatta */}
       <div className="flex items-center gap-2 px-2 py-1.5 border"
         style={{ background: 'var(--color-surface-1)', borderColor: 'var(--color-border)' }}>
@@ -656,6 +800,9 @@ function PreviewPanel({ attachment, attachmentsAll, onRemove, onToggleFavorite, 
 // ──────────────────────────────────────────────────────────────
 export default function MachineDocumentationTab({
   sel, onUpload, onUploadFile, onRemoveAttachment, onToggleFavorite, onSaveField, onOpenAssistant, reindexing = false,
+  // Feed media della macchina (chat, segnalazioni, log, interventi):
+  // arriva dal parent, che lo condivide col tree del left-rail.
+  mediaItems = [], mediaLoading = false, onToggleMedia,
   // Stato controllato dal parent (left-rail tree). Se non passato, fallback
   // a state interno per riuso standalone.
   currentFolder: controlledFolder,
@@ -699,6 +846,19 @@ export default function MachineDocumentationTab({
     }
     return map
   }, [filteredByChips])
+
+  // Le foto del feed non ancora promosse: vivono nella cartella Galleria
+  // Foto accanto agli attachments, ma restano dove sono nate finche'
+  // qualcuno non le promuove con la stella.
+  const fieldMedia = useMemo(() => {
+    if (typeFilter === 'pdf' || typeFilter === 'favorites') return []
+    const q = searchQuery.trim().toLowerCase()
+    return mediaItems.filter(i => {
+      if (i.is_featured) return false
+      if (!q) return true
+      return `${i.name || ''} ${i.source_label || ''} ${i.author_name || ''}`.toLowerCase().includes(q)
+    })
+  }, [mediaItems, typeFilter, searchQuery])
 
   const totalFiles = attachments.length
   const indexedFiles = attachments.filter(a => a.type === 'pdf').length
@@ -854,6 +1014,7 @@ export default function MachineDocumentationTab({
                   <FolderCard key={cat.id}
                     category={cat}
                     items={itemsByCategory[cat.id] || []}
+                    extraCount={cat.id === 'foto' ? fieldMedia.length : 0}
                     onClick={() => goToFolder(cat.id)}
                     onDropFile={onUploadFile}
                   />
@@ -929,6 +1090,9 @@ export default function MachineDocumentationTab({
               onSelect={setSelectedAttachment}
               selectedAttachment={selectedAttachment}
               viewMode={viewMode}
+              fieldMedia={fieldMedia}
+              fieldMediaLoading={mediaLoading}
+              onToggleMedia={onToggleMedia}
             />
           )}
         </main>
@@ -988,6 +1152,11 @@ export default function MachineDocumentationTab({
         {favoriteFiles > 0 && (
           <span className="hidden md:inline text-[9px] uppercase tracking-wider" style={{ color: GOLD }}>
             · ★ {favoriteFiles}
+          </span>
+        )}
+        {fieldMedia.length > 0 && (
+          <span className="hidden md:inline text-[9px] uppercase tracking-wider" style={{ color: '#00d4ff' }}>
+            · {fieldMedia.length} dal campo
           </span>
         )}
         <div className="ml-auto hidden md:flex text-[9px] uppercase tracking-wider"

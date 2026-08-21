@@ -252,6 +252,18 @@ export default function AdminMachines({ onOpenAssistant }) {
     } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
   }
 
+  // Promuove (o toglie) una foto del feed macchina nella Galleria Foto.
+  // Passa dalla RPC perche' la voce promossa porta con se' l'origine
+  // (`promoted_from`), che un semplice updateMachine non saprebbe scrivere.
+  const toggleMachineMedia = async (item) => {
+    if (!sel) return
+    try {
+      const attachments = await db.toggleMachineMediaFeature(sel.id, item)
+      setSel(prev => ({ ...prev, attachments }))
+      toast.success(item.is_featured ? 'Rimossa dalla Galleria Foto' : 'Aggiunta alla Galleria Foto')
+    } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
+  }
+
   const removeAttachment = async (index) => {
     if (!sel) return
     const removed = (sel.attachments || [])[index]
@@ -854,7 +866,7 @@ export default function AdminMachines({ onOpenAssistant }) {
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
           onOpenLogForm={openLogForm} onEditLog={(log) => openLogForm(null, log)} onDeleteLog={deleteLog} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
-          onUploadToMachine={uploadToMachine} onUploadFileToMachine={uploadFileToMachine} onRemoveAttachment={removeAttachment} onToggleFavoriteAttachment={toggleFavoriteAttachment} onSaveField={updateMachineField}
+          onUploadToMachine={uploadToMachine} onUploadFileToMachine={uploadFileToMachine} onRemoveAttachment={removeAttachment} onToggleFavoriteAttachment={toggleFavoriteAttachment} onSaveField={updateMachineField} onToggleMachineMedia={toggleMachineMedia}
           onOpenAssistant={onOpenAssistant ? () => { const id = sel?.id; setSel(null); onOpenAssistant(id) } : undefined}
           reindexing={reindexing}
         />
