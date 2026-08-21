@@ -21,7 +21,8 @@
 | `useOnlineStatus` | Stato connessione con detect reconnessione | `navigator.onLine` |
 | `useToast` | Wrapper react-hot-toast con metodi `success/error/info` | `react-hot-toast` |
 | `useAutosave` | Salva stato form in localStorage con debounce | `localStorage` |
-| `useImageCompressor` | Comprime immagini prima dell'upload | Canvas API |
+| `useImageCompressor` | Comprime immagini e genera miniature prima dell'upload | Canvas API |
+| `useMachineMedia` | Galleria foto/video di una macchina (feed + curata) | `supabase.js` |
 
 ## Pattern auto-reward
 `useAutoTokenReward(userId, badges, level)` accredita ManuCoin automaticamente.

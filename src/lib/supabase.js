@@ -24,6 +24,7 @@ import { wallet } from './db/wallet'
 import { analytics } from './db/analytics'
 import { interventions } from './db/interventions'
 import { reactions } from './db/reactions'
+import { media } from './db/media'
 
 export const db = {
   ...auth,
@@ -40,4 +41,5 @@ export const db = {
   ...analytics,
   ...interventions,
   ...reactions,
+  ...media,
 }
