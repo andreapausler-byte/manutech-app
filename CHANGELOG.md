@@ -6,6 +6,35 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.18 — Scheda macchina a schede, dimensionata per i guanti
+
+Design di riferimento: canvas "Macchinario · Risorse", direzione 1A rivisitata (artboard 2A).
+
+### Changed
+- **`MobileMachineDetail` v4.0 — le risorse al primo livello.** Foto, documenti e interventi erano tre accordion in fondo alla pagina, sotto tutte le segnalazioni: davanti alla macchina, per aprire il manuale, si doveva scorrere otto guasti. Ora sono cinque schede fisse sotto l'intestazione — **Segnal. · Foto · Doc · Storico · Manut.** — con contatore su ciascuna e nessuna risorsa a più di un tap. Il contatore delle segnalazioni diventa ambra quando ce ne sono di aperte, quello delle manutenzioni rosso quando una è scaduta.
+- **Misure per l'uso con i guanti**: nessun bersaglio sotto 56px, schede da 80px, righe lista da 76px, righe documento e intervento da 88px, piani da 96px, testo lista 18px, barra azioni da 68px. Nessun link testuale: ogni azione è una riga o un riquadro. Ogni bersaglio ha uno stato premuto pieno, non solo hover — con i guanti il feedback tattile non arriva, deve arrivare quello visivo.
+- **Intestazione compatta**: nome macchina + riga identità (reparto · matricola · anno) + salute. Costruttore, modello e descrizione si sono spostati nella scheda tecnica in fondo al tab **Doc**, dove hanno spazio per stare per esteso.
+- Il tab **Doc** esclude gli allegati categoria `foto`: le foto promosse in galleria vivono in `machines.attachments` come tutto il resto, ma il loro posto è il tab Foto — prima comparivano in entrambi.
+- `MachineGallery` non è più una fisarmonica: vive dentro il tab Foto, sempre aperta, e riceve il feed dalla scheda (`media`) perché il contatore sulla barra deve esserci anche a tab chiuso. Filtri ingranditi a 56px, stato vuoto spiegato invece che nascosto.
+
+### Added
+- **MTBF nello storico**: distanza media fra due guasti, calcolata sui soli interventi straordinari e mostrata solo da tre guasti in su, dove la media inizia a dire qualcosa.
+- `lib/maintenanceStatus.js` — il semaforo delle manutenzioni in un posto solo (era copiato in quattro file; i tre lato admin restano da ricondurre qui).
+- `lib/constants.js` → `formatDateParts()` per le colonne data delle liste.
+- Ruoli ARIA sulla barra a schede (`tablist` / `tab` / `tabpanel`).
+
+### Fixed
+- `useMachineMedia`: senza macchina, `override?.machineId === machineId` era vero perché entrambi `undefined`, e l'hook leggeva `.list` su `null`. Ora il confronto richiede un `override` reale.
+
+### Note
+- **Il reset globale in `styles/index.css` (`* { margin: 0; padding: 0 }`) è fuori da `@layer`**: in Tailwind v4 il CSS senza layer batte le utility, quindi in tutta l'app `p-*`, `m-*`, `px-[4vw]` e `space-y-*` non producono nulla (solo `gap-*` sopravvive). Le spaziature di questa schermata sono quindi inline. Non è stato toccato qui perché sistemarlo cambia la spaziatura di ogni schermata dell'app — va fatto come intervento a sé.
+
+### Out of scope (rinviato)
+- I due tasti di scrittura del design — **Scatta** nella galleria e **Carica documento** — non ci sono: entrambi scrivono su `machines.attachments`, e `machines_update` è admin-only. Servono due RPC `SECURITY DEFINER` sul modello di `toggle_machine_media_feature`, cioè una migration.
+- "Storico completo" e "Altre N segnalazioni" espandono in pagina invece di aprire una schermata dedicata, che non esiste.
+
+---
+
 ## [Unreleased] — v5.17 — Galleria foto e video per macchinario
 
 ### Added

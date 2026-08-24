@@ -73,8 +73,11 @@ export function useMachineMedia(machine) {
     setLoadingMore(false)
   }, [machineId, machineName, rawItems.length, loadingMore, hasMore])
 
+  // `override &&` non è ridondante: senza macchina entrambi gli id sono
+  // undefined, `override?.machineId === machineId` risulterebbe vero e
+  // finiremmo a leggere `.list` su null.
   const attachments = useMemo(
-    () => (override?.machineId === machineId ? override.list : (machineAttachments || EMPTY)),
+    () => (override && override.machineId === machineId ? override.list : (machineAttachments || EMPTY)),
     [override, machineId, machineAttachments]
   )
 

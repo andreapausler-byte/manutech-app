@@ -9,11 +9,15 @@
  * Due viste sullo stesso dato:
  *   · Tutte        — il feed completo, per cercare
  *   · In evidenza  — la galleria curata (machines.attachments), per trovare
+ *
+ * Vive dentro il tab Foto della scheda macchina: il feed arriva dall'alto
+ * (`media`) perché la barra a schede deve contare le foto anche quando il
+ * tab è chiuso.
  */
 
 import { useMemo, useState } from 'react'
 import {
-  Images, ChevronDown, Play, Star, ArrowUpRight,
+  Play, Star, ArrowUpRight,
   MessageSquare, AlertTriangle, Wrench, CalendarClock, FileText, X,
 } from 'lucide-react'
 import { timeAgo } from '../../lib/constants'
@@ -40,12 +44,14 @@ const FILTERS = [
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
-export default function MachineGallery({ machine, onOpenReport }) {
+export default function MachineGallery({ machine, onOpenReport, media = null }) {
   const toast = useToast()
   const haptic = useHaptic()
-  const { items, loading, loadingMore, hasMore, loadMore, toggleFeature } = useMachineMedia(machine)
+  // Se il feed arriva dall'alto l'hook locale gira a vuoto, invece di
+  // rifare la stessa query una seconda volta.
+  const ownMedia = useMachineMedia(media ? null : machine)
+  const { items, loading, loadingMore, hasMore, loadMore, toggleFeature } = media || ownMedia
 
-  const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('all')
   // Il taglio dei 30 giorni si fissa al tap sul filtro: Date.now() dentro
   // il render sarebbe impuro (e cambierebbe a ogni re-render).
@@ -89,103 +95,83 @@ export default function MachineGallery({ machine, onOpenReport }) {
     setBusyUrl(null)
   }
 
-  // Sezione muta finché non c'è niente da mostrare: una macchina senza
-  // foto non deve occupare spazio nella scheda.
-  if (!loading && items.length === 0) return null
-
   return (
-    <div>
-      <button
-        onClick={() => { haptic.light(); setOpen(o => !o) }}
-        aria-expanded={open}
-        aria-label={`${open ? 'Nascondi' : 'Mostra'} foto e video`}
-        className="w-full flex items-center justify-between py-[3vw] px-1 press-scale"
-      >
-        <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
-          <Images size={17} /> Foto e video ({loading ? '…' : items.length})
-        </p>
-        <ChevronDown
-          size={22}
-          className="text-faint"
-          style={{
-            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.25s var(--ease-out-expo)',
-          }}
-        />
-      </button>
-
-      {open && (
-        <div className="space-y-[3vw] animate-fade-in">
-          {/* ═══ Filtri ═══ */}
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {FILTERS.map(f => {
-              const active = filter === f.id
-              const count = f.id === 'featured' ? featuredCount : null
-              return (
-                <button
-                  key={f.id}
-                  onClick={() => {
-                    haptic.light()
-                    if (f.id === 'recent') setRecentSince(Date.now() - THIRTY_DAYS_MS)
-                    setFilter(f.id)
-                  }}
-                  className="shrink-0 px-4 py-2 rounded-xl text-sm font-bold press-scale transition-colors"
-                  style={{
-                    background: active ? 'var(--color-primary)' : 'var(--color-surface-2)',
-                    color: active ? '#fff' : 'var(--color-text-muted)',
-                  }}
-                >
-                  {f.label}{count !== null ? ` (${count})` : ''}
-                </button>
-              )
-            })}
-          </div>
-
-          {loading && (
-            <div className="grid grid-cols-2 gap-[3vw]">
-              {[0, 1, 2, 3].map(i => (
-                <div key={i} className="aspect-square rounded-2xl skeleton-shimmer" />
-              ))}
-            </div>
-          )}
-
-          {!loading && visible.length === 0 && (
-            <p className="text-sm text-faint py-[4vw] text-center">
-              {filter === 'featured'
-                ? 'Nessuna foto in evidenza. Tocca la stella su una foto per tenerla qui.'
-                : 'Nessuna foto negli ultimi 30 giorni.'}
-            </p>
-          )}
-
-          {!loading && visible.length > 0 && (
-            <div className="grid grid-cols-2 gap-[3vw]">
-              {visible.map(item => (
-                <MediaTile
-                  key={item.url}
-                  item={item}
-                  busy={busyUrl === item.url}
-                  onOpen={() => openItem(item)}
-                  onToggleFeature={() => handleToggleFeature(item)}
-                  onOpenSource={
-                    onOpenReport && item.source_id && (item.source === 'chat' || item.source === 'segnalazione')
-                      ? () => { haptic.light(); onOpenReport(item.source_id) }
-                      : null
-                  }
-                />
-              ))}
-            </div>
-          )}
-
-          {!loading && hasMore && filter === 'all' && (
+    <div
+      className="flex flex-col gap-[3vw]"
+      style={{ padding: '4vw' }}
+    >
+      {/* ═══ Filtri ═══ */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        {FILTERS.map(f => {
+          const active = filter === f.id
+          const count = f.id === 'featured' ? featuredCount : null
+          return (
             <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="w-full card-interactive rounded-2xl py-[3.5vw] text-sm font-bold text-muted press-scale"
+              key={f.id}
+              onClick={() => {
+                haptic.light()
+                if (f.id === 'recent') setRecentSince(Date.now() - THIRTY_DAYS_MS)
+                setFilter(f.id)
+              }}
+              className="shrink-0 h-[56px] rounded-2xl text-base font-bold press-scale transition-colors"
+              style={{
+                paddingLeft: 20,
+                paddingRight: 20,
+                background: active ? 'var(--color-primary)' : 'var(--color-surface-2)',
+                color: active ? '#fff' : 'var(--color-text-muted)',
+              }}
             >
-              {loadingMore ? 'Caricamento…' : 'Carica altre foto'}
+              {f.label}{count !== null ? ` (${count})` : ''}
             </button>
-          )}
+          )
+        })}
+      </div>
+
+      {loading && (
+        <div className="grid grid-cols-2 gap-[3vw]">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="aspect-square rounded-2xl skeleton-shimmer" />
+          ))}
         </div>
+      )}
+
+      {!loading && visible.length === 0 && (
+        <p className="text-base text-faint text-center leading-relaxed" style={{ paddingTop: '10vw', paddingBottom: '10vw' }}>
+          {filter === 'featured'
+            ? 'Nessuna foto in evidenza. Tocca la stella su una foto per tenerla qui.'
+            : filter === 'recent'
+              ? 'Nessuna foto negli ultimi 30 giorni.'
+              : 'Nessuna foto o video su questa macchina. Le foto scattate in chat o allegate a una segnalazione finiscono qui da sole.'}
+        </p>
+      )}
+
+      {!loading && visible.length > 0 && (
+        <div className="grid grid-cols-2 gap-[3vw]">
+          {visible.map(item => (
+            <MediaTile
+              key={item.url}
+              item={item}
+              busy={busyUrl === item.url}
+              onOpen={() => openItem(item)}
+              onToggleFeature={() => handleToggleFeature(item)}
+              onOpenSource={
+                onOpenReport && item.source_id && (item.source === 'chat' || item.source === 'segnalazione')
+                  ? () => { haptic.light(); onOpenReport(item.source_id) }
+                  : null
+              }
+            />
+          ))}
+        </div>
+      )}
+
+      {!loading && hasMore && filter === 'all' && (
+        <button
+          onClick={loadMore}
+          disabled={loadingMore}
+          className="w-full h-[68px] card-interactive rounded-2xl text-base font-bold text-muted press-scale"
+        >
+          {loadingMore ? 'Caricamento…' : 'Carica altre foto'}
+        </button>
       )}
 
       {lightbox && (

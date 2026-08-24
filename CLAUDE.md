@@ -4,9 +4,9 @@
 
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
-- **Fase**: **Galleria macchinario** (Sprint A+B+C) ✓ — le foto e i video sparsi tra segnalazioni, chat, log manutenzione e interventi tornano a galla nella scheda macchina: feed cronologico con origine visibile (chat TK-…, autore, quando) + galleria curata a un tap (★ promuove in `machines.attachments` categoria `foto`, la stessa che il tab Documentazione mostra già). RPC `get_machine_media` + `toggle_machine_media_feature` (migration 060), `thumb_url` generato sui nuovi upload, fix del match macchina per stringa in `MobileMachineDetail`. Lato admin lo stesso feed vive nel tab Documentazione → cartella Galleria Foto, banda "Dal campo". Decisioni in `docs/decisions/ADR-011-machine-media-gallery.md`.
-- **Branch corrente**: `claude/machinery-photo-video-gallery-whfd6s` (da mergiare in `master`)
-- **Prossimo step**: (a) applicare la migration 060 in produzione e verificare il feed su dati veri; (b) l'operatore non vede ancora la galleria (`OperatorApp` non ha sezione macchine): valutare le foto della macchina dentro il dettaglio ticket; (c) sciogliere le open question dell'ADR-011: bucket privato + signed URL, retention GDPR delle foto, limite dimensione video (oggi i video NON sono compressi); (d) resta aperta la review trimestrale ROADMAP (era in agenda il **2/8**): Fase 5 WhatsApp e decisione Agenda tecnico mobile.
+- **Fase**: **Scheda macchina a schede** (design 2A) ✓ — foto, documenti e interventi non sono più tre accordion in fondo alla pagina sotto otto segnalazioni: sono cinque schede fisse sotto l'intestazione (Segnal. · Foto · Doc · Storico · Manut.), con contatore, e nessuna risorsa costa più di un tap. Misure per l'uso con i guanti: niente bersaglio sotto 56px, schede da 80px, righe 76-96px, testo lista 18px, stato premuto pieno. `MobileMachineDetail` scende a shell + cinque componenti tab; `MachineGallery` perde la fisarmonica e vive dentro il tab Foto.
+- **Branch corrente**: `claude/hopeful-hamilton-g6mjwc` (da mergiare in `master`)
+- **Prossimo step**: (a) i due tasti di scrittura del design mancano — **Scatta** e **Carica documento** scrivono su `machines.attachments`, che è admin-only: servono due RPC `SECURITY DEFINER` sul modello di `toggle_machine_media_feature`, cioè una migration; (b) il reset globale in `styles/index.css` neutralizza tutte le utility di padding/margin di Tailwind in tutta l'app (vedi Debito tecnico) — va deciso se sistemarlo; (c) restano aperte dalla fase precedente: migration 060 in produzione, galleria per l'operatore in `OperatorApp`, open question dell'ADR-011 (bucket privato, retention GDPR, video non compressi); (d) resta aperta la review trimestrale ROADMAP (era in agenda il **2/8**).
 
 ---
 
@@ -125,6 +125,8 @@ ManuTech evolve verso un layer AI trasversale (Sonnet per analisi, rielaborazion
 **Use cases osservati** (15/5/2026 dal confronto manutentore): voice creation intervento, riassunto storico macchina, classificazione segnalazioni, anomaly detection, estrazione info da chat realtime. Tutti con beneficiario operativo esplicito.
 
 ## Debito tecnico
+- **Il reset in `styles/index.css` (`* { margin: 0; padding: 0 }`) è fuori da `@layer`**: in Tailwind v4 il CSS senza layer batte le utility, quindi `p-*`, `m-*`, `px-[4vw]`, `space-y-*` non producono nulla in nessuna schermata — sopravvive solo `gap-*`. Chi scrive spaziature nuove le metta inline (`style={{ padding }}`) finché il reset resta com'è. Sistemarlo è un intervento a sé: cambia la spaziatura di tutta l'app in un colpo.
+- `getTrafficLight` (semaforo manutenzioni) ora vive in `lib/maintenanceStatus.js`, ma AdminDashboard, AdminMaintenance e MachineDetailSheet ne tengono ancora una copia propria
 - Query N+1 in AdminDashboard e AdminMaintenance
 - Componenti grandi (600+ LOC): AdminMachines, AdminReports, AdminDashboard
 - Zero test, zero accessibilità (aria-*)
