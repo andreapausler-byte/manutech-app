@@ -17,6 +17,7 @@ import {
   MessageSquare, AlertTriangle, Wrench, CalendarClock, FileText, X,
 } from 'lucide-react'
 import { timeAgo } from '../../lib/constants'
+import { galleryFileName } from '../../lib/mediaFile'
 import { useMachineMedia } from '../../hooks/useMachineMedia'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -68,7 +69,12 @@ export default function MachineGallery({ machine, onOpenReport }) {
     if (item.type === 'video') { setVideoItem(item); return }
     const photos = visible.filter(i => i.type !== 'video')
     const index = photos.findIndex(p => p.url === item.url)
-    setLightbox({ images: photos.map(p => ({ url: p.url, name: p.name })), index: Math.max(index, 0) })
+    // Nome parlante: il file scaricato deve dire da che macchina e da quale
+    // segnalazione viene, non `1712345678-IMG_0042.jpg`.
+    setLightbox({
+      images: photos.map((p, i) => ({ url: p.url, name: galleryFileName(p, machine?.name, i) })),
+      index: Math.max(index, 0),
+    })
   }
 
   const handleToggleFeature = async (item) => {

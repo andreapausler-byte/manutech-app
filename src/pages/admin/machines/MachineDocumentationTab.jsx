@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { db } from '../../../lib/supabase'
 import { timeAgo, formatDate } from '../../../lib/constants'
+import { galleryFileName } from '../../../lib/mediaFile'
+import MediaLightbox from '../../../components/media/MediaLightbox'
 
 // Font Barlow Condensed per i titoli display (squadrati, industriali)
 const F_DISPLAY = "'Barlow Condensed', system-ui, sans-serif"
@@ -351,7 +353,7 @@ function FileRow({ attachment, onSelect, selected, onToggleFavorite, attachmentI
 // interventi: qui l'admin le vede tutte insieme e con un click le
 // promuove nella Galleria Foto (diventano attachments veri).
 // ──────────────────────────────────────────────────────────────
-function FieldMediaGrid({ items, loading, onToggleMedia }) {
+function FieldMediaGrid({ items, loading, onToggleMedia, onOpenPhoto }) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 px-2.5 py-3 border border-dashed"
@@ -385,8 +387,11 @@ function FieldMediaGrid({ items, loading, onToggleMedia }) {
           const meta = SOURCE_META[item.source] || SOURCE_META.scheda
           const SourceIcon = meta.icon
           return (
-            <div key={item.url} className="aspect-[4/3] overflow-hidden border relative group"
-              style={{ borderColor: 'var(--color-border)' }}>
+            <div key={item.url} className="aspect-[4/3] overflow-hidden border relative group cursor-pointer"
+              style={{ borderColor: 'var(--color-border)' }}
+              onClick={() => item.type === 'video'
+                ? window.open(item.url, '_blank', 'noopener')
+                : onOpenPhoto?.(item.url)}>
               <img src={item.thumb_url || item.url} alt="" loading="lazy" decoding="async"
                 className="w-full h-full object-cover"
                 style={{ background: 'var(--color-surface-2)' }} />
@@ -405,12 +410,12 @@ function FieldMediaGrid({ items, loading, onToggleMedia }) {
               </span>
 
               <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-1.5">
-                <a href={item.url} target="_blank" rel="noopener"
-                  className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white" title="Apri">
+                <a href={item.url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()}
+                  className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white" title="Apri in una scheda">
                   <ExternalLink size={12} />
                 </a>
                 {onToggleMedia && (
-                  <button onClick={() => onToggleMedia(item)}
+                  <button onClick={(e) => { e.stopPropagation(); onToggleMedia(item) }}
                     className="p-1.5 rounded-full text-white"
                     style={{ background: 'rgba(224,168,46,0.55)' }}
                     title="Aggiungi alla Galleria Foto">
@@ -437,7 +442,7 @@ function FieldMediaGrid({ items, loading, onToggleMedia }) {
 // ──────────────────────────────────────────────────────────────
 // FolderView (compatto)
 // ──────────────────────────────────────────────────────────────
-function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onToggleFavorite, sel, onSaveField, onSelect, selectedAttachment, viewMode, fieldMedia = [], fieldMediaLoading = false, onToggleMedia }) {
+function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onToggleFavorite, sel, onSaveField, onSelect, selectedAttachment, viewMode, fieldMedia = [], fieldMediaLoading = false, onToggleMedia, onOpenPhoto }) {
   const Icon = category.icon
   const indexOf = (a) => attachmentsAll.indexOf(a)
   const isPhotoFolder = category.id === 'foto'
@@ -483,8 +488,12 @@ function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onTog
           {items.map((photo, i) => (
             <div key={i} className="aspect-[4/3] overflow-hidden border relative group cursor-pointer"
               style={{ borderColor: 'var(--color-border)' }}
-              onClick={() => onSelect(photo)}>
-              <img src={photo.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              onClick={() => {
+                onSelect(photo)
+                if (photo.type === 'video') window.open(photo.url, '_blank', 'noopener')
+                else onOpenPhoto?.(photo.url)
+              }}>
+              <img src={photo.thumb_url || photo.url} alt="" className="w-full h-full object-cover" loading="lazy" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-1.5">
                 <a href={photo.url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()}
                   className="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white">
@@ -529,7 +538,7 @@ function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onTog
       ) : null}
 
       {isPhotoFolder && (
-        <FieldMediaGrid items={fieldMedia} loading={fieldMediaLoading} onToggleMedia={onToggleMedia} />
+        <FieldMediaGrid items={fieldMedia} loading={fieldMediaLoading} onToggleMedia={onToggleMedia} onOpenPhoto={onOpenPhoto} />
       )}
 
       {!isPhotoFolder && (viewMode === 'grid' ? (
@@ -860,6 +869,27 @@ export default function MachineDocumentationTab({
     })
   }, [mediaItems, typeFilter, searchQuery])
 
+  // Visore: le foto della cartella nell'ordine in cui si vedono — prima la
+  // galleria curata, poi quelle dal campo — così le frecce scorrono quello
+  // che l'occhio ha appena visto. I video restano fuori: MediaLightbox
+  // mostra immagini, un video si apre in una scheda.
+  const [lightboxIndex, setLightboxIndex] = useState(null)
+
+  const lightboxPhotos = useMemo(() => {
+    const curated = (itemsByCategory.foto || []).filter(a => a.type !== 'video')
+    const field = fieldMedia.filter(i => i.type !== 'video')
+    return [...curated, ...field].map((item, i) => ({
+      url: item.url,
+      name: galleryFileName(item, sel?.name, i),
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsByCategory.foto, fieldMedia, sel?.name])
+
+  const openPhoto = (url) => {
+    const idx = lightboxPhotos.findIndex(p => p.url === url)
+    if (idx >= 0) setLightboxIndex(idx)
+  }
+
   const totalFiles = attachments.length
   const indexedFiles = attachments.filter(a => a.type === 'pdf').length
   const favoriteFiles = attachments.filter(a => a.is_favorite).length
@@ -1093,6 +1123,7 @@ export default function MachineDocumentationTab({
               fieldMedia={fieldMedia}
               fieldMediaLoading={mediaLoading}
               onToggleMedia={onToggleMedia}
+              onOpenPhoto={openPhoto}
             />
           )}
         </main>
@@ -1135,6 +1166,14 @@ export default function MachineDocumentationTab({
             </div>
           </div>
         </div>
+      )}
+
+      {lightboxIndex !== null && lightboxPhotos.length > 0 && (
+        <MediaLightbox
+          images={lightboxPhotos}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
 
       {/* Status bar minimale */}
