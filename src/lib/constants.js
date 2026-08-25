@@ -228,6 +228,18 @@ export const formatDate = (dateStr) => {
   return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+// Data spezzata per le colonne data delle liste: `02 AGO` sopra, `2026`
+// sotto. Serve dove la data è una colonna e non una riga di testo.
+export const formatDateParts = (dateStr) => {
+  if (!dateStr) return { day: '', month: '', year: '' }
+  const d = new Date(dateStr)
+  return {
+    day: String(d.getDate()).padStart(2, '0'),
+    month: d.toLocaleDateString('it-IT', { month: 'short' }).replace('.', '').toUpperCase(),
+    year: String(d.getFullYear()),
+  }
+}
+
 export const timeAgo = (dateStr) => {
   if (!dateStr) return ''
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)

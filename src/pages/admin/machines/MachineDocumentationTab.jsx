@@ -10,6 +10,7 @@ import {
 import { db } from '../../../lib/supabase'
 import { timeAgo, formatDate } from '../../../lib/constants'
 import { galleryFileName } from '../../../lib/mediaFile'
+import { MACHINE_DOC_CATEGORIES } from '../../../lib/machineDocCategories'
 import MediaLightbox from '../../../components/media/MediaLightbox'
 
 // Font Barlow Condensed per i titoli display (squadrati, industriali)
@@ -18,25 +19,22 @@ const F_MONO = "'DM Mono', 'JetBrains Mono', ui-monospace, monospace"
 // Gold accent (e0a82e) — tab attiva, linguetta cartelle, accenti
 const GOLD = '#e0a82e'
 
-// Categorie note (id = valore stringa salvato in attachment.category)
-const CATEGORIES = [
-  { id: 'foto', label: 'Galleria Foto', desc: 'Foto, targhette, dettagli installazione',
-    icon: ImageIcon, frontColor: '#5b8eff', backColor: '#3b6ad9', uploadType: 'image' },
-  { id: 'scheda_tecnica', label: 'Schede Tecniche', desc: 'Datasheet, schemi elettrici, P&ID',
-    icon: FileText, frontColor: '#e0a82e', backColor: '#b58220', uploadType: 'pdf' },
-  { id: 'manuale_uso', label: "Istruzioni d'Uso", desc: 'Avvio, arresto, funzionamento',
-    icon: BookOpen, frontColor: '#3ddc84', backColor: '#2aa564', uploadType: 'pdf',
+// Aspetto delle cartelle: id, label e desc vengono da
+// `lib/machineDocCategories`, che è la stessa lista che il mobile usa
+// per caricare dal campo e che la RPC add_machine_attachment valida
+// lato server. Qui restano solo icona, colori e campo istruzioni.
+const CATEGORY_LOOK = {
+  foto: { icon: ImageIcon, frontColor: '#5b8eff', backColor: '#3b6ad9' },
+  scheda_tecnica: { icon: FileText, frontColor: '#e0a82e', backColor: '#b58220' },
+  manuale_uso: { icon: BookOpen, frontColor: '#3ddc84', backColor: '#2aa564',
     instructionsField: 'usage_instructions', instructionsPlaceholder: "Aggiungi istruzioni d'uso..." },
-  { id: 'manuale_manutenzione', label: 'Manutenzione', desc: 'Procedure preventive e CIP',
-    icon: Wrench, frontColor: '#ff8a3d', backColor: '#cc5e1d', uploadType: 'pdf',
+  manuale_manutenzione: { icon: Wrench, frontColor: '#ff8a3d', backColor: '#cc5e1d',
     instructionsField: 'maintenance_instructions', instructionsPlaceholder: 'Aggiungi istruzioni di manutenzione...' },
-  { id: 'intervento_esterno', label: 'Ditta Esterna', desc: 'Rapporti tecnici esterni e fornitori',
-    icon: Building, frontColor: '#8b6ff5', backColor: '#6a52c4', uploadType: 'pdf' },
-  { id: 'contratto_manutenzione', label: 'Contratti Manut.', desc: 'Contratti attivi e scadenze SLA',
-    icon: FileSignature, frontColor: '#e85d75', backColor: '#a73a4d', uploadType: 'pdf' },
-  { id: 'certificato', label: 'Certificati', desc: 'Dichiarazioni CE, ispezioni, tarature',
-    icon: ShieldCheck, frontColor: '#5dd3b8', backColor: '#36a187', uploadType: 'pdf' },
-]
+  intervento_esterno: { icon: Building, frontColor: '#8b6ff5', backColor: '#6a52c4' },
+  contratto_manutenzione: { icon: FileSignature, frontColor: '#e85d75', backColor: '#a73a4d' },
+  certificato: { icon: ShieldCheck, frontColor: '#5dd3b8', backColor: '#36a187' },
+}
+const CATEGORIES = MACHINE_DOC_CATEGORIES.map(c => ({ ...c, ...CATEGORY_LOOK[c.id] }))
 const CATEGORY_BY_ID = Object.fromEntries(CATEGORIES.map(c => [c.id, c]))
 
 // Origine dei media che non sono (ancora) attachments: arrivano dal feed

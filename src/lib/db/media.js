@@ -128,6 +128,50 @@ export const media = {
     return dedupeAndSort(items).slice(offset, offset + limit)
   },
 
+  // Aggiunge un allegato alla macchina: la foto appena scattata davanti
+  // all'impianto, o il PDF che il fornitore ha appena lasciato.
+  //
+  // Via RPC (migration 061) per lo stesso motivo del toggle qui sotto:
+  // `machines_update` è admin-only, ma chi ha in mano la macchina è
+  // l'operatore. Autore e data li mette il server.
+  // Ritorna la lista attachments aggiornata.
+  async addMachineAttachment(machineId, attachment) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('add_machine_attachment', {
+        _machine_id: machineId,
+        _attachment: {
+          url: attachment.url,
+          thumb_url: attachment.thumb_url || null,
+          type: attachment.type,
+          category: attachment.category,
+          name: attachment.name,
+        },
+      })
+      if (error) throw error
+      return data || []
+    }
+
+    const list = getStore(KEYS.machines)
+    const idx = list.findIndex(m => m.id === machineId)
+    if (idx === -1) throw new Error('Macchinario non trovato')
+    const attachments = list[idx].attachments || []
+    if (attachments.some(a => a.url === attachment.url)) return attachments
+
+    const next = [...attachments, {
+      type: attachment.type,
+      category: attachment.category,
+      name: attachment.name,
+      url: attachment.url,
+      thumb_url: attachment.thumb_url || null,
+      uploaded_at: new Date().toISOString(),
+      uploaded_by_name: attachment.uploaded_by_name || null,
+      uploaded_from: 'campo',
+    }]
+    list[idx] = { ...list[idx], attachments: next }
+    setStore(KEYS.machines, list)
+    return next
+  },
+
   // Promuove (o rimuove) una foto nella galleria curata della macchina,
   // cioè in machines.attachments categoria 'foto' — la stessa cartella
   // che il tab Documentazione mostra già.

@@ -1,50 +1,54 @@
 /**
- * MobileMachineDetail v3.0 — Punto di controllo operativo
+ * MobileMachineDetail v4.0 — Le risorse al primo livello
  *
- * Layout: Fixed header (nome + dati tecnici + stato) → Scrollable content → Fixed FAB
- * Design: compatto, spazi ottimizzati, severity accent bars, bordi uniformi
+ * Fino alla v3 foto, documenti e interventi erano tre accordion in fondo
+ * alla pagina, sotto tutte le segnalazioni: davanti alla macchina, per
+ * aprire il manuale, l'operatore doveva scorrere otto guasti. Ora sono
+ * cinque schede sotto l'intestazione — segnalazioni, foto, documenti,
+ * storico, manutenzioni — e nessuna costa più di un tap.
+ *
+ * Layout: intestazione fissa → barra a schede fissa → contenuto che
+ * scorre → barra azioni fissa (Rapido / Segnala).
+ *
+ * Misure pensate per l'uso con i guanti: nessun bersaglio sotto 56px,
+ * schede da 80px, righe da 76-96px, testo lista 18px, nessun link
+ * testuale. Ogni bersaglio ha uno stato premuto pieno: con i guanti il
+ * feedback tattile non arriva, deve arrivare quello visivo.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, timeAgo, isReportOpen, isTerminalStatus } from '../../lib/constants'
-import { Badge } from '../ui'
+import { timeAgo, isReportOpen, isTerminalStatus } from '../../lib/constants'
+import { getTrafficLight } from '../../lib/maintenanceStatus'
+import { padX } from './machineTabs'
 import MachineGallery from './MachineGallery'
+import MachineTabBar from './MachineTabBar'
+import MachineReportsTab from './MachineReportsTab'
+import MachineDocsTab from './MachineDocsTab'
+import MachineLogsTab from './MachineLogsTab'
+import MachinePlansTab from './MachinePlansTab'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
+import { useMachineMedia } from '../../hooks/useMachineMedia'
+import { useMachineUpload } from '../../hooks/useMachineUpload'
 import {
-  ArrowLeft, Cog, Factory, Hash, Calendar, Building,
-  FileText, Video, Shield, Wrench, ClipboardList,
-  AlertTriangle, ChevronDown, ExternalLink,
-  CheckCircle, X, Send, Clock, Zap, Activity, Trash2
+  ArrowLeft, Wrench, AlertTriangle, CheckCircle, Zap, Trash2,
 } from 'lucide-react'
-
-const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
-
-function getTrafficLight(plan, lastLog) {
-  const lastDate = lastLog?.performed_at || plan.created_at
-  const daysSince = daysBetween(lastDate, new Date())
-  const daysLeft = plan.frequency_days - daysSince
-  if (daysLeft <= 0) return { label: `Scaduta da ${Math.abs(daysLeft)}g`, color: '#ef4444', urgent: true }
-  if (daysLeft <= 7) return { label: `Scade tra ${daysLeft}g`, color: '#f59e0b', urgent: true }
-  return { label: `Tra ${daysLeft}g`, color: '#22c55e', urgent: false }
-}
 
 export default function MobileMachineDetail({ machine, onBack, onViewReport, onQuickReport, onNewReport, onDelete }) {
   const { user } = useAuth()
   const toast = useToast()
   const haptic = useHaptic()
 
+  const [tab, setTab] = useState('segnalazioni')
+  const scrollRef = useRef(null)
+
   const [plans, setPlans] = useState([])
   const [logs, setLogs] = useState([])
   const [reports, setReports] = useState([])
   const [planLastLogs, setPlanLastLogs] = useState({})
   const [loading, setLoading] = useState(true)
-
-  const [showDocs, setShowDocs] = useState(false)
-  const [showLogs, setShowLogs] = useState(false)
-  const [showResolved, setShowResolved] = useState(false)
 
   const [confirmPlan, setConfirmPlan] = useState(null)
   const [confirmNote, setConfirmNote] = useState('')
@@ -58,6 +62,15 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   const [resolving, setResolving] = useState(false)
 
   const [assessment, setAssessment] = useState(null)
+
+  // Il feed foto sta qui e non dentro la galleria: la barra a schede deve
+  // poter mostrare il contatore anche quando il tab Foto non è aperto.
+  const media = useMachineMedia(machine)
+
+  // Scatta e Carica documento scrivono negli attachments della macchina.
+  // La lista fresca torna dalla RPC e la passiamo all'hook del feed, così
+  // contatori e griglia si aggiornano senza rileggere la macchina.
+  const upload = useMachineUpload(machine, media.applyAttachments)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -94,7 +107,11 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
       .catch(e => console.error('[MobileMachineDetail] fetchMachineAssessments failed:', e))
   }, [machine.id, machine.org_id, user?.org_id])
 
-  const toggle = (setter) => { haptic.light(); setter(prev => !prev) }
+  // Cambiando scheda si riparte dall'alto: ereditare lo scroll della
+  // scheda precedente fa sembrare il contenuto tagliato.
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [tab])
+
+  const goToTab = (id) => { haptic.light(); setTab(id) }
 
   const handleConfirmMaintenance = async () => {
     if (!confirmPlan) return
@@ -153,398 +170,179 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
   const activeReports = reports.filter(isReportOpen)
   const resolvedReports = reports.filter(r => isTerminalStatus(r.status))
-  const urgentPlans = plans.filter(p => getTrafficLight(p, planLastLogs[p.id]).urgent)
-  const okPlans = plans.filter(p => !getTrafficLight(p, planLastLogs[p.id]).urgent)
+  const urgentCount = plans.filter(p => getTrafficLight(p, planLastLogs[p.id]).urgent).length
+  // Le foto promosse in galleria vivono anche loro in `attachments`: il
+  // tab Documenti conta solo i file veri. La lista viene dall'hook e non
+  // dalla prop, così un caricamento appena fatto si vede subito.
+  const documentCount = media.attachments.filter(a => a.category !== 'foto').length
+
+  // Riga d'identità: reparto, matricola, anno. Costruttore e modello
+  // stanno nella scheda tecnica dentro il tab Documenti — qui non ci
+  // starebbero senza tagliare il nome della macchina.
+  const identity = [machine.department, machine.serial_number, machine.year].filter(Boolean).join(' · ')
+
+  const counts = {
+    segnalazioni: activeReports.length || null,
+    foto: media.loading ? null : (media.items.length || null),
+    documenti: documentCount || null,
+    storico: logs.length || null,
+    manutenzioni: plans.length || null,
+  }
+
+  const accents = {
+    segnalazioni: activeReports.length > 0 ? '#f59e0b' : null,
+    manutenzioni: urgentCount > 0 ? '#ef4444' : (plans.length > 0 ? '#22c55e' : null),
+  }
+
+  const openReport = (r) => onViewReport?.(r)
 
   return (
     <div className="h-screen h-[100dvh] bg-base flex flex-col overflow-hidden">
 
-      {/* ═══ FIXED TOP ═══ */}
+      {/* ═══ INTESTAZIONE FISSA ═══ */}
       <div className="shrink-0">
-        {/* Header */}
-        <header className="header-page flex items-center gap-[3vw] px-[4vw] py-[2.5vw]">
-          <button onClick={onBack} className="w-[13vw] h-[13vw] max-w-[52px] max-h-[52px] rounded-2xl flex items-center justify-center bg-surface-2 active:bg-white/10 text-muted press-scale">
+        <header
+          className="header-page flex items-center gap-[3vw]"
+          style={{ ...padX, paddingTop: '2.5vw', paddingBottom: '2.5vw' }}
+        >
+          <button
+            onClick={onBack}
+            aria-label="Torna ai macchinari"
+            className="w-[56px] h-[56px] rounded-2xl flex items-center justify-center bg-surface-2 active:bg-surface-3 text-muted shrink-0 transition-colors"
+          >
             <ArrowLeft size={24} />
           </button>
+
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-themed truncate">{machine.name}</h1>
-            {machine.department && <p className="text-base text-faint">{machine.department}</p>}
+            <h1 className="text-2xl font-bold text-themed truncate leading-tight">{machine.name}</h1>
+            {identity && (
+              <p className="font-mono text-[10.5px] uppercase tracking-wider text-faint truncate" style={{ marginTop: 4 }}>
+                {identity}
+              </p>
+            )}
           </div>
+
           {assessment && (() => {
             const colors = { ottimo: '#22c55e', buono: '#7c6aff', attenzione: '#f59e0b', critico: '#ef4444' }
             const c = colors[assessment.status] || '#6b7280'
             return (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-2xl shrink-0" style={{ background: c + '15' }}>
-                <div className="relative w-10 h-10">
-                  <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="3" />
-                    <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3.5" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: c }} />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-themed">{assessment.health_score}</span>
-                </div>
+              <div className="relative w-11 h-11 shrink-0" title={`Salute macchina: ${assessment.health_score}`}>
+                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                  <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" className="text-surface-3" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15.9" fill="none" strokeWidth="3.5" strokeDasharray={`${assessment.health_score} ${100 - assessment.health_score}`} strokeLinecap="round" style={{ stroke: c }} />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center font-mono text-[13px] font-bold text-themed">
+                  {assessment.health_score}
+                </span>
               </div>
             )
           })()}
+
           {onDelete && (
-            <button onClick={onDelete} aria-label="Elimina macchinario" className="w-[13vw] h-[13vw] max-w-[52px] max-h-[52px] rounded-2xl bg-red-500/10 flex items-center justify-center press-scale">
+            <button
+              onClick={onDelete}
+              aria-label="Elimina macchinario"
+              className="w-[56px] h-[56px] rounded-2xl bg-red-500/10 flex items-center justify-center shrink-0 active:bg-red-500/20 transition-colors"
+            >
               <Trash2 size={20} style={{ color: '#ef4444' }} />
             </button>
           )}
         </header>
 
-        {/* Machine identity card */}
-        <div className="px-[4vw] pb-[3vw]">
-          <div className="rounded-2xl overflow-hidden card-elevated">
-            {/* Tech specs */}
-            {(machine.manufacturer || machine.model || machine.serial_number || machine.year) && (
-              <div className="px-[4vw] py-[3vw] flex items-center gap-[2.5vw] flex-wrap">
-                {[
-                  { icon: Factory, value: machine.manufacturer, color: '#7c6aff' },
-                  { icon: Cog, value: machine.model, color: '#8b5cf6' },
-                  { icon: Hash, value: machine.serial_number, color: '#06b6d4' },
-                  { icon: Calendar, value: machine.year, color: '#f59e0b' },
-                ].filter(f => f.value).map((spec, i, arr) => (
-                  <div key={i} className="flex items-center gap-1.5">
-                    <spec.icon size={16} style={{ color: spec.color }} />
-                    <span className="text-base font-bold text-themed">{spec.value}</span>
-                    {i < arr.length - 1 && <span className="text-faint mx-0.5">·</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* Status bar */}
-            {(activeReports.length > 0 || urgentPlans.length > 0 || !loading) && (
-              <div className={`flex ${(machine.manufacturer || machine.model || machine.serial_number || machine.year) ? 'border-t border-token' : ''}`}>
-                {urgentPlans.length > 0 && (
-                  <div className="flex-1 flex items-center justify-center gap-2 py-[3vw] border-r border-token" style={{ background: '#ef444410' }}>
-                    <AlertTriangle size={18} className="text-red-400" />
-                    <span className="text-base font-bold text-red-400">{urgentPlans.length} scadute</span>
-                  </div>
-                )}
-                <div className="flex-1 flex items-center justify-center gap-2 py-[3vw]"
-                  style={{ background: activeReports.length > 0 ? '#f59e0b10' : '#22c55e10' }}>
-                  {activeReports.length > 0 ? (
-                    <>
-                      <ClipboardList size={18} className="text-amber-400" />
-                      <span className="text-base font-bold text-amber-400">{activeReports.length} segnalaz.</span>
-                      <div className="flex gap-1 ml-1">
-                        {['critica', 'alta', 'media', 'bassa'].map(sev => {
-                          const count = activeReports.filter(r => r.severity === sev).length
-                          if (!count) return null
-                          const sv = SEVERITY[sev]
-                          return <span key={sev} className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ background: sv.color + '20', color: sv.color }}>{count}</span>
-                        })}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={18} className="text-emerald-400" />
-                      <span className="text-base font-bold text-emerald-400">Tutto ok</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="h-px bg-token" />
+        <MachineTabBar active={tab} counts={counts} accents={accents} onChange={goToTab} />
       </div>
 
-      {/* ═══ SCROLLABLE CONTENT ═══ */}
-      <div className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="px-[4vw] py-[3vw] pb-[30vw] space-y-[4vw]">
+      {/* ═══ CONTENUTO ═══ */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto overscroll-contain"
+        style={{ paddingBottom: 'calc(68px + 10vw)' }}
+      >
+        <div
+          role="tabpanel"
+          id={`machine-panel-${tab}`}
+          aria-labelledby={`machine-tab-${tab}`}
+          className="animate-fade-in"
+        >
+          {tab === 'segnalazioni' && (
+            <MachineReportsTab
+              reports={activeReports}
+              resolved={resolvedReports}
+              urgentCount={urgentCount}
+              onOpenReport={openReport}
+              onResolveReport={setResolveReport}
+              onGoToPlans={() => setTab('manutenzioni')}
+            />
+          )}
 
-        {machine.photo_url && (
-          <div className="rounded-2xl overflow-hidden border border-token aspect-video shadow-lg">
-            <img src={machine.photo_url} alt={machine.name} className="w-full h-full object-cover" />
-          </div>
-        )}
-
-        {machine.description && (
-          <p className="text-base text-secondary leading-relaxed card-elevated rounded-2xl px-[4vw] py-[3vw]">{machine.description}</p>
-        )}
-
-        {/* ═══ URGENT MAINTENANCE ═══ */}
-        {urgentPlans.length > 0 && (
-          <div className="space-y-[3vw]">
-            <p className="text-sm text-red-400 font-bold uppercase tracking-wider flex items-center gap-2 px-1">
-              <AlertTriangle size={16} /> Manutenzioni da fare
-            </p>
-            {urgentPlans.map(plan => {
-              const light = getTrafficLight(plan, planLastLogs[plan.id])
-              return (
-                <div key={plan.id} className="rounded-2xl overflow-hidden" style={{ background: '#ef444410', border: '1px solid #ef444420' }}>
-                  <div className="flex items-center gap-[3.5vw] px-[4vw] py-[4vw]">
-                    <div className="w-5 h-5 rounded-full shrink-0" style={{ background: light.color, boxShadow: `0 0 12px ${light.color}60` }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-lg font-bold text-themed truncate">{plan.name}</p>
-                      <p className="text-sm text-faint">Ogni {plan.frequency_days}g · <span style={{ color: light.color }}>{light.label}</span></p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => { haptic.medium(); setConfirmPlan(plan) }}
-                    className="w-full py-[4vw] text-lg font-bold text-white flex items-center justify-center gap-2.5 press-scale active:scale-[0.97] transition-all"
-                    style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
-                  >
-                    <CheckCircle size={24} /> Fatto — Registra
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* ═══ ACTIVE REPORTS ═══ */}
-        {activeReports.length > 0 && (
-          <div className="space-y-2.5">
-            <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2 px-1">
-              <ClipboardList size={16} /> Segnalazioni attive
-            </p>
-            {activeReports.map((r, i) => {
-              const sev = SEVERITY[r.severity] || SEVERITY.media
-              return (
-                <div
-                  key={r.id}
-                  className="rounded-2xl flex items-stretch gap-2.5 p-3 press-scale"
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    backdropFilter: 'blur(16px)',
-                    WebkitBackdropFilter: 'blur(16px)',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    animation: 'fadeIn 0.3s var(--ease-out-expo) backwards',
-                    animationDelay: `${i * 50}ms`,
-                  }}
-                >
-                  {/* Dot priorità con glow */}
-                  <div className="flex items-start pt-1 shrink-0">
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: '50%',
-                        background: sev.color,
-                        boxShadow: `0 0 12px ${sev.color}, 0 0 4px ${sev.color}`,
-                      }}
-                    />
-                  </div>
-
-                  {/* Contenuto cliccabile */}
-                  <button
-                    onClick={() => onViewReport?.(r)}
-                    className="flex-1 min-w-0 text-left"
-                  >
-                    <p className="text-sm font-medium text-themed truncate">{r.title}</p>
-                    <p className="text-xs truncate" style={{ opacity: 0.38 }}>
-                      {r.created_by_name} · {timeAgo(r.created_at)}
-                    </p>
-                  </button>
-
-                  {/* Badge + wrench in flex-col a destra */}
-                  <div className="flex flex-col items-end justify-between gap-2 shrink-0">
-                    <span
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-md"
-                      style={{ background: sev.color + '18', color: sev.color }}
-                    >
-                      {sev.label}
-                    </span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); haptic.medium(); setResolveReport(r) }}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-emerald-400 active:bg-emerald-500/10 press-scale"
-                      aria-label="Risolvi segnalazione"
-                    >
-                      <Wrench size={18} />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* ═══ OK PLANS ═══ */}
-        {okPlans.length > 0 && (
-          <div className="space-y-[3vw]">
-            <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2 px-1">
-              <Shield size={16} /> Manutenzioni in regola ({okPlans.length})
-            </p>
-            {okPlans.map(plan => {
-              const light = getTrafficLight(plan, planLastLogs[plan.id])
-              return (
-                <div key={plan.id} className="card-elevated rounded-2xl px-[4vw] py-[4vw]">
-                  <div className="flex items-center gap-[3.5vw]">
-                    <div className="w-5 h-5 rounded-full shrink-0" style={{ background: light.color, boxShadow: `0 0 8px ${light.color}40` }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-lg font-bold text-themed truncate">{plan.name}</p>
-                      <p className="text-sm text-faint mt-0.5">Ogni {plan.frequency_days}g · {plan.assigned_to_name || 'Non assegnato'}</p>
-                    </div>
-                    <span className="text-sm font-bold px-3.5 py-2 rounded-xl shrink-0" style={{ background: light.color + '18', color: light.color }}>
-                      {light.label}
+          {tab === 'foto' && (
+            <>
+              {machine.photo_url && (
+                <div style={{ ...padX, paddingTop: '4vw' }}>
+                  <div className="rounded-2xl overflow-hidden border border-token aspect-video relative">
+                    <img src={machine.photo_url} alt={machine.name} className="w-full h-full object-cover" />
+                    <span className="absolute top-2 left-2 font-mono text-[10px] uppercase tracking-wider px-2 py-1 rounded-lg"
+                      style={{ background: 'rgba(0,0,0,0.55)', color: '#8b96a8' }}>
+                      Scheda
                     </span>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* ═══ GALLERY ═══ */}
-        <MachineGallery
-          machine={machine}
-          onOpenReport={(reportId) => {
-            const target = reports.find(r => r.id === reportId)
-            if (target) onViewReport?.(target)
-            else toast.info('Segnalazione non più disponibile')
-          }}
-        />
-
-        {/* ═══ DOCUMENTS ═══ */}
-        {machine.attachments?.length > 0 && (
-          <div>
-            <button onClick={() => toggle(setShowDocs)} aria-expanded={showDocs} aria-label={`${showDocs ? 'Nascondi' : 'Mostra'} documenti`} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
-              <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
-                <FileText size={17} /> Documenti ({machine.attachments.length})
-              </p>
-              <ChevronDown
-                size={22}
-                className="text-faint"
-                style={{
-                  transform: showDocs ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.25s var(--ease-out-expo)',
+              )}
+              <MachineGallery
+                machine={machine}
+                media={media}
+                onCapture={upload.capturePhoto}
+                capturing={upload.busy}
+                onOpenReport={(reportId) => {
+                  const target = reports.find(r => r.id === reportId)
+                  if (target) openReport(target)
+                  else toast.info('Segnalazione non più disponibile')
                 }}
               />
-            </button>
-            {showDocs && (
-              <div className="space-y-[3vw] animate-fade-in">
-                {machine.attachments.map((a, i) => (
-                  <a key={i} href={a.url} target="_blank" rel="noopener"
-                    className="flex items-center gap-[4vw] card-interactive rounded-2xl px-[5vw] py-[4.5vw] active:bg-surface-2 press-scale">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${a.type === 'pdf' ? 'bg-red-500/15' : a.type === 'image' ? 'bg-violet-500/15' : 'bg-emerald-500/15'}`}>
-                      {a.type === 'pdf' ? <FileText size={24} className="text-red-400" /> : <Video size={24} className="text-emerald-400" />}
-                    </div>
-                    <span className="text-lg font-medium text-themed flex-1 truncate">{a.name}</span>
-                    <ExternalLink size={22} className="text-faint shrink-0" />
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+            </>
+          )}
 
-        {/* ═══ LOGS ═══ */}
-        <div>
-          <button onClick={() => toggle(setShowLogs)} aria-expanded={showLogs} aria-label={`${showLogs ? 'Nascondi' : 'Mostra'} ultimi interventi`} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
-            <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
-              <Wrench size={17} /> Ultimi Interventi ({logs.length})
-            </p>
-            <ChevronDown
-              size={22}
-              className="text-faint"
-              style={{
-                transform: showLogs ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.25s var(--ease-out-expo)',
-              }}
+          {tab === 'documenti' && (
+            <MachineDocsTab
+              machine={machine}
+              attachments={media.attachments}
+              onUpload={upload.uploadDocument}
+              uploading={upload.busy}
             />
-          </button>
-          {showLogs && (
-            <div className="space-y-[3vw] animate-fade-in">
-              {logs.length === 0 ? (
-                <p className="text-lg text-faint text-center py-8">Nessun intervento registrato</p>
-              ) : logs.slice(0, 8).map(log => (
-                <div key={log.id} className="card-elevated rounded-2xl p-[5vw]">
-                  <div className="flex items-start gap-[4vw]">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${log.type === 'programmata' ? 'bg-violet-500/15' : 'bg-amber-500/15'}`}>
-                      {log.type === 'programmata' ? <Shield size={22} className="text-violet-400" /> : <AlertTriangle size={22} className="text-amber-400" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-lg font-bold text-themed">{log.title}</p>
-                      {log.description && <p className="text-base text-muted mt-1">{log.description}</p>}
-                      <div className="flex items-center gap-3 mt-2 text-sm text-faint flex-wrap">
-                        <span>{log.performed_by_name}</span>
-                        <span>{timeAgo(log.performed_at)}</span>
-                        {log.duration_minutes && <span>{log.duration_minutes}min</span>}
-                        {log.parts_replaced && <span>{log.parts_replaced}</span>}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+          )}
+
+          {tab === 'storico' && <MachineLogsTab logs={logs} loading={loading} />}
+
+          {tab === 'manutenzioni' && (
+            <MachinePlansTab
+              plans={plans}
+              planLastLogs={planLastLogs}
+              loading={loading}
+              onConfirmPlan={setConfirmPlan}
+            />
           )}
         </div>
-
-        {/* ═══ RESOLVED ═══ */}
-        {resolvedReports.length > 0 && (
-          <div>
-            <button onClick={() => toggle(setShowResolved)} aria-expanded={showResolved} aria-label={`${showResolved ? 'Nascondi' : 'Mostra'} segnalazioni concluse`} className="w-full flex items-center justify-between py-[3vw] px-1 press-scale">
-              <p className="text-sm text-muted font-bold uppercase tracking-wider flex items-center gap-2">
-                <CheckCircle size={17} /> Concluse ({resolvedReports.length})
-              </p>
-              <ChevronDown
-                size={22}
-                className="text-faint"
-                style={{
-                  transform: showResolved ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.25s var(--ease-out-expo)',
-                }}
-              />
-            </button>
-            {showResolved && (
-              <div className="space-y-2.5">
-                {resolvedReports.slice(0, 5).map((r, i) => (
-                  <div
-                    key={r.id}
-                    className="rounded-2xl flex items-center gap-2.5 p-3"
-                    style={{
-                      background: 'rgba(255,255,255,0.04)',
-                      backdropFilter: 'blur(16px)',
-                      WebkitBackdropFilter: 'blur(16px)',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                      animation: 'fadeIn 0.3s var(--ease-out-expo) backwards',
-                      animationDelay: `${i * 50}ms`,
-                    }}
-                  >
-                    <div className="shrink-0">
-                      <span
-                        style={{
-                          display: 'block',
-                          width: 10,
-                          height: 10,
-                          borderRadius: '50%',
-                          background: '#3ddc84',
-                          boxShadow: '0 0 12px #3ddc84, 0 0 4px #3ddc84',
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0" style={{ opacity: 0.6 }}>
-                      <p className="text-sm font-medium text-themed truncate">{r.title}</p>
-                      <p className="text-xs truncate" style={{ opacity: 0.38 }}>{timeAgo(r.created_at)}</p>
-                    </div>
-                    <CheckCircle size={18} className="text-emerald-400 shrink-0 opacity-70" />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        </div>
       </div>
 
-      {/* ═══ FAB ═══ */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom px-[4vw] pb-[4vw] pt-[3vw]"
-        style={{ background: 'linear-gradient(to top, var(--color-bg) 60%, transparent)' }}>
+      {/* ═══ AZIONI ═══ */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom"
+        style={{
+          ...padX,
+          paddingTop: '3vw',
+          paddingBottom: 'calc(4vw + env(safe-area-inset-bottom, 0px))',
+          background: 'linear-gradient(to top, var(--color-bg) 60%, transparent)',
+        }}>
         <div className="flex gap-[3.5vw]">
           <button
             onClick={() => { haptic.medium(); if (onQuickReport) onQuickReport(machine.name) }}
-            className="flex-1 py-[5vw] rounded-xl text-xl font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
+            className="flex-1 h-[68px] rounded-xl text-xl font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
             style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', boxShadow: '0 6px 24px rgba(245,158,11,0.35)' }}
           >
             <Zap size={26} strokeWidth={2.5} /> Rapido
           </button>
           <button
             onClick={() => { haptic.medium(); if (onNewReport) onNewReport(machine.name) }}
-            className="flex-1 py-[5vw] rounded-xl text-xl font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
+            className="flex-1 h-[68px] rounded-xl text-xl font-bold text-white flex items-center justify-center gap-3 press-scale active:scale-[0.97] transition-all"
             style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', boxShadow: '0 6px 24px rgba(239,68,68,0.3)' }}
           >
             <AlertTriangle size={26} strokeWidth={2.5} /> Segnala
@@ -583,13 +381,13 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
             </div>
             <div className="flex gap-[3vw]">
               <button onClick={handleConfirmMaintenance} disabled={confirming}
-                className="flex-1 py-[4vw] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-2 press-scale transition-all"
+                className="flex-1 h-[68px] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-2 press-scale transition-all"
                 style={{ background: '#22c55e', boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}>
                 {confirming ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   : <><CheckCircle size={20} /> Conferma</>}
               </button>
               <button onClick={() => setConfirmPlan(null)}
-                className="w-[25vw] py-[4vw] rounded-2xl text-lg font-bold bg-surface-2 text-muted press-scale">Annulla</button>
+                className="w-[25vw] h-[68px] rounded-2xl text-lg font-bold bg-surface-2 text-muted press-scale">Annulla</button>
             </div>
           </div>
         </div>
@@ -610,6 +408,9 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
               <div className="flex-1 min-w-0">
                 <h3 id="resolve-report-title" className="text-lg font-bold text-themed">Risolvi e Registra</h3>
                 <p className="text-sm text-faint truncate">{resolveReport.title}</p>
+                <p className="font-mono text-[10.5px] uppercase tracking-wider text-faint truncate mt-0.5">
+                  {resolveReport.created_by_name} · {timeAgo(resolveReport.created_at)}
+                </p>
               </div>
             </div>
             <div className="space-y-[3vw] mb-[4vw]">
@@ -634,13 +435,13 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
             <p className="text-xs text-faint text-center mb-[3vw]">La segnalazione verrà chiusa e l'intervento registrato</p>
             <div className="flex gap-[3vw]">
               <button onClick={handleResolveAndLog} disabled={resolving}
-                className="flex-1 py-[4vw] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-2 press-scale transition-all"
+                className="flex-1 h-[68px] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-2 press-scale transition-all"
                 style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}>
                 {resolving ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   : <><Wrench size={20} /> Risolvi e Registra</>}
               </button>
               <button onClick={() => setResolveReport(null)}
-                className="w-[25vw] py-[4vw] rounded-2xl text-lg font-bold bg-surface-2 text-muted press-scale">Annulla</button>
+                className="w-[25vw] h-[68px] rounded-2xl text-lg font-bold bg-surface-2 text-muted press-scale">Annulla</button>
             </div>
           </div>
         </div>
