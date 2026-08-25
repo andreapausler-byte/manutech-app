@@ -17,7 +17,7 @@
 
 import { useMemo, useState } from 'react'
 import {
-  Play, Star, ArrowUpRight,
+  Play, Star, ArrowUpRight, Camera,
   MessageSquare, AlertTriangle, Wrench, CalendarClock, FileText, X,
 } from 'lucide-react'
 import { timeAgo } from '../../lib/constants'
@@ -34,6 +34,7 @@ const SOURCE_META = {
   manutenzione: { label: 'Manutenzione', icon: Wrench, color: '#3ddc84' },
   intervento: { label: 'Intervento', icon: CalendarClock, color: '#7c6aff' },
   scheda: { label: 'Scheda', icon: FileText, color: '#8b96a8' },
+  campo: { label: 'Dal campo', icon: Camera, color: '#7c6aff' },
 }
 
 const FILTERS = [
@@ -44,7 +45,7 @@ const FILTERS = [
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
-export default function MachineGallery({ machine, onOpenReport, media = null }) {
+export default function MachineGallery({ machine, onOpenReport, media = null, onCapture, capturing }) {
   const toast = useToast()
   const haptic = useHaptic()
   // Se il feed arriva dall'alto l'hook locale gira a vuoto, invece di
@@ -69,6 +70,10 @@ export default function MachineGallery({ machine, onOpenReport, media = null }) 
     }
     return items
   }, [items, filter, recentSince])
+
+  // Il tasto Scatta sta solo nella vista completa: dentro "In evidenza"
+  // o "Ultimi 30g" una foto nuova sparirebbe subito dal filtro attivo.
+  const showCapture = !!onCapture && filter === 'all'
 
   const openItem = (item) => {
     haptic.light()
@@ -136,17 +141,25 @@ export default function MachineGallery({ machine, onOpenReport, media = null }) 
       )}
 
       {!loading && visible.length === 0 && (
-        <p className="text-base text-faint text-center leading-relaxed" style={{ paddingTop: '10vw', paddingBottom: '10vw' }}>
-          {filter === 'featured'
-            ? 'Nessuna foto in evidenza. Tocca la stella su una foto per tenerla qui.'
-            : filter === 'recent'
-              ? 'Nessuna foto negli ultimi 30 giorni.'
-              : 'Nessuna foto o video su questa macchina. Le foto scattate in chat o allegate a una segnalazione finiscono qui da sole.'}
-        </p>
+        <>
+          {showCapture && (
+            <div className="grid grid-cols-2 gap-[3vw]">
+              <CaptureTile onCapture={onCapture} busy={capturing} />
+            </div>
+          )}
+          <p className="text-base text-faint text-center leading-relaxed" style={{ paddingTop: '6vw', paddingBottom: '10vw' }}>
+            {filter === 'featured'
+              ? 'Nessuna foto in evidenza. Tocca la stella su una foto per tenerla qui.'
+              : filter === 'recent'
+                ? 'Nessuna foto negli ultimi 30 giorni.'
+                : 'Nessuna foto o video su questa macchina. Scatta la prima qui sopra, oppure allegane una a una segnalazione: finisce qui da sola.'}
+          </p>
+        </>
       )}
 
       {!loading && visible.length > 0 && (
         <div className="grid grid-cols-2 gap-[3vw]">
+          {showCapture && <CaptureTile onCapture={onCapture} busy={capturing} />}
           {visible.map(item => (
             <MediaTile
               key={item.url}
@@ -201,6 +214,36 @@ export default function MachineGallery({ machine, onOpenReport, media = null }) 
         </div>
       )}
     </div>
+  )
+}
+
+
+// ── CaptureTile ──────────────────────────────────────────
+//
+// Stessa forma di una miniatura, così sta nella griglia senza rompere
+// il ritmo: chi cerca la fotocamera la trova dove sono le foto.
+
+function CaptureTile({ onCapture, busy }) {
+  return (
+    <button
+      onClick={onCapture}
+      disabled={busy}
+      aria-label="Scatta una foto per questa macchina"
+      className="aspect-square rounded-2xl flex flex-col items-center justify-center gap-[2vw] press-scale transition-colors active:bg-surface-3"
+      style={{
+        border: '1px dashed var(--color-border-hover)',
+        background: 'var(--color-surface-1)',
+        opacity: busy ? 0.6 : 1,
+      }}
+    >
+      {busy
+        ? <div className="w-8 h-8 border-2 rounded-full animate-spin"
+            style={{ borderColor: 'var(--color-border)', borderTopColor: 'var(--color-primary)' }} />
+        : <Camera size={34} strokeWidth={1.6} style={{ color: 'var(--color-primary)' }} />}
+      <span className="font-mono text-[11px] uppercase tracking-wider" style={{ color: 'var(--color-primary)' }}>
+        {busy ? 'Carico…' : 'Scatta'}
+      </span>
+    </button>
   )
 }
 

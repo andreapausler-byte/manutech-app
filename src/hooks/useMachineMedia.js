@@ -7,8 +7,12 @@
  * sapere quali sono "in evidenza".
  *
  * Uso:
- *   const { items, featured, loading, hasMore, loadMore, toggleFeature } =
- *     useMachineMedia(machine)
+ *   const { items, featured, attachments, loading, hasMore, loadMore,
+ *           toggleFeature, applyAttachments } = useMachineMedia(machine)
+ *
+ * `applyAttachments(list)` serve a chi scrive negli attachments per
+ * altre vie (un upload dal campo): passa la lista fresca e la scheda si
+ * aggiorna senza rileggere la macchina.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -88,9 +92,11 @@ export function useMachineMedia(machine) {
     [attachments]
   )
 
-  // La galleria curata può contenere foto caricate a mano dall'admin, che
-  // nel feed non compaiono: le anteponiamo così la vista "In evidenza" è
-  // completa.
+  // La galleria curata può contenere foto che nel feed non compaiono:
+  // caricate a mano dall'ufficio, o scattate dal campo con il tasto
+  // Scatta. Le anteponiamo così la vista "In evidenza" è completa, e
+  // teniamo distinte le due provenienze — chi guarda la foto vuole
+  // sapere se l'ha scattata qualcuno davanti alla macchina.
   const items = useMemo(() => {
     const feedUrls = new Set(rawItems.map(i => i.url))
     const manual = attachments
@@ -101,9 +107,9 @@ export function useMachineMedia(machine) {
         type: a.type === 'video' ? 'video' : 'photo',
         name: a.name || null,
         taken_at: a.uploaded_at || null,
-        source: 'scheda',
+        source: a.uploaded_from === 'campo' ? 'campo' : 'scheda',
         source_id: null,
-        source_label: 'Scheda macchina',
+        source_label: a.uploaded_from === 'campo' ? 'Scattata dal campo' : 'Scheda macchina',
         author_name: a.uploaded_by_name || null,
       }))
     return [...rawItems, ...manual]
@@ -113,13 +119,20 @@ export function useMachineMedia(machine) {
 
   const featured = useMemo(() => items.filter(i => i.is_featured), [items])
 
-  const toggleFeature = useCallback(async (item) => {
-    const next = await db.toggleMachineMediaFeature(machineId, item)
-    setOverride({ machineId, list: next || [] })
-    return next
+  const applyAttachments = useCallback((list) => {
+    setOverride({ machineId, list: list || [] })
   }, [machineId])
 
-  return { items, featured, loading, loadingMore, hasMore, loadMore, toggleFeature }
+  const toggleFeature = useCallback(async (item) => {
+    const next = await db.toggleMachineMediaFeature(machineId, item)
+    applyAttachments(next)
+    return next
+  }, [machineId, applyAttachments])
+
+  return {
+    items, featured, attachments, loading, loadingMore, hasMore,
+    loadMore, toggleFeature, applyAttachments,
+  }
 }
 
 export default useMachineMedia

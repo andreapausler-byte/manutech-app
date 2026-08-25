@@ -31,6 +31,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useMachineMedia } from '../../hooks/useMachineMedia'
+import { useMachineUpload } from '../../hooks/useMachineUpload'
 import {
   ArrowLeft, Wrench, AlertTriangle, CheckCircle, Zap, Trash2,
 } from 'lucide-react'
@@ -65,6 +66,11 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   // Il feed foto sta qui e non dentro la galleria: la barra a schede deve
   // poter mostrare il contatore anche quando il tab Foto non è aperto.
   const media = useMachineMedia(machine)
+
+  // Scatta e Carica documento scrivono negli attachments della macchina.
+  // La lista fresca torna dalla RPC e la passiamo all'hook del feed, così
+  // contatori e griglia si aggiornano senza rileggere la macchina.
+  const upload = useMachineUpload(machine, media.applyAttachments)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -166,8 +172,9 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   const resolvedReports = reports.filter(r => isTerminalStatus(r.status))
   const urgentCount = plans.filter(p => getTrafficLight(p, planLastLogs[p.id]).urgent).length
   // Le foto promosse in galleria vivono anche loro in `attachments`: il
-  // tab Documenti conta solo i file veri.
-  const documentCount = (machine.attachments || []).filter(a => a.category !== 'foto').length
+  // tab Documenti conta solo i file veri. La lista viene dall'hook e non
+  // dalla prop, così un caricamento appena fatto si vede subito.
+  const documentCount = media.attachments.filter(a => a.category !== 'foto').length
 
   // Riga d'identità: reparto, matricola, anno. Costruttore e modello
   // stanno nella scheda tecnica dentro il tab Documenti — qui non ci
@@ -284,6 +291,8 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
               <MachineGallery
                 machine={machine}
                 media={media}
+                onCapture={upload.capturePhoto}
+                capturing={upload.busy}
                 onOpenReport={(reportId) => {
                   const target = reports.find(r => r.id === reportId)
                   if (target) openReport(target)
@@ -293,7 +302,14 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
             </>
           )}
 
-          {tab === 'documenti' && <MachineDocsTab machine={machine} />}
+          {tab === 'documenti' && (
+            <MachineDocsTab
+              machine={machine}
+              attachments={media.attachments}
+              onUpload={upload.uploadDocument}
+              uploading={upload.busy}
+            />
+          )}
 
           {tab === 'storico' && <MachineLogsTab logs={logs} loading={loading} />}
 

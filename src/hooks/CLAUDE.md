@@ -23,6 +23,7 @@
 | `useAutosave` | Salva stato form in localStorage con debounce | `localStorage` |
 | `useImageCompressor` | Comprime immagini e genera miniature prima dell'upload | Canvas API |
 | `useMachineMedia` | Galleria foto/video di una macchina (feed + curata) | `supabase.js` |
+| `useMachineUpload` | Scatta foto / carica documento sulla macchina dal campo | `supabase.js`, `useImageCompressor` |
 
 ## Pattern auto-reward
 `useAutoTokenReward(userId, badges, level)` accredita ManuCoin automaticamente.

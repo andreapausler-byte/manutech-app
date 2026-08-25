@@ -29,8 +29,16 @@ Design di riferimento: canvas "Macchinario · Risorse", direzione 1A rivisitata 
 ### Note
 - **Il reset globale in `styles/index.css` (`* { margin: 0; padding: 0 }`) è fuori da `@layer`**: in Tailwind v4 il CSS senza layer batte le utility, quindi in tutta l'app `p-*`, `m-*`, `px-[4vw]` e `space-y-*` non producono nulla (solo `gap-*` sopravvive). Le spaziature di questa schermata sono quindi inline. Non è stato toccato qui perché sistemarlo cambia la spaziatura di ogni schermata dell'app — va fatto come intervento a sé.
 
+### Added — scrittura dal campo (completa il design 2A)
+- **Scatta** nel tab Foto: primo riquadro della griglia, apre la fotocamera, comprime, genera la miniatura e aggiunge la foto alla macchina. Compare solo nella vista "Tutte" — dentro "In evidenza" o "Ultimi 30g" una foto nuova sparirebbe dal filtro appena scattata.
+- **Carica documento** nel tab Doc: apre un foglio con le cartelle documentali (righe da 68px), poi il picker. PDF e immagini. I PDF fanno partire `queueMachineReindex` in sottofondo, così entrano nella biblioteca AI senza far aspettare chi è davanti alla macchina.
+- Le foto scattate dal campo si distinguono da quelle caricate dall'ufficio: badge **Dal campo** invece di **Scheda**, dal campo `uploaded_from`.
+- Migration **061**: RPC `add_machine_attachment(_machine_id, _attachment)`, `SECURITY DEFINER` come la 060 e per lo stesso motivo — `machines_update` è admin-only ma chi ha in mano la macchina è l'operatore. Autore, data e org li mette il server; `type` e `category` sono su whitelist; idempotente sull'URL (due tap non fanno due voci); tetto a 200 allegati per non far crescere senza limite una colonna JSONB su riga singola.
+- Nuovo hook `useMachineUpload(machine, applyAttachments)` — un solo percorso per entrambi i gesti. `useMachineMedia` espone `attachments` e `applyAttachments`, così contatori e griglia si aggiornano senza rileggere la macchina.
+- `lib/machineDocCategories.js`: la lista delle cartelle era solo dentro la scheda admin, ora è condivisa fra mobile, admin e whitelist della RPC. La scheda admin ci aggiunge icone e colori.
+
 ### Out of scope (rinviato)
-- I due tasti di scrittura del design — **Scatta** nella galleria e **Carica documento** — non ci sono: entrambi scrivono su `machines.attachments`, e `machines_update` è admin-only. Servono due RPC `SECURITY DEFINER` sul modello di `toggle_machine_media_feature`, cioè una migration.
+- Non si cancella un allegato dal mobile: chi sbaglia foto la fa togliere dall'ufficio. Un `remove_machine_attachment` limitato a quello che hai caricato tu è la mossa successiva, ma va deciso chi può cosa.
 - "Storico completo" e "Altre N segnalazioni" espandono in pagina invece di aprire una schermata dedicata, che non esiste.
 
 ---
