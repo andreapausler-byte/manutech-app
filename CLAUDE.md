@@ -5,7 +5,7 @@
 *Aggiorna queste 3 righe quando inizi una sessione di lavoro. Sono il "tu sei qui" del progetto. Si aggiornano spesso — anche più volte a settimana.*
 
 - **Fase**: **Scheda macchina a schede** (design 2A) ✓ — foto, documenti e interventi non sono più tre accordion in fondo alla pagina sotto otto segnalazioni: sono cinque schede fisse sotto l'intestazione (Segnal. · Foto · Doc · Storico · Manut.), con contatore, e nessuna risorsa costa più di un tap. Misure per l'uso con i guanti: niente bersaglio sotto 56px, schede da 80px, righe 76-96px, testo lista 18px, stato premuto pieno. `MobileMachineDetail` scende a shell + cinque componenti tab; `MachineGallery` perde la fisarmonica e vive dentro il tab Foto. **Scatta** e **Carica documento** scrivono negli attachments via la RPC `add_machine_attachment` (migration 061).
-- **Branch corrente**: `claude/hopeful-hamilton-g6mjwc` (da mergiare in `master`)
+- **Branch corrente**: `master` — `claude/hopeful-hamilton-g6mjwc` è stato mergiato (v5.18 + v5.18.1). Le migration 060 e 061 **non sono ancora applicate in produzione**.
 - **Prossimo step**: (a) applicare le **migration 060 e 061** in produzione — senza la 060 la galleria resta vuota, senza la 061 i tasti Scatta e Carica documento danno errore; (b) il reset globale in `styles/index.css` neutralizza tutte le utility di padding/margin di Tailwind in tutta l'app (vedi Debito tecnico) — va deciso se sistemarlo; (c) galleria per l'operatore in `OperatorApp`, e open question dell'ADR-011 (bucket privato, retention GDPR, video non compressi); (d) resta aperta la review trimestrale ROADMAP (era in agenda il **2/8**).
 
 ---
