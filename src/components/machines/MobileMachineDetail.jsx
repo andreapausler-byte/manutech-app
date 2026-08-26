@@ -25,6 +25,7 @@ import MachineGallery from './MachineGallery'
 import MachineTabBar from './MachineTabBar'
 import MachineReportsTab from './MachineReportsTab'
 import MachineDocsTab from './MachineDocsTab'
+import MachineComponentsTab from './MachineComponentsTab'
 import MachineLogsTab from './MachineLogsTab'
 import MachinePlansTab from './MachinePlansTab'
 import { useAuth } from '../../contexts/AuthContext'
@@ -46,6 +47,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
   const [plans, setPlans] = useState([])
   const [logs, setLogs] = useState([])
+  const [components, setComponents] = useState([])
   const [reports, setReports] = useState([])
   const [planLastLogs, setPlanLastLogs] = useState({})
   const [loading, setLoading] = useState(true)
@@ -63,6 +65,14 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
   const [assessment, setAssessment] = useState(null)
 
+  // Registrazione intervento su un pezzo: il foglio è qui e non dentro il
+  // tab perché deve poter sopravvivere al cambio scheda mentre si scrive.
+  const [workComponent, setWorkComponent] = useState(null)
+  const [workTitle, setWorkTitle] = useState('')
+  const [workNote, setWorkNote] = useState('')
+  const [workDuration, setWorkDuration] = useState('')
+  const [savingWork, setSavingWork] = useState(false)
+
   // Il feed foto sta qui e non dentro la galleria: la barra a schede deve
   // poter mostrare il contatore anche quando il tab Foto non è aperto.
   const media = useMachineMedia(machine)
@@ -75,13 +85,15 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [p, l, r] = await Promise.all([
+      const [p, l, r, comp] = await Promise.all([
         db.getMaintenancePlans(machine.id),
         db.getMaintenanceLogs(machine.id),
         db.getReports(),
+        db.getMachineComponents(machine.id).catch(() => []),
       ])
       setPlans(p)
       setLogs(l)
+      setComponents(comp)
       // Match sulla FK, con fallback sullo snapshot testuale per le
       // segnalazioni vecchie create prima di machine_id.
       setReports(r.filter(rep =>
@@ -183,6 +195,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
   const counts = {
     segnalazioni: activeReports.length || null,
+    componenti: components.length || null,
     foto: media.loading ? null : (media.items.length || null),
     documenti: documentCount || null,
     storico: logs.length || null,
@@ -193,6 +206,40 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
     segnalazioni: activeReports.length > 0 ? '#f59e0b' : null,
     manutenzioni: urgentCount > 0 ? '#ef4444' : (plans.length > 0 ? '#22c55e' : null),
   }
+
+  // Registra un intervento sul pezzo. Stesso `maintenance_log` di sempre —
+  // resta un intervento della macchina — con in più il componente, così lo
+  // storico del pezzo si popola da solo (ADR-012).
+  const saveComponentWork = async () => {
+    if (!workComponent || !workTitle.trim()) return
+    setSavingWork(true)
+    try {
+      await db.createMaintenanceLog({
+        machine_id: machine.id,
+        component_id: workComponent.id,
+        type: 'straordinaria',
+        title: workTitle.trim(),
+        description: workNote.trim() || null,
+        performed_by: user?.id,
+        performed_by_name: user?.name,
+        duration_minutes: workDuration ? parseInt(workDuration) : null,
+        performed_at: new Date().toISOString(),
+        org_id: user?.org_id,
+      })
+      haptic.success()
+      toast.success(`Intervento registrato su ${workComponent.name}`)
+      setWorkComponent(null); setWorkTitle(''); setWorkNote(''); setWorkDuration('')
+      await loadData()
+    } catch (e) {
+      toast.error('Errore: ' + (e.message || 'riprova'))
+    }
+    setSavingWork(false)
+  }
+
+  // Registrare un intervento è riservato a tecnico e admin: la RPC
+  // `create_maintenance_log` (migration 028) rifiuta gli altri ruoli, e un
+  // tasto che porta a "permesso negato" è peggio di un tasto che non c'è.
+  const canLogWork = user?.role === 'tecnico' || user?.role === 'admin'
 
   const openReport = (r) => onViewReport?.(r)
 
@@ -272,6 +319,23 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
               onOpenReport={openReport}
               onResolveReport={setResolveReport}
               onGoToPlans={() => setTab('manutenzioni')}
+            />
+          )}
+
+          {tab === 'componenti' && (
+            <MachineComponentsTab
+              machine={machine}
+              components={components}
+              attachments={media.attachments}
+              reports={reports}
+              logs={logs}
+              canLogWork={canLogWork}
+              uploading={upload.busy}
+              onCapture={(comp) => upload.capturePhoto(comp)}
+              onUploadDoc={(category, comp) => upload.uploadDocument(category, comp)}
+              onRegisterWork={(comp) => { setWorkTitle(''); setWorkNote(''); setWorkDuration(''); setWorkComponent(comp) }}
+              onReport={(comp) => onNewReport?.(machine.name, comp.id)}
+              onViewReport={openReport}
             />
           )}
 
@@ -387,6 +451,62 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
                   : <><CheckCircle size={20} /> Conferma</>}
               </button>
               <button onClick={() => setConfirmPlan(null)}
+                className="w-[25vw] h-[68px] rounded-2xl text-lg font-bold bg-surface-2 text-muted press-scale">Annulla</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL — Intervento sul pezzo ═══ */}
+      {workComponent && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setWorkComponent(null)} role="dialog" aria-modal="true" aria-labelledby="work-component-title">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
+          {/* Spaziature inline: il reset globale in styles/index.css annulla
+              p-* e mb-* (debito tecnico noto), e senza queste il foglio
+              tocca i bordi dello schermo. */}
+          <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl animate-slide-up safe-area-bottom"
+            style={{ maxHeight: '80vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '5vw 5vw 8vw' }}
+            onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-surface-3 rounded-full mx-auto" style={{ marginBottom: '4vw' }} />
+            <div className="flex items-center gap-3" style={{ marginBottom: '4vw' }}>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(34,211,238,0.15)' }}>
+                <Wrench size={24} style={{ color: '#22d3ee' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 id="work-component-title" className="text-lg font-bold text-themed">Registra intervento</h3>
+                <p className="text-sm text-faint truncate">{workComponent.name}</p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-[3vw]" style={{ marginBottom: '4vw' }}>
+              <div>
+                <label className="block text-sm text-muted font-semibold" style={{ marginBottom: '1.5vw' }}>Cosa hai fatto *</label>
+                <input value={workTitle} onChange={e => setWorkTitle(e.target.value)}
+                  placeholder="Es. Sostituita tenuta meccanica"
+                  className="w-full input-field rounded-2xl text-base" style={{ padding: '3vw 16px' }} />
+              </div>
+              <div>
+                <label className="block text-sm text-muted font-semibold" style={{ marginBottom: '1.5vw' }}>Note (opzionale)</label>
+                <textarea value={workNote} onChange={e => setWorkNote(e.target.value)}
+                  placeholder="Ricambi usati, cosa controllare la prossima volta…"
+                  className="w-full input-field rounded-2xl text-base resize-none" rows={3} style={{ padding: '3vw 16px' }} />
+              </div>
+              <div>
+                <label className="block text-sm text-muted font-semibold" style={{ marginBottom: '1.5vw' }}>Durata (minuti)</label>
+                <input type="number" inputMode="numeric" value={workDuration} onChange={e => setWorkDuration(e.target.value)}
+                  placeholder="30" className="w-full input-field rounded-2xl text-base" style={{ padding: '3vw 16px' }} />
+              </div>
+            </div>
+            <p className="text-[13px] text-faint leading-relaxed" style={{ marginBottom: '4vw' }}>
+              Finisce nel registro interventi del macchinario, con il pezzo indicato.
+            </p>
+            <div className="flex gap-[3vw]">
+              <button onClick={saveComponentWork} disabled={savingWork || !workTitle.trim()}
+                className="flex-1 h-[68px] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-2 press-scale transition-all disabled:opacity-50"
+                style={{ background: '#22c55e', boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}>
+                {savingWork ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : <><CheckCircle size={20} /> Registra</>}
+              </button>
+              <button onClick={() => setWorkComponent(null)}
                 className="w-[25vw] h-[68px] rounded-2xl text-lg font-bold bg-surface-2 text-muted press-scale">Annulla</button>
             </div>
           </div>

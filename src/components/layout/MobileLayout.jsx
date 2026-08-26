@@ -424,6 +424,10 @@ export default function MobileLayout({ initialReportId }) {
   const [tab, setTab] = useState(user?.role === 'tecnico' ? 'reports' : 'home')
   const [screen, setScreen] = useState(null)
   const [selectedReport, setSelectedReport] = useState(null)
+  // Componente preselezionato per la prossima segnalazione (aperta dalla
+  // scheda di un pezzo). Viaggia a parte perché `selectedReport` porta già
+  // il nome della macchina.
+  const [reportComponentId, setReportComponentId] = useState(null)
   const [transitionClass, setTransitionClass] = useState('page-slide-in')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const haptic = useHaptic()
@@ -511,6 +515,13 @@ export default function MobileLayout({ initialReportId }) {
   }
 
   const openNewReport = () => navigateTo('new-report')
+
+  // Segnalazione aperta dalla scheda di un pezzo: la macchina viaggia già
+  // come dato della navigazione, il componente ha bisogno di un canale suo.
+  const openNewReportForComponent = (machineName, componentId = null) => {
+    setReportComponentId(componentId)
+    navigateTo('new-report', machineName, () => setReportComponentId(null))
+  }
   const openQuickReport = (machineName) => navigateTo('quick-report', machineName || null)
   const openReport = (report) => {
     // Segna la chat come letta quando apri il report
@@ -566,6 +577,7 @@ export default function MobileLayout({ initialReportId }) {
           onBack={goBack}
           onCreated={handleCreated}
           preselectedMachine={typeof selectedReport === 'string' ? selectedReport : null}
+          preselectedComponentId={reportComponentId}
         />
       </div>
     )
@@ -615,7 +627,7 @@ export default function MobileLayout({ initialReportId }) {
           onBack={goBack}
           onViewReport={openReport}
           onQuickReport={openQuickReport}
-          onNewReport={(machineName) => navigateTo('new-report', machineName)}
+          onNewReport={openNewReportForComponent}
           onDelete={async () => {
             if (!confirm(`Eliminare il macchinario "${selectedReport.name}"?`)) return
             try {

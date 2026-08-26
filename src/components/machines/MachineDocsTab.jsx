@@ -12,10 +12,10 @@
  */
 
 import { useState } from 'react'
-import { FileText, Image as ImageIcon, Film, ExternalLink, Plus, X } from 'lucide-react'
+import { FileText, Image as ImageIcon, Film, ExternalLink, Plus } from 'lucide-react'
 import { timeAgo } from '../../lib/constants'
-import { FIELD_DOC_CATEGORIES, categoryLabel } from '../../lib/machineDocCategories'
-import { TabHeading, TabActionRow, TabEmptyFrame } from './MachineTabParts'
+import { categoryLabel } from '../../lib/machineDocCategories'
+import { TabHeading, TabActionRow, TabEmptyFrame, CategorySheet } from './MachineTabParts'
 import { padX, padRow } from './machineTabs'
 import { EmptyState } from '../ui'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -168,49 +168,3 @@ export default function MachineDocsTab({ machine, attachments, onUpload, uploadi
 //
 // In che cartella va il file lo sa solo chi lo carica. Righe da 68px:
 // si sceglie con i guanti, senza mirare.
-
-function CategorySheet({ onPick, onClose }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="doc-category-title"
-    >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
-      <div
-        className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl animate-slide-up safe-area-bottom"
-        style={{ maxHeight: '80vh', overflowY: 'auto', paddingBottom: '6vw' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-[3vw]" style={{ ...padX, paddingTop: '4vw', paddingBottom: '3vw' }}>
-          <h3 id="doc-category-title" className="flex-1 text-xl font-bold text-themed">In che cartella?</h3>
-          <button
-            onClick={onClose}
-            aria-label="Annulla"
-            className="w-[56px] h-[56px] rounded-2xl bg-surface-2 flex items-center justify-center shrink-0 active:bg-surface-3"
-          >
-            <X size={22} className="text-muted" />
-          </button>
-        </div>
-
-        {FIELD_DOC_CATEGORIES.map(cat => (
-          <button
-            key={cat.id}
-            onClick={() => onPick(cat.id)}
-            className="w-full flex items-center gap-[3vw] border-t text-left active:bg-surface-2 transition-colors"
-            style={{ ...padX, minHeight: 68, borderColor: 'var(--color-border-subtle)' }}
-          >
-            <span className="flex-1 min-w-0" style={{ paddingTop: '2.5vw', paddingBottom: '2.5vw' }}>
-              <span className="block text-[18px] font-medium text-themed">{cat.label}</span>
-              <span className="block font-mono text-[11px] text-faint truncate" style={{ marginTop: 4 }}>
-                {cat.desc}
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}

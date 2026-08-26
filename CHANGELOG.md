@@ -6,6 +6,25 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.20 — I pezzi anche dal campo
+
+### Added
+- **Tab «Pezzi» nella scheda macchina mobile** (`MachineComponentsTab`, nuovo): elenco dei componenti con quante segnalazioni aperte e quanti file ha ciascuno, e a un tap la scheda del pezzo — anagrafica, note, foto, documenti, segnalazioni e interventi che lo riguardano. Le schede della scheda macchina passano da cinque a sei: **Segnal. · Pezzi · Foto · Doc · Storico · Manut.**, e `Pezzi` sta subito dopo le segnalazioni perché davanti alla macchina la seconda domanda è quasi sempre "quale pezzo".
+- **Quattro azioni dalla scheda del pezzo**, righe da 68px come il resto del mobile: **Scatta foto**, **Carica documento** (con la scelta della cartella), **Registra intervento** e **Segnala guasto sul pezzo**. Le foto e i documenti caricati da qui non escono dalla macchina — restano in `machines.attachments` con l'etichetta del componente (ADR-012), quindi compaiono in galleria e nelle cartelle documentali come prima.
+- **Registra intervento sul pezzo**: crea un `maintenance_log` della macchina con `component_id`, così lo storico del singolo componente si popola da solo. Visibile solo a tecnico e admin — la RPC `create_maintenance_log` rifiuta gli altri ruoli, e un tasto che porta a "permesso negato" è peggio di un tasto che non c'è.
+- **Segnala guasto sul pezzo**: apre la segnalazione con macchina **e componente** già scelti, ma cambiabili — chi scrive può accorgersi che il guasto è altrove. `NewReport` accetta `preselectedComponentId`, e `MobileLayout` lo porta fino al form.
+- La galleria del pezzo apre il visore a schermo intero con nomi file parlanti (macchina, pezzo, data), come la galleria della macchina.
+
+### Changed
+- `MachineTabBar` prende le colonne da `MACHINE_TABS` invece che da una classe fissa a cinque: con sei schede su uno schermo da 360px restano 60px l'una.
+- `CategorySheet` ("in che cartella?") si sposta da `MachineDocsTab` a `MachineTabParts`: ora la stessa domanda la fa anche il tab Pezzi, e due copie della lista cartelle sarebbero due liste che divergono.
+
+### Note
+- **L'operatore oggi non ha il tab «Macchine» nel menu in basso** (`TABS_BY_ROLE`), quindi non ha nessuna strada per arrivare alla scheda macchina — e di conseguenza nemmeno ai pezzi. Il tab Pezzi è pronto per lui, l'accesso no: è una decisione di prodotto aperta.
+- Le spaziature del nuovo foglio "Registra intervento" sono inline: il reset globale in `styles/index.css` annulla `p-*` e `mb-*` (debito tecnico noto). I due fogli preesistenti sulla stessa schermata — Conferma manutenzione e Risolvi e registra — hanno lo stesso problema e non sono stati toccati qui.
+
+---
+
 ## [Unreleased] — v5.19 — Componenti con documentazione propria
 
 Decisione e alternative scartate: `docs/decisions/ADR-012-machine-components-documents.md`.
