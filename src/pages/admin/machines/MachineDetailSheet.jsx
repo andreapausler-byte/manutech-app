@@ -11,6 +11,7 @@ import {
   Star, Sparkles, BookOpen, Image as ImageIcon, FileSignature, ShieldCheck,
 } from 'lucide-react'
 import MachineDocumentationTab from './MachineDocumentationTab'
+import MachineComponentsTab from './MachineComponentsTab'
 import { useMachineMedia } from '../../../hooks/useMachineMedia'
 import AISummaryCard from '../../../components/assistant/AISummaryCard'
 
@@ -615,6 +616,8 @@ export default function MachineDetailSheet({
   onOpenPlanForm, onDeletePlan, onOpenLogForm, onEditLog, onDeleteLog,
   onHandleCSVFile,
   onOpenComponentForm, onDeleteComponent,
+  onUploadComponentFile, onSetAttachmentComponent,
+  componentUploading = false,
   onUploadToMachine, onUploadFileToMachine, onRemoveAttachment, onToggleFavoriteAttachment, onSaveField,
   onToggleMachineMedia,
   onOpenAssistant,
@@ -1046,52 +1049,18 @@ export default function MachineDetailSheet({
 
               {/* ═══ COMPONENTS TAB ═══ */}
               {detailTab === 'components' && (
-                <div className="space-y-4 animate-fade-in">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-muted">{components.length} componenti</p>
-                    <button onClick={() => onOpenComponentForm?.()} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-bold transition-all">
-                      <Plus size={14} /> Nuovo Componente
-                    </button>
-                  </div>
-
-                  {components.length === 0 ? (
-                    <div className="text-center py-16">
-                      <Package size={48} className="mx-auto text-faint opacity-15 mb-3" />
-                      <p className="text-sm text-faint">Nessun componente registrato</p>
-                      <p className="text-xs text-faint mt-1">Aggiungi sotto-macchine e componenti per tracciare guasti specifici</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      {components.map(comp => (
-                        <div key={comp.id} className="bg-surface-2 rounded-xl p-4 group hover:bg-surface-3 transition-all">
-                          <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center shrink-0">
-                              <Package size={18} className="text-cyan-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-themed truncate">{comp.name}</p>
-                              {comp.type && (
-                                <span className="text-[10px] font-medium text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded inline-block mt-0.5">{comp.type}</span>
-                              )}
-                              <div className="flex items-center gap-3 mt-2 text-xs text-faint flex-wrap">
-                                {comp.manufacturer && <span className="flex items-center gap-1"><Factory size={10} /> {comp.manufacturer}</span>}
-                                {comp.model && <span className="flex items-center gap-1"><Cog size={10} /> {comp.model}</span>}
-                                {comp.serial_number && <span className="flex items-center gap-1"><Hash size={10} /> {comp.serial_number}</span>}
-                                {comp.year && <span className="flex items-center gap-1"><Calendar size={10} /> {comp.year}</span>}
-                              </div>
-                              {comp.notes && <p className="text-[11px] text-faint mt-1.5 line-clamp-2">{comp.notes}</p>}
-                            </div>
-                            <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => onOpenComponentForm?.(comp)} className="p-1.5 rounded-lg hover:bg-white/10 text-faint hover:text-white"><Edit size={13} /></button>
-                              <button onClick={() => { if (confirm(`Eliminare "${comp.name}"?`)) onDeleteComponent?.(comp.id) }}
-                                className="p-1.5 rounded-lg hover:bg-red-500/20 text-faint hover:text-red-400"><Trash2 size={13} /></button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <MachineComponentsTab
+                  machine={sel}
+                  components={components}
+                  reports={machineReports}
+                  uploading={componentUploading}
+                  onOpenComponentForm={onOpenComponentForm}
+                  onDeleteComponent={onDeleteComponent}
+                  onUploadComponentFile={onUploadComponentFile}
+                  onSetAttachmentComponent={onSetAttachmentComponent}
+                  onRemoveAttachment={onRemoveAttachment}
+                  onOpenReport={onOpenReport}
+                />
               )}
 
               {/* ═══ DOCUMENTATION TAB ═══ */}
@@ -1112,6 +1081,8 @@ export default function MachineDetailSheet({
                   onChangeFolder={setDocsFolder}
                   typeFilter={docsTypeFilter}
                   onChangeTypeFilter={setDocsTypeFilter}
+                  components={components}
+                  onSetAttachmentComponent={onSetAttachmentComponent}
                 />
               )}
 
