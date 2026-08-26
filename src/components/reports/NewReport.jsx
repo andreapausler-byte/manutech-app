@@ -22,7 +22,7 @@ const TYPE_ICONS = {
   ispezione: AlertTriangle,
 }
 
-export default function NewReport({ user, onBack, onCreated, preselectedMachine }) {
+export default function NewReport({ user, onBack, onCreated, preselectedMachine, preselectedComponentId = null }) {
   const [form, setForm] = useState({ ...DEFAULT_FORM, machine: preselectedMachine || '' })
   const [media, setMedia] = useState([])
   const [machines, setMachines] = useState([])
@@ -42,7 +42,19 @@ export default function NewReport({ user, onBack, onCreated, preselectedMachine 
       setMachines(m)
       if (preselectedMachine) {
         const machine = m.find(x => x.name === preselectedMachine)
-        if (machine) db.getMachineComponents(machine.id).then(setComponents).catch(e => console.error('[NewReport] getMachineComponents failed:', e))
+        if (machine) {
+          db.getMachineComponents(machine.id)
+            .then(list => {
+              setComponents(list)
+              // Segnalazione aperta dalla scheda di un pezzo: il pezzo è già
+              // scelto, ma resta cambiabile — chi segnala può accorgersi che
+              // il guasto è altrove mentre scrive.
+              if (preselectedComponentId && list.some(c => c.id === preselectedComponentId)) {
+                setSelectedComponent(preselectedComponentId)
+              }
+            })
+            .catch(e => console.error('[NewReport] getMachineComponents failed:', e))
+        }
       }
     })
     db.getUsers().then(u => setUsers(u.filter(x => x.role === 'tecnico' || x.role === 'admin')))

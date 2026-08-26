@@ -1,13 +1,18 @@
 /**
- * Le cinque schede della scheda macchina, in ordine di lettura:
- * cosa non va adesso → cosa si vede → cosa c'è scritto → cosa è stato
- * fatto → cosa va fatto.
+ * Le sei schede della scheda macchina, in ordine di lettura:
+ * cosa non va adesso → di che pezzo si tratta → cosa si vede → cosa c'è
+ * scritto → cosa è stato fatto → cosa va fatto.
+ *
+ * `Pezzi` sta subito dopo le segnalazioni e non in fondo: davanti alla
+ * macchina la seconda domanda è quasi sempre "quale pezzo", e da lì si
+ * scatta la foto o si registra l'intervento su quel pezzo.
  */
 
-import { AlertTriangle, Images, FileText, Clock, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Package, Images, FileText, Clock, ShieldCheck } from 'lucide-react'
 
 export const MACHINE_TABS = [
   { id: 'segnalazioni', label: 'Segnal.', icon: AlertTriangle },
+  { id: 'componenti', label: 'Pezzi', icon: Package },
   { id: 'foto', label: 'Foto', icon: Images },
   { id: 'documenti', label: 'Doc', icon: FileText },
   { id: 'storico', label: 'Storico', icon: Clock },

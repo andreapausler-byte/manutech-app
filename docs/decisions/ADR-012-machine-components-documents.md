@@ -89,5 +89,5 @@ Il tab Componenti diventa elenco a sinistra (con conteggio file e segnalazioni a
 ## Open questions
 
 1. **Quando `machines.attachments` diventa `machine_files`?** La soglia tecnica è nota (200), quella pratica no: va guardata dopo qualche mese di uso reale.
-2. **Un componente può segnalare?** `reports.component_id` esiste e il tab lo mostra, ma non c'è modo di scegliere il pezzo mentre si crea la segnalazione dal mobile. Sarebbe il passo che rende utile il conteggio guasti per componente.
+2. ~~**Un componente può segnalare?** Non c'è modo di scegliere il pezzo mentre si crea la segnalazione dal mobile.~~ **Sbagliata**: `NewReport` — che è anche il flusso mobile — ha il selettore "Componente specifico" dalla 021, e scrive `component_id` e `component_name`. Il problema vero è a valle: nessuna vista del ticket mostra il pezzo, la chiusura non lo chiede e i `maintenance_log` non lo ereditano. Studio completo in `docs/proposals/2026-08-26-segnalazioni-per-componente.md`.
 3. **Chi può creare un componente?** Oggi admin (policy della 021), mentre i file li può caricare anche il tecnico. È la divisione giusta o il tecnico deve poter registrare il pezzo che ha appena montato?

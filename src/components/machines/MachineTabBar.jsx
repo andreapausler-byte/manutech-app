@@ -9,6 +9,10 @@
  * Misure per l'uso con i guanti: schede da 80px, contatore a pastiglia
  * piena leggibile da lontano, stato premuto pieno — con i guanti il
  * feedback tattile non arriva, deve arrivare quello visivo.
+ *
+ * Le colonne le detta `MACHINE_TABS`, non una classe fissa: con sei
+ * schede su uno schermo da 360px restano 60px l'una, e una colonna in
+ * più scritta a mano da qualche parte sarebbe la prima a divergere.
  */
 
 import { MACHINE_TABS } from './machineTabs'
@@ -18,8 +22,12 @@ export default function MachineTabBar({ active, counts = {}, accents = {}, onCha
     <div
       role="tablist"
       aria-label="Risorse del macchinario"
-      className="grid grid-cols-5 gap-px border-b"
-      style={{ background: 'var(--color-border-subtle)', borderColor: 'var(--color-border)' }}
+      className="grid gap-px border-b"
+      style={{
+        gridTemplateColumns: `repeat(${MACHINE_TABS.length}, minmax(0, 1fr))`,
+        background: 'var(--color-border-subtle)',
+        borderColor: 'var(--color-border)',
+      }}
     >
       {MACHINE_TABS.map(tab => {
         const isActive = active === tab.id
@@ -38,7 +46,7 @@ export default function MachineTabBar({ active, counts = {}, accents = {}, onCha
             style={{ background: isActive ? 'var(--color-surface-2)' : 'var(--color-surface-1)' }}
           >
             <tab.icon
-              size={26}
+              size={24}
               strokeWidth={1.8}
               style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
             />
