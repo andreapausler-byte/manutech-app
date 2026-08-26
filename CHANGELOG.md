@@ -20,7 +20,7 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 - `CategorySheet` ("in che cartella?") si sposta da `MachineDocsTab` a `MachineTabParts`: ora la stessa domanda la fa anche il tab Pezzi, e due copie della lista cartelle sarebbero due liste che divergono.
 
 ### Note
-- **L'operatore oggi non ha il tab «Macchine» nel menu in basso** (`TABS_BY_ROLE`), quindi non ha nessuna strada per arrivare alla scheda macchina — e di conseguenza nemmeno ai pezzi. Il tab Pezzi è pronto per lui, l'accesso no: è una decisione di prodotto aperta.
+- **Il tab Pezzi serve tecnico e admin.** L'operatore non ha il tab «Macchine» nel menu in basso (`TABS_BY_ROLE`), quindi non arriva alla scheda macchina né ai pezzi. Il codice è pronto anche per lui — manca solo la voce di menu — ma **per ora è una scelta deliberata**: l'accesso dell'operatore ai pezzi non è in agenda.
 - Le spaziature del nuovo foglio "Registra intervento" sono inline: il reset globale in `styles/index.css` annulla `p-*` e `mb-*` (debito tecnico noto). I due fogli preesistenti sulla stessa schermata — Conferma manutenzione e Risolvi e registra — hanno lo stesso problema e non sono stati toccati qui.
 
 ---
