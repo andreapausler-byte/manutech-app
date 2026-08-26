@@ -107,9 +107,15 @@ export function useMachineMedia(machine) {
         type: a.type === 'video' ? 'video' : 'photo',
         name: a.name || null,
         taken_at: a.uploaded_at || null,
-        source: a.uploaded_from === 'campo' ? 'campo' : 'scheda',
-        source_id: null,
-        source_label: a.uploaded_from === 'campo' ? 'Scattata dal campo' : 'Scheda macchina',
+        // Una foto archiviata sotto un componente resta una foto della
+        // macchina — compare in galleria come tutte le altre — ma dice di
+        // che pezzo è: è l'unica etichetta che serve a chi la guarda.
+        source: a.component_id ? 'componente' : (a.uploaded_from === 'campo' ? 'campo' : 'scheda'),
+        source_id: a.component_id || null,
+        source_label: a.component_name
+          || (a.uploaded_from === 'campo' ? 'Scattata dal campo' : 'Scheda macchina'),
+        component_id: a.component_id || null,
+        component_name: a.component_name || null,
         author_name: a.uploaded_by_name || null,
       }))
     return [...rawItems, ...manual]

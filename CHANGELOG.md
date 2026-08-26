@@ -6,6 +6,26 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.19 — Componenti con documentazione propria
+
+Decisione e alternative scartate: `docs/decisions/ADR-012-machine-components-documents.md`.
+
+### Added
+- **Il tab Componenti diventa una scheda vera** (`MachineComponentsTab.jsx`, nuovo): elenco dei pezzi a sinistra — con quanti file e quante segnalazioni ha ciascuno — e a destra la scheda del pezzo selezionato: anagrafica, note, segnalazioni collegate e i suoi file. Prima era una griglia di riquadri in sola lettura, e la pompa non aveva un posto dove tenere il proprio manuale.
+- **Tre modi di dare un file a un componente**: **Foto**, **Documento** (con scelta della cartella documentale) e **Archivia esistente**, che prende un file che la macchina ha già e lo mette sotto il pezzo — il caso normale in officina, dove il manuale della pompa sta nelle Schede Tecniche da mesi e solo oggi la pompa diventa un componente.
+- **I file del componente restano file della macchina.** Non c'è un secondo archivio: vivono in `machines.attachments` come prima, con in più l'etichetta `component_id`. Quindi una foto caricata sulla pompa compare nella Galleria Foto, un PDF entra nella biblioteca AI, le cartelle documentali continuano a contarlo. Il tab Componenti è una lente su quei file, non un contenitore.
+- Migration **062**: `add_machine_attachment` accetta `component_id` e **verifica** che il componente sia di questa macchina e della mia org (un id fuori posto sarebbe un file archiviato sotto il pezzo di un'altra linea, cioè un file perso); `set_machine_attachment_component` archivia o riporta indietro un file già caricato — sposta l'etichetta, non il file, quindi l'URL non cambia e galleria e indice AI non se ne accorgono. Due trigger tengono allineate le etichette: rinominare un componente propaga il nome sui suoi file, **cancellarlo toglie l'etichetta e lascia i file alla macchina** (un manuale resta utile anche quando la pompa è stata smontata).
+- **I componenti entrano nella biblioteca AI**: `ingest-knowledge` indicizza la scheda di ogni pezzo (`source_kind = 'component'`) e prefissa col nome del pezzo l'etichetta dei suoi PDF. "Che pompa monta il tino filtro?" ha una risposta senza aprire un documento, e la citazione dice *Pompa dosatrice · manuale* invece di *manuale (scheda tecnica)*.
+- Nel tab **Documentazione**: pastiglia col nome del componente su ogni file che ne ha uno, e menu nel pannello Anteprima per riarchiviarlo su un altro pezzo (o riportarlo al macchinario).
+- Lato mobile il pezzo si vede ma non si tocca: nome del componente sulle righe del tab **Doc**, badge **Componente** in galleria. `useMachineUpload` accetta già un componente — manca solo la schermata per crearne uno dal campo.
+- `db.getMachine(id)`: la scheda admin rilegge la macchina insieme a piani e componenti, perché dopo un rename o una cancellazione è il server (i trigger) ad aver riscritto `attachments`.
+
+### Note
+- **Il tetto dei 200 allegati per macchina ora si avvicina più in fretta**: dieci componenti da dieci file fanno 100 senza accorgersene, e `machines.attachments` è JSONB su riga singola — ogni upload riscrive tutta la colonna. Quando stringe, la mossa è `machine_files` come tabella vera: l'etichetta `component_id` si porta dietro identica.
+- **Nessun piano di manutenzione sul componente**: si registra il pezzo e i suoi documenti, la preventiva resta della linea. Scelta consapevole (ADR-012), non dimenticanza.
+
+---
+
 ## [Unreleased] — v5.18 — Scheda macchina a schede, dimensionata per i guanti
 
 Design di riferimento: canvas "Macchinario · Risorse", direzione 1A rivisitata (artboard 2A).

@@ -12,6 +12,10 @@
  * Uso:
  *   const { capturePhoto, uploadDocument, busy } =
  *     useMachineUpload(machine, media.applyAttachments)
+ *
+ * Entrambi accettano un componente opzionale: `capturePhoto(comp)` e
+ * `uploadDocument(categoria, comp)` archiviano il file sotto quel pezzo
+ * senza toglierlo dalla macchina.
  */
 
 import { useCallback, useState } from 'react'
@@ -37,6 +41,11 @@ function pickFile(accept, { camera = false } = {}) {
   })
 }
 
+// Il tasto Scatta è collegato come handler diretto (`onClick={capturePhoto}`):
+// senza questo filtro il MouseEvent del click arriverebbe qui travestito da
+// componente, e il file finirebbe archiviato sotto un pezzo inesistente.
+const asComponent = (c) => (c && c.id ? c : null)
+
 export function useMachineUpload(machine, onAttachments) {
   const { user } = useAuth()
   const toast = useToast()
@@ -44,7 +53,7 @@ export function useMachineUpload(machine, onAttachments) {
   const { compress, makeThumbnail } = useImageCompressor()
   const [busy, setBusy] = useState(false)
 
-  const addFile = useCallback(async (file, { type, category }) => {
+  const addFile = useCallback(async (file, { type, category, component = null }) => {
     if (!file || !machine?.id) return
     setBusy(true)
     const toastId = toast.loading(type === 'pdf' ? 'Carico il documento…' : 'Carico la foto…')
@@ -55,7 +64,9 @@ export function useMachineUpload(machine, onAttachments) {
         toUpload = result.file
       }
 
-      const stamp = `${machine.id}/${category}-${Date.now()}`
+      const stamp = component
+        ? `${machine.id}/${component.id}/${category}-${Date.now()}`
+        : `${machine.id}/${category}-${Date.now()}`
       const url = await db.uploadFile('attachments', stamp, toUpload)
 
       // Miniatura: la griglia carica decine di riquadri insieme, e una
@@ -75,6 +86,11 @@ export function useMachineUpload(machine, onAttachments) {
         type,
         category,
         name: file.name || (type === 'pdf' ? 'Documento' : 'Foto dal campo'),
+        // Il file resta della macchina — galleria, cartelle e biblioteca AI
+        // lo vedono come prima. `component_id` dice solo sotto quale pezzo
+        // è archiviato; il server verifica che il componente sia suo.
+        component_id: component?.id || null,
+        component_name: component?.name || null,
         // Serve solo al fallback demo mode: in supabase l'autore lo
         // mette il server, che è l'unico a sapere chi è loggato davvero.
         uploaded_by_name: user?.name || null,
@@ -83,7 +99,10 @@ export function useMachineUpload(machine, onAttachments) {
 
       haptic.success()
       toast.dismiss(toastId)
-      toast.success(type === 'pdf' ? 'Documento caricato' : 'Foto aggiunta alla macchina')
+      toast.success(
+        component
+          ? `${type === 'pdf' ? 'Documento' : 'Foto'} su ${component.name}`
+          : (type === 'pdf' ? 'Documento caricato' : 'Foto aggiunta alla macchina'))
 
       // I PDF entrano nella biblioteca AI della macchina. In sottofondo:
       // chi è davanti all'impianto non deve aspettare l'indicizzazione.
@@ -98,13 +117,15 @@ export function useMachineUpload(machine, onAttachments) {
     setBusy(false)
   }, [machine?.id, user?.name, compress, makeThumbnail, onAttachments, toast, haptic])
 
-  const capturePhoto = useCallback(async () => {
+  // `component` è opzionale ovunque: senza, il file è della macchina —
+  // che resta il caso normale.
+  const capturePhoto = useCallback(async (component = null) => {
     haptic.light()
     const file = await pickFile('image/*', { camera: true })
-    if (file) await addFile(file, { type: 'image', category: 'foto' })
+    if (file) await addFile(file, { type: 'image', category: 'foto', component: asComponent(component) })
   }, [addFile, haptic])
 
-  const uploadDocument = useCallback(async (category) => {
+  const uploadDocument = useCallback(async (category, component = null) => {
     haptic.light()
     const file = await pickFile('application/pdf,image/*')
     if (!file) return
@@ -114,7 +135,7 @@ export function useMachineUpload(machine, onAttachments) {
       toast.error('Formato non supportato: carica un PDF o una foto')
       return
     }
-    await addFile(file, { type: isPdf ? 'pdf' : 'image', category })
+    await addFile(file, { type: isPdf ? 'pdf' : 'image', category, component: asComponent(component) })
   }, [addFile, haptic, toast])
 
   return { capturePhoto, uploadDocument, busy }

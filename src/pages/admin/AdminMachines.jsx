@@ -74,6 +74,7 @@ export default function AdminMachines({ onOpenAssistant }) {
   const [showComponentForm, setShowComponentForm] = useState(false)
   const [editingComponent, setEditingComponent] = useState(null)
   const [componentForm, setComponentForm] = useState({ name: '', type: '', manufacturer: '', model: '', serial_number: '', year: '', notes: '' })
+  const [componentUploading, setComponentUploading] = useState(false)
 
   // Components cache per machine (for card preview)
   const [moveMenuId, setMoveMenuId] = useState(null)
@@ -154,8 +155,15 @@ export default function AdminMachines({ onOpenAssistant }) {
 
   const refreshDetail = async () => {
     if (!sel) return
-    const [p, l, comp] = await Promise.all([db.getMaintenancePlans(sel.id), db.getMaintenanceLogs(sel.id), db.getMachineComponents(sel.id)])
+    // La macchina si rilegge insieme al resto: rinominare o cancellare un
+    // componente riscrive `attachments` lato server (trigger della 062), e
+    // senza questa fetch la scheda mostrerebbe etichette che non esistono più.
+    const [p, l, comp, machine] = await Promise.all([
+      db.getMaintenancePlans(sel.id), db.getMaintenanceLogs(sel.id),
+      db.getMachineComponents(sel.id), db.getMachine(sel.id).catch(() => null),
+    ])
     setPlans(p); setLogs(l); setComponents(comp)
+    if (machine) setSel(prev => (prev && prev.id === machine.id ? { ...prev, ...machine } : prev))
     const entries = await Promise.all(p.map(plan => db.getLastLogForPlan(plan.id).then(log => [plan.id, log])))
     setPlanLastLogs(Object.fromEntries(entries))
   }
@@ -237,6 +245,54 @@ export default function AdminMachines({ onOpenAssistant }) {
       toast.success('File caricato')
       if (type === 'pdf') triggerReindex(sel.id)
     } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) }
+  }
+
+  // ── File di un componente ──
+  // Stesso posto degli altri file della macchina (machines.attachments):
+  // cambia solo l'etichetta `component_id`, che dice sotto quale pezzo sono
+  // archiviati. Cosi' la foto della pompa resta nella Galleria Foto e il suo
+  // manuale resta nella biblioteca AI del macchinario.
+  //
+  // Passa dalla RPC add_machine_attachment (062) e non da updateMachine:
+  // e' il server a verificare che il componente sia davvero di questa
+  // macchina, e a mettere autore e data.
+  const uploadComponentFile = (component, category) => {
+    if (!component || !sel) return
+    const accept = category === 'foto' ? 'image/*' : 'application/pdf,image/*'
+    const input = document.createElement('input'); input.type = 'file'; input.accept = accept
+    input.onchange = async (e) => {
+      const f = e.target.files[0]; if (!f) return
+      const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+      const isImage = f.type.startsWith('image/')
+      if (!isPdf && !isImage) { toast.error('Formato non supportato. Carica PDF o immagini.'); return }
+      setComponentUploading(true)
+      try {
+        const url = await db.uploadFile('attachments', `${sel.id}/${component.id}/${category}-${Date.now()}`, f)
+        const attachments = await db.addMachineAttachment(sel.id, {
+          url, type: isPdf ? 'pdf' : 'image', category, name: f.name,
+          component_id: component.id, component_name: component.name,
+          uploaded_by_name: user?.name || null,
+        })
+        setSel(prev => ({ ...prev, attachments }))
+        toast.success(`File su ${component.name}`)
+        if (isPdf) triggerReindex(sel.id)
+      } catch (err) { toast.error('Errore upload: ' + (err.message || 'riprova')) }
+      setComponentUploading(false)
+    }
+    input.click()
+  }
+
+  // Archivia sotto un componente un file gia' caricato, o lo riporta al
+  // macchinario (`component` null). Sposta un'etichetta, non un file:
+  // l'URL non cambia, quindi galleria e indice AI non se ne accorgono.
+  const setAttachmentComponent = async (attachment, component) => {
+    if (!sel || !attachment?.url) return
+    try {
+      const attachments = await db.setMachineAttachmentComponent(
+        sel.id, attachment.url, component?.id || null, component?.name || null)
+      setSel(prev => ({ ...prev, attachments }))
+      toast.success(component ? `Archiviato su ${component.name}` : 'Riportato al macchinario')
+    } catch (err) { toast.error('Errore: ' + (err.message || 'riprova')) }
   }
 
   // Toggle stella preferito su un attachment (UI cosmetic — nessun
@@ -866,6 +922,8 @@ export default function AdminMachines({ onOpenAssistant }) {
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
           onOpenLogForm={openLogForm} onEditLog={(log) => openLogForm(null, log)} onDeleteLog={deleteLog} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
+          onUploadComponentFile={uploadComponentFile} onSetAttachmentComponent={setAttachmentComponent}
+          componentUploading={componentUploading}
           onUploadToMachine={uploadToMachine} onUploadFileToMachine={uploadFileToMachine} onRemoveAttachment={removeAttachment} onToggleFavoriteAttachment={toggleFavoriteAttachment} onSaveField={updateMachineField} onToggleMachineMedia={toggleMachineMedia}
           onOpenAssistant={onOpenAssistant ? () => { const id = sel?.id; setSel(null); onOpenAssistant(id) } : undefined}
           reindexing={reindexing}

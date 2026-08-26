@@ -87,6 +87,14 @@ export default function MachineDocsTab({ machine, attachments, onUpload, uploadi
                   style={padRow}
                 >
                   <p className="text-[18px] font-medium text-themed break-words">{a.name}</p>
+                  {/* Il componente prima della categoria: davanti alla macchina
+                      la domanda è "di che pezzo è questo manuale", non "in che
+                      cartella sta". */}
+                  {a.component_name && (
+                    <p className="text-[13px] font-semibold truncate" style={{ marginTop: 4, color: '#22d3ee' }}>
+                      {a.component_name}
+                    </p>
+                  )}
                   <p className="font-mono text-[11px] uppercase tracking-wider text-faint truncate" style={{ marginTop: 6 }}>
                     {(a.type || 'file').toUpperCase()}
                     {a.category && a.category !== a.type ? ` · ${categoryLabel(a.category)}` : ''}

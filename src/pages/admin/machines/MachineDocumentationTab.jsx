@@ -5,7 +5,7 @@ import {
   ShieldCheck, Sparkles, Loader2, FileSignature,
   Search, Folder, Upload, MessageCircle,
   Star, LayoutGrid, List, Download,
-  AlertTriangle, CalendarClock, Play,
+  AlertTriangle, CalendarClock, Play, Package,
 } from 'lucide-react'
 import { db } from '../../../lib/supabase'
 import { timeAgo, formatDate } from '../../../lib/constants'
@@ -18,6 +18,10 @@ const F_DISPLAY = "'Barlow Condensed', system-ui, sans-serif"
 const F_MONO = "'DM Mono', 'JetBrains Mono', ui-monospace, monospace"
 // Gold accent (e0a82e) — tab attiva, linguetta cartelle, accenti
 const GOLD = '#e0a82e'
+// Ciano: il colore dei componenti in tutta la scheda macchina. Un file
+// archiviato sotto un pezzo resta un file del macchinario — la pastiglia
+// dice solo dove è archiviato, non dove vive.
+const COMPONENT_CYAN = '#22d3ee'
 
 // Aspetto delle cartelle: id, label e desc vengono da
 // `lib/machineDocCategories`, che è la stessa lista che il mobile usa
@@ -46,6 +50,7 @@ const SOURCE_META = {
   manutenzione: { label: 'Manutenzione', icon: Wrench,        color: '#3ddc84' },
   intervento:   { label: 'Intervento',   icon: CalendarClock, color: '#8b6ff5' },
   scheda:       { label: 'Scheda',       icon: ImageIcon,     color: '#8b96a8' },
+  componente:   { label: 'Componente',   icon: Package,       color: COMPONENT_CYAN },
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -317,6 +322,13 @@ function FileRow({ attachment, onSelect, selected, onToggleFavorite, attachmentI
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <p className="text-[11px] truncate" style={{ color: 'var(--color-text)' }}>{attachment.name}</p>
+          {attachment.component_name && (
+            <span className="inline-flex items-center gap-0.5 text-[8px] px-1 shrink-0 uppercase tracking-wide max-w-[90px] truncate"
+              style={{ fontFamily: F_MONO, color: COMPONENT_CYAN, background: 'rgba(34,211,238,0.12)' }}
+              title={`Componente: ${attachment.component_name}`}>
+              <Package size={8} /> {attachment.component_name}
+            </span>
+          )}
           {!isImage && (
             <span className="inline-flex items-center gap-0.5 text-[8px] px-1 shrink-0 uppercase tracking-wide"
               style={{ fontFamily: F_MONO, color: '#8b6ff5' }}>
@@ -606,7 +618,7 @@ function FolderView({ category, items, attachmentsAll, onUpload, onRemove, onTog
 // ──────────────────────────────────────────────────────────────
 // PreviewPanel: 280px
 // ──────────────────────────────────────────────────────────────
-function PreviewPanel({ attachment, attachmentsAll, onRemove, onToggleFavorite, onClose }) {
+function PreviewPanel({ attachment, attachmentsAll, onRemove, onToggleFavorite, onClose, components = [], onSetComponent }) {
   if (!attachment) {
     return (
       <aside className="hidden lg:flex w-[280px] shrink-0 border-l p-3 flex-col gap-2 max-h-[78vh] overflow-auto"
@@ -721,6 +733,32 @@ function PreviewPanel({ attachment, attachmentsAll, onRemove, onToggleFavorite, 
         </div>
       </div>
 
+      {/* Componente: dove il file è archiviato dentro la macchina.
+          Cambiarlo non lo sposta di cartella e non lo toglie dalla
+          galleria — resta un file del macchinario. */}
+      {components.length > 0 && onSetComponent && (
+        <div>
+          <p className="text-[8px] uppercase tracking-wider mb-1" style={{ fontFamily: F_MONO, color: 'var(--color-text-faint)' }}>
+            Componente
+          </p>
+          <select
+            value={attachment.component_id || ''}
+            onChange={e => {
+              const comp = components.find(c => c.id === e.target.value) || null
+              onSetComponent(attachment, comp)
+            }}
+            className="w-full text-[11px] px-2 py-1.5 border outline-none"
+            style={{
+              background: 'var(--color-surface-2)', color: 'var(--color-text)',
+              borderColor: attachment.component_id ? 'rgba(34,211,238,0.45)' : 'var(--color-border)',
+              borderRadius: 2,
+            }}>
+            <option value="">Macchinario (nessun componente)</option>
+            {components.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
+
       {/* Origine: solo per le foto promosse dal feed della macchina */}
       {attachment.promoted_from && (
         <div className="px-2 py-1.5 border"
@@ -816,6 +854,10 @@ export default function MachineDocumentationTab({
   onChangeFolder,
   typeFilter: controlledTypeFilter,
   onChangeTypeFilter,
+  // Componenti della macchina: servono a dire da quale pezzo viene un file
+  // e a riarchiviarlo su un altro, senza spostarlo di cartella.
+  components = [],
+  onSetAttachmentComponent,
 }) {
   const attachments = useMemo(() => sel.attachments || [], [sel.attachments])
 
@@ -1132,6 +1174,8 @@ export default function MachineDocumentationTab({
           onRemove={onRemoveAttachment}
           onToggleFavorite={onToggleFavorite}
           onClose={() => setSelectedAttachment(null)}
+          components={components}
+          onSetComponent={onSetAttachmentComponent}
         />
       </div>
 

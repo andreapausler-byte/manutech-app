@@ -6,7 +6,11 @@
  * documenti, istruzioni, o maintenance_logs della macchina.
  *
  * Sorgenti indicizzate (tutte per machine_id):
- *   - machines.attachments[] (solo PDF — immagini skippate in Sprint A)
+ *   - machines.attachments[] (solo PDF — immagini skippate in Sprint A);
+ *     se il file è archiviato sotto un componente, il nome del pezzo entra
+ *     nell'etichetta citata dall'assistente
+ *   - machine_components: una scheda per pezzo (costruttore, modello,
+ *     matricola, note) — risponde a "che pompa monta questa linea"
  *   - machines.usage_instructions (testo libero)
  *   - machines.maintenance_instructions (testo libero)
  *   - maintenance_logs (inclusi esterni): title + description + contractor
@@ -52,7 +56,7 @@ const MAX_DOC_CHARS = 500_000        // safety: non indicizzare manuali >500k ca
 
 // ─── Tipi ────────────────────────────────────────────────────────
 interface Chunk {
-  source_kind: 'attachment' | 'usage_instructions' | 'maintenance_instructions' | 'maintenance_log' | 'report_chat'
+  source_kind: 'attachment' | 'usage_instructions' | 'maintenance_instructions' | 'maintenance_log' | 'report_chat' | 'component'
   source_ref: string | null
   source_label: string
   category: string | null
@@ -66,6 +70,19 @@ interface Attachment {
   category?: string
   name?: string
   url?: string
+  component_id?: string | null
+  component_name?: string | null
+}
+
+interface MachineComponent {
+  id: string
+  name: string
+  type?: string | null
+  manufacturer?: string | null
+  model?: string | null
+  serial_number?: string | null
+  year?: number | null
+  notes?: string | null
 }
 
 interface MaintenanceLog {
@@ -260,6 +277,18 @@ Deno.serve(async (req: Request) => {
       .order('performed_at', { ascending: false })
     if (lErr) console.warn('logs fetch error:', lErr.message)
 
+    // ── Fetch componenti della macchina ──
+    // Schede corte e dense: costruttore, modello, matricola del singolo
+    // pezzo. Sono la risposta a "che pompa monta questa linea", che oggi
+    // costerebbe aprire un PDF.
+    const { data: machineComponents, error: cmpErr } = await adminSupabase
+      .from('machine_components')
+      .select('id, name, type, manufacturer, model, serial_number, year, notes')
+      .eq('machine_id', machineId)
+      .eq('org_id', orgId)
+      .order('sort_order')
+    if (cmpErr) console.warn('components fetch error:', cmpErr.message)
+
     // ── Fetch reports CHIUSI della macchina + relativi commenti ──
     // Indicizziamo solo i ticket gia' risolti: la conversazione che ha
     // portato alla soluzione e' la conoscenza piu' preziosa per i futuri
@@ -336,6 +365,30 @@ Deno.serve(async (req: Request) => {
       }))
     }
 
+    // 2-bis) componenti: una scheda per pezzo
+    for (const comp of (machineComponents || []) as MachineComponent[]) {
+      const fields: string[] = [`Componente: ${comp.name}`, `Macchinario: ${machine.name}`]
+      if (comp.type) fields.push(`Tipo: ${comp.type}`)
+      if (comp.manufacturer) fields.push(`Costruttore: ${comp.manufacturer}`)
+      if (comp.model) fields.push(`Modello: ${comp.model}`)
+      if (comp.serial_number) fields.push(`Matricola: ${comp.serial_number}`)
+      if (comp.year) fields.push(`Anno: ${comp.year}`)
+      if (comp.notes) fields.push(`Note: ${comp.notes}`)
+      // Il nome da solo non è conoscenza: senza almeno un dato oltre a
+      // nome e macchina, il chunk sarebbe rumore in cerca di un match.
+      if (fields.length < 3) continue
+      const pieces = chunkText(fields.join('\n'))
+      pieces.forEach((c, i) => allChunks.push({
+        source_kind: 'component',
+        source_ref: comp.id,
+        source_label: `${comp.name} — componente di ${machine.name}`,
+        category: 'componente',
+        chunk_index: i,
+        content: c,
+        page_number: null,
+      }))
+    }
+
     // 3) attachments PDF
     const attachments: Attachment[] = Array.isArray(machine.attachments) ? machine.attachments : []
     for (const att of attachments) {
@@ -345,7 +398,12 @@ Deno.serve(async (req: Request) => {
       const pdf = await extractPdfText(bytes)
       if (!pdf || !pdf.text.trim()) continue
       const pieces = chunkText(pdf.text.slice(0, MAX_DOC_CHARS))
-      const label = `${att.name || 'Documento'} (${att.category || 'documento'})`
+      // Il componente entra nell'etichetta citata dall'assistente: "manuale
+      // (scheda tecnica)" non dice di che pezzo è, "Pompa dosatrice · manuale"
+      // sì — ed è la differenza tra una citazione utile e una da verificare.
+      const label = att.component_name
+        ? `${att.component_name} · ${att.name || 'Documento'} (${att.category || 'documento'})`
+        : `${att.name || 'Documento'} (${att.category || 'documento'})`
       pieces.forEach((c, i) => allChunks.push({
         source_kind: 'attachment',
         source_ref: att.url!,

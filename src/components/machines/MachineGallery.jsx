@@ -18,7 +18,7 @@
 import { useMemo, useState } from 'react'
 import {
   Play, Star, ArrowUpRight, Camera,
-  MessageSquare, AlertTriangle, Wrench, CalendarClock, FileText, X,
+  MessageSquare, AlertTriangle, Wrench, CalendarClock, FileText, X, Package,
 } from 'lucide-react'
 import { timeAgo } from '../../lib/constants'
 import { galleryFileName } from '../../lib/mediaFile'
@@ -35,6 +35,7 @@ const SOURCE_META = {
   intervento: { label: 'Intervento', icon: CalendarClock, color: '#7c6aff' },
   scheda: { label: 'Scheda', icon: FileText, color: '#8b96a8' },
   campo: { label: 'Dal campo', icon: Camera, color: '#7c6aff' },
+  componente: { label: 'Componente', icon: Package, color: '#22d3ee' },
 }
 
 const FILTERS = [

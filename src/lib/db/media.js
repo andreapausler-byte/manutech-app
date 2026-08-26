@@ -145,6 +145,9 @@ export const media = {
           type: attachment.type,
           category: attachment.category,
           name: attachment.name,
+          // Opzionale: archivia il file sotto un componente della
+          // macchina. Il server verifica che sia davvero suo.
+          component_id: attachment.component_id || null,
         },
       })
       if (error) throw error
@@ -166,6 +169,10 @@ export const media = {
       uploaded_at: new Date().toISOString(),
       uploaded_by_name: attachment.uploaded_by_name || null,
       uploaded_from: 'campo',
+      ...(attachment.component_id ? {
+        component_id: attachment.component_id,
+        component_name: attachment.component_name || null,
+      } : {}),
     }]
     list[idx] = { ...list[idx], attachments: next }
     setStore(KEYS.machines, list)
@@ -223,6 +230,40 @@ export const media = {
         promoted_at: new Date().toISOString(),
       }]
     }
+
+    list[idx] = { ...list[idx], attachments: next }
+    setStore(KEYS.machines, list)
+    return next
+  },
+
+  // Archivia un file già caricato sotto un componente della macchina,
+  // o lo riporta alla macchina (`componentId` null).
+  //
+  // Sposta un'etichetta, non un file: l'URL non cambia, quindi la
+  // galleria, le cartelle documentali e l'indice AI non se ne accorgono.
+  // Ritorna la lista attachments aggiornata.
+  async setMachineAttachmentComponent(machineId, url, componentId, componentName = null) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('set_machine_attachment_component', {
+        _machine_id: machineId,
+        _url: url,
+        _component_id: componentId || null,
+      })
+      if (error) throw error
+      return data || []
+    }
+
+    const list = getStore(KEYS.machines)
+    const idx = list.findIndex(m => m.id === machineId)
+    if (idx === -1) throw new Error('Macchinario non trovato')
+
+    const next = (list[idx].attachments || []).map(a => {
+      if (a.url !== url) return a
+      const { component_id, component_name, ...rest } = a  // eslint-disable-line no-unused-vars
+      return componentId
+        ? { ...rest, component_id: componentId, component_name: componentName || null }
+        : rest
+    })
 
     list[idx] = { ...list[idx], attachments: next }
     setStore(KEYS.machines, list)
