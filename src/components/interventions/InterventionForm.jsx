@@ -295,7 +295,7 @@ export default function InterventionForm({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {/* Titolo */}
-        <FieldLabel required>Cosa serve</FieldLabel>
+        <FieldLabel required>Titolo Intervento</FieldLabel>
         <input
           value={title} onChange={e => setTitle(e.target.value)}
           maxLength={200}
