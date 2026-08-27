@@ -9,6 +9,7 @@ import {
   toDatetimeLocalString,
   buildDescriptionPrefill,
   buildReportPhotoSnapshot,
+  isoWeekNumber,
 } from '../../lib/interventions'
 import { useImageCompressor } from '../../hooks/useImageCompressor'
 import { useToast } from '../../hooks/useToast'
@@ -16,6 +17,7 @@ import { useHaptic } from '../../hooks/useHaptic'
 import UserPicker from './UserPicker'
 import LinkedReportsSection from './LinkedReportsSection'
 import UserMultiSelect from '../ui/UserMultiSelect'
+import DateTimePicker from '../ui/DateTimePicker'
 
 /**
  * InterventionForm — form puro per creazione/edit intervento.
@@ -87,6 +89,8 @@ export default function InterventionForm({
   const [scheduledEnd, setScheduledEnd] = useState(initialEnd)
   const [startChipKey, setStartChipKey] = useState(initialStart ? 'custom' : null)
   const [endChipKey, setEndChipKey] = useState(initialEnd ? 'custom' : null)
+  // Quale campo sta usando il calendario: null | 'start' | 'end'.
+  const [pickerFor, setPickerFor] = useState(null)
 
   // ── Foto: snapshot del report (read-only) + nuove (uploader) ──────────
   // Snapshot iniziale da report.media: items con flag {from_report:true}
@@ -196,12 +200,14 @@ export default function InterventionForm({
   // ── Handlers chips ───────────────────────────────────────────────────
   const handleStartChip = (chip) => {
     setStartChipKey(chip.key)
-    if (chip.key === 'custom') return // mostra input nativo, no auto-fill
+    // "Altra data…" apre il calendario con le settimane invece di lasciare
+    // all'utente il datetime-local nativo.
+    if (chip.key === 'custom') { setPickerFor('start'); return }
     setScheduledStart(toDatetimeLocalString(chip.value))
   }
   const handleEndChip = (chip) => {
     setEndChipKey(chip.key)
-    if (chip.key === 'custom') return
+    if (chip.key === 'custom') { setPickerFor('end'); return }
     setScheduledEnd(toDatetimeLocalString(chip.value))
   }
 
@@ -500,11 +506,10 @@ export default function InterventionForm({
         </FieldLabel>
         <ChipRow chips={startChipsList} selectedKey={startChipKey} onPick={handleStartChip} />
         {(startChipKey === 'custom' || initialStart) && (
-          <input
-            type="datetime-local"
+          <DateSummaryButton
             value={scheduledStart}
-            onChange={e => { setScheduledStart(e.target.value); setStartChipKey('custom') }}
-            style={{ ...inputStyle, marginTop: 6, marginBottom: 14 }}
+            onClick={() => setPickerFor('start')}
+            style={{ marginTop: 6, marginBottom: 14 }}
           />
         )}
         {startChipKey !== 'custom' && !initialStart && (
@@ -518,11 +523,11 @@ export default function InterventionForm({
         </FieldLabel>
         <ChipRow chips={endChipsList} selectedKey={endChipKey} onPick={handleEndChip} />
         {(endChipKey === 'custom' || initialEnd) && (
-          <input
-            type="datetime-local"
+          <DateSummaryButton
             value={scheduledEnd}
-            onChange={e => { setScheduledEnd(e.target.value); setEndChipKey('custom') }}
-            style={{ ...inputStyle, marginTop: 6, marginBottom: endError ? 4 : 14, borderColor: endError ? '#ef4444' : undefined }}
+            onClick={() => setPickerFor('end')}
+            invalid={!!endError}
+            style={{ marginTop: 6, marginBottom: endError ? 4 : 14 }}
           />
         )}
         {endError && (
@@ -535,6 +540,18 @@ export default function InterventionForm({
           </p>
         )}
       </div>
+
+      {/* Calendario data+ora — condiviso da Inizio e Fine */}
+      <DateTimePicker
+        open={pickerFor !== null}
+        onClose={() => setPickerFor(null)}
+        value={pickerFor === 'end' ? scheduledEnd : scheduledStart}
+        title={pickerFor === 'end' ? 'Fine intervento' : 'Inizio intervento'}
+        onConfirm={(v) => {
+          if (pickerFor === 'end') { setScheduledEnd(v); setEndChipKey('custom') }
+          else { setScheduledStart(v); setStartChipKey('custom') }
+        }}
+      />
 
       {/* Action bar */}
       <div style={{
@@ -577,6 +594,42 @@ export default function InterventionForm({
         )}
       </div>
     </div>
+  )
+}
+
+// Riepilogo cliccabile della data scelta: riapre il calendario.
+// Mostra anche la settimana ISO (S36) — in officina si pianifica per settimane.
+function DateSummaryButton({ value, onClick, invalid = false, style }) {
+  const d = value ? new Date(value) : null
+  const valid = d && !isNaN(d.getTime())
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="press-scale"
+      style={{
+        ...inputStyle,
+        marginBottom: 0,
+        display: 'flex', alignItems: 'center', gap: 8,
+        textAlign: 'left', cursor: 'pointer',
+        borderColor: invalid ? '#ef4444' : 'var(--color-border)',
+        ...style,
+      }}
+    >
+      <CalendarIcon size={14} style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
+      <span style={{
+        flex: 1, minWidth: 0,
+        color: valid ? 'var(--color-text)' : 'var(--color-text-secondary)',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {valid
+          ? `${d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · S${isoWeekNumber(d)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+          : 'Scegli data e ora'}
+      </span>
+      <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--color-primary)' }}>
+        {valid ? 'Cambia' : 'Apri'}
+      </span>
+    </button>
   )
 }
 

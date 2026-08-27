@@ -255,6 +255,22 @@ export function toDatetimeLocalString(value) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// Numero della settimana ISO 8601 (1-53) di una data.
+// Regola ISO: la settimana va da lunedì a domenica e appartiene all'anno in
+// cui cade il suo GIOVEDÌ. Calcolato su date local (niente toISOString, che
+// shifterebbe di un giorno chi sta a est di UTC).
+export function isoWeekNumber(value) {
+  const d = value instanceof Date ? new Date(value) : new Date(value)
+  if (isNaN(d.getTime())) return null
+  d.setHours(0, 0, 0, 0)
+  // Sposta la data sul giovedì della sua settimana (lun=0 … dom=6)
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 3)
+  const firstThursday = new Date(d.getFullYear(), 0, 4)
+  firstThursday.setHours(0, 0, 0, 0)
+  firstThursday.setDate(firstThursday.getDate() - ((firstThursday.getDay() + 6) % 7) + 3)
+  return 1 + Math.round((d - firstThursday) / (7 * 24 * 60 * 60 * 1000))
+}
+
 // Costruisce la description prefill per un nuovo intervento da report.
 // Formato strutturato come da decisions doc §D2.
 // Il cursore va posizionato a fine stringa (textarea.setSelectionRange).

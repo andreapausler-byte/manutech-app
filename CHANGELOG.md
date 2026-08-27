@@ -6,6 +6,21 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.21 — La data si sceglie sul calendario
+
+### Added
+- **Calendario data+ora con il numero di settimana** (`ui/DateTimePicker`, nuovo): il chip **«Altra data…»** nella pianificazione intervento non apre più il `datetime-local` del sistema, ma un calendario a tutta larghezza — mese navigabile, scorciatoia «Oggi», celle da 44px — con la **colonna «S» delle settimane ISO** accanto a ogni riga, perché in officina si pianifica per settimane ("lo facciamo in S36"). L'ora si sceglie con i chip dei turni tipici (08:00 → 18:00) o con l'input orario per il minuto esatto.
+- Il campo Inizio/Fine mostra ora un riepilogo leggibile — `gio 3 set 2026 · S36 · 16:00` — e si ritocca ritoccando il calendario.
+- `isoWeekNumber()` in `lib/interventions.js`: settimana ISO 8601 calcolata su date local. Verificata su 12 anni di date (2019-2030) contro il calendario ISO di riferimento.
+
+### Fixed
+- **Nel modale «Coinvolgi utenti» non si riusciva a selezionare nessuno.** `InterventionForm` sincronizzava i partecipanti con il prop `initialParticipantUserIds` usando l'array come dipendenza dell'effect: in creazione il prop non viene passato, quindi il default `= []` cambiava reference a ogni render e l'effect riazzerava la selezione subito dopo ogni tap. Ora la dipendenza è una chiave stabile derivata dagli id — il sync scatta solo quando i partecipanti iniziali cambiano davvero (edit/reschedule).
+
+### Changed
+- L'etichetta del titolo intervento passa da «Cosa serve» a «Titolo Intervento».
+
+---
+
 ## [Unreleased] — v5.20 — I pezzi anche dal campo
 
 ### Added
