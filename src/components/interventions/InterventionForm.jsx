@@ -110,17 +110,25 @@ export default function InterventionForm({
   const [supervisedByName, setSupervisedByName] = useState(defaults.supervised_by_name || null)
 
   // ── Participants (Sprint 1c MVP) ──────────────────────────────────────
+  // Chiave stabile (stringa) dei partecipanti iniziali. Serve come dep del
+  // sync sotto: il prop arriva come array e in create mode NON viene passato
+  // affatto, quindi il default `= []` produce una NUOVA reference a ogni
+  // render. Usare l'array come dep faceva ri-scattare il sync dopo ogni
+  // render, azzerando la selezione appena fatta nel UserMultiSelect
+  // ("non riesco a selezionare niente").
+  const initialParticipantsKey = Array.isArray(initialParticipantUserIds)
+    ? initialParticipantUserIds.filter(Boolean).join(',')
+    : ''
+
   const [participantUserIds, setParticipantUserIds] = useState(
-    Array.isArray(initialParticipantUserIds) ? initialParticipantUserIds : []
+    Array.isArray(initialParticipantUserIds) ? initialParticipantUserIds.filter(Boolean) : []
   )
   // In edit/reschedule mode la shell fetcha intervention_participants in
   // useEffect, quindi initialParticipantUserIds arriva async DOPO il primo
   // render del form. Senza questo sync, il multi-select resterebbe vuoto.
   useEffect(() => {
-    setParticipantUserIds(
-      Array.isArray(initialParticipantUserIds) ? initialParticipantUserIds : []
-    )
-  }, [initialParticipantUserIds])
+    setParticipantUserIds(initialParticipantsKey ? initialParticipantsKey.split(',') : [])
+  }, [initialParticipantsKey])
 
   // Enrich users con role/counters/specialty/hourlyRate per UserPicker
   const enrichedUsers = useMemo(() => {
@@ -287,7 +295,7 @@ export default function InterventionForm({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {/* Titolo */}
-        <FieldLabel required>Cosa serve</FieldLabel>
+        <FieldLabel required>Titolo Intervento</FieldLabel>
         <input
           value={title} onChange={e => setTitle(e.target.value)}
           maxLength={200}
