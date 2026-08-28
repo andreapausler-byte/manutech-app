@@ -92,8 +92,12 @@ export default function AdminReports({ initialReportId }) {
   const [filterSeverity, setFilterSeverity] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [selected, setSelected] = useState(null)
-  const [form, setForm] = useState({ title: '', machine: '', severity: 'media', type: 'correttiva', description: '' })
+  const [form, setForm] = useState({ title: '', machine: '', severity: 'media', type: 'correttiva', description: '', component_id: '' })
   const [media, setMedia] = useState([])
+  // Pezzi della macchina scelta nel form "Nuova Segnalazione". Il modal
+  // admin è un canale di creazione a sé (NewReport è quello mobile): senza
+  // questo, l'admin non poteva indicare il componente in apertura.
+  const [newComponents, setNewComponents] = useState([])
   const [machines, setMachines] = useState([])
   // Default: ordina per ultima attività (updated_at). Il trigger DB 050
   // propaga updated_at quando arriva un commento, quindi i ticket "vivi"
@@ -317,6 +321,19 @@ export default function AdminReports({ initialReportId }) {
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
+  // Cambio macchinario: i pezzi della macchina precedente non c'entrano più.
+  const setMachine = async (machineName) => {
+    setForm(f => ({ ...f, machine: machineName, component_id: '' }))
+    const machine = machines.find(m => m.name === machineName)
+    if (!machine) { setNewComponents([]); return }
+    try {
+      setNewComponents(await db.getMachineComponents(machine.id) || [])
+    } catch (e) {
+      console.warn('[AdminReports] getMachineComponents failed:', e?.message)
+      setNewComponents([])
+    }
+  }
+
   // Search estesa per coerenza con la mobile (ReportsList.jsx): titolo,
   // descrizione, macchina (snapshot + fallback via machine_id), tecnico
   // assegnato, creatore, TK-id (normalizzato) e UUID raw.
@@ -436,8 +453,10 @@ export default function AdminReports({ initialReportId }) {
 
   const createReport = async () => {
     if (!form.title.trim() || !form.description.trim()) return
+    const selComp = newComponents.find(c => c.id === form.component_id) || null
     const created = await db.createReport({
       title: form.title.trim(), machine: form.machine || null,
+      component_id: selComp?.id || null, component_name: selComp?.name || null,
       severity: form.severity, type: form.type, description: form.description.trim(),
       media,
       created_by: user?.id,
@@ -455,7 +474,8 @@ export default function AdminReports({ initialReportId }) {
       }).catch(e => console.warn('Side effect failed:', e.message))
     }
     setShowNew(false)
-    setForm({ title: '', machine: '', severity: 'media', type: 'correttiva', description: '' })
+    setForm({ title: '', machine: '', severity: 'media', type: 'correttiva', description: '', component_id: '' })
+    setNewComponents([])
     setMedia([])
     load()
   }
@@ -1137,7 +1157,7 @@ export default function AdminReports({ initialReportId }) {
           <Input label="Titolo *" placeholder="Descrivi il problema"
             value={form.title} onChange={e => set('title', e.target.value)} />
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Macchinario" value={form.machine} onChange={e => set('machine', e.target.value)}
+            <Select label="Macchinario" value={form.machine} onChange={e => setMachine(e.target.value)}
               options={[{ value: '', label: 'Seleziona...' }, ...machines.map(m => ({ value: m.name, label: m.name }))]} />
             <div>
               <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Gravità</label>
@@ -1150,6 +1170,16 @@ export default function AdminReports({ initialReportId }) {
               </div>
             </div>
           </div>
+          {/* Il pezzo in apertura è un'ipotesi, non una diagnosi: opzionale,
+              default "Generico", e compare solo se la macchina ha componenti
+              in anagrafica. Si corregge poi dal dettaglio e in chiusura. */}
+          {newComponents.length > 0 && (
+            <Select label="Componente" value={form.component_id} onChange={e => set('component_id', e.target.value)}
+              options={[
+                { value: '', label: 'Generico — intera macchina' },
+                ...newComponents.map(c => ({ value: c.id, label: c.type ? `${c.name} (${c.type})` : c.name })),
+              ]} />
+          )}
           <div>
             <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Tipo Intervento</label>
             <div className="flex gap-2">

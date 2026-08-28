@@ -15,6 +15,11 @@
 >   form di chiusura, evento `component_change` in `ActivityTimeline`.
 >   *Decisione 28/8*: il tecnico **non** crea componenti al volo — la
 >   creazione resta admin-only (chiude la open question 1 di §7 con «no»).
+> - **Correzione a §1.1 (28/8, dal campo)**: i canali di creazione sono
+>   **cinque**, non quattro. Il modal *Nuova Segnalazione* di `AdminReports`
+>   è un form a sé — l'admin desktop non passa da `NewReport` — e non aveva
+>   il selettore. Aggiunto. Lezione: contare i canali di scrittura leggendo
+>   i call-site di `db.createReport`, non i nomi dei componenti.
 > - **C — ereditarietà nei log**: fatto, su tutti e cinque i call-site.
 > - **§5 — piani per componente**: fatto (migration 063).
 > - **D — vocale collegato all'anagrafica**: non fatto.
@@ -40,7 +45,8 @@ La sorpresa: **il campo esiste dal 2021 (migration 021) e in un punto si compila
 
 | Canale di creazione | Componente? | Come |
 |---|---|---|
-| **`NewReport`** (segnalazione completa — mobile e admin) | **Sì** | Select *"Componente specifico"*, default *"Generico (intera macchina)"*, visibile solo se la macchina ha componenti. Scrive `component_id` **e** `component_name` |
+| **`NewReport`** (segnalazione completa — mobile e dalla scheda macchina) | **Sì** | Select *"Componente specifico"*, default *"Generico (intera macchina)"*, visibile solo se la macchina ha componenti. Scrive `component_id` **e** `component_name` |
+| **Modal *Nuova Segnalazione* di `AdminReports`** (admin desktop) | ~~No~~ → **Sì dalla v5.21** | **Canale mancato in questa tabella alla prima stesura**: l'admin desktop non usa `NewReport`, ha un form suo dentro `AdminReports`, che il 28/8 non aveva alcun selettore. Ora ha il menu *Componente* con lo stesso default |
 | **`QuickReport`** (segnalazione rapida a template) | No | — |
 | **`VoiceNewTicketFlow`** (tecnico, vocale) | Sì, ma scollegato | l'AI estrae `componente` come **testo libero** e lo deposita in `extra_data.componente`: nessun legame con `machine_components` |
 | **Guest chat** (`guest-chat`) | No | — |
