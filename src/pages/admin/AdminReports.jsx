@@ -12,6 +12,7 @@ import MergeReportModal from './reports/MergeReportModal'
 import { useMergeSegnalazione } from '../../hooks/useMergeSegnalazione'
 import { avatarGradient } from '../../hooks/usePremiumUI'
 import { Plus, Search, X, ChevronDown, ChevronRight, Star, GitMerge } from 'lucide-react'
+import ComponentPill from '../../components/machines/ComponentPill'
 
 const RECENT_COMPLETED_WINDOW_HOURS = 24
 // Soglia "ferme da troppo": segnalazioni attive senza attività da 3+ settimane
@@ -586,6 +587,9 @@ export default function AdminReports({ initialReportId }) {
               >
                 {machineName}
               </span>
+            )}
+            {r.component_name && (
+              <ComponentPill name={r.component_name} size="xs" className="shrink-0" />
             )}
             {showPlanningChip && (
               <span

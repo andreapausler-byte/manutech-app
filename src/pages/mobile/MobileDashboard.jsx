@@ -164,6 +164,8 @@ export default function MobileDashboard({ user, onViewReport, onQuickReport }) {
       await db.createMaintenanceLog({
         machine_id: completeTask.machine.id,
         plan_id: completeTask.plan.id,
+        // Il piano può nominare il pezzo (migration 063): il log lo eredita.
+        component_id: completeTask.plan.component_id || null,
         type: 'programmata',
         title: completeTask.plan.name,
         description: cNote.trim() || null,

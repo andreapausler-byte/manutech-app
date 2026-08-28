@@ -15,6 +15,7 @@ import { SEVERITY, timeAgo } from '../../lib/constants'
 import { TabActionRow, TabEmptyFrame } from './MachineTabParts'
 import { padX, padRow } from './machineTabs'
 import { EmptyState } from '../ui'
+import ComponentPill from './ComponentPill'
 import { useHaptic } from '../../hooks/useHaptic'
 
 const PAGE = 5
@@ -114,6 +115,11 @@ export default function MachineReportsTab({
               style={padRow}
             >
               <p className="text-[18px] font-medium text-themed truncate">{r.title}</p>
+              {r.component_name && (
+                <span className="block" style={{ marginTop: 6 }}>
+                  <ComponentPill name={r.component_name} size="sm" />
+                </span>
+              )}
               <p className="font-mono text-[11px] text-faint truncate" style={{ marginTop: 6 }}>
                 {r.created_by_name} · {timeAgo(r.created_at)}
               </p>
@@ -184,6 +190,11 @@ export default function MachineReportsTab({
               />
               <span className="flex-1 min-w-0" style={{ ...padRow, opacity: 0.6 }}>
                 <p className="text-[18px] font-medium text-themed truncate">{r.title}</p>
+                {r.component_name && (
+                  <span className="block" style={{ marginTop: 6 }}>
+                    <ComponentPill name={r.component_name} size="sm" />
+                  </span>
+                )}
                 <p className="font-mono text-[11px] text-faint truncate" style={{ marginTop: 6 }}>
                   {r.created_by_name} · {timeAgo(r.created_at)}
                 </p>

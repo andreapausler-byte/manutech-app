@@ -22,6 +22,7 @@ const EVENT_COLORS = {
   media_video:    '#3ddc84',
   media_audio:    '#ffaa2c',
   assigned:       '#7c6aff',
+  component_change: '#22d3ee',
 }
 
 const EVENT_LABELS = {
@@ -33,6 +34,7 @@ const EVENT_LABELS = {
   media_video:    'Video aggiunto',
   media_audio:    'Audio aggiunto',
   assigned:       'Assegnato',
+  component_change: 'Pezzo attribuito',
 }
 
 // Tipi che possono essere raggruppati quando consecutivi (≥ GROUP_THRESHOLD).

@@ -131,6 +131,9 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
     try {
       await db.createMaintenanceLog({
         machine_id: machine.id, plan_id: confirmPlan.id, type: 'programmata',
+        // Il piano può nominare il pezzo (migration 063): il log lo eredita,
+        // così lo storico del componente si popola senza data entry.
+        component_id: confirmPlan.component_id || null,
         title: confirmPlan.name, description: confirmNote.trim() || null,
         performed_by: user?.id, performed_by_name: user?.name,
         duration_minutes: confirmDuration ? parseInt(confirmDuration) : null,
@@ -160,6 +163,9 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
       }).catch(e => console.warn('Side effect failed:', e.message))
       await db.createMaintenanceLog({
         machine_id: machine.id, report_id: resolveReport.id, type: 'straordinaria',
+        // Se la segnalazione dichiarava un pezzo, l'intervento è di quel
+        // pezzo: ereditarlo è ciò che fa nascere lo storico del componente.
+        component_id: resolveReport.component_id || null,
         title: `Risolto: ${resolveReport.title}`, description: resolveNote.trim() || null,
         performed_by: user?.id, performed_by_name: user?.name,
         duration_minutes: resolveDuration ? parseInt(resolveDuration) : null,

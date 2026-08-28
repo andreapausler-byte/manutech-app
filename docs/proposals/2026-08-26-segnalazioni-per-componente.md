@@ -1,10 +1,26 @@
 # Proposta tecnica · Segnalazioni per componente, e la strada verso la gerarchia impianti
 
-**Data**: 2026-08-26
-**Branch**: `claude/machine-components-documents-wwle6b`
-**Stato**: Proposta — richiede decisione prima di scrivere codice
-**Tipo**: docs-only (nessuna migration, nessuna edge function in questo commit)
+**Data**: 2026-08-26 · **Aggiornato**: 2026-08-28
+**Branch**: `claude/machine-components-documents-wwle6b` → attuato su `claude/machinery-components-management-1h7kin`
+**Stato**: **Passi 1-3 attuati in v5.21** (A + B + C + §5). Restano D, E e §4.
+**Tipo**: docs-only alla stesura; l'attuazione porta la migration 063
 **Prerequisito rilasciato**: v5.19 / ADR-012 (componenti con documentazione propria)
+
+> **Stato di attuazione (28/8, v5.21)**
+> - **A — mostrare il pezzo**: fatto. `ComponentPill` in `ReportDetail`,
+>   `ReportsList`, `AdminReports`, `ReportDetailModal`, tab Segnalazioni
+>   (admin e mobile), storico interventi e righe dei piani.
+> - **B — attribuire e correggere dal ticket**: fatto. Bottom sheet nel
+>   dettaglio mobile, select inline nel modal admin, campo componente nei due
+>   form di chiusura, evento `component_change` in `ActivityTimeline`.
+>   *Decisione 28/8*: il tecnico **non** crea componenti al volo — la
+>   creazione resta admin-only (chiude la open question 1 di §7 con «no»).
+> - **C — ereditarietà nei log**: fatto, su tutti e cinque i call-site.
+> - **§5 — piani per componente**: fatto (migration 063).
+> - **D — vocale collegato all'anagrafica**: non fatto.
+> - **E — statistiche e filtri sul pezzo**: non fatto.
+> - **§4 — gerarchia impianti**: non fatto, per scelta: si decide sui dati che
+>   A-C cominciano a produrre adesso.
 
 ---
 
@@ -85,6 +101,13 @@ Da solo questo passo non aggiunge un dato — ma è ciò che convince chi compil
 - Ogni cambio finisce nella `ActivityTimeline` come gli altri cambi di stato: *"Marco ha attribuito il guasto a Pompa dosatrice CIP"*. Serve a due cose — capire quando la diagnosi è cambiata, e non far sparire in silenzio l'ipotesi dell'operatore.
 
 **Da decidere**: il tecnico che chiude può **creare** il componente al volo se manca in anagrafica? Propendo per sì (senza il pezzo giusto in lista, il campo viene lasciato vuoto e torniamo al punto di partenza), con la creazione limitata a nome + tipo e il resto della scheda compilabile dopo dall'ufficio.
+
+> **Deciso il 28/8: no.** La creazione di componenti resta admin-only (policy
+> della 021 invariata). Il tecnico attribuisce fra i pezzi già in anagrafica;
+> se il pezzo giusto manca, lascia "Generico" e lo segnala all'ufficio. È il
+> rischio noto di questa scelta e va guardato: se dopo qualche mese i ticket
+> "generici" su macchine con componenti restano la maggioranza, la causa da
+> verificare per prima è proprio l'anagrafica incompleta, non la UI.
 
 ### C. Ereditarietà nel registro interventi *(piccolo, alto rendimento)*
 
@@ -181,7 +204,7 @@ I passi 1-3 valgono circa una sessione di lavoro ciascuno e non toccano nulla di
 
 ## 7. Domande su cui decidere
 
-1. **Il tecnico può creare un componente al volo** mentre chiude un ticket? (io: sì, nome + tipo, il resto dopo)
+1. ~~**Il tecnico può creare un componente al volo** mentre chiude un ticket?~~ **Deciso 28/8: no**, resta admin-only.
 2. **Un guasto può riguardare più componenti?** Oggi il modello è 1:1. (io: tenerlo 1 — il secondo pezzo si nomina in descrizione. Molti-a-molti qui costa una tabella e complica ogni conteggio, per un caso raro)
 3. **Chi promuove un componente a sotto-macchina?** Solo admin, immagino — ma è una decisione che cambia lo storico, quindi vale la pena renderla reversibile prima che frequente.
 4. **Esistono in stabilimento impianti "di servizio" condivisi** (frigo, aria compressa, vapore)? Se sì, §4.5 va affrontato prima della gerarchia, non dopo.

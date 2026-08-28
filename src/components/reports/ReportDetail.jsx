@@ -26,6 +26,7 @@ import SpareRequestModal from '../spare/SpareRequestModal'
 import InterventionRequestModal from '../spare/InterventionRequestModal'
 import RequestKindChooser from '../spare/RequestKindChooser'
 import TicketSparePanel from '../spare/TicketSparePanel'
+import ComponentPill from '../machines/ComponentPill'
 
 // ─────────────────────────────────────────────────────────────
 // Design tokens — Compact variant (handoff Dettaglio Segnalazione)
@@ -256,19 +257,100 @@ function ConfirmCloseSheet({ open, onClose, onConfirm, busy }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Component sheet — attribuisci il guasto a un pezzo
+//
+// Chi apre la segnalazione quasi mai sa qual è il pezzo rotto: vede un
+// sintomo. Il componente è una diagnosi, e la diagnosi la fa il tecnico —
+// spesso dopo aver smontato. Per questo l'attribuzione si cambia da qui in
+// qualsiasi momento, e "Generico" resta sempre a portata di pollice.
+// ─────────────────────────────────────────────────────────────
+function ComponentSheet({ open, onClose, components, currentId, onSelect, busy }) {
+  if (!open) return null
+  return (
+    <div
+      onClick={onClose}
+      role="dialog" aria-modal="true" aria-labelledby="component-sheet-title"
+      style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+    >
+      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', animation: 'fadeIn 0.18s ease both' }} />
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'relative', width: '100%', maxWidth: 500,
+          background: D.card, borderRadius: '20px 20px 0 0',
+          padding: '14px 14px 28px', maxHeight: '80vh', overflowY: 'auto',
+          animation: 'slideUp 0.22s ease both',
+          border: `1px solid ${D.raised}`, borderBottom: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: D.raised }} />
+        </div>
+        <h3 id="component-sheet-title" style={{ fontSize: 15, fontWeight: 600, color: D.textPrimary, margin: '0 0 4px', letterSpacing: -0.2 }}>
+          Pezzo interessato
+        </h3>
+        <p style={{ fontSize: 12, color: D.textSubtle, margin: '0 0 14px', lineHeight: 1.4 }}>
+          Se il guasto è di un pezzo preciso, dillo qui: lo storico di quel
+          pezzo si popola da solo.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[{ id: '', name: 'Generico — intera macchina' }, ...components].map(c => {
+            const active = (currentId || '') === c.id
+            return (
+              <button
+                key={c.id || 'generic'}
+                onClick={() => onSelect(c.id || null)}
+                disabled={busy}
+                className="press-scale"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  width: '100%', minHeight: 56, padding: '10px 12px',
+                  borderRadius: 12, textAlign: 'left', cursor: 'pointer',
+                  background: active ? 'rgba(34,211,238,0.10)' : D.raised,
+                  border: `1px solid ${active ? 'rgba(34,211,238,0.45)' : 'transparent'}`,
+                  opacity: busy ? 0.6 : 1,
+                }}
+              >
+                <Package size={18} style={{ color: c.id ? '#22d3ee' : D.textFaint, flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: D.textPrimary }}>{c.name}</span>
+                  {(c.type || c.manufacturer) && (
+                    <span style={{ display: 'block', fontSize: 11, color: D.textSubtle, marginTop: 2 }}>
+                      {[c.type, c.manufacturer, c.model].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
+                </span>
+                {active && <Check size={16} style={{ color: '#22d3ee', flexShrink: 0 }} />}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
 // Closure form (bottom sheet) — riusato dal vecchio design
 // ─────────────────────────────────────────────────────────────
-function ClosureSheet({ open, onClose, onSubmit, busy }) {
-  const [form, setForm] = useState({ hours: '', parts: '', rootCause: '', action: '' })
+function ClosureSheet({ open, onClose, onSubmit, busy, components = [], currentComponentId = null }) {
+  const [form, setForm] = useState({ hours: '', parts: '', rootCause: '', action: '', componentId: null })
+  // Il pezzo parte da quello già attribuito al ticket: chi chiude conferma
+  // o corregge, non ricompila. `null` = non ancora toccato dall'utente,
+  // così non serve un effetto per risincronizzarlo a ogni apertura.
+  const componentId = form.componentId === null ? (currentComponentId || '') : form.componentId
   if (!open) return null
   const submit = () => {
     if (!form.hours || !form.rootCause.trim()) return
+    const comp = components.find(c => c.id === componentId) || null
     onSubmit({
       closure_hours: parseFloat(form.hours),
       closure_parts: form.parts.trim() || null,
       closure_root_cause: form.rootCause.trim(),
       closure_action: form.action.trim() || null,
       closed_at: new Date().toISOString(),
+      component_id: comp?.id || null,
+      component_name: comp?.name || null,
     })
   }
   return (
@@ -307,6 +389,18 @@ function ClosureSheet({ open, onClose, onSubmit, busy }) {
                 placeholder="es. Cuscinetto" style={inputStyle} />
             </FieldLabel>
           </div>
+          {components.length > 0 && (
+            <FieldLabel label="Pezzo interessato">
+              <select value={componentId}
+                onChange={e => setForm(f => ({ ...f, componentId: e.target.value }))}
+                style={inputStyle}>
+                <option value="">Generico — intera macchina</option>
+                {components.map(c => (
+                  <option key={c.id} value={c.id}>{c.type ? `${c.name} (${c.type})` : c.name}</option>
+                ))}
+              </select>
+            </FieldLabel>
+          )}
           <FieldLabel label="Causa radice *">
             <textarea value={form.rootCause}
               onChange={e => setForm(f => ({ ...f, rootCause: e.target.value }))}
@@ -484,6 +578,9 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [spareRefresh, setSpareRefresh] = useState(0)
   const [voiceFlow, setVoiceFlow] = useState(null) // null|'update'|'close'|'note'|'spare'
   const [addingMedia, setAddingMedia] = useState(false)
+  const [components, setComponents] = useState([])
+  const [componentSheetOpen, setComponentSheetOpen] = useState(false)
+  const [savingComponent, setSavingComponent] = useState(false)
 
   const toast = useToast()
   const haptic = useHaptic()
@@ -510,6 +607,28 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
     db.getActivities?.(report.id)?.then(a => { if (!cancelled) setHistoryCount((a || []).length) }).catch(() => {})
     return () => { cancelled = true }
   }, [report.id])
+
+  // I pezzi della macchina: servono per attribuire il guasto e per il
+  // menu in chiusura. `machine_id` manca sui ticket vecchi (la macchina
+  // vive nello snapshot testuale `machine`), quindi si ricade sul nome.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        let machineId = report.machine_id
+        if (!machineId && report.machine) {
+          const machines = await db.getMachines()
+          machineId = machines.find(m => m.name === report.machine)?.id || null
+        }
+        if (!machineId) return
+        const list = await db.getMachineComponents(machineId)
+        if (!cancelled) setComponents(list || [])
+      } catch (e) {
+        console.warn('[ReportDetail] getMachineComponents failed:', e?.message)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [report.machine_id, report.machine])
 
   // ─── Status update ────────────────────────────────────
   const updateStatus = async (s, extraUpdates = {}, closureData = null) => {
@@ -594,9 +713,63 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
     }
   }
 
+  // ─── Attribuzione del pezzo ───────────────────────────
+  // Nessuna notifica: cambiare la diagnosi è lavoro del tecnico, non un
+  // evento per cui svegliare il reparto. Resta in cronologia, che è dove
+  // serve — per capire quando l'ipotesi dell'operatore è stata corretta.
+  const handleComponentSelect = async (componentId) => {
+    if (savingComponent) return
+    const comp = components.find(c => c.id === componentId) || null
+    const prevName = report.component_name || null
+    if ((report.component_id || null) === (comp?.id || null)) {
+      setComponentSheetOpen(false)
+      return
+    }
+    setSavingComponent(true)
+    haptic.medium()
+    try {
+      const updated = await db.updateReport(report.id, {
+        component_id: comp?.id || null,
+        component_name: comp?.name || null,
+      })
+      setReport(r => ({ ...r, ...updated }))
+      db.addActivity(report.id, {
+        type: 'component_change',
+        user_id: user.id, user_name: user.name,
+        detail: comp
+          ? (prevName && prevName !== comp.name
+              ? `Guasto riattribuito da ${prevName} a ${comp.name}`
+              : `Guasto attribuito a ${comp.name}`)
+          : `Attribuzione rimossa${prevName ? ` (era ${prevName})` : ''} — torna generico`,
+      }).catch(e => console.warn('Side effect failed:', e.message))
+      toast.success(comp ? `Guasto attribuito a ${comp.name}` : 'Torna generico')
+      setComponentSheetOpen(false)
+    } catch (err) {
+      console.error('[ManuTech] Errore attribuzione componente:', err)
+      toast.error(`Errore: ${err?.message || 'sconosciuto'}`)
+    }
+    setSavingComponent(false)
+  }
+
   const handleClosureSubmit = async (closureData) => {
+    // Il pezzo dichiarato in chiusura è quello che conta per le statistiche:
+    // quello scelto in apertura è un'ipotesi dell'operatore. Se cambia, la
+    // cronologia lo dice — l'ipotesi non deve sparire in silenzio.
+    const prevComponentId = report.component_id || null
+    const prevComponentName = report.component_name || null
     const ok = await updateStatus('risolta', closureData, closureData)
     if (ok) {
+      if ((closureData.component_id || null) !== prevComponentId) {
+        db.addActivity(report.id, {
+          type: 'component_change',
+          user_id: user.id, user_name: user.name,
+          detail: closureData.component_name
+            ? (prevComponentName
+                ? `In chiusura: guasto riattribuito da ${prevComponentName} a ${closureData.component_name}`
+                : `In chiusura: guasto attribuito a ${closureData.component_name}`)
+            : `In chiusura: attribuzione rimossa${prevComponentName ? ` (era ${prevComponentName})` : ''}`,
+        }).catch(e => console.warn('Side effect failed:', e.message))
+      }
       setClosureSheetOpen(false)
       // Triggera reindex knowledge base della macchina (fire-and-forget):
       // il ticket appena chiuso, con la sua chat e closure, diventa
@@ -773,6 +946,52 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         {reportType && <Chip label={reportType.label} color={reportType.color} />}
         {report.machine && <Chip icon="📍" label={report.machine} />}
       </div>
+
+      {/* ═══ Card "Pezzo interessato" ═══
+          Compare solo se c'è qualcosa da dire: un pezzo già attribuito,
+          oppure una macchina che ha componenti in anagrafica. Su una
+          macchina senza pezzi registrati non aggiunge rumore. */}
+      {(report.component_name || components.length > 0) && (
+        <div style={{
+          flexShrink: 0,
+          margin: '10px 12px 0',
+          padding: '10px 12px', borderRadius: 12,
+          background: D.card,
+          border: `1px solid ${report.component_name ? 'rgba(34,211,238,0.28)' : D.raised}`,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: 1,
+              textTransform: 'uppercase', color: D.textSubtle,
+              fontFamily: '"JetBrains Mono", monospace', marginBottom: 5,
+            }}>
+              Pezzo interessato
+            </div>
+            {report.component_name ? (
+              <ComponentPill name={report.component_name} size="md" />
+            ) : (
+              <span style={{ fontSize: 13, color: D.textSubtle }}>
+                Generico — intera macchina
+              </span>
+            )}
+          </div>
+          {canUpdate && !isClosed && components.length > 0 && (
+            <button
+              onClick={() => { haptic.light(); setComponentSheetOpen(true) }}
+              className="press-scale"
+              style={{
+                background: 'transparent', border: 'none',
+                color: D.accentLight, fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', padding: '6px 2px', flexShrink: 0,
+                letterSpacing: -0.1, whiteSpace: 'nowrap',
+              }}
+            >
+              {report.component_name ? 'Cambia' : 'Attribuisci'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ═══ Card "Stato" ═══ */}
       <div style={{
@@ -1145,6 +1364,16 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         onClose={() => setClosureSheetOpen(false)}
         onSubmit={handleClosureSubmit}
         busy={updating}
+        components={components}
+        currentComponentId={report.component_id || null}
+      />
+      <ComponentSheet
+        open={componentSheetOpen}
+        onClose={() => setComponentSheetOpen(false)}
+        components={components}
+        currentId={report.component_id || null}
+        onSelect={handleComponentSelect}
+        busy={savingComponent}
       />
       <ShareReportSheet
         open={shareSheetOpen}

@@ -15,6 +15,7 @@ import { useToast } from '../../../hooks/useToast'
 import InterventionsForReport from '../../../components/interventions/InterventionsForReport'
 import MergeReportModal from './MergeReportModal'
 import ShareReportSheet from '../../../components/reports/ShareReportSheet'
+import ComponentPill from '../../../components/machines/ComponentPill'
 import {
   X, MessageCircle, Clock, Pencil, Trash2, Save, XCircle, Share2,
   AlertTriangle, UserCheck, Sparkles, GitMerge, Link2, Unlink, ChevronRight
@@ -41,10 +42,12 @@ export default function ReportDetailModal({ selected, user, users, machines, all
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showClosureForm, setShowClosureForm] = useState(false)
-  const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '' })
+  const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '', componentId: null })
   const [closureSaving, setClosureSaving] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [shareOpen, setShareOpen] = useState(false)
+  const [components, setComponents] = useState([])
+  const [componentSaving, setComponentSaving] = useState(false)
 
   const photos = (selected.media || []).filter(m => m.type === 'photo')
 
@@ -59,6 +62,11 @@ export default function ReportDetailModal({ selected, user, users, machines, all
   const [confirmClose, setConfirmClose] = useState(false)
   const isDuplicate = !!selected.duplicate_of_id
   const roleOk = ['tecnico', 'admin', 'super_admin'].includes(user?.role)
+  // I pezzi della macchina del ticket. `machine_id` manca sui ticket
+  // vecchi: si ricade sullo snapshot testuale `machine`.
+  const machineId = selected.machine_id
+    || machines.find(m => m.name === selected.machine)?.id
+    || null
   const masterFromList = allReports.find(r => r.id === selected.duplicate_of_id)
   const master = masterFromList
     || (masterFetched && masterFetched.id === selected.duplicate_of_id ? masterFetched : null)
@@ -132,17 +140,35 @@ export default function ReportDetailModal({ selected, user, users, machines, all
       return
     }
     setClosureSaving(true)
+    const closureComponentId = closureForm.componentId === null
+      ? (selected.component_id || '')
+      : closureForm.componentId
+    const closureComponent = components.find(c => c.id === closureComponentId) || null
+    const prevComponentName = selected.component_name || null
     const closureData = {
       closure_hours: parseFloat(closureForm.hours),
       closure_parts: closureForm.parts.trim() || null,
       closure_root_cause: closureForm.rootCause.trim(),
       closure_action: closureForm.action.trim() || null,
+      component_id: closureComponent?.id || null,
+      component_name: closureComponent?.name || null,
       closed_at: new Date().toISOString(),
     }
     try {
       await updateStatus(selected.id, 'risolta', closureData, closureData)
+      if ((closureData.component_id || null) !== (selected.component_id || null)) {
+        db.addActivity(selected.id, {
+          type: 'component_change',
+          user_id: user?.id, user_name: user?.name,
+          detail: closureData.component_name
+            ? (prevComponentName
+                ? `In chiusura: guasto riattribuito da ${prevComponentName} a ${closureData.component_name}`
+                : `In chiusura: guasto attribuito a ${closureData.component_name}`)
+            : `In chiusura: attribuzione rimossa${prevComponentName ? ` (era ${prevComponentName})` : ''}`,
+        }).catch(e => console.warn('Side effect failed:', e.message))
+      }
       setShowClosureForm(false)
-      setClosureForm({ hours: '', parts: '', rootCause: '', action: '' })
+      setClosureForm({ hours: '', parts: '', rootCause: '', action: '', componentId: null })
       toast.success('Intervento chiuso con successo')
     } catch (err) {
       toast.error('Errore chiusura intervento: ' + err.message)
@@ -174,6 +200,46 @@ export default function ReportDetailModal({ selected, user, users, machines, all
       }).catch(e => console.warn('Side effect failed:', e.message))
     }
     onUpdate({ status: newStatus, ...extraUpdates })
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    if (!machineId) { setComponents([]); return }
+    db.getMachineComponents(machineId)
+      .then(list => { if (!cancelled) setComponents(list || []) })
+      .catch(e => console.warn('[ReportDetailModal] getMachineComponents failed:', e?.message))
+    return () => { cancelled = true }
+  }, [machineId])
+
+  // Attribuisce (o toglie) il pezzo. È una diagnosi, non un cambio di
+  // stato: nessuna notifica, ma resta in cronologia — l'ipotesi di chi ha
+  // aperto la segnalazione non deve sparire in silenzio.
+  const attributeComponent = async (componentId) => {
+    if (componentSaving) return
+    const comp = components.find(c => c.id === componentId) || null
+    const prevName = selected.component_name || null
+    if ((selected.component_id || null) === (comp?.id || null)) return
+    setComponentSaving(true)
+    try {
+      const updated = await db.updateReport(selected.id, {
+        component_id: comp?.id || null,
+        component_name: comp?.name || null,
+      })
+      db.addActivity(selected.id, {
+        type: 'component_change',
+        user_id: user?.id, user_name: user?.name,
+        detail: comp
+          ? (prevName && prevName !== comp.name
+              ? `Guasto riattribuito da ${prevName} a ${comp.name}`
+              : `Guasto attribuito a ${comp.name}`)
+          : `Attribuzione rimossa${prevName ? ` (era ${prevName})` : ''} — torna generico`,
+      }).catch(e => console.warn('Side effect failed:', e.message))
+      onUpdate(updated)
+      toast.success(comp ? `Guasto attribuito a ${comp.name}` : 'Torna generico')
+    } catch (err) {
+      toast.error('Errore attribuzione: ' + err.message)
+    }
+    setComponentSaving(false)
   }
 
   const startEditing = () => {
@@ -377,10 +443,38 @@ export default function ReportDetailModal({ selected, user, users, machines, all
                     </div>
                   </div>
                 )}
-                {selected.machine && (
-                  <div className="bg-surface-2 rounded-xl p-3 flex items-center gap-2">
-                    <span className="text-lg">🏭</span>
-                    <span className="text-sm text-themed font-medium">{selected.machine}</span>
+                {(selected.machine || selected.component_name || components.length > 0) && (
+                  <div className="bg-surface-2 rounded-xl p-3 space-y-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {selected.machine && (
+                        <>
+                          <span className="text-lg">🏭</span>
+                          <span className="text-sm text-themed font-medium">{selected.machine}</span>
+                        </>
+                      )}
+                      {selected.component_name && (
+                        <ComponentPill name={selected.component_name} size="sm" style={{ marginLeft: 'auto' }} />
+                      )}
+                    </div>
+                    {/* Il pezzo è una diagnosi e la diagnosi cambia: si
+                        attribuisce e si corregge da qui, senza entrare in
+                        modifica. "Generico" resta sempre disponibile. */}
+                    {roleOk && components.length > 0 && (
+                      <div>
+                        <label className="block text-[11px] text-faint uppercase tracking-wider mb-1.5">Pezzo interessato</label>
+                        <select
+                          value={selected.component_id || ''}
+                          disabled={componentSaving}
+                          onChange={e => attributeComponent(e.target.value || null)}
+                          className="w-full input-field rounded-xl px-3 py-2.5 text-sm disabled:opacity-50"
+                        >
+                          <option value="">Generico — intera macchina</option>
+                          {components.map(c => (
+                            <option key={c.id} value={c.id}>{c.type ? `${c.name} (${c.type})` : c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div>
@@ -664,6 +758,21 @@ export default function ReportDetailModal({ selected, user, users, machines, all
                     className="w-full input-field rounded-xl px-3 py-2.5 text-sm" />
                 </div>
               </div>
+              {components.length > 0 && (
+                <div>
+                  <label className="block text-[11px] text-faint uppercase mb-1">Pezzo interessato</label>
+                  <select
+                    value={closureForm.componentId === null ? (selected.component_id || '') : closureForm.componentId}
+                    onChange={e => setClosureForm(f => ({ ...f, componentId: e.target.value }))}
+                    className="w-full input-field rounded-xl px-3 py-2.5 text-sm"
+                  >
+                    <option value="">Generico — intera macchina</option>
+                    {components.map(c => (
+                      <option key={c.id} value={c.id}>{c.type ? `${c.name} (${c.type})` : c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-[11px] text-faint uppercase mb-1">Causa radice *</label>
                 <textarea value={closureForm.rootCause}

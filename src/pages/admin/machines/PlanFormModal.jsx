@@ -5,7 +5,7 @@ const FREQ_PRESETS = [
   { label: 'Sem.', days: 180 }, { label: 'Annuale', days: 365 },
 ]
 
-export default function PlanFormModal({ open, onClose, editing, form, setForm, users, onSave }) {
+export default function PlanFormModal({ open, onClose, editing, form, setForm, users, components = [], onSave }) {
   return (
     <Modal open={open} onClose={onClose} title={editing ? 'Modifica Piano' : 'Nuovo Piano'} size="md">
       <div className="space-y-4">
@@ -20,6 +20,19 @@ export default function PlanFormModal({ open, onClose, editing, form, setForm, u
             <input type="number" value={form.frequency_days} onChange={e => setForm(f => ({ ...f, frequency_days: e.target.value }))} className="w-20 input-field rounded-xl px-3 py-2 text-sm text-center" />
             <span className="text-sm text-faint">giorni</span></div>
         </div>
+        {/* Il piano resta della macchina — scadenze, semaforo e agenda non
+            cambiano. Il pezzo dice su cosa si interviene, e il log confermato
+            lo eredita: lo storico del componente si popola da solo. */}
+        {components.length > 0 && (
+          <div>
+            <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Componente</label>
+            <select value={form.component_id || ''} onChange={e => setForm(f => ({ ...f, component_id: e.target.value }))}
+              className="w-full input-field rounded-xl px-3 py-2.5 text-sm">
+              <option value="">Intero macchinario</option>
+              {components.map(c => <option key={c.id} value={c.id}>{c.name}{c.type ? ` (${c.type})` : ''}</option>)}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Responsabile</label>
           <select value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))} className="w-full input-field rounded-xl px-3 py-2.5 text-sm">

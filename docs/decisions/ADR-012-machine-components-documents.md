@@ -68,7 +68,7 @@ Il tab Componenti diventa elenco a sinistra (con conteggio file e segnalazioni a
 **Negative / da tenere d'occhio**
 - **Il tetto dei 200 allegati per macchina ora si avvicina più in fretta**: con dieci componenti da dieci file l'una si arriva a 100 senza accorgersene. `machines.attachments` è JSONB su riga singola, e ogni upload riscrive tutta la colonna. È il primo limite che questa feature incontrerà; quando succede, la mossa è `machine_files` come tabella vera (l'etichetta `component_id` si porta dietro identica).
 - **`component_name` è denormalizzato.** Vive di due trigger. Se un domani si scrive su `machines.attachments` per una strada che li aggira, gli snapshot divergono.
-- **Nessun piano di manutenzione sul componente**: si registra il pezzo e i suoi documenti, ma la preventiva resta della linea. Consapevole, non dimenticato.
+- ~~**Nessun piano di manutenzione sul componente**~~ — risolto in v5.21: `maintenance_plans.component_id` opzionale (migration 063). Il piano resta della macchina; nomina il pezzo e il log confermato lo eredita.
 - **Mobile in sola lettura sui componenti**: dal campo si vede da che pezzo viene un file (pastiglia nel tab Doc, badge in galleria), ma non si può creare un componente né caricarci sopra. L'hook `useMachineUpload` accetta già il componente: manca solo la schermata.
 
 ## Scope
@@ -90,4 +90,4 @@ Il tab Componenti diventa elenco a sinistra (con conteggio file e segnalazioni a
 
 1. **Quando `machines.attachments` diventa `machine_files`?** La soglia tecnica è nota (200), quella pratica no: va guardata dopo qualche mese di uso reale.
 2. ~~**Un componente può segnalare?** Non c'è modo di scegliere il pezzo mentre si crea la segnalazione dal mobile.~~ **Sbagliata**: `NewReport` — che è anche il flusso mobile — ha il selettore "Componente specifico" dalla 021, e scrive `component_id` e `component_name`. Il problema vero è a valle: nessuna vista del ticket mostra il pezzo, la chiusura non lo chiede e i `maintenance_log` non lo ereditano. Studio completo in `docs/proposals/2026-08-26-segnalazioni-per-componente.md`.
-3. **Chi può creare un componente?** Oggi admin (policy della 021), mentre i file li può caricare anche il tecnico. È la divisione giusta o il tecnico deve poter registrare il pezzo che ha appena montato?
+3. ~~**Chi può creare un componente?** Oggi admin (policy della 021), mentre i file li può caricare anche il tecnico.~~ **Deciso il 28/8: resta admin-only.** Il tecnico attribuisce il guasto a un pezzo esistente (v5.21) e ci carica sopra i file, ma non ne registra di nuovi dal campo. Da tenere d'occhio: un'anagrafica componenti incompleta si manifesta come ticket lasciati "generici", non come errore.

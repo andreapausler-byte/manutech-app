@@ -11,6 +11,7 @@ import { CheckCircle, ShieldCheck } from 'lucide-react'
 import { TabHeading, TabEmptyFrame } from './MachineTabParts'
 import { padX } from './machineTabs'
 import { EmptyState } from '../ui'
+import ComponentPill from './ComponentPill'
 import { useHaptic } from '../../hooks/useHaptic'
 import { getTrafficLight } from '../../lib/maintenanceStatus'
 
@@ -58,6 +59,11 @@ export default function MachinePlansTab({ plans, planLastLogs, loading, onConfir
             />
             <div className="flex-1 min-w-0" style={{ paddingTop: '4vw', paddingBottom: '4vw' }}>
               <p className="text-[19px] font-bold text-themed break-words">{plan.name}</p>
+              {plan.component?.name && (
+                <span className="block" style={{ marginTop: 6 }}>
+                  <ComponentPill name={plan.component.name} size="sm" />
+                </span>
+              )}
               <p className="font-mono text-[11px] uppercase tracking-wider text-faint truncate" style={{ marginTop: 6 }}>
                 Ogni {plan.frequency_days}g · {plan.assigned_to_name || 'Non assegnato'}
               </p>
@@ -93,6 +99,11 @@ export default function MachinePlansTab({ plans, planLastLogs, loading, onConfir
           />
           <div className="flex-1 min-w-0" style={{ paddingTop: '4vw', paddingBottom: '4vw' }}>
             <p className="text-[19px] font-bold text-themed break-words">{plan.name}</p>
+            {plan.component?.name && (
+              <span className="block" style={{ marginTop: 6 }}>
+                <ComponentPill name={plan.component.name} size="sm" />
+              </span>
+            )}
             <p className="font-mono text-[11px] uppercase tracking-wider text-faint truncate" style={{ marginTop: 6 }}>
               Ogni {plan.frequency_days}g · {plan.assigned_to_name || 'Non assegnato'}
             </p>

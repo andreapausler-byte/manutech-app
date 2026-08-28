@@ -57,7 +57,7 @@ export default function AdminMachines({ onOpenAssistant }) {
   // Plan form
   const [showPlanForm, setShowPlanForm] = useState(false)
   const [editingPlan, setEditingPlan] = useState(null)
-  const [planForm, setPlanForm] = useState({ name: '', frequency_days: 30, assigned_to: '', instructions: '' })
+  const [planForm, setPlanForm] = useState({ name: '', frequency_days: 30, assigned_to: '', instructions: '', component_id: '' })
 
   // Log form
   const [showLogForm, setShowLogForm] = useState(false)
@@ -347,8 +347,8 @@ export default function AdminMachines({ onOpenAssistant }) {
   // ── Plans ──
   const openPlanForm = (plan = null) => {
     setEditingPlan(plan)
-    setPlanForm(plan ? { name: plan.name, frequency_days: plan.frequency_days, assigned_to: plan.assigned_to || '', instructions: plan.instructions || '' }
-      : { name: '', frequency_days: 30, assigned_to: '', instructions: '' })
+    setPlanForm(plan ? { name: plan.name, frequency_days: plan.frequency_days, assigned_to: plan.assigned_to || '', instructions: plan.instructions || '', component_id: plan.component_id || '' }
+      : { name: '', frequency_days: 30, assigned_to: '', instructions: '', component_id: '' })
     setShowPlanForm(true)
   }
 
@@ -356,7 +356,7 @@ export default function AdminMachines({ onOpenAssistant }) {
     if (!planForm.name.trim() || !sel) return
     try {
       const assignee = users.find(u => u.id === planForm.assigned_to)
-      const data = { name: planForm.name.trim(), frequency_days: parseInt(planForm.frequency_days) || 30, machine_id: sel.id, assigned_to: planForm.assigned_to || null, assigned_to_name: assignee?.name || null, instructions: planForm.instructions || null, org_id: user?.org_id }
+      const data = { name: planForm.name.trim(), frequency_days: parseInt(planForm.frequency_days) || 30, machine_id: sel.id, assigned_to: planForm.assigned_to || null, assigned_to_name: assignee?.name || null, instructions: planForm.instructions || null, component_id: planForm.component_id || null, org_id: user?.org_id }
       if (editingPlan) { await db.updateMaintenancePlan(editingPlan.id, data); toast.success('Piano aggiornato') }
       else { await db.createMaintenancePlan(data); toast.success('Piano creato') }
       setShowPlanForm(false); await refreshDetail()
@@ -394,7 +394,9 @@ export default function AdminMachines({ onOpenAssistant }) {
     } else {
       setEditingLog(null)
       const plan = planId ? plans.find(p => p.id === planId) : null
-      setLogForm({ title: plan?.name || '', description: '', duration_minutes: '', parts_replaced: '', plan_id: planId || '', component_id: '', is_external: false, contractor_name: '', contractor_reference: '', media: [], performed_at: '' })
+      // Se il piano nomina un pezzo, il log parte già su quel pezzo
+      // (migration 063): resta correggibile, ma non va ricompilato.
+      setLogForm({ title: plan?.name || '', description: '', duration_minutes: '', parts_replaced: '', plan_id: planId || '', component_id: plan?.component_id || '', is_external: false, contractor_name: '', contractor_reference: '', media: [], performed_at: '' })
     }
     setShowLogForm(true)
   }
@@ -957,7 +959,7 @@ export default function AdminMachines({ onOpenAssistant }) {
 
       <PlanFormModal
         open={showPlanForm} onClose={() => setShowPlanForm(false)} editing={editingPlan}
-        form={planForm} setForm={setPlanForm} users={users} onSave={savePlan}
+        form={planForm} setForm={setPlanForm} users={users} components={components} onSave={savePlan}
       />
 
       <LogFormModal

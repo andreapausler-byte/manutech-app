@@ -14,6 +14,7 @@ import MachineDocumentationTab from './MachineDocumentationTab'
 import MachineComponentsTab from './MachineComponentsTab'
 import { useMachineMedia } from '../../../hooks/useMachineMedia'
 import AISummaryCard from '../../../components/assistant/AISummaryCard'
+import ComponentPill from '../../../components/machines/ComponentPill'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
 
@@ -416,6 +417,9 @@ function OverviewTab({
                   className={`flex items-start gap-4 p-4 bg-surface-2 rounded-2xl cursor-pointer hover:bg-surface-3 transition-all border ${isCritical ? 'border-red-500/30' : 'border-token'}`}>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-themed font-bold mb-1">{r.title}</p>
+                    {r.component_name && (
+                      <ComponentPill name={r.component_name} size="xs" style={{ marginBottom: 6 }} />
+                    )}
                     {r.description && <p className="text-xs text-faint line-clamp-2 leading-relaxed mb-2">{r.description}</p>}
                     <p className="text-[11px] text-faint">{r.created_by_name} · {timeAgo(r.created_at)}</p>
                   </div>
@@ -1130,6 +1134,9 @@ export default function MachineDetailSheet({
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-0.5">
                                 <p className="text-sm text-themed font-medium truncate">{r.title}</p>
+                                {r.component_name && (
+                                  <ComponentPill name={r.component_name} size="xs" className="shrink-0" />
+                                )}
                               </div>
                               {r.description && (
                                 <p className="text-[11px] text-faint line-clamp-2 leading-relaxed">{r.description}</p>

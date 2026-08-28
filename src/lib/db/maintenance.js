@@ -4,7 +4,8 @@ export const maintenance = {
   // ─── MAINTENANCE PLANS ───
   async getMaintenancePlans(machineId) {
     if (supabase) {
-      const { data, error } = await supabase.from('maintenance_plans').select('*')
+      const { data, error } = await supabase.from('maintenance_plans')
+        .select('*, component:machine_components(id, name, type)')
         .eq('machine_id', machineId).order('name')
       if (error) throw error
       return data || []
@@ -14,7 +15,8 @@ export const maintenance = {
 
   async getAllMaintenancePlans() {
     if (supabase) {
-      const { data, error } = await supabase.from('maintenance_plans').select('*').order('name')
+      const { data, error } = await supabase.from('maintenance_plans')
+        .select('*, component:machine_components(id, name, type)').order('name')
       if (error) throw error
       return data || []
     }
@@ -25,7 +27,7 @@ export const maintenance = {
   async getAllMaintenancePlansWithMachine() {
     if (supabase) {
       const { data, error } = await supabase.from('maintenance_plans')
-        .select('*, machine:machines(id, name, department)')
+        .select('*, machine:machines(id, name, department), component:machine_components(id, name, type)')
         .order('name')
       if (error) throw error
       return data || []
@@ -71,6 +73,7 @@ export const maintenance = {
         _assigned_to: plan.assigned_to || null,
         _assigned_to_name: plan.assigned_to_name || null,
         _instructions: plan.instructions || null,
+        _component_id: plan.component_id || null,
       })
       if (!rpcError && rpcData) return rpcData
       if (rpcError) console.warn('[ManuTech] RPC create_maintenance_plan non disponibile, fallback insert diretto:', rpcError.message)
@@ -152,7 +155,8 @@ export const maintenance = {
   // ─── MAINTENANCE LOGS ───
   async getMaintenanceLogs(machineId) {
     if (supabase) {
-      const { data, error } = await supabase.from('maintenance_logs').select('*')
+      const { data, error } = await supabase.from('maintenance_logs')
+        .select('*, component:machine_components(id, name, type)')
         .eq('machine_id', machineId).order('performed_at', { ascending: false })
       if (error) throw error
       return data || []

@@ -18,6 +18,7 @@ import { formatDateParts } from '../../lib/constants'
 import { TabHeading, TabActionRow, TabEmptyFrame } from './MachineTabParts'
 import { padX, padRow } from './machineTabs'
 import { EmptyState } from '../ui'
+import ComponentPill from './ComponentPill'
 import { useHaptic } from '../../hooks/useHaptic'
 
 const PAGE = 6
@@ -96,6 +97,11 @@ export default function MachineLogsTab({ logs, loading }) {
                   : <AlertTriangle size={16} className="text-amber-400 shrink-0" style={{ marginTop: 4 }} />}
                 <span className="text-[18px] font-medium text-themed break-words">{log.title}</span>
               </p>
+              {log.component?.name && (
+                <span className="block" style={{ marginTop: 6 }}>
+                  <ComponentPill name={log.component.name} size="sm" />
+                </span>
+              )}
               {log.description && (
                 <p className="text-sm text-muted line-clamp-2" style={{ marginTop: 4 }}>{log.description}</p>
               )}

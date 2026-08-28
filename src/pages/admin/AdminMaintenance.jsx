@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import PageHeader from '../../components/layout/PageHeader'
 import { findNavItem } from '../../lib/adminNav'
+import ComponentPill from '../../components/machines/ComponentPill'
 import {
   Shield, Wrench, AlertTriangle, CheckCircle, Cog, Clock,
   Plus, Edit, Trash2, Play, Search, X, Upload, ChevronRight,
@@ -55,7 +56,8 @@ export default function AdminMaintenance() {
   // Plan form
   const [showPlanForm, setShowPlanForm] = useState(false)
   const [editingPlan, setEditingPlan] = useState(null)
-  const [planForm, setPlanForm] = useState({ name: '', frequency_days: 30, assigned_to: '', instructions: '', machine_id: '' })
+  const [planForm, setPlanForm] = useState({ name: '', frequency_days: 30, assigned_to: '', instructions: '', machine_id: '', component_id: '' })
+  const [planComponents, setPlanComponents] = useState([])
 
   // Log form
   const [showLogForm, setShowLogForm] = useState(false)
@@ -118,12 +120,16 @@ export default function AdminMaintenance() {
   })
 
   // ── Plan CRUD ──
-  const openPlanForm = (plan = null, machineId = '') => {
+  const openPlanForm = async (plan = null, machineId = '') => {
     setEditingPlan(plan)
     setPlanForm(plan
-      ? { name: plan.name, frequency_days: plan.frequency_days, assigned_to: plan.assigned_to || '', instructions: plan.instructions || '', machine_id: plan.machine_id }
-      : { name: '', frequency_days: 30, assigned_to: '', instructions: '', machine_id: machineId })
+      ? { name: plan.name, frequency_days: plan.frequency_days, assigned_to: plan.assigned_to || '', instructions: plan.instructions || '', machine_id: plan.machine_id, component_id: plan.component_id || '' }
+      : { name: '', frequency_days: 30, assigned_to: '', instructions: '', machine_id: machineId, component_id: '' })
     setShowPlanForm(true)
+    const mid = plan?.machine_id || machineId
+    if (mid) {
+      try { setPlanComponents(await db.getMachineComponents(mid)) } catch { setPlanComponents([]) }
+    } else { setPlanComponents([]) }
   }
 
   const savePlan = async () => {
@@ -134,6 +140,7 @@ export default function AdminMaintenance() {
         name: planForm.name.trim(), frequency_days: parseInt(planForm.frequency_days) || 30,
         machine_id: planForm.machine_id, assigned_to: planForm.assigned_to || null,
         assigned_to_name: assignee?.name || null, instructions: planForm.instructions || null,
+        component_id: planForm.component_id || null,
         org_id: user?.org_id,
       }
       if (editingPlan) { await db.updateMaintenancePlan(editingPlan.id, data); toast.success('Piano aggiornato') }
@@ -152,7 +159,10 @@ export default function AdminMaintenance() {
     const machineId = task?.machine?.id || machines[0]?.id || ''
     setLogForm({
       title: task?.plan?.name || '', description: '', duration_minutes: '', parts_replaced: '',
-      plan_id: task?.plan?.id || '', machine_id: machineId, component_id: '',
+      plan_id: task?.plan?.id || '', machine_id: machineId,
+      // Se il piano nomina un pezzo, il log parte già su quel pezzo:
+      // resta correggibile, ma nessuno deve ricompilarlo (migration 063).
+      component_id: task?.plan?.component_id || '',
     })
     if (machineId) {
       try { setLogComponents(await db.getMachineComponents(machineId)) } catch { setLogComponents([]) }
@@ -333,6 +343,9 @@ export default function AdminMaintenance() {
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-[15px] text-white font-medium">{task.plan.name}</p>
+                        {task.plan.component?.name && (
+                          <ComponentPill name={task.plan.component.name} size="xs" style={{ marginTop: 4 }} />
+                        )}
                         {task.plan.instructions && <p className="text-xs text-faint mt-0.5 truncate max-w-[200px]">{task.plan.instructions}</p>}
                       </td>
                       <td className="px-5 py-4 hidden lg:table-cell">
@@ -438,12 +451,31 @@ export default function AdminMaintenance() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Macchinario *</label>
-            <select value={planForm.machine_id} onChange={e => setPlanForm(f => ({ ...f, machine_id: e.target.value }))}
+            <select value={planForm.machine_id} onChange={async e => {
+              const mid = e.target.value
+              setPlanForm(f => ({ ...f, machine_id: mid, component_id: '' }))
+              if (mid) {
+                try { setPlanComponents(await db.getMachineComponents(mid)) } catch { setPlanComponents([]) }
+              } else { setPlanComponents([]) }
+            }}
               className="w-full input-field rounded-xl px-3 py-2.5 text-sm" disabled={!!editingPlan}>
               <option value="">Seleziona macchinario</option>
               {machines.map(m => <option key={m.id} value={m.id}>{m.name}{m.department ? ` — ${m.department}` : ''}</option>)}
             </select>
           </div>
+          {/* Il piano resta della macchina: scadenze e semaforo non cambiano.
+              Il pezzo dice solo su cosa si interviene — e il log confermato
+              lo eredita, popolando lo storico del componente da solo. */}
+          {planComponents.length > 0 && (
+            <div>
+              <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Componente</label>
+              <select value={planForm.component_id || ''} onChange={e => setPlanForm(f => ({ ...f, component_id: e.target.value }))}
+                className="w-full input-field rounded-xl px-3 py-2.5 text-sm">
+                <option value="">Intero macchinario</option>
+                {planComponents.map(c => <option key={c.id} value={c.id}>{c.name}{c.type ? ` (${c.type})` : ''}</option>)}
+              </select>
+            </div>
+          )}
           <Input label="Attività *" placeholder="Lubrificazione cuscinetti" value={planForm.name} onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))} />
           <div>
             <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Frequenza</label>

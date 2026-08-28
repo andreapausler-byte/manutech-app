@@ -7,6 +7,7 @@ import { useRipple } from '../../hooks/useMobileEffects'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive, Cog } from 'lucide-react'
+import ComponentPill from '../machines/ComponentPill'
 
 // Convenzione schema reports: il nome del macchinario è salvato come snapshot
 // denormalizzato nel campo `machine` (TEXT) — NON `machine_name`. Asimmetrico
@@ -153,6 +154,9 @@ function AccordionReportCard({ report, onSelect, unread, lastMessage, activity }
                 {report.machine}
               </span>
             </>
+          )}
+          {report.component_name && (
+            <ComponentPill name={report.component_name} size="sm" style={{ flexShrink: 1, minWidth: 0 }} />
           )}
           <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--color-text-muted)', flexShrink: 0 }}>
             {shortDate(report.updated_at || report.created_at)}
