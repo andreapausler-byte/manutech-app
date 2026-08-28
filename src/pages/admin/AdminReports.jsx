@@ -1171,14 +1171,42 @@ export default function AdminReports({ initialReportId }) {
             </div>
           </div>
           {/* Il pezzo in apertura è un'ipotesi, non una diagnosi: opzionale,
-              default "Generico", e compare solo se la macchina ha componenti
-              in anagrafica. Si corregge poi dal dettaglio e in chiusura. */}
-          {newComponents.length > 0 && (
-            <Select label="Componente" value={form.component_id} onChange={e => set('component_id', e.target.value)}
-              options={[
-                { value: '', label: 'Generico — intera macchina' },
-                ...newComponents.map(c => ({ value: c.id, label: c.type ? `${c.name} (${c.type})` : c.name })),
-              ]} />
+              default "Generico", si corregge poi dal dettaglio e in chiusura.
+
+              Perché qui il campo si vede anche quando la macchina NON ha
+              componenti (disabilitato, con la ragione scritta): nasconderlo
+              rende indistinguibile "questa macchina non ha pezzi" da "la
+              funzione non c'è". Chi sta all'admin è anche l'unico che può
+              rimediare — la creazione dei componenti è admin-only — quindi
+              qui l'assenza è un'informazione utile, non rumore. Sul mobile
+              resta nascosto: al tecnico non serve un campo che non può
+              riempire. */}
+          {form.machine && (
+            newComponents.length > 0 ? (
+              <Select label="Componente" value={form.component_id} onChange={e => set('component_id', e.target.value)}
+                options={[
+                  { value: '', label: 'Generico — intera macchina' },
+                  ...newComponents.map(c => ({ value: c.id, label: c.type ? `${c.name} (${c.type})` : c.name })),
+                ]} />
+            ) : (
+              <div>
+                <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Componente</label>
+                <div
+                  className="rounded-xl text-sm"
+                  style={{
+                    background: 'var(--color-surface-2)',
+                    border: '1px dashed var(--color-border)',
+                    color: 'var(--color-text-muted)',
+                    padding: '12px 14px',
+                  }}
+                >
+                  Nessun componente registrato per <span style={{ color: 'var(--color-text)' }}>{form.machine}</span>.
+                  <span className="block text-[12px]" style={{ marginTop: 4, color: 'var(--color-text-faint)' }}>
+                    Registrali in Macchinari → {form.machine} → tab Componenti: da lì in poi le segnalazioni potranno indicare il pezzo.
+                  </span>
+                </div>
+              </div>
+            )
           )}
           <div>
             <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Tipo Intervento</label>
