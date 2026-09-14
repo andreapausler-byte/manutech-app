@@ -37,12 +37,14 @@ import {
   ArrowLeft, Wrench, AlertTriangle, CheckCircle, Zap, Trash2,
 } from 'lucide-react'
 
-export default function MobileMachineDetail({ machine, onBack, onViewReport, onQuickReport, onNewReport, onDelete }) {
+export default function MobileMachineDetail({ machine, onBack, onViewReport, onQuickReport, onNewReport, onDelete, initialTab }) {
   const { user } = useAuth()
   const toast = useToast()
   const haptic = useHaptic()
 
-  const [tab, setTab] = useState('segnalazioni')
+  // initialTab: chi apre la scheda può dire su quale scheda atterrare (es.
+  // "Oggi per me" apre direttamente le manutenzioni del piano che hai toccato).
+  const [tab, setTab] = useState(initialTab || 'segnalazioni')
   const scrollRef = useRef(null)
 
   const [plans, setPlans] = useState([])

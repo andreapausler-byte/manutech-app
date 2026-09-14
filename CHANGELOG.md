@@ -6,6 +6,26 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.23 — Oggi per me
+
+### Added
+- **«Oggi per me»** (`hooks/useMyDay.js` + `components/myday/MyDayPanel.jsx`, nuovi): una schermata sola che risponde alla domanda con cui si apre l'app la mattina — *cosa devo fare oggi, e chi sta aspettando una risposta da me?* Mette insieme **segnalazioni assegnate, interventi in agenda e manutenzioni programmate**, che fino a ieri stavano in tre viste diverse perché sono tre tabelle diverse.
+- **Le righe sono ordinate per urgenza, non per tipo.** Un intervento pianificato due giorni fa e un guasto critico assegnato e mai aperto finiscono nella stessa sezione, perché sono la stessa cosa: qualcosa che doveva già essere fatto. Le sezioni sono **In ritardo · Oggi · Da aggiornare · In arrivo**, più **Senza nessuno** per il solo admin (la coda che non è di nessuno: segnalazioni aperte senza tecnico, manutenzioni scadute senza assegnatario).
+- **«Da aggiornare» è la metà dimenticata della giornata**: i tuoi ticket con messaggi non letti, quelli fermi da tre settimane (stessa soglia del banner admin) e quelli in attesa ricambi. Non è lavoro da fare — è gente che aspetta che tu dica qualcosa.
+- **Ogni riga dice *perché* è lì** ("Pianificato 2g fa", "Ferma da 40 giorni", "Critica, non ancora iniziata", "Sollecita il fornitore") e porta dove si agisce: la segnalazione apre il dettaglio, l'intervento apre il calendario **sul giorno giusto e con la pillola evidenziata**, il piano apre la scheda macchina **già sul tab Manutenzioni**.
+- **Console admin**: nuova voce **«Oggi per me»** in cima al menù (`AdminToday`).
+- **Mobile tecnico**: nuova scheda **«Oggi»**, che diventa anche la schermata di atterraggio al posto di «Assegnati».
+- `MobileMachineDetail` accetta `initialTab`: chi apre la scheda può dire su quale tab atterrare.
+
+### Note
+- **Nessuna query nuova, nessuna migration**: l'hook riusa `getReports`, `getInterventionsCalendar` (scope `mine`, quindi include anche gli interventi dove sei solo partecipante), `getAllMaintenancePlansWithMachine` e `getLastLogPerPlan`, tutte in parallelo. I non letti costano un round-trip in più, pagato **solo** sui tuoi ticket aperti.
+- **In demo mode le manutenzioni programmate non compaiono**: `getAllMaintenancePlansWithMachine` e `getLastLogPerPlan` non hanno fallback localStorage (lacuna preesistente, non introdotta qui). Segnalazioni e interventi funzionano.
+- Le manutenzioni non vengono nemmeno richieste per l'operatore: sono lavoro di qualcun altro.
+- L'app dell'operatore (`OperatorApp`) non è toccata: la sua home è già "i miei ticket".
+- Spaziature inline, come da debito tecnico noto sul reset globale in `styles/index.css`.
+
+---
+
 ## [Unreleased] — v5.22 — Di chi è questo lavoro
 
 ### Added

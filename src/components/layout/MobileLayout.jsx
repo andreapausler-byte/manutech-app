@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { db } from '../../lib/supabase'
-import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save, Camera, Paperclip, FileText, Sparkles, Mic, Calendar } from 'lucide-react'
+import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save, Camera, Paperclip, FileText, Sparkles, Mic, Calendar, Sun } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useToast } from '../../hooks/useToast'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
@@ -28,6 +28,7 @@ import MobileDashboard from '../../pages/mobile/MobileDashboard'
 import WalletPage from '../../pages/mobile/WalletPage'
 import AssistantPage from '../../pages/mobile/AssistantPage'
 import CalendarioMobile from '../../pages/mobile/calendar/CalendarioMobile'
+import MyDayPanel from '../myday/MyDayPanel'
 import ConversationList from '../messaging/ConversationList'
 import ConversationView from '../messaging/ConversationView'
 
@@ -183,6 +184,7 @@ const TABS_BY_ROLE = {
     { id: 'profile', icon: User, label: 'Profilo' },
   ],
   tecnico: [
+    { id: 'today', icon: Sun, label: 'Oggi' },
     { id: 'reports', icon: ClipboardList, label: 'Assegnati' },
     { id: 'calendar', icon: Calendar, label: 'Calendario' },
     { id: 'machines', icon: Cog, label: 'Macchine' },
@@ -421,13 +423,20 @@ function NewMachineScreen({ onBack, onCreated }) {
 export default function MobileLayout({ initialReportId }) {
   const { user, logout } = useAuth()
   const { toggleMode, isDark } = useTheme()
-  const [tab, setTab] = useState(user?.role === 'tecnico' ? 'reports' : 'home')
+  // Il tecnico atterra su "Oggi": è la schermata che risponde alla domanda
+  // con cui apre l'app la mattina. Gli altri restano sulla loro home.
+  const [tab, setTab] = useState(user?.role === 'tecnico' ? 'today' : 'home')
   const [screen, setScreen] = useState(null)
   const [selectedReport, setSelectedReport] = useState(null)
   // Componente preselezionato per la prossima segnalazione (aperta dalla
   // scheda di un pezzo). Viaggia a parte perché `selectedReport` porta già
   // il nome della macchina.
   const [reportComponentId, setReportComponentId] = useState(null)
+  // Parametri di arrivo per calendario e scheda macchina quando la
+  // navigazione parte da "Oggi per me" (apri il giorno giusto, la scheda
+  // giusta) invece che dal menù in basso.
+  const [calendarParams, setCalendarParams] = useState(null)
+  const [machineInitialTab, setMachineInitialTab] = useState(null)
   const [transitionClass, setTransitionClass] = useState('page-slide-in')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const haptic = useHaptic()
@@ -490,6 +499,9 @@ export default function MobileLayout({ initialReportId }) {
 
   const switchTab = (id) => {
     haptic.light()
+    // Un tap sul menù in basso è una navigazione "pulita": azzera i parametri
+    // di arrivo, altrimenti il calendario riaprirebbe il giorno di ieri.
+    if (id !== 'calendar') setCalendarParams(null)
     setTab(id)
     if (showNewConversation) popNavLayer()
   }
@@ -540,6 +552,19 @@ export default function MobileLayout({ initialReportId }) {
   useEffect(() => { openReportByIdRef.current = openReportById })
 
   const openMachine = (machine) => navigateTo('machine-detail', machine)
+
+  // Apre la scheda di una macchina di cui ho solo l'id (es. il piano di
+  // manutenzione toccato in "Oggi per me" porta con sé solo id e nome).
+  const openMachineById = async (machineId, initialTab = null) => {
+    try {
+      const machine = await db.getMachine(machineId)
+      if (!machine) return
+      setMachineInitialTab(initialTab)
+      navigateTo('machine-detail', machine, () => setMachineInitialTab(null))
+    } catch (e) {
+      console.warn('[MobileLayout] openMachineById failed', e)
+    }
+  }
 
   const openConversation = (conv) => {
     setSelectedConversation(conv)
@@ -624,6 +649,7 @@ export default function MobileLayout({ initialReportId }) {
       <div className={transitionClass}>
         <MobileMachineDetail
           machine={selectedReport}
+          initialTab={machineInitialTab}
           onBack={goBack}
           onViewReport={openReport}
           onQuickReport={openQuickReport}
@@ -738,6 +764,26 @@ export default function MobileLayout({ initialReportId }) {
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-[18vw] scroll-smooth relative z-[1]">
         <div className="animate-fade-in">
+          {tab === 'today' && (
+            <div style={{ padding: '16px 12px calc(96px + env(safe-area-inset-bottom, 0px))' }}>
+              <MyDayPanel
+                user={user}
+                onOpenReport={(item) => openReportById(item.id)}
+                onOpenIntervention={(item) => {
+                  setCalendarParams({
+                    day: item.when || null,
+                    month: item.when || null,
+                    interventionId: item.id,
+                  })
+                  switchTab('calendar')
+                }}
+                onOpenPlan={(item) => {
+                  const machineId = item.raw?.machine_id || item.raw?.machine?.id
+                  if (machineId) openMachineById(machineId, 'manutenzioni')
+                }}
+              />
+            </div>
+          )}
           {tab === 'home' && <MobileDashboard user={user} onViewReport={openReport} onQuickReport={openQuickReport} />}
           {tab === 'reports' && (
             <ReportsList
@@ -748,7 +794,14 @@ export default function MobileLayout({ initialReportId }) {
           )}
           {tab === 'wallet' && <WalletPage />}
           {tab === 'assistant' && <AssistantPage onOpenReport={openReportById} />}
-          {tab === 'calendar' && <CalendarioMobile onOpenReport={openReportById} />}
+          {tab === 'calendar' && (
+            <CalendarioMobile
+              onOpenReport={openReportById}
+              initialMonth={calendarParams?.month || null}
+              initialOpenDay={calendarParams?.day || null}
+              initialHighlightInterventionId={calendarParams?.interventionId || null}
+            />
+          )}
           {tab === 'machines' && (
             <MobileMachinesList onSelectMachine={openMachine} />
           )}

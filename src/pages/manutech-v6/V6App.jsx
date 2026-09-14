@@ -9,6 +9,7 @@ import NotificationCenter from '../../components/ui/NotificationCenter'
 import SettingsPanel from '../../components/ui/SettingsPanel'
 import { Spinner } from '../../components/ui'
 
+const AdminToday = lazy(() => import('../admin/AdminToday'))
 const AdminDashboard = lazy(() => import('../admin/AdminDashboard'))
 const AdminOptimization = lazy(() => import('../admin/AdminOptimization'))
 const AdminReports = lazy(() => import('../admin/AdminReports'))
@@ -161,6 +162,7 @@ export default function V6App({ userName, initialReportId }) {
             crumbs={user?.org_name || 'ManuTech · Console'}
             fullBleed={route.name === 'calendar'}
           >
+            {route.name === 'today' && <AdminToday onNavigate={(name, params) => navigate(name, params)} />}
             {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
             {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
             {route.name === 'reports' && <AdminReports initialReportId={initialReportId || route.reportId} />}

@@ -1,7 +1,8 @@
 /**
  * Admin NAV — struttura condivisa tra layout admin e PageHeader.
  *
- * Ordine: dashboard → ottimizzazione → operatività (segnalazioni / assistente)
+ * Ordine: oggi per me → dashboard → ottimizzazione → operatività
+ * (segnalazioni / assistente)
  * → gestione macchine/manutenzione/ricambi → persone → comunicazione → setup.
  */
 import {
@@ -19,9 +20,11 @@ import {
   Sparkles,
   TrendingUp,
   Calendar,
+  Sun,
 } from 'lucide-react'
 
 export const NAV = [
+  { id: 'today',         icon: Sun,             label: 'Oggi per me',  desc: 'Il tuo lavoro di oggi: ticket, agenda e manutenzioni in una lista' },
   { id: 'dashboard',     icon: LayoutDashboard, label: 'Dashboard',    desc: 'Panoramica generale' },
   { id: 'optimization',  icon: TrendingUp,      label: 'Ottimizzazione', desc: 'KPI e insight per ridurre fermi macchina' },
   { id: 'reports',       icon: ClipboardList,   label: 'Segnalazioni', desc: 'Gestisci interventi' },

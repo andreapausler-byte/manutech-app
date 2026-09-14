@@ -267,9 +267,12 @@ export default function AdminCalendar({
       background: 'var(--color-app-bg)',
     }}>
       {/* Toolbar */}
+      {/* flexWrap: con il filtro assegnatario la barra supera i 1300px su
+          schermi stretti. Meglio una seconda riga che un bottone tagliato
+          fuori dallo schermo. */}
       <div style={{
         flexShrink: 0,
-        display: 'flex', alignItems: 'center', gap: 12,
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         padding: '12px 20px',
         borderBottom: '1px solid var(--color-border)',
         background: 'var(--color-surface-1)',
