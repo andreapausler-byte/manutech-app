@@ -19,6 +19,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Plus, Users as UsersIcon, EyeOff, Eye, Sparkles, X } from 'lucide-react'
+import { db } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useInterventionsCalendar } from '../../hooks/useInterventionsCalendar'
@@ -28,6 +29,14 @@ import InterventionDetailPanel from '../../components/interventions/Intervention
 import PendingSuppliersPanel from '../../components/interventions/PendingSuppliersPanel'
 import DayContextPanel from '../../components/interventions/DayContextPanel'
 import InterventionRequestSidePanel from '../../components/interventions/InterventionRequestSidePanel'
+import AssigneeFilter from '../../components/ui/AssigneeFilter'
+import {
+  ASSIGNEE_ALL,
+  ASSIGNEE_MINE,
+  colleaguesFromUsers,
+  countAssignee,
+  matchesAssignee,
+} from '../../lib/assigneeFilter'
 
 const MONTH_NAMES = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
@@ -98,26 +107,64 @@ export default function AdminCalendar({
     }
   }, [currentMonth])
 
+  // Filtro "di chi è": 'me' passa dallo scope server-side (che include anche
+  // gli interventi dove sono partecipante), una persona specifica si filtra
+  // qui su esecutore/supervisore. Persistito per utente come il toggle
+  // annullati.
+  const assigneeKey = `manutech_calendar_assignee_${user?.id || 'anon'}`
+  const [assignee, setAssignee] = useState(() => {
+    try { return localStorage.getItem(assigneeKey) || ASSIGNEE_ALL }
+    catch { return ASSIGNEE_ALL }
+  })
+  const updateAssignee = (next) => {
+    setAssignee(next)
+    try { localStorage.setItem(assigneeKey, next) } catch { /* quota */ }
+  }
+  const scope = assignee === ASSIGNEE_MINE ? 'mine' : 'all'
+
   const { interventions, loading, refetch } = useInterventionsCalendar({
     rangeStart,
     rangeEnd,
-    scope: 'all',
+    scope,
     currentUserId: user?.id,
   })
+
+  // Le persone del menù vengono dalla rubrica, non dagli interventi del mese:
+  // così l'agenda di un collega si apre anche quando questo mese è vuota (ed
+  // è proprio quando è vuota che uno va a controllare).
+  const [assigneePeople, setAssigneePeople] = useState([])
+  useEffect(() => {
+    db.getUsers()
+      .then(list => setAssigneePeople(colleaguesFromUsers(list, { currentUserId: user?.id })))
+      .catch(e => console.warn('[AdminCalendar] getUsers:', e?.message))
+  }, [user?.id])
+  const myInterventionsCount = useMemo(() => {
+    const pool = effectiveShowCancelled
+      ? (interventions || [])
+      : (interventions || []).filter(i => i.status !== 'annullato')
+    return scope === 'mine' ? pool.length : countAssignee(pool, ASSIGNEE_MINE, user?.id)
+  }, [interventions, scope, effectiveShowCancelled, user?.id])
 
   // Hotfix calendar #2: filtro griglia mese. Toggle "Mostra annullati" OFF
   // (default) → escludi pillole con status='annullato'. Lo storico annullati
   // resta accessibile via DayContextPanel (cliccando giorno) + via activity
   // log del report. Il filtro NON si applica a DayContextPanel/Detail che
   // sono accessi espliciti.
+  // Il filtro assegnatario viene prima di quello annullati: così il badge
+  // "annullati nascosti" conta quelli della persona che sto guardando, non
+  // quelli di tutti.
+  const assigneeScoped = useMemo(() => {
+    if (!assignee || assignee === ASSIGNEE_MINE) return interventions || []
+    return (interventions || []).filter(i => matchesAssignee(i, assignee, user?.id))
+  }, [interventions, assignee, user?.id])
   const visibleInterventions = useMemo(() => {
-    if (effectiveShowCancelled) return interventions
-    return (interventions || []).filter(i => i.status !== 'annullato')
-  }, [interventions, effectiveShowCancelled])
+    if (effectiveShowCancelled) return assigneeScoped
+    return assigneeScoped.filter(i => i.status !== 'annullato')
+  }, [assigneeScoped, effectiveShowCancelled])
   const hiddenCancelledCount = useMemo(() => {
     if (effectiveShowCancelled) return 0
-    return (interventions || []).filter(i => i.status === 'annullato').length
-  }, [interventions, effectiveShowCancelled])
+    return assigneeScoped.filter(i => i.status === 'annullato').length
+  }, [assigneeScoped, effectiveShowCancelled])
 
   // ── Navigazione mese ──
   // Cambio mese azzera l'highlight effimero in arrivo (l'utente è "andato altrove"
@@ -299,6 +346,16 @@ export default function AdminCalendar({
         </div>
 
         <div style={{ flex: 1 }} />
+
+        {/* Di chi è l'agenda: la mia, quella di un tecnico, o tutte */}
+        <AssigneeFilter
+          value={assignee}
+          onChange={updateAssignee}
+          people={assigneePeople}
+          myCount={myInterventionsCount}
+          showUnassigned={false}
+          style={{ marginRight: 8 }}
+        />
 
         {/* Toggle "Mostra annullati" (hotfix calendar #2). OFF default,
             persistito in localStorage. Mostra anche un piccolo badge col

@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, EyeOff, Eye, CalendarOff } from 'lucide-react'
+import { db } from '../../../lib/supabase'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useInterventionsCalendar } from '../../../hooks/useInterventionsCalendar'
 import MobileWeekStrip from './MobileWeekStrip'
 import MobileDayContextSheet from './MobileDayContextSheet'
 import MobileMonthMicroOverlay from './MobileMonthMicroOverlay'
 import MobileInterventionPillola from './MobileInterventionPillola'
+import AssigneeFilter from '../../../components/ui/AssigneeFilter'
+import {
+  ASSIGNEE_ALL,
+  ASSIGNEE_MINE,
+  colleaguesFromUsers,
+  countAssignee,
+  matchesAssignee,
+} from '../../../lib/assigneeFilter'
 
 const MONTHS = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
@@ -114,9 +123,28 @@ export default function CalendarioMobile({
     rangeEnd: endOfMonth(currentMonth),
   }), [currentMonth])
 
-  // Scope: tecnico vede solo i suoi, operatore vede tutti (read-only),
-  // admin (caso raro su mobile) vede tutti.
-  const scope = user?.role === 'tecnico' ? 'mine' : 'all'
+  // Di chi è l'agenda che sto guardando. Il tecnico parte dalla sua (era il
+  // comportamento fisso di prima), gli altri da tutte — ma adesso è una
+  // scelta, non un vincolo: il tecnico può vedere la giornata dei colleghi
+  // per sapere chi è dove, e l'admin può isolare la propria.
+  const assigneeKey = `manutech_mobile_calendar_assignee_${user?.id || 'anon'}`
+  const [assignee, setAssignee] = useState(() => {
+    try {
+      const saved = localStorage.getItem(assigneeKey)
+      if (saved !== null) return saved
+    } catch { /* storage non disponibile */ }
+    return user?.role === 'tecnico' ? ASSIGNEE_MINE : ASSIGNEE_ALL
+  })
+  const updateAssignee = (next) => {
+    setAssignee(next)
+    try { localStorage.setItem(assigneeKey, next) } catch { /* quota */ }
+  }
+
+  // 'me' passa dallo scope server-side, che conosce anche i partecipanti
+  // (intervention_participants); per una persona specifica restiamo su 'all'
+  // e filtriamo qui su esecutore/supervisore — i partecipanti di un collega
+  // richiederebbero un round-trip in più che questa vista non giustifica.
+  const scope = assignee === ASSIGNEE_MINE ? 'mine' : 'all'
 
   const { interventions, loading } = useInterventionsCalendar({
     rangeStart,
@@ -125,15 +153,40 @@ export default function CalendarioMobile({
     currentUserId: user?.id,
   })
 
+  // Il filtro assegnatario viene prima di quello annullati: così il badge
+  // "annullati nascosti" conta quelli della persona che sto guardando.
+  const assigneeScoped = useMemo(() => {
+    if (!assignee || assignee === ASSIGNEE_MINE) return interventions || []
+    return (interventions || []).filter(i => matchesAssignee(i, assignee, user?.id))
+  }, [interventions, assignee, user?.id])
   const visibleInterventions = useMemo(() => {
-    if (effectiveShowCancelled) return interventions
-    return (interventions || []).filter(i => i.status !== 'annullato')
-  }, [interventions, effectiveShowCancelled])
+    if (effectiveShowCancelled) return assigneeScoped
+    return assigneeScoped.filter(i => i.status !== 'annullato')
+  }, [assigneeScoped, effectiveShowCancelled])
+
+  // Le persone del menù vengono dalla rubrica (tecnici e admin), non dagli
+  // interventi caricati: con "Solo i miei" attivo il fetch contiene già solo
+  // i miei, e un elenco colleghi ricavato da lì sarebbe sempre vuoto.
+  const [assigneePeople, setAssigneePeople] = useState([])
+  useEffect(() => {
+    db.getUsers()
+      .then(list => setAssigneePeople(colleaguesFromUsers(list, { currentUserId: user?.id })))
+      .catch(e => console.warn('[CalendarioMobile] getUsers:', e?.message))
+  }, [user?.id])
+
+  // Contatore del pulsante: conta quello che vedrei davvero (gli annullati
+  // nascosti non fanno numero).
+  const myInterventionsCount = useMemo(() => {
+    const pool = effectiveShowCancelled
+      ? (interventions || [])
+      : (interventions || []).filter(i => i.status !== 'annullato')
+    return scope === 'mine' ? pool.length : countAssignee(pool, ASSIGNEE_MINE, user?.id)
+  }, [interventions, scope, effectiveShowCancelled, user?.id])
 
   const hiddenCancelledCount = useMemo(() => {
     if (effectiveShowCancelled) return 0
-    return (interventions || []).filter(i => i.status === 'annullato').length
-  }, [interventions, effectiveShowCancelled])
+    return assigneeScoped.filter(i => i.status === 'annullato').length
+  }, [assigneeScoped, effectiveShowCancelled])
 
   // Filtra per giorno selezionato (dal pool VISIBLE, così il toggle agisce
   // anche sul sheet — diverso da desktop dove DayContextPanel ignora il
@@ -415,12 +468,19 @@ export default function CalendarioMobile({
         onDayTap={handleDayTap}
       />
 
-      {/* Toggle Mostra annullati + counter */}
+      {/* Di chi è + Toggle Mostra annullati + counter */}
       <div style={{
         marginTop: 12,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 8,
+        gap: 8, flexWrap: 'wrap',
       }}>
+        <AssigneeFilter
+          value={assignee}
+          onChange={updateAssignee}
+          people={assigneePeople}
+          myCount={myInterventionsCount}
+          showUnassigned={false}
+        />
         <button
           onClick={() => {
             setShowCancelledOverride(null)

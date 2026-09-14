@@ -8,6 +8,15 @@ import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive, Cog } from 'lucide-react'
 import ComponentPill from '../machines/ComponentPill'
+import AssigneeFilter from '../ui/AssigneeFilter'
+import {
+  ASSIGNEE_ALL,
+  ASSIGNEE_UNASSIGNED,
+  assigneeFromLegacyFilters,
+  assigneesFromList,
+  countAssignee,
+  matchesAssignee,
+} from '../../lib/assigneeFilter'
 
 // Convenzione schema reports: il nome del macchinario è salvato come snapshot
 // denormalizzato nel campo `machine` (TEXT) — NON `machine_name`. Asimmetrico
@@ -334,12 +343,12 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
     try {
       const saved = JSON.parse(localStorage.getItem(filtersKey) || '{}')
       return {
-        onlyMine: !!saved.onlyMine,
+        assignee: assigneeFromLegacyFilters(saved),
         machineFilter: saved.machineFilter || '',
         sortBy: saved.sortBy || 'updated',
       }
     } catch {
-      return { onlyMine: false, machineFilter: '', sortBy: 'updated' }
+      return { assignee: ASSIGNEE_ALL, machineFilter: '', sortBy: 'updated' }
     }
   })
   const updateFilters = (patch) => {
@@ -416,13 +425,36 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [handleRefresh])
 
-  // Filter di base: search testuale + onlyMine + macchina.
+  // L'operatore non riceve assegnazioni: per lui "i miei" sono i ticket che
+  // ha aperto. Per tecnico e admin "i miei" resta l'assegnazione.
+  const mineOptions = useMemo(
+    () => ({ includeCreated: user?.role === 'operatore' }),
+    [user?.role]
+  )
+
+  // Elenco assegnatari e contatori per il filtro "di chi è": si calcolano
+  // sulla lista completa, non su quella filtrata, altrimenti scegliere una
+  // persona farebbe sparire tutte le altre dal menù.
+  const assigneePeople = useMemo(
+    () => assigneesFromList(reports, { currentUserId: user?.id }),
+    [reports, user?.id]
+  )
+  const myReportsCount = useMemo(
+    () => countAssignee(reports, 'me', user?.id, mineOptions),
+    [reports, user?.id, mineOptions]
+  )
+  const unassignedCount = useMemo(
+    () => countAssignee(reports, ASSIGNEE_UNASSIGNED, user?.id),
+    [reports, user?.id]
+  )
+
+  // Filter di base: search testuale + assegnatario + macchina.
   // Search supporta TK-id senza trattini/prefissi (vedi qNorm) e cerca su tutti
   // i campi che il manutentore vede nella card (titolo, descrizione, macchina,
   // tecnico assegnato, creatore, ID raw). Fallback su machine_id→name per
   // record con snapshot `machine` null.
   const baseFiltered = reports.filter(r => {
-    if (filters.onlyMine && r.assigned_to !== user?.id) return false
+    if (!matchesAssignee(r, filters.assignee, user?.id, mineOptions)) return false
     if (filters.machineFilter && r.machine_id !== filters.machineFilter) return false
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase().trim()
@@ -519,7 +551,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   // cifre (ID copiato a mano), propone i TK-id più vicini (max 1 errore di
   // battitura). Calcolato su TUTTI i report ignorando i filtri attivi, così
   // un ID esatto nascosto da "Solo i miei" o dal filtro macchina riemerge qui.
-  const hasActiveFilters = filters.onlyMine || !!filters.machineFilter
+  const hasActiveFilters = !!filters.assignee || !!filters.machineFilter
   const searchSuggestions = useMemo(
     () => (debouncedSearch ? findSimilarTickets(debouncedSearch, reports) : []),
     [debouncedSearch, reports]
@@ -594,26 +626,17 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           )}
         </div>
 
-        {/* Filtri rapidi: Solo i miei + Macchina + Ordina */}
+        {/* Filtri rapidi: Assegnatario + Macchina + Ordina */}
         <div style={{
           display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center',
         }}>
-          <button
-            type="button"
-            onClick={() => updateFilters({ onlyMine: !filters.onlyMine })}
-            className="press-scale"
-            style={{
-              padding: '6px 12px',
-              fontSize: 12,
-              fontWeight: 600,
-              borderRadius: 999,
-              border: filters.onlyMine ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-              background: filters.onlyMine ? 'var(--color-primary-glow)' : 'var(--color-surface-2)',
-              color: filters.onlyMine ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-              cursor: 'pointer',
-            }}>
-            {filters.onlyMine ? '✓ ' : ''}Solo i miei
-          </button>
+          <AssigneeFilter
+            value={filters.assignee}
+            onChange={(assignee) => updateFilters({ assignee })}
+            people={assigneePeople}
+            myCount={myReportsCount}
+            unassignedCount={unassignedCount}
+          />
 
           <select
             value={filters.machineFilter}
@@ -710,7 +733,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
             </div>
             {hasActiveFilters && (
               <button
-                onClick={() => updateFilters({ onlyMine: false, machineFilter: '' })}
+                onClick={() => updateFilters({ assignee: ASSIGNEE_ALL, machineFilter: '' })}
                 className="press-scale"
                 style={{
                   marginTop: 14, padding: '9px 16px', borderRadius: 12,

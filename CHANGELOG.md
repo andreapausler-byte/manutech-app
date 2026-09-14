@@ -6,6 +6,24 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.22 — Di chi è questo lavoro
+
+### Added
+- **Filtro assegnatario in quattro viste** (`ui/AssigneeFilter` + `lib/assigneeFilter.js`, nuovi): un pulsante **«Solo i miei»** col numero di quello che ho in carico, e accanto un menù per guardare l'agenda di un collega o la coda di chi non ha ancora nessuno sopra. Stesso comando, stessa forma, in **lista segnalazioni mobile**, **Segnalazioni admin**, **calendario mobile** e **calendario admin** — finora ogni vista rispondeva a modo suo alla stessa domanda ("di chi è questo?") o non rispondeva affatto.
+- Il valore del filtro è **una stringa sola** (`''` | `'me'` | `'unassigned'` | id utente) e sta in localStorage **per utente e per vista**: chi apre l'app la ritrova come l'ha lasciata, senza ridichiarare la lente personale ogni mattina.
+- **Nel calendario il tecnico può finalmente guardare fuori dalla propria agenda.** Prima lo scope era fisso — `tecnico → solo i suoi` — e non c'era modo di sapere dove fosse un collega oggi. Ora parte come prima (i suoi) ma è una scelta reversibile in un tap. Le persone del menù vengono dalla **rubrica** (tecnici e admin), non dagli interventi del mese: l'agenda di un collega si apre anche quando è vuota, ed è proprio quando sembra vuota che uno va a controllare.
+- **Per l'operatore «i miei» vuol dire «quelli che ho aperto io»**: non riceve assegnazioni, quindi il filtro per `assigned_to` gli avrebbe dato lista vuota sempre — cioè un pulsante rotto.
+
+### Changed
+- Il vecchio toggle booleano **«Solo i miei»** della lista mobile diventa questo filtro a tre stati. I filtri già salvati vengono **migrati** (`assigneeFromLegacyFilters`): chi aveva il flag attivo lo ritrova attivo.
+- Nei calendari **«Solo i miei» passa dallo scope server-side**, che conosce anche gli interventi dove sono solo partecipante (`intervention_participants`); il filtro su una persona specifica resta client-side su esecutore e supervisore — i partecipanti di un collega costerebbero un round-trip che questa vista non giustifica.
+
+### Note
+- **Nessuna migration, nessuna funzione DB nuova**: il match è client-side su liste già in memoria, come già facevano stato, gravità e ricerca. Conseguenza voluta — funziona identico in demo mode, dove non c'è nessuna query da filtrare.
+- Le spaziature del componente sono inline: il reset globale in `styles/index.css` annulla le utility `p-*`/`m-*` (debito tecnico noto).
+
+---
+
 ## [Unreleased] — v5.21 — La data si sceglie sul calendario
 
 ### Added

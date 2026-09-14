@@ -13,6 +13,14 @@ import { useMergeSegnalazione } from '../../hooks/useMergeSegnalazione'
 import { avatarGradient } from '../../hooks/usePremiumUI'
 import { Plus, Search, X, ChevronDown, ChevronRight, Star, GitMerge } from 'lucide-react'
 import ComponentPill from '../../components/machines/ComponentPill'
+import AssigneeFilter from '../../components/ui/AssigneeFilter'
+import {
+  ASSIGNEE_ALL,
+  ASSIGNEE_UNASSIGNED,
+  assigneesFromList,
+  countAssignee,
+  matchesAssignee,
+} from '../../lib/assigneeFilter'
 
 const RECENT_COMPLETED_WINDOW_HOURS = 24
 // Soglia "ferme da troppo": segnalazioni attive senza attività da 3+ settimane
@@ -90,6 +98,19 @@ export default function AdminReports({ initialReportId }) {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterSeverity, setFilterSeverity] = useState('')
+  // Filtro "di chi è" — persistito per utente: è la lente personale
+  // dell'admin ("cosa ho in mano io"), e riaprire la pagina non deve
+  // costringere a ridichiararla ogni volta.
+  const assigneeKey = `manutech_admin_reports_assignee_${user?.id || 'anon'}`
+  const [assignee, setAssignee] = useState('')
+  useEffect(() => {
+    try { setAssignee(localStorage.getItem(assigneeKey) || ASSIGNEE_ALL) }
+    catch { /* storage non disponibile */ }
+  }, [assigneeKey])
+  const updateAssignee = (next) => {
+    setAssignee(next)
+    try { localStorage.setItem(assigneeKey, next) } catch { /* quota */ }
+  }
   const [showNew, setShowNew] = useState(false)
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState({ title: '', machine: '', severity: 'media', type: 'correttiva', description: '', component_id: '' })
@@ -340,6 +361,7 @@ export default function AdminReports({ initialReportId }) {
   const filtered = visibleReports.filter(r => {
     if (filterStatus && r.status !== filterStatus) return false
     if (filterSeverity && r.severity !== filterSeverity) return false
+    if (!matchesAssignee(r, assignee, user?.id)) return false
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase().trim()
       if (!q) return true
@@ -366,7 +388,22 @@ export default function AdminReports({ initialReportId }) {
     return true
   })
 
-  const activeFilters = [filterStatus, filterSeverity].filter(Boolean).length
+  const activeFilters = [filterStatus, filterSeverity, assignee].filter(Boolean).length
+
+  // Assegnatari e contatori: sempre sull'insieme completo, così il menù non
+  // si svuota man mano che si filtra.
+  const assigneePeople = useMemo(
+    () => assigneesFromList(visibleReports, { currentUserId: user?.id }),
+    [visibleReports, user?.id]
+  )
+  const myReportsCount = useMemo(
+    () => countAssignee(visibleReports, 'me', user?.id),
+    [visibleReports, user?.id]
+  )
+  const unassignedReportsCount = useMemo(
+    () => countAssignee(visibleReports, ASSIGNEE_UNASSIGNED, user?.id),
+    [visibleReports, user?.id]
+  )
 
   const sorted = [...filtered].sort((a, b) => {
     // Le stellate vincono sempre, qualunque sia il sort attivo: pin rigido
@@ -898,6 +935,17 @@ export default function AdminReports({ initialReportId }) {
             )
           })}
 
+          {/* Di chi è: il mio lavoro, quello di un collega, o la coda senza nessuno */}
+          <AssigneeFilter
+            value={assignee}
+            onChange={updateAssignee}
+            people={assigneePeople}
+            myCount={myReportsCount}
+            unassignedCount={unassignedReportsCount}
+            variant="glass"
+            style={{ marginLeft: 'auto' }}
+          />
+
           {/* Severity filter (compact, right-aligned) */}
           <select
             value={filterSeverity}
@@ -908,7 +956,6 @@ export default function AdminReports({ initialReportId }) {
               border: '1px solid var(--color-border)',
               color: 'var(--color-text)',
               padding: '8px 16px',
-              marginLeft: 'auto',
             }}
             aria-label="Filtra per gravità"
           >
@@ -918,7 +965,7 @@ export default function AdminReports({ initialReportId }) {
 
           {activeFilters > 0 && (
             <button
-              onClick={() => { setFilterStatus(''); setFilterSeverity('') }}
+              onClick={() => { setFilterStatus(''); setFilterSeverity(''); updateAssignee(ASSIGNEE_ALL) }}
               className="text-xs rounded-full transition-colors hover:bg-white/5"
               style={{ color: 'var(--color-text-muted)', padding: '8px 12px' }}
             >
