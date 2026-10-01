@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { db } from '../../lib/supabase'
 import { STATUS, timeAgo } from '../../lib/constants'
+import { getClosure } from '../../lib/closure'
 import { ArrowRight, ChevronDown, ChevronRight } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 
@@ -23,6 +24,8 @@ const EVENT_COLORS = {
   media_audio:    '#ffaa2c',
   assigned:       '#7c6aff',
   component_change: '#22d3ee',
+  closure_edit:   '#10b981',
+  closure_note:   '#10b981',
 }
 
 const EVENT_LABELS = {
@@ -35,6 +38,8 @@ const EVENT_LABELS = {
   media_audio:    'Audio aggiunto',
   assigned:       'Assegnato',
   component_change: 'Pezzo attribuito',
+  closure_edit:   'Chiusura corretta',
+  closure_note:   'Aggiunto alla chiusura',
 }
 
 // Tipi che possono essere raggruppati quando consecutivi (≥ GROUP_THRESHOLD).
@@ -362,9 +367,10 @@ function buildFallbackTimeline(report) {
 
   if (report.status !== 'aperta') {
     const workParts = []
-    if (report.extra_data?.closure_hours) workParts.push(`${report.extra_data.closure_hours}h lavoro`)
-    if (report.extra_data?.closure_parts) workParts.push(`Ricambi: ${report.extra_data.closure_parts}`)
-    if (report.extra_data?.closure_root_cause) workParts.push(`Causa: ${report.extra_data.closure_root_cause}`)
+    const closure = getClosure(report)
+    if (closure.hours != null) workParts.push(`${closure.hours}h lavoro`)
+    if (closure.parts) workParts.push(`Ricambi: ${closure.parts}`)
+    if (closure.rootCause) workParts.push(`Causa: ${closure.rootCause}`)
 
     timeline.push({
       id: 'status-current',

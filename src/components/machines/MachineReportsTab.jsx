@@ -3,7 +3,8 @@
  *
  * Il tab d'apertura: cosa non va adesso. In cima la striscia di stato
  * (manutenzioni scadute · segnalazioni aperte per gravità), poi le righe,
- * poi le concluse ripiegate in fondo.
+ * poi le concluse ripiegate in fondo — ognuna con causa e azione, perché
+ * davanti alla macchina la domanda è "com'è stato risolto l'ultima volta?".
  *
  * Misure guanti: righe da 76px, titolo 18px, tasto risolvi 56×56 staccato
  * dalla riga così non si sbaglia il bersaglio con il dito grosso.
@@ -12,10 +13,12 @@
 import { useState } from 'react'
 import { AlertTriangle, ClipboardList, CheckCircle, Wrench, ChevronDown } from 'lucide-react'
 import { SEVERITY, timeAgo } from '../../lib/constants'
+import { closedAtOf, closureOutcome } from '../../lib/closure'
 import { TabActionRow, TabEmptyFrame } from './MachineTabParts'
 import { padX, padRow } from './machineTabs'
 import { EmptyState } from '../ui'
 import ComponentPill from './ComponentPill'
+import ResolvedReportCard from '../reports/ResolvedReportCard'
 import { useHaptic } from '../../hooks/useHaptic'
 
 const PAGE = 5
@@ -26,9 +29,15 @@ export default function MachineReportsTab({
   const haptic = useHaptic()
   const [limit, setLimit] = useState(PAGE)
   const [showResolved, setShowResolved] = useState(false)
+  const [resolvedLimit, setResolvedLimit] = useState(PAGE)
 
   const visible = reports.slice(0, limit)
   const rest = reports.length - visible.length
+  // Concluse dalla chiusura più recente: è l'ordine in cui servono.
+  const resolvedSorted = [...resolved].sort((a, b) => new Date(closedAtOf(b)) - new Date(closedAtOf(a)))
+  const resolvedVisible = resolvedSorted.slice(0, resolvedLimit)
+  const resolvedRest = resolvedSorted.length - resolvedVisible.length
+  const toComplete = resolved.filter(r => closureOutcome(r) === 'da_completare').length
 
   return (
     <div>
@@ -166,6 +175,11 @@ export default function MachineReportsTab({
             <span className="font-mono text-[12px] uppercase tracking-wider text-muted">
               Concluse ({resolved.length})
             </span>
+            {toComplete > 0 && (
+              <span className="font-mono text-[11px] uppercase tracking-wider" style={{ color: '#f59e0b' }}>
+                · {toComplete} da completare
+              </span>
+            )}
             <ChevronDown
               size={22}
               className="text-faint"
@@ -177,31 +191,24 @@ export default function MachineReportsTab({
             />
           </button>
 
-          {showResolved && resolved.slice(0, 10).map(r => (
-            <button
-              key={r.id}
-              onClick={() => { haptic.light(); onOpenReport?.(r) }}
-              className="w-full flex items-center gap-[3vw] border-b text-left active:bg-surface-2"
-              style={{ ...padX, minHeight: 76, borderColor: 'var(--color-border-subtle)' }}
-            >
-              <span
-                className="w-3 h-3 rounded-full shrink-0"
-                style={{ background: '#3ddc84', boxShadow: '0 0 10px #3ddc8480' }}
-              />
-              <span className="flex-1 min-w-0" style={{ ...padRow, opacity: 0.6 }}>
-                <p className="text-[18px] font-medium text-themed truncate">{r.title}</p>
-                {r.component_name && (
-                  <span className="block" style={{ marginTop: 6 }}>
-                    <ComponentPill name={r.component_name} size="sm" />
-                  </span>
-                )}
-                <p className="font-mono text-[11px] text-faint truncate" style={{ marginTop: 6 }}>
-                  {r.created_by_name} · {timeAgo(r.created_at)}
-                </p>
-              </span>
-              <CheckCircle size={20} className="text-emerald-400 shrink-0 opacity-70" />
-            </button>
-          ))}
+          {showResolved && (
+            <div className="flex flex-col" style={{ ...padX, gap: 8, paddingTop: 10, paddingBottom: 10 }}>
+              {resolvedVisible.map(r => (
+                <ResolvedReportCard
+                  key={r.id}
+                  report={r}
+                  showMachine={false}
+                  onSelect={(rep) => { haptic.light(); onOpenReport?.(rep) }}
+                />
+              ))}
+            </div>
+          )}
+          {showResolved && resolvedRest > 0 && (
+            <TabActionRow
+              label={`Altre ${resolvedRest} conclus${resolvedRest === 1 ? 'a' : 'e'}`}
+              onClick={() => { haptic.light(); setResolvedLimit(l => l + PAGE) }}
+            />
+          )}
         </>
       )}
     </div>

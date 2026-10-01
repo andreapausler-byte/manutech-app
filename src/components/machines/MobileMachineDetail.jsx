@@ -156,7 +156,16 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
     if (!resolveReport) return
     setResolving(true)
     try {
-      await db.updateReport(resolveReport.id, { status: 'risolta' })
+      // Quello che il tecnico scrive qui è la chiusura del ticket: va anche
+      // nei campi closure_* e con closed_at, altrimenti la segnalazione
+      // finisce in archivio senza dire com'è stata risolta (e fuori dal
+      // MTTR). La causa radice qui non si chiede: resta "da completare".
+      const minutes = parseInt(resolveDuration)
+      const closure = { status: 'risolta', closed_at: new Date().toISOString() }
+      if (Number.isFinite(minutes) && minutes > 0) closure.closure_hours = Math.round(minutes / 6) / 10
+      if (resolveParts.trim()) closure.closure_parts = resolveParts.trim()
+      if (resolveNote.trim()) closure.closure_action = resolveNote.trim()
+      await db.updateReport(resolveReport.id, closure)
       db.addActivity(resolveReport.id, {
         type: 'status_change', from_status: resolveReport.status, to_status: 'risolta',
         user_id: user?.id, user_name: user?.name,
@@ -172,6 +181,8 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         parts_replaced: resolveParts.trim() || null,
         performed_at: new Date().toISOString(), org_id: user?.org_id,
       })
+      db.queueMachineReindex(machine.id)
+        .catch(e => console.warn('[MobileMachineDetail] reindex post-closure failed:', e?.message))
       haptic.success()
       toast.success('Segnalazione risolta e intervento registrato!')
       db.addNotification({

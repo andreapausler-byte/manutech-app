@@ -11,10 +11,11 @@ import ReportDetailModal from './reports/ReportDetailModal'
 import MergeReportModal from './reports/MergeReportModal'
 import { useMergeSegnalazione } from '../../hooks/useMergeSegnalazione'
 import { avatarGradient } from '../../hooks/usePremiumUI'
-import { Plus, Search, X, ChevronDown, ChevronRight, Star, GitMerge } from 'lucide-react'
+import { Plus, Search, X, ChevronDown, ChevronRight, Star, GitMerge, Archive } from 'lucide-react'
 import ComponentPill from '../../components/machines/ComponentPill'
+import { useV6Navigate } from '../../contexts/V6NavigateContext'
+import { getClosure, closureOutcome, closedAtOf, isArchivedReport, closureSearchText, CLOSURE_OUTCOMES } from '../../lib/closure'
 
-const RECENT_COMPLETED_WINDOW_HOURS = 24
 // Soglia "ferme da troppo": segnalazioni attive senza attività da 3+ settimane
 // finiscono nel banner recupero e portano il chip ⏳ in lista.
 const STALE_DAYS = 21
@@ -72,6 +73,68 @@ function CellBadge({ color, label }) {
   )
 }
 
+// ── Pannello riga per i ticket conclusi: come è stato risolto ──
+// Al posto di "Ultimo aggiornamento": su un ticket chiuso la chat conta
+// meno di cosa era e cosa è stato fatto.
+function RowResolution({ report }) {
+  const c = getClosure(report)
+  const outcome = closureOutcome(report)
+  const meta = CLOSURE_OUTCOMES[outcome]
+  const when = closedAtOf(report)
+  const line = (label, text) => (
+    <div className="flex gap-2 min-w-0 text-[12px] leading-snug">
+      <span className="shrink-0 font-semibold" style={{ color: 'var(--color-text-faint)', width: 46 }}>{label}</span>
+      <span className="truncate" style={{ color: text ? 'var(--color-text-secondary)' : 'var(--color-text-faint)', fontStyle: text ? 'normal' : 'italic' }}>
+        {text || 'non indicata'}
+      </span>
+    </div>
+  )
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: meta.color }}>
+          {outcome === 'senza' ? 'Chiusa senza intervento' : 'Come è stato risolto'}
+        </span>
+        <span className="text-[11px] font-semibold whitespace-nowrap" style={{ fontFamily: '"JetBrains Mono", monospace', color: 'var(--color-text-muted)' }}>
+          {when ? formatDate(when) : ''}
+        </span>
+      </div>
+      {outcome === 'senza' ? (
+        <span className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>
+          Archiviata senza ore, causa o ricambi
+        </span>
+      ) : (
+        <>
+          {line('Causa', c.rootCause)}
+          {line('Azione', c.action)}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {c.hours != null && (
+              <span className="text-[10px] font-bold rounded-full" style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 9px' }}>
+                ⏱ {c.hours}h
+              </span>
+            )}
+            {c.parts && (
+              <span className="text-[10px] font-bold rounded-full truncate" style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 9px', maxWidth: 220 }}>
+                🔩 {c.parts}
+              </span>
+            )}
+            {outcome === 'da_completare' && (
+              <span className="text-[10px] font-bold rounded-full" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b', padding: '3px 9px' }}>
+                Da completare
+              </span>
+            )}
+            {c.notes.length > 0 && (
+              <span className="text-[10px] font-bold rounded-full" style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 9px' }}>
+                📝 {c.notes.length} {c.notes.length === 1 ? 'nota' : 'note'} dopo
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+
 // ── Glass panel style condiviso (header + tabella) ──
 const glassPanelStyle = {
   background: 'rgba(30, 41, 59, 0.4)',
@@ -126,6 +189,7 @@ export default function AdminReports({ initialReportId }) {
   const [mergeSource, setMergeSource] = useState(null)
   const { unmerge } = useMergeSegnalazione()
   const canMergeRole = ['tecnico', 'admin', 'super_admin'].includes(user?.role)
+  const navigate = useV6Navigate()
 
   const load = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
@@ -355,6 +419,8 @@ export default function AdminReports({ initialReportId }) {
         machineFromLookup,
         r.assigned_to_name,
         r.created_by_name,
+        r.component_name,
+        closureSearchText(r),
         r.id,
       ]
       const textMatch = searchable.some(f =>
@@ -390,30 +456,25 @@ export default function AdminReports({ initialReportId }) {
   })
 
   // Split in attive + archivio (risolta/chiuso).
-  // I terminali aggiornati entro RECENT_COMPLETED_WINDOW_HOURS restano nella
+  // I terminali chiusi da meno di un giorno (lib/closure.js) restano nella
   // lista attiva al loro posto per updated_at: così l'admin vede subito il
   // completamento appena avvenuto come conferma visiva, e scendono in Archivio
-  // solo quando "raffreddano". Se l'utente filtra esplicitamente su uno stato
-  // terminale, mostra lista piatta come prima.
+  // solo quando "raffreddano". Conta la chiusura, non l'ultimo commento.
+  // Se l'utente filtra esplicitamente su uno stato terminale, mostra lista
+  // piatta come prima.
   const isFilteringArchive = TERMINAL_STATUSES.includes(filterStatus)
-  const recentWindowMs = RECENT_COMPLETED_WINDOW_HOURS * 3600 * 1000
   // Rinfresca quando il dataset cambia (load() dopo create/update o realtime
   // bump da nuovi commenti): coerente con la spec "ricalcolo al prossimo
   // load(), niente timer". `reports` qui è dep come invalidator del memo,
   // non letto nella closure.
   // eslint-disable-next-line react-hooks/purity, react-hooks/exhaustive-deps -- Date.now stabile dentro useMemo([reports])
   const nowMs = useMemo(() => Date.now(), [reports])
-  const isRecentTerminal = (r) => {
-    if (!TERMINAL_STATUSES.includes(r.status)) return false
-    const ts = new Date(r.updated_at || r.created_at).getTime()
-    return Number.isFinite(ts) && (nowMs - ts) < recentWindowMs
-  }
   const activeReports = isFilteringArchive
     ? sorted
-    : sorted.filter(r => !TERMINAL_STATUSES.includes(r.status) || isRecentTerminal(r))
+    : sorted.filter(r => !isArchivedReport(r, nowMs))
   const archivedReports = isFilteringArchive
     ? []
-    : sorted.filter(r => TERMINAL_STATUSES.includes(r.status) && !isRecentTerminal(r))
+    : sorted.filter(r => isArchivedReport(r, nowMs))
   const hasArchiveSeparator = !isFilteringArchive && archivedReports.length > 0
   const autoExpandArchive = !!search && archivedReports.length > 0
   const archiveVisible = archiveOpen || autoExpandArchive
@@ -659,93 +720,100 @@ export default function AdminReports({ initialReportId }) {
           </div>
         </div>
 
-        {/* Pannello "Ultimo aggiornamento": chi ha scritto per ultimo e cosa */}
+        {/* Pannello destro: chi ha scritto per ultimo e cosa — oppure, sui
+            ticket conclusi, come è stato risolto */}
         <div
           className="hidden xl:flex w-[420px] shrink-0 flex-col justify-center gap-2.5"
           style={{ borderLeft: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-0)', padding: '14px 20px' }}
         >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--color-text-faint)' }}>
-              Ultimo aggiornamento
-            </span>
-            <span
-              className="text-[11px] font-semibold whitespace-nowrap"
-              style={{ fontFamily: '"JetBrains Mono", monospace', color: isHotUpdate ? 'var(--color-success)' : 'var(--color-text-muted)' }}
-              title={r.created_at ? `Creata: ${formatDate(r.created_at)}` : undefined}
-            >
-              {compactAgo(lastTs, nowMs)}
-            </span>
-          </div>
-          {lastComment ? (
-            <>
-              <div className="flex items-start gap-2.5 min-w-0">
-                <span
-                  className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-                  style={{ background: avatarGradient(lastComment.user_name) }}
-                >
-                  {initialsOf(lastComment.user_name)}
-                </span>
-                <div
-                  className="text-[12px] leading-snug overflow-hidden"
-                  style={{ color: 'var(--color-text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
-                >
-                  <span className="font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
-                    {lastComment.user_name || 'Team'}:{' '}
-                  </span>
-                  {snippet}
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {activity?.comment_count > 0 && (
-                  <span
-                    className="inline-flex items-center gap-1 text-[10px] font-bold rounded-full"
-                    title={`${activity.comment_count} ${activity.comment_count === 1 ? 'messaggio' : 'messaggi'} in chat`}
-                    style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 9px' }}
-                  >
-                    💬 {activity.comment_count}
-                  </span>
-                )}
-                {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
-                  const n = activity?.reactions?.[type] || 0
-                  if (!n) return null
-                  return (
-                    <span
-                      key={type}
-                      title={`${label}: ${n} ${n === 1 ? 'persona' : 'persone'}`}
-                      className="inline-flex items-center gap-1 text-[10px] font-bold rounded-full"
-                      style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 9px' }}
-                    >
-                      {emoji} {n}
-                    </span>
-                  )
-                })}
-                {unread > 0 && (
-                  <span
-                    className="inline-flex items-center gap-1.5 text-[10px] font-bold rounded-full"
-                    style={{ background: 'var(--color-primary-glow)', color: 'var(--color-primary)', padding: '3px 10px' }}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-primary)' }} />
-                    {unread} {unread === 1 ? 'nuovo' : 'nuovi'}
-                  </span>
-                )}
-              </div>
-            </>
+          {TERMINAL_STATUSES.includes(r.status) ? (
+            <RowResolution report={r} />
           ) : (
             <>
-              <div className="flex items-center gap-2">
-                <span className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>Nessun aggiornamento</span>
-                {stale && (
-                  <span
-                    className="inline-flex items-center gap-1 text-[9px] font-bold rounded-full"
-                    style={{ background: 'var(--color-warning-glow)', color: 'var(--color-warning)', padding: '2px 8px' }}
-                  >
-                    ⏳ {compactAgo(r.created_at, nowMs)}
-                  </span>
-                )}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--color-text-faint)' }}>
+                  Ultimo aggiornamento
+                </span>
+                <span
+                  className="text-[11px] font-semibold whitespace-nowrap"
+                  style={{ fontFamily: '"JetBrains Mono", monospace', color: isHotUpdate ? 'var(--color-success)' : 'var(--color-text-muted)' }}
+                  title={r.created_at ? `Creata: ${formatDate(r.created_at)}` : undefined}
+                >
+                  {compactAgo(lastTs, nowMs)}
+                </span>
               </div>
-              <span className="text-[10px]" style={{ fontFamily: '"JetBrains Mono", monospace', color: 'var(--color-text-faint)' }}>
-                Aperta {compactAgo(r.created_at, nowMs)} · nessuno ci ha ancora lavorato
-              </span>
+              {lastComment ? (
+                <>
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <span
+                      className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                      style={{ background: avatarGradient(lastComment.user_name) }}
+                    >
+                      {initialsOf(lastComment.user_name)}
+                    </span>
+                    <div
+                      className="text-[12px] leading-snug overflow-hidden"
+                      style={{ color: 'var(--color-text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                    >
+                      <span className="font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                        {lastComment.user_name || 'Team'}:{' '}
+                      </span>
+                      {snippet}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {activity?.comment_count > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1 text-[10px] font-bold rounded-full"
+                        title={`${activity.comment_count} ${activity.comment_count === 1 ? 'messaggio' : 'messaggi'} in chat`}
+                        style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 9px' }}
+                      >
+                        💬 {activity.comment_count}
+                      </span>
+                    )}
+                    {Object.entries(REACTIONS).map(([type, { emoji, label }]) => {
+                      const n = activity?.reactions?.[type] || 0
+                      if (!n) return null
+                      return (
+                        <span
+                          key={type}
+                          title={`${label}: ${n} ${n === 1 ? 'persona' : 'persone'}`}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold rounded-full"
+                          style={{ background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', padding: '3px 9px' }}
+                        >
+                          {emoji} {n}
+                        </span>
+                      )
+                    })}
+                    {unread > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1.5 text-[10px] font-bold rounded-full"
+                        style={{ background: 'var(--color-primary-glow)', color: 'var(--color-primary)', padding: '3px 10px' }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-primary)' }} />
+                        {unread} {unread === 1 ? 'nuovo' : 'nuovi'}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px]" style={{ color: 'var(--color-text-muted)' }}>Nessun aggiornamento</span>
+                    {stale && (
+                      <span
+                        className="inline-flex items-center gap-1 text-[9px] font-bold rounded-full"
+                        style={{ background: 'var(--color-warning-glow)', color: 'var(--color-warning)', padding: '2px 8px' }}
+                      >
+                        ⏳ {compactAgo(r.created_at, nowMs)}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px]" style={{ fontFamily: '"JetBrains Mono", monospace', color: 'var(--color-text-faint)' }}>
+                    Aperta {compactAgo(r.created_at, nowMs)} · nessuno ci ha ancora lavorato
+                  </span>
+                </>
+              )}
             </>
           )}
         </div>
@@ -1140,6 +1208,16 @@ export default function AdminReports({ initialReportId }) {
               </span>
               <span className="font-normal normal-case tracking-normal opacity-60">
                 segnalazioni completate o chiuse
+              </span>
+              <span
+                role="link"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); navigate('archive') }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); navigate('archive') } }}
+                className="inline-flex items-center gap-1.5 font-semibold normal-case tracking-normal rounded-lg hover:bg-white/5"
+                style={{ marginLeft: 'auto', color: 'var(--color-primary)', padding: '4px 8px' }}
+              >
+                <Archive size={13} /> Apri l'archivio interventi
               </span>
             </button>
           )}

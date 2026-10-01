@@ -240,6 +240,13 @@ export const formatDateParts = (dateStr) => {
   }
 }
 
+// Mese e anno per le intestazioni di gruppo: `Settembre 2026`.
+export const formatMonthYear = (dateStr) => {
+  if (!dateStr) return ''
+  const label = new Date(dateStr).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
 export const timeAgo = (dateStr) => {
   if (!dateStr) return ''
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)

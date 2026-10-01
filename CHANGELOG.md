@@ -6,6 +6,36 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.22 — L'archivio racconta come è stato risolto
+
+Racconto e decisioni: `journal/2026-10-archivio-interventi.md`.
+
+### Added
+- **Archivio interventi** (admin, nuova voce di menu dopo Segnalazioni): ogni segnalazione conclusa con causa radice, azione correttiva, ore, ricambi, tecnico e note aggiunte dopo, raggruppata per mese di chiusura. Filtri per macchina, pezzo, tecnico, periodo ed esito (**Risolta / Da completare / Senza intervento**), ricerca dentro le chiusure, KPI in testa ed **export CSV** pronto per Excel (`;` + BOM).
+- **"Come è stato risolto"** in cima ai Dettagli del ticket concluso (mobile) e nel modal admin: per un ticket in archivio la domanda è cosa era e cosa è stato fatto, quindi sta sopra la descrizione.
+- **Correggi la chiusura** dopo averla fatta: stesso foglio di chiusura, precompilato, senza cambiare stato né `closed_at`. In cronologia resta il prima → dopo di ogni campo (`closure_edit`).
+- **Aggiungi un'informazione** a un ticket concluso: note successive in `extra_data.closure_notes` (attività `closure_note`) — "si è ripresentato dopo tre settimane", il codice esatto del ricambio. Nessuna notifica; la macchina viene reindicizzata.
+- **Chiusure da completare**: un ticket risolto senza causa o senza azione lo dice, con il tasto Completa per tecnico e admin, e ha il suo filtro in archivio.
+- Tab **Archivio** mobile con card orientate alla risoluzione (`ResolvedReportCard`), gruppi per mese e filtri per esito; la stessa card nelle **Concluse** della scheda macchina.
+- `lib/closure.js` (lettura unica della chiusura), hook `useClosureEdit`, `db.addClosureNote` (con fallback demo), `formatMonthYear` in `constants.js`.
+
+### Fixed
+- **Il riquadro dei dati di chiusura non compariva mai.** Tutti i flussi scrivono nelle colonne `closure_*`, ma dettaglio mobile, modal admin e cronologia leggevano `extra_data.closure_*`. Ora si legge dalle colonne, con fallback su `extra_data` per i record demo vecchi.
+- **Un commento riportava tra i "Recenti" un ticket archiviato da settimane**: l'archivio si basava su `updated_at`, che il trigger 050 tocca a ogni messaggio. Ora conta la chiusura (`closed_at`; per `chiuso` l'ultimo aggiornamento).
+- **"Risolvi e registra" dalla scheda macchina** chiudeva il ticket senza `closed_at` né dati di chiusura: in archivio era muto e restava fuori dal MTTR. Ora scrive `closed_at`, ore, ricambi e azione (la causa resta da completare) e reindicizza la macchina.
+
+### Changed
+- Lista Segnalazioni admin: sui ticket conclusi il pannello destro mostra causa e azione al posto dell'ultimo messaggio di chat; la sezione Archivio ha il link all'archivio interventi.
+- Scheda macchina admin: nel tab Segnalazioni le concluse mostrano causa → azione, e un link apre l'archivio filtrato sulla macchina. La scheda del pezzo (mobile) mostra causa → azione sulle concluse.
+- La ricerca di liste e archivio guarda anche pezzo, causa, azione, ricambi e note successive.
+- `ingest-knowledge` include le note successive nel testo del ticket indicizzato.
+
+### Note
+- **Da ri-deployare**: l'edge function `ingest-knowledge`. Finché non è aggiornata, le note successive restano fuori dall'assistente AI (tutto il resto funziona).
+- **Nessuna migration.**
+
+---
+
 ## [Unreleased] — v5.21 — La data si sceglie sul calendario
 
 ### Added

@@ -24,7 +24,8 @@ import {
   Package, ChevronRight, ArrowLeft, Camera, FilePlus, Wrench,
   AlertTriangle, FileText, ExternalLink, Image as ImageIcon, Clock,
 } from 'lucide-react'
-import { timeAgo, formatDate, isReportOpen } from '../../lib/constants'
+import { timeAgo, formatDate, isReportOpen, isTerminalStatus } from '../../lib/constants'
+import { getClosure } from '../../lib/closure'
 import { categoryLabel } from '../../lib/machineDocCategories'
 import { galleryFileName } from '../../lib/mediaFile'
 import { TabHeading, TabActionRow, TabEmptyFrame, CategorySheet } from './MachineTabParts'
@@ -241,21 +242,34 @@ function ComponentDetail({
       {reports.length > 0 && (
         <>
           <TabHeading>{reports.length} segnalazioni su questo pezzo</TabHeading>
-          {reports.map(r => (
-            <button key={r.id} onClick={() => { haptic.light(); onViewReport?.(r) }}
-              className="w-full flex items-center gap-[3.5vw] border-t text-left active:bg-surface-2 transition-colors"
-              style={{ ...padX, minHeight: 76, borderColor: 'var(--color-border-subtle)' }}>
-              <AlertTriangle size={20} className="shrink-0"
-                style={{ color: isReportOpen(r) ? '#ffaa2c' : 'var(--color-text-faint)' }} />
-              <span className="flex-1 min-w-0" style={padRow}>
-                <span className="block text-[17px] text-themed break-words">{r.title}</span>
-                <span className="block font-mono text-[11px] uppercase tracking-wider text-faint" style={{ marginTop: 4 }}>
-                  {r.status}{r.created_at ? ` · ${timeAgo(r.created_at)}` : ''}
+          {reports.map(r => {
+            const closure = isTerminalStatus(r.status) ? getClosure(r) : null
+            const resolution = closure ? [closure.rootCause, closure.action].filter(Boolean).join(' → ') : ''
+            return (
+              <button key={r.id} onClick={() => { haptic.light(); onViewReport?.(r) }}
+                className="w-full flex items-center gap-[3.5vw] border-t text-left active:bg-surface-2 transition-colors"
+                style={{ ...padX, minHeight: 76, borderColor: 'var(--color-border-subtle)' }}>
+                <AlertTriangle size={20} className="shrink-0"
+                  style={{ color: isReportOpen(r) ? '#ffaa2c' : 'var(--color-text-faint)' }} />
+                <span className="flex-1 min-w-0" style={padRow}>
+                  <span className="block text-[17px] text-themed break-words">{r.title}</span>
+                  {/* Sulle concluse: com'è stato risolto, la cosa che si viene a cercare qui */}
+                  {resolution && (
+                    <span className="block text-[13px] text-secondary" style={{
+                      marginTop: 4, lineHeight: 1.35,
+                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                    }}>
+                      {resolution}
+                    </span>
+                  )}
+                  <span className="block font-mono text-[11px] uppercase tracking-wider text-faint" style={{ marginTop: 4 }}>
+                    {r.status}{r.created_at ? ` · ${timeAgo(r.created_at)}` : ''}
+                  </span>
                 </span>
-              </span>
-              <ChevronRight size={20} className="shrink-0 text-faint" />
-            </button>
-          ))}
+                <ChevronRight size={20} className="shrink-0 text-faint" />
+              </button>
+            )
+          })}
         </>
       )}
 

@@ -24,6 +24,7 @@
 | `useImageCompressor` | Comprime immagini e genera miniature prima dell'upload | Canvas API |
 | `useMachineMedia` | Galleria foto/video di una macchina (feed + curata) | `supabase.js` |
 | `useMachineUpload` | Scatta foto / carica documento sulla macchina dal campo | `supabase.js`, `useImageCompressor` |
+| `useClosureEdit` | Correggere una chiusura o aggiungerle una nota dopo, con cronologia e reindex | `supabase.js`, `lib/closure.js` |
 
 ## Pattern auto-reward
 `useAutoTokenReward(userId, badges, level)` accredita ManuCoin automaticamente.

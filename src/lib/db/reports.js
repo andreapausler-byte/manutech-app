@@ -83,6 +83,37 @@ export const reports = {
     return list[idx]
   },
 
+  // Nota aggiunta dopo la chiusura (extra_data.closure_notes, vedi
+  // lib/closure.js). Rilegge extra_data prima di scrivere: è un JSONB unico,
+  // e la copia in memoria della scheda potrebbe non avere la nota appena
+  // aggiunta da un collega — sovrascriverla la cancellerebbe.
+  async addClosureNote(id, note) {
+    if (supabase) {
+      const { data: current, error: readError } = await supabase.from('reports').select('extra_data').eq('id', id).single()
+      if (readError) throw readError
+      const extra = current?.extra_data || {}
+      const notes = Array.isArray(extra.closure_notes) ? extra.closure_notes : []
+      const { data, error } = await supabase.from('reports')
+        .update({ extra_data: { ...extra, closure_notes: [...notes, note] } })
+        .eq('id', id).select().maybeSingle()
+      if (error) throw error
+      if (!data) throw new Error('Permessi insufficienti: impossibile aggiornare questa segnalazione')
+      return data
+    }
+    const list = getStore(KEYS.reports)
+    const idx = list.findIndex(r => r.id === id)
+    if (idx === -1) throw new Error('Segnalazione non trovata')
+    const extra = list[idx].extra_data || {}
+    const notes = Array.isArray(extra.closure_notes) ? extra.closure_notes : []
+    list[idx] = {
+      ...list[idx],
+      extra_data: { ...extra, closure_notes: [...notes, note] },
+      updated_at: new Date().toISOString(),
+    }
+    setStore(KEYS.reports, list)
+    return list[idx]
+  },
+
   async deleteReport(id) {
     if (supabase) {
       const { error } = await supabase.from('reports').delete().eq('id', id)
