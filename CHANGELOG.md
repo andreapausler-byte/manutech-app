@@ -6,6 +6,22 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.25 — Le scadenze le controlla il server
+
+Runbook: `docs/MIGRATION-065.md`. Racconto: `journal/2026-10-notifiche-push.md` (seconda parte).
+
+### Added
+- **Scadenze di manutenzione dal server** (migration **065**): un job `pg_cron` ogni mattina alle 06:45 (`check_maintenance_deadlines`). "In scadenza" una volta per ciclo a 5 giorni o meno; "scaduta" il giorno stesso e poi **un richiamo ogni 3 giorni** finché non si registra l'intervento, ma non mentre qualcuno l'ha presa in carico. Il registro `maintenance_alerts` è unico per l'org: un avviso parte una volta sola. Alla prima applicazione le scadenze già in corso vengono registrate come avvisate, così non arriva una raffica il mattino dopo.
+- **Card "Notifiche" nel Profilo mobile** (`ui/PushStatusCard`), sempre visibile: stato del telefono, **Attiva notifiche**, istruzioni per chi le ha bloccate (Android e Chrome) e per iPhone (aggiungi alla Home), **Prova** e **Ripara**. Prima, chi aveva chiuso o rifiutato il banner una volta non aveva più modo di riattivarle: a inizio ottobre solo 5 tecnici su 27 ricevevano i push.
+
+### Changed
+- `useAutoNotifications` (controllo scadenze dal telefono) gira **solo in modalità demo**. In produzione taceva quando nessuno apriva l'app e generava doppioni quando la aprivano in tanti.
+
+### Note
+- **Applicare la 065 prima del deploy del frontend**: senza, non partono avvisi di scadenza.
+
+---
+
 ## [Unreleased] — v5.24 — I push arrivano davvero
 
 Diagnosi e decisioni: `journal/2026-10-notifiche-push.md`.

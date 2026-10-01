@@ -8,6 +8,10 @@
  *
  * Usa un flag localStorage persistente per ciclo di manutenzione
  * (si resetta solo quando viene registrato un nuovo intervento).
+ *
+ * SOLO DEMO MODE (ott 2026): in produzione le scadenze le controlla il
+ * server (migration 065, check_maintenance_deadlines via pg_cron).
+ * MobileLayout passa userId null quando Supabase è configurato.
  */
 
 import { useEffect, useCallback, useRef } from 'react'
