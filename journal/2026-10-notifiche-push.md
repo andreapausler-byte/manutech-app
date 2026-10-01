@@ -125,7 +125,15 @@ Un fornitore non ha un ruolo suo: è una riga di `users` con ruolo `tecnico`
 I più vecchi hanno un'email finta `@esterno.local`, i nuovi l'email
 pubblica della ditta. Per la funzione email erano tecnici come gli altri:
 ogni nuovo ticket arrivava anche alle ditte esterne, gli indirizzi finti
-rimbalzavano, e tutto consumava quota. I "27 tecnici" contano anche loro.
+rimbalzavano, e tutto consumava quota.
+
+I numeri (query del founder, 1/10), utenti attivi: **6 admin, 3 operatori,
+10 tecnici e 17 fornitori** registrati come tecnici. Più della metà dei
+destinatari di ogni nuovo ticket era una ditta esterna: un ticket aperto da
+un tecnico partiva verso 32 indirizzi, ora verso 15 (6 admin + 9 tecnici).
+Col piano gratuito di Resend (100 al giorno) la quota reggeva 3 ticket,
+ora circa 6. Corregge anche la seconda parte: i tecnici col push attivo
+erano 5 su **10**, non su 27.
 
 Decisione: la funzione esclude chi ha un `supplier_profiles` o un'email
 `@esterno.local` — la stessa regola con cui AdminUsers li mostra a parte.
