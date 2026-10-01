@@ -143,6 +143,23 @@ persa che notizie interne a una ditta esterna. Il push per ora resta com'è:
 i fornitori sono creati senza accesso all'app, quindi di norma non hanno
 telefoni iscritti.
 
+### Meno email anche alle persone (stesso giorno)
+Deciso col founder: ai tecnici l'email dei ticket **non critici** non
+arriva più; i critici sì, come assegnazioni, interventi e scadenze. Per
+ogni ticket bastano gli admin. Il push per i tecnici era già così: l'email,
+che doveva essere il canale più selettivo, era il più rumoroso.
+
+Il cambio di default da solo non bastava: le Impostazioni salvano tutte le
+preferenze al primo interruttore toccato, quindi molti tecnici hanno
+`email_new_report = true` memorizzato senza averlo mai scelto. La migration
+066 spegne quel valore (anche nel default aziendale del ruolo) e tiene una
+copia per il rollback. Rieseguita, non rispegne chi l'ha riaccesa a mano.
+Provata su Postgres locale: spegne solo i tecnici, conserva le altre
+chiavi, il rollback rimette lo stato di prima.
+
+Risultato: un ticket non critico aperto da un tecnico passa da 32 email
+(stamattina) a 6, le sole degli admin.
+
 ### Decisioni
 1. Nuovi tentativi solo su `rate_limit_exceeded` (la richiesta non è stata
    elaborata: nessun doppione). Sulle quote no: riprovare non serve.
@@ -171,26 +188,29 @@ SELECT u.role,
  WHERE u.status = 'active'
  GROUP BY 1, 2 ORDER BY 1, 2;
 
--- Email stimate al giorno per i nuovi ticket (broadcast × admin e tecnici
--- attivi, fornitori esclusi come fa la funzione dalla v5.26).
-SELECT created_at::date AS giorno,
+-- Email stimate al giorno per i nuovi ticket con le regole della v5.26:
+-- non critici → admin; critici → admin e tecnici (fornitori sempre esclusi).
+WITH persone AS (
+  SELECT count(*) FILTER (WHERE u.role = 'admin') AS admin,
+         count(*) FILTER (WHERE u.role IN ('admin', 'tecnico')) AS admin_tecnici
+    FROM public.users u
+   WHERE u.status = 'active'
+     AND lower(u.email) NOT LIKE '%@esterno.local'
+     AND NOT EXISTS (SELECT 1 FROM public.supplier_profiles sp WHERE sp.user_id = u.id)
+)
+SELECT n.created_at::date AS giorno,
        count(*) AS nuovi_ticket,
-       count(*) * (SELECT count(*) - 1 FROM public.users u
-                    WHERE u.status = 'active' AND u.role IN ('admin', 'tecnico')
-                      AND lower(u.email) NOT LIKE '%@esterno.local'
-                      AND NOT EXISTS (SELECT 1 FROM public.supplier_profiles sp
-                                       WHERE sp.user_id = u.id)) AS email_stimate
-  FROM public.notifications
- WHERE target_user IS NULL AND type IN ('new_report', 'new_report_critical')
-   AND created_at > now() - interval '14 days'
+       sum(CASE WHEN n.type = 'new_report_critical' THEN p.admin_tecnici ELSE p.admin END) AS email_stimate
+  FROM public.notifications n CROSS JOIN persone p
+ WHERE n.target_user IS NULL AND n.type IN ('new_report', 'new_report_critical')
+   AND n.created_at > now() - interval '14 days'
  GROUP BY 1 ORDER BY 1 DESC;
 ```
 
 ### Cosa resta aperto
-- **Volume**: se la quota è la causa, o si passa a un piano Resend a
-  pagamento o si toglie l'email dei ticket non critici ai tecnici (il push
-  per loro è già spento di default; l'email di default è più rumorosa del
-  push, contro la regola scritta sopra gli `EMAIL_ROLE_DEFAULTS`).
+- **Piano Resend**: da verificare sul pannello. Con il piano gratuito (100
+  al giorno) e 6 email a ticket ci stanno ~16 ticket, ma la quota vale per
+  tutte le email del giorno.
 - **Destinatari**: un admin riceve cambi stato, messaggi e richieste ricambi
   solo se ha aperto o ha in carico il ticket. "Risolta" e "In attesa
   ricambi" sui ticket dei tecnici non gli arrivano né in app né per email:

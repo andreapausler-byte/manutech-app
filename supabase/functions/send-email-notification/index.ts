@@ -213,7 +213,7 @@ const EMAIL_ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
     email_participant_removed: false,
   },
   tecnico: {
-    email_new_report: true,
+    email_new_report: false, // solo i critici: per ogni ticket bastano gli admin (v5.26)
     email_new_report_critical: true,
     email_quick_report: false,
     email_assigned: true,

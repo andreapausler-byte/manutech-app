@@ -8,7 +8,10 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ## [Unreleased] — v5.26 — Le email che non arrivavano
 
-Diagnosi: `journal/2026-10-notifiche-push.md` (terza parte). Nessuna migration: la funzione si pubblica da sola al merge su `master`.
+Diagnosi: `journal/2026-10-notifiche-push.md` (terza parte). Runbook: `docs/MIGRATION-066.md`. La funzione si pubblica da sola al merge su `master`; la migration **066** va eseguita a mano (prima o dopo, non importa).
+
+### Changed
+- **I tecnici non ricevono più per email ogni nuovo ticket**, solo i **critici** (più assegnazioni, interventi e scadenze come prima). Il ticket non critico va per email agli admin: da 15 email a 5-6. Il push per i tecnici era già così. Default cambiato in `send-email-notification` e in `notifPreferences.js`; la migration **066** spegne lo stesso valore nelle preferenze già salvate, dove era finito copiato dai default (le Impostazioni salvano tutto al primo interruttore toccato). Chi lo vuole lo riaccende da Impostazioni → Notifiche email.
 
 ### Fixed
 - **I fornitori ricevevano le email interne.** Un fornitore è un utente con ruolo `tecnico` (così compare nei selettori di assegnazione) più un `supplier_profiles`; i più vecchi hanno un'email finta `@esterno.local`. Col ruolo tecnico ricevevano ogni email dei tecnici, a partire da **ogni nuovo ticket** — 17 fornitori su 27 "tecnici", più della metà dei destinatari (un ticket: da 32 email a 15): notizie interne a ditte esterne, indirizzi finti che rimbalzano, quota Resend consumata. Ora `send-email-notification` scrive **solo alle persone dell'azienda**: esclude chi ha un `supplier_profiles` o un'email `@esterno.local` (stessa regola di `isSupplier` in AdminUsers). Se non riesce a verificarlo non manda nulla. Il contatto con i fornitori resta quello dai link email delle schede admin.
