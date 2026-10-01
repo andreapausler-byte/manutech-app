@@ -103,6 +103,88 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;')
 }
 
+// ── Invio a Resend ──
+//
+// Ogni notifica è una chiamata a questa funzione, e le notifiche nascono a
+// gruppi: un cambio stato avvisa autore e assegnatario, un intervento tutti
+// i coinvolti, il job delle scadenze delle 06:45 tutti i piani insieme.
+// Sono chiamate parallele: oltre il limite al secondo del team Resend
+// risponde 429 e quelle email andavano perse senza traccia. Su
+// rate_limit_exceeded la richiesta non è stata elaborata, quindi si riprova
+// senza rischio di doppioni. Le quote giornaliera e mensile rispondono
+// anch'esse 429, ma riprovare non serve: si registra il motivo e basta.
+const RESEND_BATCH_URL = 'https://api.resend.com/emails/batch'
+const MAX_ATTEMPTS = 3
+
+// Un indirizzo malformato non deve arrivare a Resend: oltre a non partire,
+// col batch "strict" farebbe scartare anche gli altri destinatari.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// I fornitori sono righe di users con ruolo 'tecnico' (così compaiono nei
+// selettori di assegnazione) e un supplier_profiles; i più vecchi hanno
+// un'email finta @esterno.local. Stessa regola di isSupplier in AdminUsers.
+const SUPPLIER_EMAIL_SUFFIX = '@esterno.local'
+
+type ResendError = { name?: string; message?: string }
+type BatchResult = {
+  ok: boolean
+  status: number
+  data: Array<{ id: string }>
+  errors: Array<{ index: number; message: string }>
+  error: ResendError | null
+}
+
+async function sendBatch(
+  apiKey: string,
+  emails: Array<Record<string, unknown>>,
+): Promise<BatchResult> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(RESEND_BATCH_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        // Permissive: gli indirizzi rifiutati tornano in `errors`, gli altri
+        // partono. Il default (strict) scartava l'intero batch.
+        'x-batch-validation': 'permissive',
+      },
+      body: JSON.stringify(emails),
+    })
+    const payload = await res.json().catch(() => null)
+
+    if (res.ok) {
+      return {
+        ok: true,
+        status: res.status,
+        data: Array.isArray(payload?.data) ? payload.data : [],
+        errors: Array.isArray(payload?.errors) ? payload.errors : [],
+        error: null,
+      }
+    }
+
+    const error: ResendError = { name: payload?.name, message: payload?.message }
+    const retryable = res.status === 429 && !String(error.name || '').includes('quota')
+    if (!retryable || attempt >= MAX_ATTEMPTS) {
+      return { ok: false, status: res.status, data: [], errors: [], error }
+    }
+
+    // Il limite è al secondo: un secondo d'attesa basta. Il jitter evita che
+    // le chiamate partite insieme riprovino di nuovo tutte insieme.
+    const retryAfter = Math.min(Number(res.headers.get('retry-after')) || 1, 2)
+    console.warn(`[Email] Resend 429 ${error.name || ''}, nuovo tentativo ${attempt + 1}/${MAX_ATTEMPTS}`)
+    await new Promise(r => setTimeout(r, retryAfter * 1000 + Math.random() * 500))
+  }
+}
+
+function json(body: Record<string, unknown>, status = 200): Response {
+  // `channel` distingue questa risposta da quella del push in
+  // net._http_response, dove l'URL chiamato non viene salvato.
+  return new Response(JSON.stringify({ channel: 'email', ...body }), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
 // ── Default preferenze email per ruolo ──
 //
 // Filosofia (allineata a send-push-notification, ma più selettiva):
@@ -131,7 +213,7 @@ const EMAIL_ROLE_DEFAULTS: Record<string, Record<string, boolean>> = {
     email_participant_removed: false,
   },
   tecnico: {
-    email_new_report: true,
+    email_new_report: false, // solo i critici: per ogni ticket bastano gli admin (v5.26)
     email_new_report_critical: true,
     email_quick_report: false,
     email_assigned: true,
@@ -189,10 +271,7 @@ Deno.serve(async (req: Request) => {
 
     if (!resendApiKey) {
       console.error('[Email] RESEND_API_KEY not configured')
-      return new Response(JSON.stringify({ error: 'RESEND_API_KEY not configured' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return json({ error: 'RESEND_API_KEY not configured' }, 500)
     }
 
     // Payload dal Database trigger (stesso formato del push)
@@ -206,10 +285,7 @@ Deno.serve(async (req: Request) => {
     }))
 
     if (!notification?.type || !notification?.title) {
-      return new Response(JSON.stringify({ error: 'Invalid notification payload' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return json({ error: 'Invalid notification payload' }, 400)
     }
 
     // Init Supabase con service_role
@@ -217,42 +293,69 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Trova gli utenti target con le loro email
+    // Trova gli utenti target con le loro email. Solo account attivi: gli
+    // inviti mai accettati e gli utenti disattivati non ricevono più nulla
+    // (prima un broadcast arrivava anche a loro, consumando la quota Resend).
     let targetUsers: Array<{ id: string; email: string; role: string }> = []
 
+    let query = supabase
+      .from('users')
+      .select('id, email, role')
+      .eq('status', 'active')
+
     if (notification.target_user) {
-      const { data } = await supabase
-        .from('users')
-        .select('id, email, role')
-        .eq('id', notification.target_user)
-      targetUsers = data || []
+      query = query.eq('id', notification.target_user)
     } else {
       // Broadcast: tutti gli utenti della stessa org (escluso il mittente)
-      let query = supabase
-        .from('users')
-        .select('id, email, role')
-        .eq('org_id', notification.org_id || 'default')
-
+      query = query.eq('org_id', notification.org_id || 'default')
       if (notification.from_user) {
         query = query.neq('id', notification.from_user)
       }
-      const { data } = await query
-      targetUsers = data || []
+    }
+    const { data: usersData, error: usersError } = await query
+    if (usersError) {
+      console.error('[Email] Users query failed:', usersError.message)
+      return json({ error: `users: ${usersError.message}` }, 500)
+    }
+    targetUsers = usersData || []
+
+    // Le email sono solo per le persone dell'azienda. Col ruolo 'tecnico' i
+    // fornitori ricevevano ogni email dei tecnici, nuovi ticket compresi:
+    // notizie interne a ditte esterne, e quota Resend consumata. Se non si
+    // riesce a sapere chi è fornitore non parte nulla.
+    let suppliers = 0
+    if (targetUsers.length > 0) {
+      const { data: supplierRows, error: supplierError } = await supabase
+        .from('supplier_profiles')
+        .select('user_id')
+        .in('user_id', targetUsers.map(u => u.id))
+      if (supplierError) {
+        console.error('[Email] Supplier query failed:', supplierError.message)
+        return json({ error: `supplier_profiles: ${supplierError.message}` }, 500)
+      }
+      const supplierIds = new Set((supplierRows || []).map(r => r.user_id))
+      const people = targetUsers.filter(u =>
+        !supplierIds.has(u.id) &&
+        !(u.email || '').trim().toLowerCase().endsWith(SUPPLIER_EMAIL_SUFFIX))
+      suppliers = targetUsers.length - people.length
+      targetUsers = people
     }
 
     if (targetUsers.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, message: 'No target users found' }), {
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return json({ sent: 0, suppliers, message: 'No target users found' })
     }
 
-    // Carica preferenze notifiche
+    // Carica preferenze notifiche. Se la query fallisce si va avanti con i
+    // default di ruolo: meglio un'email in più che nessuna.
     const userIds = targetUsers.map(u => u.id)
-    const { data: prefsData } = await supabase
+    const { data: prefsData, error: prefsError } = await supabase
       .from('notification_preferences')
       .select('user_id, prefs, role, is_org_default')
       .or(`user_id.in.(${userIds.join(',')}),is_org_default.eq.true`)
       .eq('org_id', notification.org_id || 'default')
+    if (prefsError) {
+      console.error('[Email] Preferences query failed, using role defaults:', prefsError.message)
+    }
 
     const userPrefs: Record<string, Record<string, boolean>> = {}
     const orgDefaults: Record<string, Record<string, boolean>> = {}
@@ -282,14 +385,18 @@ Deno.serve(async (req: Request) => {
     }
 
     // Filtra utenti eligibili
-    const eligible = targetUsers.filter(u => shouldEmail(u.id, u.role, notification.type))
+    const wanted = targetUsers.filter(u => shouldEmail(u.id, u.role, notification.type))
+    const eligible = wanted.filter(u => EMAIL_RE.test((u.email || '').trim()))
+    const invalid = wanted.length - eligible.length
+    if (invalid > 0) {
+      console.warn(`[Email] ${invalid} indirizzo/i malformato/i saltato/i:`,
+        wanted.filter(u => !eligible.includes(u)).map(u => u.id).join(','))
+    }
 
     console.log(`[Email] ${eligible.length}/${targetUsers.length} users eligible for email_${notification.type}`)
 
     if (eligible.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, message: 'All filtered by email preferences' }), {
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return json({ sent: 0, suppliers, invalid, message: 'All filtered by email preferences' })
     }
 
     // Genera HTML
@@ -303,52 +410,51 @@ Deno.serve(async (req: Request) => {
     const BATCH_SIZE = 100
     let sent = 0
     let failed = 0
+    let lastError: string | null = null
 
     for (let i = 0; i < eligible.length; i += BATCH_SIZE) {
       const chunk = eligible.slice(i, i + BATCH_SIZE)
       try {
-        const res = await fetch('https://api.resend.com/emails/batch', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(chunk.map(u => ({
-            from: emailFrom,
-            to: u.email,
-            subject,
-            html,
-          }))),
-        })
+        const result = await sendBatch(resendApiKey, chunk.map(u => ({
+          from: emailFrom,
+          to: u.email.trim(),
+          subject,
+          html,
+        })))
 
-        const result = await res.json()
-
-        if (!res.ok) {
-          console.error(`[Email] Batch failed (${chunk.length} recipients):`, result)
+        if (!result.ok) {
+          // Il motivo (daily_quota_exceeded, rate_limit_exceeded,
+          // validation_error per un mittente non verificato...) finisce
+          // nella risposta: si legge da SQL in net._http_response.
+          lastError = `${result.status} ${result.error?.name || ''}: ${result.error?.message || ''}`.trim()
+          console.error(`[Email] Batch failed (${chunk.length} recipients): ${lastError}`)
           failed += chunk.length
         } else {
-          const ok = result?.data?.length ?? chunk.length
-          console.log(`[Email] Batch sent to ${ok}/${chunk.length} recipient(s)`)
-          sent += ok
-          failed += chunk.length - ok
+          result.errors.forEach(e => {
+            console.error(`[Email] Rifiutato ${chunk[e.index]?.email?.trim()}: ${e.message}`)
+            lastError = e.message
+          })
+          console.log(`[Email] Batch sent to ${result.data.length}/${chunk.length} recipient(s)`)
+          sent += result.data.length
+          failed += chunk.length - result.data.length
         }
       } catch (err) {
-        console.error(`[Email] Batch error (${chunk.length} recipients):`, (err as Error).message)
+        lastError = (err as Error).message
+        console.error(`[Email] Batch error (${chunk.length} recipients):`, lastError)
         failed += chunk.length
       }
     }
 
     console.log(`[Email] Sent: ${sent}, Failed: ${failed}`)
 
-    return new Response(
-      JSON.stringify({ sent, failed, total: eligible.length }),
-      { headers: { 'Content-Type': 'application/json' } }
+    // Se non è partita nessuna email la risposta non è un 200: prima un
+    // fallimento totale risultava "ok" in net._http_response.
+    return json(
+      { sent, failed, suppliers, invalid, total: eligible.length, ...(lastError ? { error: lastError } : {}) },
+      sent === 0 && failed > 0 ? 502 : 200,
     )
   } catch (err) {
     console.error('[Email] Error:', err)
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    )
+    return json({ error: (err as Error).message }, 500)
   }
 })

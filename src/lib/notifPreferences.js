@@ -102,7 +102,7 @@ export const ROLE_DEFAULTS = {
     maintenance_reminder: true,
     maintenance_overdue: true,
     // Email
-    email_new_report: true,
+    email_new_report: false, // solo i critici (v5.26)
     email_new_report_critical: true,
     email_quick_report: false,
     email_assigned: true,

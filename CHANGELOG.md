@@ -6,13 +6,29 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.26 — Le email che non arrivavano
+
+Diagnosi: `journal/2026-10-notifiche-push.md` (terza parte). Runbook: `docs/MIGRATION-066.md`. La funzione si pubblica da sola al merge su `master`; la migration **066** va eseguita a mano (prima o dopo, non importa).
+
+### Changed
+- **I tecnici non ricevono più per email ogni nuovo ticket**, solo i **critici** (più assegnazioni, interventi e scadenze come prima). Il ticket non critico va per email agli admin: da 15 email a 5-6. Il push per i tecnici era già così. Default cambiato in `send-email-notification` e in `notifPreferences.js`; la migration **066** spegne lo stesso valore nelle preferenze già salvate, dove era finito copiato dai default (le Impostazioni salvano tutto al primo interruttore toccato). Chi lo vuole lo riaccende da Impostazioni → Notifiche email.
+
+### Fixed
+- **I fornitori ricevevano le email interne.** Un fornitore è un utente con ruolo `tecnico` (così compare nei selettori di assegnazione) più un `supplier_profiles`; i più vecchi hanno un'email finta `@esterno.local`. Col ruolo tecnico ricevevano ogni email dei tecnici, a partire da **ogni nuovo ticket** — 17 fornitori su 27 "tecnici", più della metà dei destinatari (un ticket: da 32 email a 15): notizie interne a ditte esterne, indirizzi finti che rimbalzano, quota Resend consumata. Ora `send-email-notification` scrive **solo alle persone dell'azienda**: esclude chi ha un `supplier_profiles` o un'email `@esterno.local` (stessa regola di `isSupplier` in AdminUsers). Se non riesce a verificarlo non manda nulla. Il contatto con i fornitori resta quello dai link email delle schede admin.
+- **Email perse quando partono più notifiche insieme.** Ogni notifica è una chiamata a Resend, e le notifiche nascono a gruppi (cambio stato → autore e assegnatario; intervento → tutti i coinvolti; scadenze delle 06:45 → tutti i piani). Oltre il limite al secondo Resend risponde 429 e quelle email andavano perse. Ora `send-email-notification` **riprova** (fino a 3 tentativi, con l'attesa che indica Resend). Sulle quote giornaliera/mensile non riprova: registra il motivo.
+- **Un indirizzo sbagliato bloccava tutti.** Il batch di Resend in modalità predefinita (strict) scarta l'intero invio se un solo destinatario non è valido. Ora gli indirizzi malformati vengono saltati prima e il batch va in modalità **permissive**: partono le email buone, quelle rifiutate finiscono nel log.
+- **Email a inviti mai accettati e a utenti disattivati**: i broadcast arrivavano anche a loro, consumando quota. Ora solo account `active`.
+- **Un fallimento totale risultava "ok".** La funzione rispondeva 200 anche con zero email partite, quindi `net._http_response` sembrava in ordine. Ora risponde **502** con il motivo (`daily_quota_exceeded`, `rate_limit_exceeded`, `validation_error`…) e ogni risposta porta `"channel":"email"` per distinguerla da quella del push, più quanti fornitori e indirizzi malformati sono stati esclusi.
+
+---
+
 ## [Unreleased] — v5.25 — Le scadenze le controlla il server
 
 Runbook: `docs/MIGRATION-065.md`. Racconto: `journal/2026-10-notifiche-push.md` (seconda parte).
 
 ### Added
 - **Scadenze di manutenzione dal server** (migration **065**): un job `pg_cron` ogni mattina alle 06:45 (`check_maintenance_deadlines`). "In scadenza" una volta per ciclo a 5 giorni o meno; "scaduta" il giorno stesso e poi **un richiamo ogni 3 giorni** finché non si registra l'intervento, ma non mentre qualcuno l'ha presa in carico. Il registro `maintenance_alerts` è unico per l'org: un avviso parte una volta sola. Alla prima applicazione le scadenze già in corso vengono registrate come avvisate, così non arriva una raffica il mattino dopo.
-- **Card "Notifiche" nel Profilo mobile** (`ui/PushStatusCard`), sempre visibile: stato del telefono, **Attiva notifiche**, istruzioni per chi le ha bloccate (Android e Chrome) e per iPhone (aggiungi alla Home), **Prova** e **Ripara**. Prima, chi aveva chiuso o rifiutato il banner una volta non aveva più modo di riattivarle: a inizio ottobre solo 5 tecnici su 27 ricevevano i push.
+- **Card "Notifiche" nel Profilo mobile** (`ui/PushStatusCard`), sempre visibile: stato del telefono, **Attiva notifiche**, istruzioni per chi le ha bloccate (Android e Chrome) e per iPhone (aggiungi alla Home), **Prova** e **Ripara**. Prima, chi aveva chiuso o rifiutato il banner una volta non aveva più modo di riattivarle: a inizio ottobre solo 5 tecnici su 10 ricevevano i push (i 27 "tecnici" contati allora comprendevano 17 fornitori).
 
 ### Changed
 - `useAutoNotifications` (controllo scadenze dal telefono) gira **solo in modalità demo**. In produzione taceva quando nessuno apriva l'app e generava doppioni quando la aprivano in tanti.

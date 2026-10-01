@@ -87,3 +87,132 @@ non aveva nessun altro posto dove riattivare le notifiche.
 - Un avviso per piano: se gli scaduti sono tanti, meglio un riepilogo
   unico per persona ("3 manutenzioni scadute").
 - Destinatari dei messaggi (trigger su `comments`), come da prima parte.
+
+---
+
+## Terza parte (1/10) — le email agli admin (v5.26)
+
+### Richiesta
+"La versione desktop, gli admin mi segnalano che non ricevono sempre le
+notifiche via email."
+
+### Cosa dice il codice
+La catena è la stessa del push: riga in `notifications` → trigger della 010
+→ `send-email-notification` → batch di Resend. Il "rispondono 200" della
+prima parte non provava niente: la funzione rispondeva 200 anche quando
+Resend rifiutava tutto (`sent: 0, failed: N`). Tre modi in cui un'email
+spariva senza traccia:
+
+1. **Chiamate parallele oltre il limite di Resend** (429): le notifiche
+   nascono a gruppi — due righe per ogni cambio stato, N per un intervento,
+   tutte le scadenze insieme alle 06:45 — e nessun nuovo tentativo.
+2. **Batch "strict"** (default di Resend): un solo indirizzo non valido fa
+   scartare l'intero invio a tutti.
+3. **Quota del piano Resend**: un nuovo ticket è un broadcast che di default
+   va per email ad admin **e tecnici** (`email_new_report: true` per
+   entrambi): con 6 admin e 27 tecnici, una trentina di email a ticket. Il
+   piano gratuito ne consente 100 al giorno: dal terzo ticket in poi, fino a
+   mezzanotte UTC, non parte più niente. È il sospetto principale per il
+   "non sempre", ma dipende dal piano: **da verificare** sul pannello Resend.
+
+### I fornitori (stesso giorno)
+Prima richiesta del founder dopo la diagnosi: "limitare il numero di email
+anche agli utenti... distinguiamo gli utenti dai fornitori. I reali utenti
+devono essere gli unici a ricevere le email."
+
+Un fornitore non ha un ruolo suo: è una riga di `users` con ruolo `tecnico`
+(per comparire nei selettori di assegnazione) più un `supplier_profiles`.
+I più vecchi hanno un'email finta `@esterno.local`, i nuovi l'email
+pubblica della ditta. Per la funzione email erano tecnici come gli altri:
+ogni nuovo ticket arrivava anche alle ditte esterne, gli indirizzi finti
+rimbalzavano, e tutto consumava quota.
+
+I numeri (query del founder, 1/10), utenti attivi: **6 admin, 3 operatori,
+10 tecnici e 17 fornitori** registrati come tecnici. Più della metà dei
+destinatari di ogni nuovo ticket era una ditta esterna: un ticket aperto da
+un tecnico partiva verso 32 indirizzi, ora verso 15 (6 admin + 9 tecnici).
+Col piano gratuito di Resend (100 al giorno) la quota reggeva 3 ticket,
+ora circa 6. Corregge anche la seconda parte: i tecnici col push attivo
+erano 5 su **10**, non su 27.
+
+Decisione: la funzione esclude chi ha un `supplier_profiles` o un'email
+`@esterno.local` — la stessa regola con cui AdminUsers li mostra a parte.
+Nessuna colonna nuova né migration: la distinzione esiste già, mancava solo
+in quel punto. Se la verifica fallisce non parte nulla: meglio un'email
+persa che notizie interne a una ditta esterna. Il push per ora resta com'è:
+i fornitori sono creati senza accesso all'app, quindi di norma non hanno
+telefoni iscritti.
+
+### Meno email anche alle persone (stesso giorno)
+Deciso col founder: ai tecnici l'email dei ticket **non critici** non
+arriva più; i critici sì, come assegnazioni, interventi e scadenze. Per
+ogni ticket bastano gli admin. Il push per i tecnici era già così: l'email,
+che doveva essere il canale più selettivo, era il più rumoroso.
+
+Il cambio di default da solo non bastava: le Impostazioni salvano tutte le
+preferenze al primo interruttore toccato, quindi molti tecnici hanno
+`email_new_report = true` memorizzato senza averlo mai scelto. La migration
+066 spegne quel valore (anche nel default aziendale del ruolo) e tiene una
+copia per il rollback. Rieseguita, non rispegne chi l'ha riaccesa a mano.
+Provata su Postgres locale: spegne solo i tecnici, conserva le altre
+chiavi, il rollback rimette lo stato di prima.
+
+Risultato: un ticket non critico aperto da un tecnico passa da 32 email
+(stamattina) a 6, le sole degli admin.
+
+### Decisioni
+1. Nuovi tentativi solo su `rate_limit_exceeded` (la richiesta non è stata
+   elaborata: nessun doppione). Sulle quote no: riprovare non serve.
+2. Batch `permissive` e indirizzi malformati scartati prima: partono le
+   email buone, le rifiutate vanno nel log con l'indirizzo.
+3. Solo account `active`: inviti pendenti e disattivati non ricevono più.
+4. Zero email partite = **502** con il motivo, e `"channel":"email"` in ogni
+   risposta. Da ora la diagnosi si fa da SQL senza aprire i log.
+
+### Come verificare (SQL Editor)
+```sql
+-- Esito delle chiamate email delle ultime ~6 ore (pg_net non tiene di più).
+-- Prima del deploy della v5.26: le email sono le righe con "total" e senza "expired".
+SELECT created, status_code, content
+  FROM net._http_response
+ WHERE content LIKE '%"channel":"email"%'
+    OR (content LIKE '%"total"%' AND content NOT LIKE '%"expired"%')
+ ORDER BY created DESC LIMIT 50;
+
+-- Chi c'è davvero tra gli utenti attivi: persone e fornitori per ruolo.
+SELECT u.role,
+       (sp.user_id IS NOT NULL OR lower(u.email) LIKE '%@esterno.local') AS fornitore,
+       count(*)
+  FROM public.users u
+  LEFT JOIN public.supplier_profiles sp ON sp.user_id = u.id
+ WHERE u.status = 'active'
+ GROUP BY 1, 2 ORDER BY 1, 2;
+
+-- Email stimate al giorno per i nuovi ticket con le regole della v5.26:
+-- non critici → admin; critici → admin e tecnici (fornitori sempre esclusi).
+WITH persone AS (
+  SELECT count(*) FILTER (WHERE u.role = 'admin') AS admin,
+         count(*) FILTER (WHERE u.role IN ('admin', 'tecnico')) AS admin_tecnici
+    FROM public.users u
+   WHERE u.status = 'active'
+     AND lower(u.email) NOT LIKE '%@esterno.local'
+     AND NOT EXISTS (SELECT 1 FROM public.supplier_profiles sp WHERE sp.user_id = u.id)
+)
+SELECT n.created_at::date AS giorno,
+       count(*) AS nuovi_ticket,
+       sum(CASE WHEN n.type = 'new_report_critical' THEN p.admin_tecnici ELSE p.admin END) AS email_stimate
+  FROM public.notifications n CROSS JOIN persone p
+ WHERE n.target_user IS NULL AND n.type IN ('new_report', 'new_report_critical')
+   AND n.created_at > now() - interval '14 days'
+ GROUP BY 1 ORDER BY 1 DESC;
+```
+
+### Cosa resta aperto
+- **Piano Resend**: da verificare sul pannello. Con il piano gratuito (100
+  al giorno) e 6 email a ticket ci stanno ~16 ticket, ma la quota vale per
+  tutte le email del giorno.
+- **Destinatari**: un admin riceve cambi stato, messaggi e richieste ricambi
+  solo se ha aperto o ha in carico il ticket. "Risolta" e "In attesa
+  ricambi" sui ticket dei tecnici non gli arrivano né in app né per email:
+  per scelta o da allargare? Va deciso con gli admin.
+- Le email finite in spam non si vedono da qui: pannello Resend → Emails.
