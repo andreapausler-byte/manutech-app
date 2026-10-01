@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useDraggable } from '../../../hooks/useDraggable'
-import { STATUS, SEVERITY, timeAgo, isReportOpen } from '../../../lib/constants'
+import { STATUS, SEVERITY, timeAgo, isReportOpen, isTerminalStatus } from '../../../lib/constants'
+import { getClosure, closureOutcome } from '../../../lib/closure'
+import { useV6Navigate } from '../../../contexts/V6NavigateContext'
 import { db } from '../../../lib/supabase'
 import { Badge } from '../../../components/ui'
 import {
@@ -8,7 +10,7 @@ import {
   Calendar, Hash, Factory, Building, ClipboardList, ChevronRight,
   Wrench, Shield, Plus, Play, Upload, Activity, LayoutDashboard,
   AlertTriangle, Clock, Filter, Package, FolderOpen,
-  Star, Sparkles, BookOpen, Image as ImageIcon, FileSignature, ShieldCheck,
+  Star, Sparkles, BookOpen, Image as ImageIcon, FileSignature, ShieldCheck, Archive,
 } from 'lucide-react'
 import MachineDocumentationTab from './MachineDocumentationTab'
 import MachineComponentsTab from './MachineComponentsTab'
@@ -612,6 +614,23 @@ function CheckCircleIcon() {
   )
 }
 
+// Una riga per le concluse: causa → azione, oppure cosa manca.
+function ResolutionLine({ report }) {
+  const outcome = closureOutcome(report)
+  if (outcome === 'senza') {
+    return <p className="text-[11px] text-faint italic">Chiusa senza intervento</p>
+  }
+  const c = getClosure(report)
+  return (
+    <p className="text-[11px] line-clamp-2 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+      <span style={{ color: 'var(--color-text-faint)' }}>Causa:</span> {c.rootCause || <em className="text-faint">non indicata</em>}
+      {' · '}
+      <span style={{ color: 'var(--color-text-faint)' }}>Azione:</span> {c.action || <em className="text-faint">non indicata</em>}
+      {outcome === 'da_completare' && <span style={{ color: '#f59e0b' }}> · da completare</span>}
+    </p>
+  )
+}
+
 export default function MachineDetailSheet({
   sel, plans, logs, planLastLogs, reports,
   components = [],
@@ -627,6 +646,7 @@ export default function MachineDetailSheet({
   onOpenAssistant,
   reindexing = false,
 }) {
+  const navigate = useV6Navigate()
   const machineReports = useMemo(() =>
     reports.filter(r => r.machine === sel.name).sort((a, b) => {
       const aActive = isReportOpen(a) ? 0 : 1
@@ -1108,6 +1128,14 @@ export default function MachineDetailSheet({
                         {f.count > 0 && <span className="text-[10px] font-bold opacity-70">{f.count}</span>}
                       </button>
                     ))}
+                    {machineReports.some(r => isTerminalStatus(r.status)) && (
+                      <button onClick={() => navigate('archive', { archiveMachine: sel.name })}
+                        className="flex items-center gap-1.5 rounded-lg text-xs font-semibold hover:bg-white/5 transition-all"
+                        style={{ marginLeft: 'auto', color: 'var(--color-primary)', padding: '6px 10px' }}
+                        title="Tutte le segnalazioni concluse di questa macchina, con causa e azione">
+                        <Archive size={13} /> Archivio interventi
+                      </button>
+                    )}
                   </div>
 
                   {/* Reports list */}
@@ -1138,7 +1166,10 @@ export default function MachineDetailSheet({
                                   <ComponentPill name={r.component_name} size="xs" className="shrink-0" />
                                 )}
                               </div>
-                              {r.description && (
+                              {/* Su una conclusa conta come è stata risolta, non come era stata descritta */}
+                              {isTerminalStatus(r.status) ? (
+                                <ResolutionLine report={r} />
+                              ) : r.description && (
                                 <p className="text-[11px] text-faint line-clamp-2 leading-relaxed">{r.description}</p>
                               )}
                               <p className="text-[10px] text-faint mt-1">{r.created_by_name} · {timeAgo(r.created_at)}</p>

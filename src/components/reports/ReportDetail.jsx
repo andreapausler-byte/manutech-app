@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, isTerminalStatus } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, timeAgo, formatDate, isTerminalStatus } from '../../lib/constants'
+import { getClosure, hasClosureData, isClosureIncomplete, closedAtOf } from '../../lib/closure'
 import { TicketIdBadge } from '../ui'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
+import { useClosureEdit } from '../../hooks/useClosureEdit'
 import MediaLightbox from '../media/MediaLightbox'
 import AudioPlayer from '../media/AudioPlayer'
 import VideoPlayer from '../media/VideoPlayer'
@@ -17,7 +19,7 @@ import {
   Check, X, AlertTriangle, ArrowRight, Zap, Clock as ClockIcon,
   CheckCircle2, XCircle, Wrench, MessageCircle, History,
   Image as ImageIcon, Video, Mic as MicIcon, Expand, Plus,
-  FileEdit, ClipboardCheck, Package,
+  FileEdit, ClipboardCheck, Package, Pencil,
 } from 'lucide-react'
 import VoiceUpdateFlow from '../voice/VoiceUpdateFlow'
 import VoiceCloseFlow from '../voice/VoiceCloseFlow'
@@ -333,24 +335,43 @@ function ComponentSheet({ open, onClose, components, currentId, onSelect, busy }
 // ─────────────────────────────────────────────────────────────
 // Closure form (bottom sheet) — riusato dal vecchio design
 // ─────────────────────────────────────────────────────────────
-function ClosureSheet({ open, onClose, onSubmit, busy, components = [], currentComponentId = null }) {
-  const [form, setForm] = useState({ hours: '', parts: '', rootCause: '', action: '', componentId: null })
+// mode 'close' → chiude la segnalazione; mode 'edit' → integra una chiusura
+// già fatta, partendo dai valori salvati (`initial`, da getClosure). In
+// modifica le ore non sono obbligatorie: sui ticket vecchi spesso non si
+// sanno, e un numero inventato per passare la validazione è peggio di un
+// campo vuoto.
+function ClosureSheet({ open, onClose, onSubmit, busy, components = [], currentComponentId = null, mode = 'close', initial = null }) {
+  const isEdit = mode === 'edit'
+  const [form, setForm] = useState(() => ({
+    hours: initial?.hours != null ? String(initial.hours) : '',
+    parts: initial?.parts || '',
+    rootCause: initial?.rootCause || '',
+    action: initial?.action || '',
+    componentId: null,
+  }))
   // Il pezzo parte da quello già attribuito al ticket: chi chiude conferma
   // o corregge, non ricompila. `null` = non ancora toccato dall'utente,
   // così non serve un effetto per risincronizzarlo a ogni apertura.
   const componentId = form.componentId === null ? (currentComponentId || '') : form.componentId
   if (!open) return null
+  const canSubmit = !!form.rootCause.trim() && (isEdit || !!form.hours)
   const submit = () => {
-    if (!form.hours || !form.rootCause.trim()) return
+    if (!canSubmit) return
     const comp = components.find(c => c.id === componentId) || null
+    const hours = parseFloat(form.hours)
+    // In modifica, senza l'elenco dei pezzi (macchina senza anagrafica o
+    // caricamento fallito) il pezzo non si tocca: azzerarlo cancellerebbe
+    // un'attribuzione che il foglio non ha nemmeno mostrato.
+    const componentFields = isEdit && components.length === 0
+      ? {}
+      : { component_id: comp?.id || null, component_name: comp?.name || null }
     onSubmit({
-      closure_hours: parseFloat(form.hours),
+      closure_hours: Number.isFinite(hours) ? hours : null,
       closure_parts: form.parts.trim() || null,
       closure_root_cause: form.rootCause.trim(),
       closure_action: form.action.trim() || null,
-      closed_at: new Date().toISOString(),
-      component_id: comp?.id || null,
-      component_name: comp?.name || null,
+      ...(isEdit ? {} : { closed_at: new Date().toISOString() }),
+      ...componentFields,
     })
   }
   return (
@@ -374,11 +395,16 @@ function ClosureSheet({ open, onClose, onSubmit, busy, components = [], currentC
           <div style={{ width: 36, height: 4, borderRadius: 2, background: D.raised }} />
         </div>
         <h3 id="closure-sheet-title" style={{ fontSize: 15, fontWeight: 600, color: D.textPrimary, margin: '0 0 14px', letterSpacing: -0.2 }}>
-          Chiusura intervento
+          {isEdit ? 'Integra chiusura' : 'Chiusura intervento'}
         </h3>
+        {isEdit && (
+          <p style={{ fontSize: 12, color: D.textSubtle, margin: '-8px 0 14px', lineHeight: 1.4 }}>
+            Lo stato non cambia. In cronologia resta cosa c'era prima.
+          </p>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <FieldLabel label="Ore lavoro *">
+            <FieldLabel label={isEdit ? 'Ore lavoro' : 'Ore lavoro *'}>
               <input type="number" step="0.5" min="0" value={form.hours}
                 onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
                 placeholder="es. 2.5" style={inputStyle} />
@@ -413,21 +439,232 @@ function ClosureSheet({ open, onClose, onSubmit, busy, components = [], currentC
               placeholder="Cosa è stato fatto per risolvere?"
               rows={2} style={{ ...inputStyle, resize: 'none' }} />
           </FieldLabel>
-          <button onClick={submit} disabled={busy || !form.hours || !form.rootCause.trim()}
+          <button onClick={submit} disabled={busy || !canSubmit}
             className="press-scale"
             style={{
               width: '100%', padding: '12px', borderRadius: 12,
               background: D.accentGradient, color: '#fff',
               fontSize: 14, fontWeight: 600, border: 'none',
-              cursor: 'pointer', opacity: (busy || !form.hours || !form.rootCause.trim()) ? 0.5 : 1,
+              cursor: 'pointer', opacity: (busy || !canSubmit) ? 0.5 : 1,
               boxShadow: D.accentShadow, letterSpacing: -0.1,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}
           >
-            <Check size={16} /> Conferma chiusura
+            <Check size={16} /> {isEdit ? 'Salva modifiche' : 'Conferma chiusura'}
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Nota successiva — un'informazione arrivata dopo la chiusura
+// ─────────────────────────────────────────────────────────────
+function ClosureNoteSheet({ onClose, onSubmit, busy }) {
+  const [text, setText] = useState('')
+  const canSubmit = !!text.trim() && !busy
+  return (
+    <div
+      onClick={onClose}
+      role="dialog" aria-modal="true" aria-labelledby="closure-note-title"
+      style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+    >
+      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', animation: 'fadeIn 0.18s ease both' }} />
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'relative', width: '100%', maxWidth: 500,
+          background: D.card, borderRadius: '20px 20px 0 0',
+          padding: '14px 14px 28px', maxHeight: '90vh', overflowY: 'auto',
+          animation: 'slideUp 0.22s ease both',
+          border: `1px solid ${D.raised}`, borderBottom: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: D.raised }} />
+        </div>
+        <h3 id="closure-note-title" style={{ fontSize: 15, fontWeight: 600, color: D.textPrimary, margin: '0 0 6px', letterSpacing: -0.2 }}>
+          Aggiungi alla chiusura
+        </h3>
+        <p style={{ fontSize: 12, color: D.textSubtle, margin: '0 0 12px', lineHeight: 1.4 }}>
+          Quello che si è saputo dopo: se il guasto è tornato, il codice esatto del ricambio, cosa controllare la prossima volta.
+        </p>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="es. Si è ripresentato dopo 3 settimane: il vero problema era l'allineamento del motore"
+          rows={4} autoFocus
+          style={{ ...inputStyle, resize: 'none', marginBottom: 12 }}
+        />
+        <button onClick={() => canSubmit && onSubmit(text)} disabled={!canSubmit}
+          className="press-scale"
+          style={{
+            width: '100%', padding: '12px', borderRadius: 12,
+            background: D.accentGradient, color: '#fff',
+            fontSize: 14, fontWeight: 600, border: 'none',
+            cursor: 'pointer', opacity: canSubmit ? 1 : 0.5,
+            boxShadow: D.accentShadow, letterSpacing: -0.1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}
+        >
+          <Plus size={16} /> Aggiungi nota
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Come è stato risolto — in cima ai Dettagli di un ticket concluso
+// ─────────────────────────────────────────────────────────────
+// Per un ticket in archivio la domanda è una sola: cosa era e cosa è stato
+// fatto. Per questo la chiusura sta sopra la descrizione e non in fondo.
+function ClosureCard({ report, canUpdate, onEdit, onAddNote }) {
+  const closure = getClosure(report)
+  const hasData = hasClosureData(closure)
+  const terminal = isTerminalStatus(report.status)
+  const incomplete = isClosureIncomplete(report)
+  const archivedWithoutWork = report.status === 'chiuso' && !hasData
+  const reopened = !terminal && hasData
+  if (!hasData && !terminal) return null
+
+  const missing = [
+    !closure.rootCause && 'la causa radice',
+    !closure.action && "l'azione correttiva",
+  ].filter(Boolean)
+  const accent = archivedWithoutWork ? D.textSubtle : (incomplete ? '#f59e0b' : '#10b981')
+  const title = reopened ? 'Chiusura precedente'
+    : archivedWithoutWork ? 'Archiviata senza intervento'
+    : 'Come è stato risolto'
+  const when = closedAtOf(report)
+  const subtitle = reopened
+    ? 'La segnalazione è stata riaperta'
+    : [when && formatDate(when), !archivedWithoutWork && report.assigned_to_name].filter(Boolean).join(' · ')
+
+  return (
+    <div style={{
+      padding: 12, borderRadius: 12,
+      background: D.card, border: `1px solid ${accent}40`,
+      marginBottom: 12,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: hasData ? 10 : 6 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: 1,
+            textTransform: 'uppercase', color: accent,
+            fontFamily: '"JetBrains Mono", monospace',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            {archivedWithoutWork ? <XCircle size={11} /> : <Wrench size={11} />} {title}
+          </div>
+          {subtitle && (
+            <div style={{ fontSize: 11, color: D.textSubtle, marginTop: 3 }}>{subtitle}</div>
+          )}
+        </div>
+        {canUpdate && terminal && !archivedWithoutWork && (
+          <button
+            onClick={onEdit}
+            className="press-scale"
+            style={{
+              background: 'transparent', border: 'none',
+              color: D.accentLight, fontSize: 12, fontWeight: 600,
+              cursor: 'pointer', padding: '2px 0', flexShrink: 0,
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <Pencil size={12} /> Correggi
+          </button>
+        )}
+      </div>
+
+      {archivedWithoutWork && (
+        <p style={{ fontSize: 12, color: D.textMuted, margin: 0, lineHeight: 1.45 }}>
+          Chiusa senza registrare un intervento: niente ore, causa o ricambi.
+        </p>
+      )}
+
+      {hasData && (
+        <>
+          {(closure.hours != null || closure.parts) && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <ClosureField label="Ore" value={closure.hours != null ? `${closure.hours}h` : '—'} mono />
+              <ClosureField label="Ricambi" value={closure.parts || 'Nessuno indicato'} />
+            </div>
+          )}
+          {closure.rootCause && (
+            <ClosureField label="Causa radice" value={closure.rootCause} block />
+          )}
+          {closure.action && (
+            <div style={{ marginTop: 8 }}>
+              <ClosureField label="Azione correttiva" value={closure.action} block />
+            </div>
+          )}
+        </>
+      )}
+
+      {incomplete && (
+        <div style={{
+          marginTop: 10, padding: '9px 10px', borderRadius: 8,
+          background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.30)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <AlertTriangle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <span style={{ flex: 1, fontSize: 12, color: D.textSecondary, lineHeight: 1.35 }}>
+            Manca {missing.join(' e ')}: chi troverà lo stesso guasto partirà da qui.
+          </span>
+          {canUpdate && (
+            <button
+              onClick={onEdit}
+              className="press-scale"
+              style={{
+                background: '#f59e0b', color: '#111', border: 'none', borderRadius: 7,
+                padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              Completa
+            </button>
+          )}
+        </div>
+      )}
+
+      {closure.notes.length > 0 && (
+        <div style={{ marginTop: 10, borderTop: `1px solid ${D.raised}`, paddingTop: 10 }}>
+          <div style={{
+            fontSize: 9, color: D.textSubtle, fontWeight: 700,
+            textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6,
+          }}>
+            Aggiunto dopo · {closure.notes.length}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {closure.notes.map((n, i) => (
+              <div key={`${n.created_at}-${i}`} style={{ background: D.raised, borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ fontSize: 10, color: D.textSubtle, marginBottom: 2, fontFamily: '"JetBrains Mono", monospace' }}>
+                  {n.user_name || 'Utente'} · {timeAgo(n.created_at)}
+                </div>
+                <div style={{ fontSize: 12.5, color: D.textPrimary, lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {n.text}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {canUpdate && terminal && (
+        <button
+          onClick={onAddNote}
+          className="press-scale"
+          style={{
+            marginTop: 10, width: '100%', padding: '10px', borderRadius: 10,
+            background: 'transparent', border: `1px dashed ${D.borderDashed}`,
+            color: D.textSecondary, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}
+        >
+          <Plus size={14} /> Aggiungi un'informazione
+        </button>
+      )}
     </div>
   )
 }
@@ -581,9 +818,12 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [components, setComponents] = useState([])
   const [componentSheetOpen, setComponentSheetOpen] = useState(false)
   const [savingComponent, setSavingComponent] = useState(false)
+  const [closureEditOpen, setClosureEditOpen] = useState(false)
+  const [closureNoteOpen, setClosureNoteOpen] = useState(false)
 
   const toast = useToast()
   const haptic = useHaptic()
+  const closureEdit = useClosureEdit(user)
 
   const meta = STATUS_META[report.status] || STATUS_META.aperta
   const statusLabel = STATUS[report.status]?.label || report.status
@@ -779,6 +1019,25 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           .catch(e => console.warn('[ManuTech] reindex post-closure failed:', e?.message))
       }
     }
+  }
+
+  // ─── Integrare una chiusura già fatta ─────────────────
+  const handleClosureEdit = async (data) => {
+    const updated = await closureEdit.saveEdit(report, data)
+    if (!updated) return
+    if (updated !== report) {
+      setReport(r => ({ ...r, ...updated }))
+      setHistoryCount(h => h + 1)
+    }
+    setClosureEditOpen(false)
+  }
+
+  const handleClosureNote = async (text) => {
+    const updated = await closureEdit.addNote(report, text)
+    if (!updated) return
+    setReport(r => ({ ...r, ...updated }))
+    setHistoryCount(h => h + 1)
+    setClosureNoteOpen(false)
   }
 
   // ─── Aggiungi foto al ticket esistente ────────────────
@@ -1130,6 +1389,13 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           flex: 1, minHeight: 0, overflowY: 'auto',
           padding: '14px 12px 0',
         }}>
+          <ClosureCard
+            report={report}
+            canUpdate={canUpdate}
+            onEdit={() => { haptic.light(); setClosureEditOpen(true) }}
+            onAddNote={() => { haptic.light(); setClosureNoteOpen(true) }}
+          />
+
           {/* Descrizione */}
           {report.description && (
             <div style={{
@@ -1265,38 +1531,6 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             </div>
           )}
 
-          {/* Closure data */}
-          {report.extra_data?.closure_hours != null && (
-            <div style={{
-              padding: 12, borderRadius: 12,
-              background: D.card, border: `1px solid ${D.raised}`,
-              marginBottom: 12,
-            }}>
-              <div style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: 1,
-                textTransform: 'uppercase', color: D.textSubtle,
-                fontFamily: '"JetBrains Mono", monospace',
-                marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6,
-              }}>
-                <Wrench size={11} /> Dati chiusura
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                <ClosureField label="Ore" value={`${report.extra_data.closure_hours}h`} mono />
-                {report.extra_data.closure_parts && (
-                  <ClosureField label="Ricambi" value={report.extra_data.closure_parts} />
-                )}
-              </div>
-              {report.extra_data.closure_root_cause && (
-                <ClosureField label="Causa radice" value={report.extra_data.closure_root_cause} block />
-              )}
-              {report.extra_data.closure_action && (
-                <div style={{ marginTop: 8 }}>
-                  <ClosureField label="Azione correttiva" value={report.extra_data.closure_action} block />
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Richieste esterne (ricambi + interventi) associati al ticket */}
           <TicketSparePanel reportId={report.id} user={user} refreshKey={spareRefresh} />
 
@@ -1367,6 +1601,27 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         components={components}
         currentComponentId={report.component_id || null}
       />
+      {/* Montati solo quando servono: il form parte dai valori salvati
+          a ogni apertura, senza effetti di risincronizzazione. */}
+      {closureEditOpen && (
+        <ClosureSheet
+          open
+          mode="edit"
+          initial={getClosure(report)}
+          onClose={() => setClosureEditOpen(false)}
+          onSubmit={handleClosureEdit}
+          busy={closureEdit.saving}
+          components={components}
+          currentComponentId={report.component_id || null}
+        />
+      )}
+      {closureNoteOpen && (
+        <ClosureNoteSheet
+          onClose={() => setClosureNoteOpen(false)}
+          onSubmit={handleClosureNote}
+          busy={closureEdit.saving}
+        />
+      )}
       <ComponentSheet
         open={componentSheetOpen}
         onClose={() => setComponentSheetOpen(false)}

@@ -111,6 +111,7 @@ interface ClosedReport {
   closure_hours: number | null
   closed_at: string | null
   created_at: string | null
+  extra_data: Record<string, unknown> | null
 }
 
 interface ReportComment {
@@ -295,7 +296,7 @@ Deno.serve(async (req: Request) => {
     // guasti simili.
     const { data: closedReports, error: rErr } = await adminSupabase
       .from('reports')
-      .select('id, title, description, severity, type, status, closure_root_cause, closure_action, closure_parts, closure_hours, closed_at, created_at')
+      .select('id, title, description, severity, type, status, closure_root_cause, closure_action, closure_parts, closure_hours, closed_at, created_at, extra_data')
       .eq('machine_id', machineId)
       .eq('org_id', orgId)
       .in('status', ['risolta', 'chiuso'])
@@ -491,6 +492,24 @@ Deno.serve(async (req: Request) => {
       if (r.closure_action) parts.push(`Azione risolutiva: ${r.closure_action}`)
       if (r.closure_parts) parts.push(`Ricambi utilizzati: ${r.closure_parts}`)
       if (r.closure_hours != null) parts.push(`Durata intervento: ${r.closure_hours}h`)
+
+      // Note aggiunte dopo la chiusura (extra_data.closure_notes, scritte
+      // dall'Archivio interventi): spesso correggono il verdetto — "si è
+      // ripresentato, il vero problema era…" — quindi vanno subito dopo.
+      const rawNotes = r.extra_data ? r.extra_data['closure_notes'] : null
+      const closureNotes = Array.isArray(rawNotes) ? rawNotes as Array<Record<string, unknown>> : []
+      const noteLines = closureNotes
+        .map(n => {
+          const txt = typeof n?.text === 'string' ? n.text.trim() : ''
+          if (!txt) return null
+          const who = typeof n?.user_name === 'string' && n.user_name ? n.user_name : 'Utente'
+          const when = typeof n?.created_at === 'string' ? n.created_at.slice(0, 10) : ''
+          return `- ${who}${when ? ` (${when})` : ''}: ${txt}`
+        })
+        .filter(Boolean)
+      if (noteLines.length > 0) {
+        parts.push(`\nAggiunto dopo la chiusura:\n${noteLines.join('\n')}`)
+      }
 
       // Conversazione: la chat dei tecnici che ha portato alla soluzione.
       // Include sia i commenti normali (kind=chat) sia i voice updates con

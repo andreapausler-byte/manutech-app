@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { db } from '../../lib/supabase'
-import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, TERMINAL_STATUSES, formatTicketId } from '../../lib/constants'
+import { STATUS, SEVERITY, REPORT_TYPES, REACTIONS, formatTicketId } from '../../lib/constants'
+import { isArchivedReport, closureSearchText, closureOutcome, groupByClosureMonth, CLOSURE_OUTCOMES } from '../../lib/closure'
 import { findSimilarTickets } from '../../lib/ticketSearch'
 import { EmptyState, SkeletonReportsPage, TicketIdBadge } from '../ui'
 import { useRipple } from '../../hooks/useMobileEffects'
@@ -8,6 +9,7 @@ import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { Search, X, ChevronDown, Clock, Layers, MessageCircle, Archive, Cog } from 'lucide-react'
 import ComponentPill from '../machines/ComponentPill'
+import ResolvedReportCard from './ResolvedReportCard'
 
 // Convenzione schema reports: il nome del macchinario è salvato come snapshot
 // denormalizzato nel campo `machine` (TEXT) — NON `machine_name`. Asimmetrico
@@ -17,17 +19,12 @@ import ComponentPill from '../machines/ComponentPill'
 
 // ── Status column order ──
 const STATUSES = ['aperta', 'assegnata', 'in_lavorazione', 'in_attesa_ricambi', 'risolta', 'chiuso']
-const ARCHIVED_STATUSES = TERMINAL_STATUSES
-const RECENT_COMPLETED_WINDOW_HOURS = 24
-const isArchived = (r) => ARCHIVED_STATUSES.includes(r.status)
-// Terminale aggiornato entro la finestra recente: resta visibile nelle viste
-// "attive" (chrono / grouped) per dare conferma del completamento appena fatto.
-// Esce dall'Archivio per evitare doppio conteggio.
-const isRecentTerminal = (r, nowMs) => {
-  if (!ARCHIVED_STATUSES.includes(r.status)) return false
-  const ts = new Date(r.updated_at || r.created_at).getTime()
-  return Number.isFinite(ts) && (nowMs - ts) < RECENT_COMPLETED_WINDOW_HOURS * 3600 * 1000
-}
+// Archivio: terminali chiusi da più di un giorno (lib/closure.js). Quelli
+// appena conclusi restano nelle viste "attive" (chrono / grouped) come
+// conferma del lavoro fatto, ed escono dall'Archivio: niente doppio conteggio.
+
+// Filtri esito dell'Archivio: '' = tutte.
+const ARCHIVE_OUTCOME_FILTERS = ['', 'intervento', 'da_completare', 'senza']
 
 // ── Avatar with initials ──
 function AvatarInitials({ name, color }) {
@@ -324,6 +321,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   // I non letti restano di competenza di unreadByReport (hook realtime).
   const [activityMap, setActivityMap] = useState({})
   const [machines, setMachines] = useState([])
+  const [archiveOutcome, setArchiveOutcome] = useState('')
 
   // Filtri + ordinamento personalizzati per tecnico, persistiti in localStorage.
   // Default: 'updated' (ultimo aggiornamento, dal più recente) — coerente
@@ -439,6 +437,8 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         machineFromLookup,
         r.assigned_to_name,
         r.created_by_name,
+        r.component_name,
+        closureSearchText(r),
         r.id,
       ]
       const textMatch = searchable.some(f =>
@@ -451,19 +451,25 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   })
 
   // Conteggi per i chip del segmented control.
-  // I terminali freschi (< RECENT_COMPLETED_WINDOW_HOURS) restano in "Recenti"
+  // I terminali freschi (< ARCHIVE_WINDOW_HOURS dalla chiusura) restano in "Recenti"
   // e sono esclusi da "Archivio": coerenza counter ↔ contenuto della vista,
   // zero doppio conteggio.
   // eslint-disable-next-line react-hooks/purity, react-hooks/exhaustive-deps -- Date.now stabile dentro useMemo([reports])
   const nowMs = useMemo(() => Date.now(), [reports])
-  const activeCount = baseFiltered.filter(r => !isArchived(r) || isRecentTerminal(r, nowMs)).length
-  const archivedCount = baseFiltered.filter(r => isArchived(r) && !isRecentTerminal(r, nowMs)).length
+  const archivedAll = baseFiltered.filter(r => isArchivedReport(r, nowMs))
+  const activeCount = baseFiltered.length - archivedAll.length
+  const archivedCount = archivedAll.length
+  const outcomeCounts = archivedAll.reduce((acc, r) => {
+    const o = closureOutcome(r)
+    acc[o] = (acc[o] || 0) + 1
+    return acc
+  }, {})
 
-  // viewMode='archive' mostra solo terminali "vecchi" (fuori finestra recente);
-  // gli altri (chrono, grouped) mostrano attivi + terminali recenti.
+  // viewMode='archive' mostra solo terminali "vecchi" (fuori finestra recente),
+  // filtrabili per esito; gli altri (chrono, grouped) attivi + terminali recenti.
   const filtered = viewMode === 'archive'
-    ? baseFiltered.filter(r => isArchived(r) && !isRecentTerminal(r, nowMs))
-    : baseFiltered.filter(r => !isArchived(r) || isRecentTerminal(r, nowMs))
+    ? archivedAll.filter(r => !archiveOutcome || closureOutcome(r) === archiveOutcome)
+    : baseFiltered.filter(r => !isArchivedReport(r, nowMs))
 
   // Sort logic in base a filters.sortBy. Tiebreak comune: created_at desc
   // (più stabile di updated_at, che cambia con i commenti/eventi).
@@ -559,7 +565,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
           }} />
           <input
             type="text"
-            placeholder="Cerca: titolo, macchina, tecnico, ID…"
+            placeholder={viewMode === 'archive' ? 'Cerca: guasto, causa, ricambio, macchina…' : 'Cerca: titolo, macchina, tecnico, ID…'}
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
@@ -691,6 +697,38 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
             )
           })}
         </div>
+
+        {/* Esito: nell'Archivio la domanda è come è finita. "Da completare"
+            è il richiamo gentile per chi ha chiuso senza causa o azione. */}
+        {viewMode === 'archive' && archivedCount > 0 && (
+          <div className="no-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingTop: 2 }}>
+            {ARCHIVE_OUTCOME_FILTERS.map(key => {
+              const active = archiveOutcome === key
+              const meta = key ? CLOSURE_OUTCOMES[key] : { label: 'Tutte', color: 'var(--color-primary)' }
+              const count = key ? (outcomeCounts[key] || 0) : archivedCount
+              if (key && count === 0 && !active) return null
+              return (
+                <button
+                  key={key || 'all'}
+                  type="button"
+                  onClick={() => setArchiveOutcome(key)}
+                  className="press-scale"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                    padding: '6px 12px', borderRadius: 999,
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    border: `1px solid ${active ? meta.color : 'var(--color-border)'}`,
+                    background: active ? 'var(--color-surface-3)' : 'var(--color-surface-2)',
+                    color: active ? meta.color : 'var(--color-text-secondary)',
+                  }}
+                >
+                  {meta.label}
+                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-muted)' }}>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Report list */}
@@ -765,11 +803,39 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         ) : (
           <EmptyState
             icon={viewMode === 'archive' ? '📦' : '📋'}
-            title={viewMode === 'archive' ? 'Archivio vuoto' : 'Nessuna segnalazione'}
-            subtitle={viewMode === 'archive' ? 'Niente di completato o chiuso al momento' : 'Tocca + per crearne una'}
+            title={viewMode === 'archive'
+              ? (archiveOutcome ? `Nessuna segnalazione "${CLOSURE_OUTCOMES[archiveOutcome].label}"` : 'Archivio vuoto')
+              : 'Nessuna segnalazione'}
+            subtitle={viewMode === 'archive' ? 'Qui finiscono le segnalazioni concluse da più di un giorno' : 'Tocca + per crearne una'}
           />
         )
-      ) : (viewMode === 'chrono' || viewMode === 'archive') ? (
+      ) : viewMode === 'archive' ? (
+        <div className="px-[4vw] pt-[2vw]">
+          {groupByClosureMonth(filtered).map(group => (
+            <section key={group.key} style={{ marginBottom: 14 }}>
+              <div style={{
+                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                padding: '8px 2px',
+              }}>
+                <span style={{
+                  fontSize: 12, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase',
+                  color: 'var(--color-text-secondary)',
+                }}>
+                  {group.label}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  {group.list.length} {group.list.length === 1 ? 'conclusa' : 'concluse'}
+                </span>
+              </div>
+              <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {group.list.map(report => (
+                  <ResolvedReportCard key={report.id} report={report} onSelect={onSelectReport} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : viewMode === 'chrono' ? (
         <div className="px-[4vw] pt-[2vw]">
           <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {chronoSorted.map(report => (

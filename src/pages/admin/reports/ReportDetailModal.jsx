@@ -16,6 +16,7 @@ import InterventionsForReport from '../../../components/interventions/Interventi
 import MergeReportModal from './MergeReportModal'
 import ShareReportSheet from '../../../components/reports/ShareReportSheet'
 import ComponentPill from '../../../components/machines/ComponentPill'
+import ClosurePanel from './ClosurePanel'
 import {
   X, MessageCircle, Clock, Pencil, Trash2, Save, XCircle, Share2,
   AlertTriangle, UserCheck, Sparkles, GitMerge, Link2, Unlink, ChevronRight
@@ -477,6 +478,15 @@ export default function ReportDetailModal({ selected, user, users, machines, all
                     )}
                   </div>
                 )}
+                {/* Su un ticket concluso la domanda è come è stato risolto:
+                    la chiusura sta sopra la descrizione. */}
+                <ClosurePanel
+                  report={selected}
+                  user={user}
+                  components={components}
+                  canEdit={roleOk}
+                  onUpdate={onUpdate}
+                />
                 <div>
                   <p className="text-[11px] text-faint uppercase tracking-wider mb-1">Descrizione</p>
                   <p className="text-[14px] text-secondary leading-relaxed">{selected.description}</p>
@@ -522,17 +532,6 @@ export default function ReportDetailModal({ selected, user, users, machines, all
                         <span className="text-xs text-white font-medium">{String(v)}</span>
                       </div>
                     ))}
-                  </div>
-                )}
-                {selected.extra_data?.closure_hours != null && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 space-y-2">
-                    <p className="text-[11px] text-emerald-400 uppercase tracking-wider font-semibold">Dati Chiusura</p>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div><span className="text-faint">Ore:</span> <span className="text-themed font-bold">{selected.extra_data.closure_hours}h</span></div>
-                      {selected.extra_data.closure_parts && <div><span className="text-faint">Ricambi:</span> <span className="text-secondary">{selected.extra_data.closure_parts}</span></div>}
-                    </div>
-                    {selected.extra_data.closure_root_cause && <div className="text-xs"><span className="text-faint">Causa radice:</span> <span className="text-secondary">{selected.extra_data.closure_root_cause}</span></div>}
-                    {selected.extra_data.closure_action && <div className="text-xs"><span className="text-faint">Azione correttiva:</span> <span className="text-secondary">{selected.extra_data.closure_action}</span></div>}
                   </div>
                 )}
                 <div className="bg-surface-2/20 rounded-xl p-3 space-y-1.5 text-xs text-faint">

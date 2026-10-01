@@ -12,6 +12,7 @@ import { Spinner } from '../../components/ui'
 const AdminDashboard = lazy(() => import('../admin/AdminDashboard'))
 const AdminOptimization = lazy(() => import('../admin/AdminOptimization'))
 const AdminReports = lazy(() => import('../admin/AdminReports'))
+const AdminArchive = lazy(() => import('../admin/AdminArchive'))
 const AdminMachines = lazy(() => import('../admin/AdminMachines'))
 const AdminMaintenance = lazy(() => import('../admin/AdminMaintenance'))
 const AdminUsers = lazy(() => import('../admin/AdminUsers'))
@@ -164,6 +165,7 @@ export default function V6App({ userName, initialReportId }) {
             {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
             {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
             {route.name === 'reports' && <AdminReports initialReportId={initialReportId || route.reportId} />}
+            {route.name === 'archive' && <AdminArchive key={route.archiveMachine || 'all'} initialMachine={route.archiveMachine || ''} />}
             {route.name === 'calendar' && <AdminCalendar
               onNavigate={(name, params) => navigate(name, params)}
               initialMonth={route.calendarInitialMonth || null}

@@ -30,6 +30,7 @@ con un nuovo `case route.name === 'xxx'`.
 - `QuickReport`: 6 template precompilati (perdita, rumore, blocco, surriscaldamento, vibrazione, usura)
 - `ReportDetail`: vista singola con chat, timeline, stato
 - `ReportsList`: lista filtrata per ruolo con badge unread
+- `ResolvedReportCard`: segnalazione conclusa letta dal lato "come" (causa, azione, ore, ricambi) — tab Archivio e Concluse della scheda macchina. I dati di chiusura si leggono SEMPRE da `lib/closure.js`, mai da `extra_data.closure_*`
 
 ## Pattern navigazione mobile
 ```js
