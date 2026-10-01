@@ -52,3 +52,38 @@ Supabase), e l'app riusava l'iscrizione senza mai controllarla.
    vocale e coda offline oggi non avvisano).
 3. Se dopo la riparazione Apple risponde ancora 400, il motivo ora è
    leggibile da SQL (`errors` nella risposta della funzione).
+
+---
+
+## Seconda parte (1/10) — chi manca e le scadenze (v5.25)
+
+Dopo il deploy la notifica di prova arriva. La query sui telefoni iscritti
+però dice: **admin 0/6, operatori 0/2, tecnici 5/27**. Le iscrizioni rotte
+sono state cancellate dal server; si rifanno solo quando la persona apre
+l'app e accetta. Per i tecnici c'era un ostacolo in più: il banner del
+permesso compare una volta, e chi l'aveva chiuso o aveva toccato "Blocca"
+non aveva nessun altro posto dove riattivare le notifiche.
+
+### Decisioni
+1. **Card fissa nel Profilo** (`PushStatusCard`), non un altro banner:
+   lo stato si vede sempre, con l'istruzione giusta per ogni caso (attiva,
+   bloccate su Android/Chrome, iPhone senza app sulla Home) e i tasti
+   Prova e Ripara.
+2. **Scadenze dal server** con `pg_cron` (come il digest della 011). Il
+   registro `maintenance_alerts` per piano + ciclo sostituisce il "già
+   inviato" che stava su ogni telefono.
+3. **Lo scaduto si ripete ogni 3 giorni**, ma tace se il piano è in corso:
+   chi ci sta lavorando non ha bisogno di sentirselo dire.
+4. **Partenza senza raffica**: alla migration le scadenze di oggi sono
+   registrate come già avvisate (i telefoni le avevano appena mandate).
+   Con i push che da oggi arrivano davvero, venti avvisi tutti insieme il
+   mattino dopo sarebbero stati il modo migliore per farli spegnere.
+5. Funzione provata su un Postgres locale con dati simulati: nessuna
+   raffica all'avvio, promemoria e scaduto per i piani nuovi, niente
+   doppioni nello stesso giorno, richiamo a 3 giorni, silenzio se in corso,
+   ciclo nuovo dopo l'intervento; rollback e riapplicazione puliti.
+
+### Cosa resta aperto
+- Un avviso per piano: se gli scaduti sono tanti, meglio un riepilogo
+  unico per persona ("3 manutenzioni scadute").
+- Destinatari dei messaggi (trigger su `comments`), come da prima parte.

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
-import { db } from '../../lib/supabase'
+import { db, isSupabaseConfigured } from '../../lib/supabase'
 import { Home, ClipboardList, Plus, User, LogOut, Zap, X, Cog, MessageCircle, Wallet, Wrench, PenSquare, Save, Camera, Paperclip, FileText, Sparkles, Mic, Calendar } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import { useToast } from '../../hooks/useToast'
@@ -442,7 +442,11 @@ export default function MobileLayout({ initialReportId }) {
   const [selectedConversation, setSelectedConversation] = useState(null)
 
   // ── Auto Notifications (scadenze manutenzione) ──
-  useAutoNotifications(user?.id, user?.role)
+  // Scadenze manutenzione: in produzione le controlla il server ogni
+  // mattina (migration 065, pg_cron). Il controllo dal telefono resta
+  // solo in demo, dove il server non c'è: in produzione generava doppioni
+  // e taceva quando nessuno apriva l'app.
+  useAutoNotifications(isSupabaseConfigured() ? null : user?.id, user?.role)
 
   // ── PWA + Web Notifications ──
   // openReportById dichiarata più sotto: usiamo un ref per evitare TDZ

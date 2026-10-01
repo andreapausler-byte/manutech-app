@@ -15,7 +15,8 @@
 // v7.8.6 = v5.22, archivio interventi
 // v7.8.7 = v5.23, mi è servita + dettatura + foto del pezzo
 // v7.8.8 = v5.24, push: tag per segnalazione
-const CACHE_NAME = 'manutech-v7.8.8'
+// v7.8.9 = v5.25, scadenze dal server + card notifiche nel profilo
+const CACHE_NAME = 'manutech-v7.8.9'
 const APP_SHELL = [
   '/',
   '/manifest.json',

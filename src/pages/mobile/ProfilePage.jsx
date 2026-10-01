@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { ROLES } from '../../lib/constants'
 import { Button } from '../../components/ui'
+import PushStatusCard from '../../components/ui/PushStatusCard'
 import { LogOut, Mail, Shield, Wifi, Palette, Wallet, ChevronRight } from 'lucide-react'
 import { db, isSupabaseConfigured } from '../../lib/supabase'
 
@@ -73,6 +74,9 @@ export default function ProfilePage({ onOpenWallet }) {
           </div>
         </div>
       )}
+
+      {/* Notifiche push di questo telefono: stato, attiva, prova, ripara */}
+      <PushStatusCard user={user} />
 
       {/* Info cards */}
       <div className="card-elevated rounded-2xl overflow-hidden">
