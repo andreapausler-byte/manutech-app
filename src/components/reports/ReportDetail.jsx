@@ -1145,6 +1145,17 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
       })
       setChatCount(c => c + 1)
       haptic.light()
+      // Stessa notifica della chat (ChatPanel): fino a ott 2026 questo
+      // campo — il più a portata di pollice — non avvisava nessuno.
+      const targets = [...new Set([report.created_by, report.assigned_to].filter(id => id && id !== user.id))]
+      for (const targetId of targets) {
+        db.addNotification({
+          type: 'comment',
+          title: `Nuovo messaggio: ${report.title}`,
+          body: `${user.name}: "${text.slice(0, 80)}"`,
+          report_id: report.id, from_user: user.id, target_user: targetId,
+        }).catch(e => console.warn('Side effect failed:', e.message))
+      }
     } catch (err) {
       toast.error(`Invio fallito: ${err?.message || 'errore'}`)
     } finally {

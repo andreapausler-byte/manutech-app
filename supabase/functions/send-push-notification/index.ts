@@ -1,8 +1,17 @@
 /**
  * Edge Function: send-push-notification
  *
- * Triggerata da Database Webhook su INSERT in public.notifications.
- * Invia Web Push notification ai dispositivi registrati dell'utente target.
+ * Triggerata dal trigger handle_new_notification (migration 009/010) su
+ * INSERT in public.notifications. Invia Web Push ai dispositivi registrati.
+ *
+ * Due ingressi (ott 2026):
+ *   - GET  → { publicKey }: la chiave VAPID pubblica con cui il server
+ *     firma. L'app si iscrive con QUESTA, non con una copia nella build:
+ *     due copie da tenere uguali (Vercel e Supabase) erano la causa dei
+ *     403/401/400 da Google, Mozilla e Apple su ogni invio.
+ *   - POST → invio. Il controllo JWT automatico è spento (config.toml,
+ *     serve per il GET dall'app), quindi la funzione verifica da sé che il
+ *     chiamante abbia la chiave che usa il trigger (push_config).
  *
  * Secrets necessari (Supabase Dashboard → Edge Functions → Secrets):
  *   VAPID_PUBLIC_KEY  — chiave pubblica VAPID (base64url)
@@ -276,8 +285,16 @@ async function sendWebPush(
     body: encrypted,
   })
 
+  // 404/410: iscrizione scaduta. 401/403: iscrizione fatta con un'altra
+  // chiave VAPID — non tornerà mai valida, l'app ne crea una nuova alla
+  // prossima apertura. In entrambi i casi va tolta.
   const expired = response.status === 404 || response.status === 410
-  return { success: response.ok, status: response.status, expired }
+  const keyMismatch = response.status === 401 || response.status === 403
+  let detail = ''
+  if (!response.ok) {
+    try { detail = (await response.text()).slice(0, 200) } catch { /* corpo non leggibile */ }
+  }
+  return { success: response.ok, status: response.status, expired, keyMismatch, detail }
 }
 
 // ── Main handler ──
@@ -289,7 +306,19 @@ Deno.serve(async (req: Request) => {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       },
+    })
+  }
+
+  const corsJson = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+
+  // ── GET: chiave pubblica per l'iscrizione dell'app ──
+  if (req.method === 'GET') {
+    const publicKey = Deno.env.get('VAPID_PUBLIC_KEY')
+    return new Response(JSON.stringify({ publicKey: publicKey || null }), {
+      status: publicKey ? 200 : 503,
+      headers: { ...corsJson, 'Cache-Control': 'public, max-age=300' },
     })
   }
 
@@ -306,7 +335,27 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    // Payload dal Database Webhook
+    // Init Supabase con service_role (bypassa RLS)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // ── Chi chiama? Solo il trigger del database ──
+    // Accetta la chiave che il trigger legge da push_config, o la service
+    // role dell'ambiente. Tutto il resto (compreso un vecchio Database
+    // Webhook senza intestazione) viene rifiutato.
+    const bearer = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim()
+    let authorized = !!bearer && bearer === supabaseServiceKey
+    if (!authorized && bearer) {
+      const { data: cfg } = await supabase
+        .from('push_config').select('value').eq('key', 'service_role_key').maybeSingle()
+      authorized = !!cfg?.value && cfg.value === bearer
+    }
+    if (!authorized) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsJson })
+    }
+
+    // Payload dal trigger
     const body = await req.json()
     const notification = body.record || body
 
@@ -319,11 +368,6 @@ Deno.serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json' },
       })
     }
-
-    // Init Supabase con service_role (bypassa RLS)
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Trova le push subscriptions da notificare
     let subscriptions: Array<{ endpoint: string; p256dh: string; auth: string; user_id: string }> = []
@@ -447,29 +491,38 @@ Deno.serve(async (req: Request) => {
     const results = await Promise.allSettled(
       eligibleSubs.map(async (sub) => {
         const result = await sendWebPush(sub, pushPayload, vapidPublicKey, vapidPrivateKey, vapidSubject)
-        console.log(`[Push] Result for ${sub.endpoint.slice(0, 60)}...: status=${result.status}, success=${result.success}`)
+        console.log(`[Push] Result for ${sub.endpoint.slice(0, 60)}...: status=${result.status}, success=${result.success}${result.detail ? `, detail=${result.detail}` : ''}`)
 
-        // Rimuovi subscription scaduta
-        if (result.expired) {
+        // Rimuovi subscription scaduta o fatta con un'altra chiave
+        if (result.expired || result.keyMismatch) {
           await supabase
             .from('push_subscriptions')
             .delete()
             .eq('endpoint', sub.endpoint)
-          console.log(`[Push] Removed expired subscription: ${sub.endpoint.slice(0, 50)}...`)
+          console.log(`[Push] Removed ${result.expired ? 'expired' : 'key-mismatch'} subscription: ${sub.endpoint.slice(0, 50)}...`)
         }
 
-        return result
+        return { ...result, host: new URL(sub.endpoint).host }
       })
     )
 
-    const sent = results.filter(r => r.status === 'fulfilled' && (r.value as { success: boolean }).success).length
-    const expired = results.filter(r => r.status === 'fulfilled' && (r.value as { expired?: boolean }).expired).length
+    type PushResult = { success: boolean; status: number; expired?: boolean; keyMismatch?: boolean; detail?: string; host?: string }
+    const done = results
+      .filter((r): r is PromiseFulfilledResult<PushResult> => r.status === 'fulfilled')
+      .map(r => r.value)
+    const sent = done.filter(r => r.success).length
+    const expired = done.filter(r => r.expired).length
+    const removedMismatch = done.filter(r => r.keyMismatch).length
     const failed = results.length - sent
 
-    console.log(`[Push] Sent: ${sent}, Failed: ${failed}, Expired removed: ${expired}`)
+    console.log(`[Push] Sent: ${sent}, Failed: ${failed}, Expired removed: ${expired}, Key-mismatch removed: ${removedMismatch}`)
+
+    // L'esito per servizio finisce nella risposta, quindi in
+    // net._http_response: si diagnostica da SQL, senza aprire i log.
+    const outcomes = done.filter(r => !r.success).map(r => ({ host: r.host, status: r.status, detail: r.detail || undefined }))
 
     return new Response(
-      JSON.stringify({ sent, failed, expired, total: eligibleSubs.length }),
+      JSON.stringify({ sent, failed, expired, removed_key_mismatch: removedMismatch, total: eligibleSubs.length, errors: outcomes.length ? outcomes : undefined }),
       { headers: { 'Content-Type': 'application/json' } }
     )
   } catch (err) {

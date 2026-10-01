@@ -13,18 +13,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { db } from '../lib/supabase'
-
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
-
-// Converte base64url a Uint8Array per applicationServerKey
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const raw = atob(base64)
-  const arr = new Uint8Array(raw.length)
-  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
-  return arr
-}
+import { ensurePushSubscription } from '../lib/push'
 
 // ── Registra Service Worker ──
 async function registerSW() {
@@ -109,39 +98,29 @@ export function usePWA(onNotificationClick, userInfo) {
   }, [])
 
   // ── 4. Auto-subscribe a Web Push quando le condizioni sono soddisfatte ──
-  const hasAutoSubscribed = useRef(false)
+  // Utente per cui l'iscrizione è già stata verificata in questa sessione:
+  // con un login diverso sullo stesso telefono va rifatta per il nuovo utente.
+  const hasAutoSubscribed = useRef(null)
 
   // Reset guard quando il permesso cambia (es. utente concede permesso dal banner)
   useEffect(() => {
-    hasAutoSubscribed.current = false
+    hasAutoSubscribed.current = null
   }, [notifPermission])
 
   useEffect(() => {
-    if (hasAutoSubscribed.current) return
+    if (hasAutoSubscribed.current && hasAutoSubscribed.current === userInfo?.userId) return
     if (!swRegistration) return
     if (!userInfo?.userId) return
-    if (!VAPID_PUBLIC_KEY) return
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
 
-    hasAutoSubscribed.current = true
+    hasAutoSubscribed.current = userInfo.userId
 
-    // subscribeToPush inline per evitare dipendenze circolari
+    // A ogni apertura: iscrizione con la chiave del server, rifatta da sola
+    // se quella del telefono è di un'altra chiave (lib/push.js).
     ;(async () => {
       try {
-        let subscription = await swRegistration.pushManager.getSubscription()
-        if (!subscription) {
-          subscription = await swRegistration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-          })
-          console.log('[PWA] Push subscription creata (auto)')
-        }
-        const subJson = subscription.toJSON()
-        await db.savePushSubscription(userInfo.userId, {
-          endpoint: subJson.endpoint,
-          keys: { p256dh: subJson.keys.p256dh, auth: subJson.keys.auth },
-        }, userInfo.orgId)
-        console.log('[PWA] Push subscription salvata nel DB (auto)')
+        const { renewed, source } = await ensurePushSubscription(swRegistration, userInfo.userId, userInfo.orgId)
+        console.log(`[PWA] Push subscription pronta (chiave: ${source}${renewed ? ', rinnovata' : ''})`)
       } catch (err) {
         console.warn('[PWA] Errore auto push subscription:', err)
         toast.error('Notifiche push non attivate. Riprova più tardi.', { duration: 4000 })
@@ -204,9 +183,9 @@ export function usePWA(onNotificationClick, userInfo) {
   }, [swRegistration])
 
   // ── Sottoscrivi a Web Push (per notifiche in background) ──
-  const subscribeToPush = useCallback(async (userId, orgId) => {
-    if (!swRegistration || !VAPID_PUBLIC_KEY) {
-      console.log('[PWA] Push subscription skipped: no SW or VAPID key')
+  const subscribeToPush = useCallback(async (userId, orgId, options = {}) => {
+    if (!swRegistration) {
+      console.log('[PWA] Push subscription skipped: no SW')
       return null
     }
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
@@ -215,29 +194,7 @@ export function usePWA(onNotificationClick, userInfo) {
     }
 
     try {
-      // Controlla se esiste già una subscription
-      let subscription = await swRegistration.pushManager.getSubscription()
-
-      if (!subscription) {
-        subscription = await swRegistration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-        })
-        console.log('[PWA] Push subscription creata')
-      }
-
-      // Salva nel DB
-      const subJson = subscription.toJSON()
-      await db.savePushSubscription(userId, {
-        endpoint: subJson.endpoint,
-        keys: {
-          p256dh: subJson.keys.p256dh,
-          auth: subJson.keys.auth,
-        },
-      }, orgId)
-      console.log('[PWA] Push subscription salvata nel DB')
-
-      return subscription
+      return await ensurePushSubscription(swRegistration, userId, orgId, options)
     } catch (err) {
       console.warn('[PWA] Errore push subscription:', err)
       return null

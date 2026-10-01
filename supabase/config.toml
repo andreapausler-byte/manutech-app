@@ -14,3 +14,12 @@ verify_jwt = false
 [functions.extract-ticket-fields]
 # Stesso motivo di `transcribe`. Vedi commento sopra.
 verify_jwt = false
+
+[functions.send-push-notification]
+# La chiamano due soggetti: il trigger handle_new_notification (POST, con
+# la chiave di push_config) e l'app (GET, per leggere la chiave VAPID
+# pubblica prima di iscriversi). L'app usa il login custom, quindi non ha
+# un JWT utente: con il controllo automatico il GET prenderebbe 401.
+# Il POST è protetto dentro la funzione, che accetta solo la chiave del
+# trigger. Senza questa voce, ogni deploy dal workflow riaccende il check.
+verify_jwt = false

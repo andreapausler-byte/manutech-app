@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, lazy, Suspense } from 'react'
-import { LogOut, Sun, Moon, Settings } from 'lucide-react'
+import { LogOut, Sun, Moon, Settings, Bell, X } from 'lucide-react'
 import { Shell, MT, fMono } from '../../components/manutech'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -8,6 +8,7 @@ import { NAV as ADMIN_NAV } from '../../lib/adminNav'
 import NotificationCenter from '../../components/ui/NotificationCenter'
 import SettingsPanel from '../../components/ui/SettingsPanel'
 import { Spinner } from '../../components/ui'
+import { usePWA } from '../../hooks/usePWA'
 
 const AdminDashboard = lazy(() => import('../admin/AdminDashboard'))
 const AdminOptimization = lazy(() => import('../admin/AdminOptimization'))
@@ -96,6 +97,20 @@ export default function V6App({ userName, initialReportId }) {
   const navigate = useCallback((name, params = {}) => {
     setRoute({ name, ...params })
   }, [])
+
+  // Push anche sulla console: fino a ott 2026 l'admin da computer non si
+  // iscriveva mai, e riceveva le notifiche solo con la pagina aperta.
+  const handleNotifClick = useCallback((data) => {
+    if (data?.report_id) navigate('reports', { reportId: data.report_id })
+  }, [navigate])
+  const { notifPermission, requestPermission } = usePWA(handleNotifClick, { userId: user?.id, orgId: user?.org_id })
+  const [pushBannerHidden, setPushBannerHidden] = useState(() => {
+    try { return localStorage.getItem('manutech_v6_push_banner') === 'hidden' } catch { return false }
+  })
+  const hidePushBanner = () => {
+    setPushBannerHidden(true)
+    try { localStorage.setItem('manutech_v6_push_banner', 'hidden') } catch { /* storage bloccato */ }
+  }
 
   const navItems = useMemo(() => buildNavItems(ADMIN_NAV), [])
   const adminNavItem = ADMIN_NAV.find(n => n.id === route.name)
@@ -186,6 +201,31 @@ export default function V6App({ userName, initialReportId }) {
           </AdminPageFrame>
         </Shell>
       </V6NavigateProvider>
+
+      {notifPermission === 'default' && !pushBannerHidden && typeof Notification !== 'undefined' && (
+        <div role="status" style={{
+          position: 'fixed', right: 20, bottom: 20, zIndex: 60, maxWidth: 360,
+          display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px',
+          background: MT.surface, border: `1px solid ${MT.border}`, color: MT.text,
+          boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+        }}>
+          <Bell size={18} style={{ flexShrink: 0, marginTop: 2, color: MT.textMuted }} />
+          <div style={{ flex: 1, fontSize: 13, lineHeight: 1.45 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Attiva le notifiche del browser</div>
+            <div style={{ color: MT.textMuted, marginBottom: 10 }}>
+              Ti avvisiamo di nuove segnalazioni, messaggi e scadenze anche con la console chiusa.
+            </div>
+            <button onClick={() => { requestPermission(); hidePushBanner() }}
+              style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: MT.text, color: MT.bg, border: 'none' }}>
+              Attiva
+            </button>
+          </div>
+          <button onClick={hidePushBanner} aria-label="Chiudi"
+            style={{ background: 'transparent', border: 'none', color: MT.textMuted, cursor: 'pointer', padding: 0 }}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user?.id} userRole={user?.role} />
     </div>
