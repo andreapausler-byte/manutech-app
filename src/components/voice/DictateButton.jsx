@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Mic, Square, Loader2 } from 'lucide-react'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import {
-  requestTranscription, applyCorrections, looksLikeHallucination, buildVocabulary,
+  requestTranscription, applyCorrections, looksLikeHallucination, prepareTranscriptionHints,
   MIN_AUDIO_BYTES, MIN_AUDIO_MS,
 } from '../../lib/transcription'
 import { useToast } from '../../hooks/useToast'
@@ -63,8 +63,9 @@ export default function DictateButton({ onText, hints = [], label = 'Detta', aut
     }
     setState('transcribing')
     try {
+      const { vocabulary, keyterms } = await prepareTranscriptionHints([], hints)
       const raw = await requestTranscription({
-        blob, mimeType: mimeRef.current, vocabulary: buildVocabulary([], hints),
+        blob, mimeType: mimeRef.current, vocabulary, keyterms,
       })
       const text = applyCorrections(raw)
       if (!text || looksLikeHallucination(text)) {

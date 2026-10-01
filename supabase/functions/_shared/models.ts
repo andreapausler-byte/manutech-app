@@ -6,8 +6,9 @@
 //   docs/decisions/ADR-010-ai-strategy-vision.md → sezione "Politica modelli" (6/6/2026)
 //
 // Lo usano:
-//   - assistant-chat (questo sprint)
-//   - summarize (Fase B, futuro)
+//   - assistant-chat
+//   - summarize
+//   - extract-ticket-fields (vocale)
 //
 // Caveat Opus 5.5 e Sonnet 5.5 (verificato sui doc Anthropic): NON si possono
 // inviare temperature/top_p/top_k né thinking.budget_tokens → 400, e nemmeno
@@ -26,7 +27,7 @@ export const MODELS = {
 } as const
 
 export type Power = 'veloce' | 'equilibrato' | 'approfondito'
-export type Surface = 'assistant_chat' | 'summarize'
+export type Surface = 'assistant_chat' | 'summarize' | 'voice_extract'
 
 export const DEFAULT_POWER: Power = 'equilibrato'
 
@@ -72,6 +73,10 @@ export interface ResolvedModel {
  * - assistant_chat: 3 livelli pieni (Haiku / Sonnet / Opus).
  * - summarize: floor a Sonnet anche per "veloce" (Haiku inaffidabile sulla
  *   sintesi multi-item); "approfondito" → Opus.
+ * - voice_extract: sempre Sonnet, la potenza non conta. Il tecnico non ha
+ *   un selettore e il vocale deve capire bene nomi di macchine e componenti
+ *   (fino a v5.27 era Haiku 4.5); Opus sarebbe troppo lento per chi aspetta
+ *   davanti alla macchina.
  */
 export function resolveModel(
   power: Power = DEFAULT_POWER,
@@ -79,7 +84,9 @@ export function resolveModel(
 ): ResolvedModel {
   let model: string
 
-  if (surface === 'summarize') {
+  if (surface === 'voice_extract') {
+    model = MODELS.sonnet
+  } else if (surface === 'summarize') {
     model = power === 'approfondito' ? MODELS.opus : MODELS.sonnet
   } else {
     model =

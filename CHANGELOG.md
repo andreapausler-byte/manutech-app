@@ -6,6 +6,27 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.28 — Il vocale riconosce macchine e termini dello stabilimento
+
+Nessuna migration. Le funzioni si pubblicano da sole al merge; per Scribe serve la chiave `ELEVENLABS_API_KEY` nei secrets di Supabase (senza, tutto resta su Groq come prima).
+
+### Changed
+- **Trascrizione con ElevenLabs Scribe v2** (`transcribe`), al posto di Groq Whisper large-v3-turbo. Il vocale sbagliava soprattutto nomi di macchine e termini tecnici (lo dicevano le correzioni scritte a mano, "cosme" → "Kosme"): Whisper accetta circa 244 token di suggerimenti, cioè 30 macchine e un elenco fisso. Scribe accetta fino a **1000 termini**: ora riceve tutte le macchine con marca e modello, i nomi, le marche e i modelli dei componenti dell'anagrafica, gli hint del contesto e il vocabolario tecnico. Niente etichette di rumore nel testo (`tag_audio_events: false`).
+- **Ripiego automatico su Groq Whisper large-v3** (non più turbo: sbaglia meno) se la chiave ElevenLabs manca, se Scribe dà errore o se non risponde entro 10 secondi. La risposta dice quale motore ha trascritto (`engine`).
+- **La lettura del testo passa da Haiku 4.5 a Sonnet 5.5** (`extract-ticket-fields`, superficie `voice_extract` in `_shared/models.ts`, `effort: 'low'`): capisce meglio quale macchina e quale componente intende il tecnico. Un rifiuto dei filtri di sicurezza porta alla compilazione manuale, come un JSON non valido.
+- Tempo massimo della trascrizione e dell'estrazione lato app: da 15 a 25 secondi, per lasciare spazio al ripiego.
+
+### Fixed
+- **Le note registrate offline si trascrivevano senza aiuti**: al ritorno della rete la coda partiva con il vocabolario vuoto, senza nemmeno i nomi delle macchine. Ora riceve gli stessi termini della trascrizione dal vivo.
+
+### Note
+- **Attivazione**: creare una chiave su elevenlabs.io e metterla in Supabase → Edge Functions → Secrets come `ELEVENLABS_API_KEY`. La funzione la legge alla chiamata successiva, senza nuovo deploy.
+- **Costi**: Scribe v2 circa $0,22 per ora di audio, più $0,05 per i termini; Whisper large-v3 su Groq $0,11. Con note vocali di 30 secondi sono pochi euro al mese. Sonnet 5.5 costa più di Haiku per token, su testi brevi.
+- **Privacy**: l'audio passa a ElevenLabs. Verificare l'accordo sul trattamento dei dati prima di attivare la chiave.
+- **Verifica**: nei log di `transcribe` deve comparire `scribe ok, keyterms=N`; se compare `scribe failed`, il motivo è scritto accanto e il vocale ha usato Whisper.
+
+---
+
 ## [Unreleased] — v5.27 — L'assistente AI passa a Sonnet 5.5 e Opus 5.5
 
 Nessuna migration: le funzioni si pubblicano da sole al merge su `master`.
