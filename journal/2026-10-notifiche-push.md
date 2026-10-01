@@ -87,3 +87,71 @@ non aveva nessun altro posto dove riattivare le notifiche.
 - Un avviso per piano: se gli scaduti sono tanti, meglio un riepilogo
   unico per persona ("3 manutenzioni scadute").
 - Destinatari dei messaggi (trigger su `comments`), come da prima parte.
+
+---
+
+## Terza parte (1/10) — le email agli admin (v5.26)
+
+### Richiesta
+"La versione desktop, gli admin mi segnalano che non ricevono sempre le
+notifiche via email."
+
+### Cosa dice il codice
+La catena è la stessa del push: riga in `notifications` → trigger della 010
+→ `send-email-notification` → batch di Resend. Il "rispondono 200" della
+prima parte non provava niente: la funzione rispondeva 200 anche quando
+Resend rifiutava tutto (`sent: 0, failed: N`). Tre modi in cui un'email
+spariva senza traccia:
+
+1. **Chiamate parallele oltre il limite di Resend** (429): le notifiche
+   nascono a gruppi — due righe per ogni cambio stato, N per un intervento,
+   tutte le scadenze insieme alle 06:45 — e nessun nuovo tentativo.
+2. **Batch "strict"** (default di Resend): un solo indirizzo non valido fa
+   scartare l'intero invio a tutti.
+3. **Quota del piano Resend**: un nuovo ticket è un broadcast che di default
+   va per email ad admin **e tecnici** (`email_new_report: true` per
+   entrambi): con 6 admin e 27 tecnici, una trentina di email a ticket. Il
+   piano gratuito ne consente 100 al giorno: dal terzo ticket in poi, fino a
+   mezzanotte UTC, non parte più niente. È il sospetto principale per il
+   "non sempre", ma dipende dal piano: **da verificare** sul pannello Resend.
+
+### Decisioni
+1. Nuovi tentativi solo su `rate_limit_exceeded` (la richiesta non è stata
+   elaborata: nessun doppione). Sulle quote no: riprovare non serve.
+2. Batch `permissive` e indirizzi malformati scartati prima: partono le
+   email buone, le rifiutate vanno nel log con l'indirizzo.
+3. Solo account `active`: inviti pendenti e disattivati non ricevono più.
+4. Zero email partite = **502** con il motivo, e `"channel":"email"` in ogni
+   risposta. Da ora la diagnosi si fa da SQL senza aprire i log.
+
+### Come verificare (SQL Editor)
+```sql
+-- Esito delle chiamate email delle ultime ~6 ore (pg_net non tiene di più).
+-- Prima del deploy della v5.26: le email sono le righe con "total" e senza "expired".
+SELECT created, status_code, content
+  FROM net._http_response
+ WHERE content LIKE '%"channel":"email"%'
+    OR (content LIKE '%"total"%' AND content NOT LIKE '%"expired"%')
+ ORDER BY created DESC LIMIT 50;
+
+-- Email stimate al giorno per i nuovi ticket (broadcast × admin e tecnici attivi).
+SELECT created_at::date AS giorno,
+       count(*) AS nuovi_ticket,
+       count(*) * (SELECT count(*) - 1 FROM public.users
+                    WHERE status = 'active' AND role IN ('admin', 'tecnico')) AS email_stimate
+  FROM public.notifications
+ WHERE target_user IS NULL AND type IN ('new_report', 'new_report_critical')
+   AND created_at > now() - interval '14 days'
+ GROUP BY 1 ORDER BY 1 DESC;
+```
+
+### Cosa resta aperto
+- **Volume**: se la quota è la causa, o si passa a un piano Resend a
+  pagamento o si toglie l'email dei ticket non critici ai tecnici (il push
+  per loro è già spento di default; l'email di default è più rumorosa del
+  push, contro la regola scritta sopra gli `EMAIL_ROLE_DEFAULTS`).
+- **Destinatari**: un admin riceve cambi stato, messaggi e richieste ricambi
+  solo se ha aperto o ha in carico il ticket. "Risolta" e "In attesa
+  ricambi" sui ticket dei tecnici non gli arrivano né in app né per email:
+  per scelta o da allargare? Va deciso con gli admin.
+- Le email finite in spam non si vedono da qui: pannello Resend → Emails.

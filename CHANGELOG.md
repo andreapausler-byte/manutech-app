@@ -6,6 +6,18 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.26 — Le email che non arrivavano
+
+Diagnosi: `journal/2026-10-notifiche-push.md` (terza parte). Nessuna migration: la funzione si pubblica da sola al merge su `master`.
+
+### Fixed
+- **Email perse quando partono più notifiche insieme.** Ogni notifica è una chiamata a Resend, e le notifiche nascono a gruppi (cambio stato → autore e assegnatario; intervento → tutti i coinvolti; scadenze delle 06:45 → tutti i piani). Oltre il limite al secondo Resend risponde 429 e quelle email andavano perse. Ora `send-email-notification` **riprova** (fino a 3 tentativi, con l'attesa che indica Resend). Sulle quote giornaliera/mensile non riprova: registra il motivo.
+- **Un indirizzo sbagliato bloccava tutti.** Il batch di Resend in modalità predefinita (strict) scarta l'intero invio se un solo destinatario non è valido. Ora gli indirizzi malformati vengono saltati prima e il batch va in modalità **permissive**: partono le email buone, quelle rifiutate finiscono nel log.
+- **Email a inviti mai accettati e a utenti disattivati**: i broadcast arrivavano anche a loro, consumando quota. Ora solo account `active`.
+- **Un fallimento totale risultava "ok".** La funzione rispondeva 200 anche con zero email partite, quindi `net._http_response` sembrava in ordine. Ora risponde **502** con il motivo (`daily_quota_exceeded`, `rate_limit_exceeded`, `validation_error`…) e ogni risposta porta `"channel":"email"` per distinguerla da quella del push.
+
+---
+
 ## [Unreleased] — v5.25 — Le scadenze le controlla il server
 
 Runbook: `docs/MIGRATION-065.md`. Racconto: `journal/2026-10-notifiche-push.md` (seconda parte).
