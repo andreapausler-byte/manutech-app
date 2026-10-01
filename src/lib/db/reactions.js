@@ -1,5 +1,6 @@
 import { supabase, getMyOrgId } from './_client'
 import { KEYS, getStore, setStore } from './_demoStore'
+import { wallet } from './wallet'
 
 // Reazioni sui messaggi chat (utile/confermo/risolto) e ringraziamenti
 // a livello segnalazione (type='grazie', comment_id NULL). Tabella
@@ -45,6 +46,53 @@ export const reactions = {
     if (idx === -1) return
     list[idx].reactions = list[idx].reactions.filter(x => x.id !== id)
     setStore(KEYS.reports, list)
+  },
+
+  // ─── "Mi è servita" sulla chiusura (type='servito', migration 064) ───
+  // In supabase i 5 ManuCoin al tecnico della chiusura li accredita il
+  // trigger, una volta per collega. In demo lo stesso lo fa il client,
+  // con la stessa deduplica su reference_id.
+  async markClosureHelpful(report, user) {
+    const created = await reactions.addReaction(report.id, {
+      type: 'servito', comment_id: null,
+      user_id: user.id, user_name: user.name,
+    })
+    if (!supabase && report.assigned_to && report.assigned_to !== user.id) {
+      const ref = `${report.id}:${user.id}`
+      const txs = JSON.parse(localStorage.getItem('manutech_token_tx') || '[]')
+      if (!txs.some(t => t.reason_code === 'closure_helpful' && t.reference_id === ref)) {
+        await wallet.creditTokens(
+          report.assigned_to, 5,
+          `La tua chiusura è servita a ${user.name || 'un collega'} — ${report.title}`,
+          'closure_helpful', ref,
+        )
+      }
+    }
+    return created
+  },
+
+  // Quanti colleghi hanno trovato utile ogni chiusura: { reportId: n }.
+  async getHelpfulCounts(reportIds) {
+    if (!reportIds?.length) return {}
+    let rows = []
+    if (supabase) {
+      const { data, error } = await supabase.from('reactions')
+        .select('report_id')
+        .eq('type', 'servito')
+        .is('comment_id', null)
+        .in('report_id', reportIds)
+      // Migration 064 non ancora applicata: nessun voto, nessun errore a schermo.
+      if (error) { console.warn('[ManuTech] getHelpfulCounts:', error.message); return {} }
+      rows = data || []
+    } else {
+      const ids = new Set(reportIds)
+      rows = getStore(KEYS.reports)
+        .filter(r => ids.has(r.id))
+        .flatMap(r => (r.reactions || []).filter(x => x.type === 'servito' && !x.comment_id))
+    }
+    const map = {}
+    for (const r of rows) map[r.report_id] = (map[r.report_id] || 0) + 1
+    return map
   },
 
   // Totale 👏 ricevuti sulle segnalazioni assegnate all'utente (profilo tecnico).

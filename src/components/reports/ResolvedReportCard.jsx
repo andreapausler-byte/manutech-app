@@ -10,7 +10,7 @@
  * della scheda macchina: davanti alla macchina la domanda è la stessa.
  */
 
-import { CheckCircle2, AlertTriangle, XCircle, Cog, Clock, Package, User, StickyNote } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, XCircle, Cog, Clock, Package, User, StickyNote, ThumbsUp, Camera } from 'lucide-react'
 import { formatDateParts } from '../../lib/constants'
 import { getClosure, closureOutcome, closedAtOf, CLOSURE_OUTCOMES } from '../../lib/closure'
 import { TicketIdBadge } from '../ui'
@@ -43,7 +43,7 @@ function ClosureLine({ label, text, missing }) {
   )
 }
 
-export default function ResolvedReportCard({ report, onSelect, showMachine = true }) {
+export default function ResolvedReportCard({ report, onSelect, showMachine = true, helpful = 0 }) {
   const closure = getClosure(report)
   const outcome = closureOutcome(report)
   const meta = CLOSURE_OUTCOMES[outcome]
@@ -54,6 +54,8 @@ export default function ResolvedReportCard({ report, onSelect, showMachine = tru
     closure.parts && { icon: Package, text: closure.parts },
     report.assigned_to_name && outcome !== 'senza' && { icon: User, text: report.assigned_to_name },
     closure.notes.length > 0 && { icon: StickyNote, text: `${closure.notes.length} ${closure.notes.length === 1 ? 'nota' : 'note'} dopo` },
+    closure.photos.length > 0 && { icon: Camera, text: `${closure.photos.length} foto del pezzo` },
+    helpful > 0 && { icon: ThumbsUp, text: `Servita a ${helpful}`, color: '#10b981' },
   ].filter(Boolean)
 
   return (
@@ -134,10 +136,10 @@ export default function ResolvedReportCard({ report, onSelect, showMachine = tru
             display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 12px',
             marginTop: 9, minWidth: 0,
           }}>
-            {footer.map(({ icon: Icon, text }) => (
+            {footer.map(({ icon: Icon, text, color }) => (
               <span key={text} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0, maxWidth: '100%',
-                fontSize: 12, color: 'var(--color-text-muted)',
+                fontSize: 12, color: color || 'var(--color-text-muted)', fontWeight: color ? 600 : 400,
               }}>
                 <Icon size={12} style={{ flexShrink: 0 }} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>

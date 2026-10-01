@@ -24,11 +24,14 @@ import {
 import VoiceUpdateFlow from '../voice/VoiceUpdateFlow'
 import VoiceCloseFlow from '../voice/VoiceCloseFlow'
 import VoiceNoteFlow from '../voice/VoiceNoteFlow'
+import DictateButton from '../voice/DictateButton'
 import SpareRequestModal from '../spare/SpareRequestModal'
 import InterventionRequestModal from '../spare/InterventionRequestModal'
 import RequestKindChooser from '../spare/RequestKindChooser'
 import TicketSparePanel from '../spare/TicketSparePanel'
 import ComponentPill from '../machines/ComponentPill'
+import ClosureHelpful from './ClosureHelpful'
+import ClosurePhotoPicker from './ClosurePhotoPicker'
 
 // ─────────────────────────────────────────────────────────────
 // Design tokens — Compact variant (handoff Dettaglio Segnalazione)
@@ -340,14 +343,18 @@ function ComponentSheet({ open, onClose, components, currentId, onSelect, busy }
 // modifica le ore non sono obbligatorie: sui ticket vecchi spesso non si
 // sanno, e un numero inventato per passare la validazione è peggio di un
 // campo vuoto.
-function ClosureSheet({ open, onClose, onSubmit, busy, components = [], currentComponentId = null, mode = 'close', initial = null }) {
+function ClosureSheet({ open, onClose, onSubmit, busy, reportId, components = [], currentComponentId = null, mode = 'close', initial = null }) {
   const isEdit = mode === 'edit'
+  // Vocabolario per Whisper: i nomi dei pezzi della macchina si sbagliano facile.
+  const dictationHints = components.map(c => c.name)
   const [form, setForm] = useState(() => ({
     hours: initial?.hours != null ? String(initial.hours) : '',
     parts: initial?.parts || '',
     rootCause: initial?.rootCause || '',
     action: initial?.action || '',
     componentId: null,
+    // Solo le foto nuove: quelle già salvate restano nel ticket.
+    photos: [],
   }))
   // Il pezzo parte da quello già attribuito al ticket: chi chiude conferma
   // o corregge, non ricompila. `null` = non ancora toccato dall'utente,
@@ -372,6 +379,7 @@ function ClosureSheet({ open, onClose, onSubmit, busy, components = [], currentC
       closure_action: form.action.trim() || null,
       ...(isEdit ? {} : { closed_at: new Date().toISOString() }),
       ...componentFields,
+      closure_photos: form.photos,
     })
   }
   return (
@@ -427,13 +435,25 @@ function ClosureSheet({ open, onClose, onSubmit, busy, components = [], currentC
               </select>
             </FieldLabel>
           )}
-          <FieldLabel label="Causa radice *">
+          {reportId && (
+            <FieldLabel label="Foto del pezzo">
+              <ClosurePhotoPicker reportId={reportId} photos={form.photos}
+                onChange={photos => setForm(f => ({ ...f, photos }))} />
+            </FieldLabel>
+          )}
+          <FieldLabel label="Causa radice *" action={
+            <DictateButton size="sm" hints={dictationHints}
+              onText={t => setForm(f => ({ ...f, rootCause: appendText(f.rootCause, t) }))} />
+          }>
             <textarea value={form.rootCause}
               onChange={e => setForm(f => ({ ...f, rootCause: e.target.value }))}
               placeholder="Cosa ha causato il problema?"
               rows={2} style={{ ...inputStyle, resize: 'none' }} />
           </FieldLabel>
-          <FieldLabel label="Azione correttiva">
+          <FieldLabel label="Azione correttiva" action={
+            <DictateButton size="sm" hints={dictationHints}
+              onText={t => setForm(f => ({ ...f, action: appendText(f.action, t) }))} />
+          }>
             <textarea value={form.action}
               onChange={e => setForm(f => ({ ...f, action: e.target.value }))}
               placeholder="Cosa è stato fatto per risolvere?"
@@ -461,7 +481,7 @@ function ClosureSheet({ open, onClose, onSubmit, busy, components = [], currentC
 // ─────────────────────────────────────────────────────────────
 // Nota successiva — un'informazione arrivata dopo la chiusura
 // ─────────────────────────────────────────────────────────────
-function ClosureNoteSheet({ onClose, onSubmit, busy }) {
+function ClosureNoteSheet({ onClose, onSubmit, busy, autoDictate = false, hints = [] }) {
   const [text, setText] = useState('')
   const canSubmit = !!text.trim() && !busy
   return (
@@ -494,9 +514,13 @@ function ClosureNoteSheet({ onClose, onSubmit, busy }) {
           value={text}
           onChange={e => setText(e.target.value)}
           placeholder="es. Si è ripresentato dopo 3 settimane: il vero problema era l'allineamento del motore"
-          rows={4} autoFocus
-          style={{ ...inputStyle, resize: 'none', marginBottom: 12 }}
+          rows={4} autoFocus={!autoDictate}
+          style={{ ...inputStyle, resize: 'none', marginBottom: 10 }}
         />
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+          <DictateButton label="Detta la nota" autoStart={autoDictate} hints={hints}
+            onText={t => setText(prev => appendText(prev, t))} />
+        </div>
         <button onClick={() => canSubmit && onSubmit(text)} disabled={!canSubmit}
           className="press-scale"
           style={{
@@ -520,7 +544,7 @@ function ClosureNoteSheet({ onClose, onSubmit, busy }) {
 // ─────────────────────────────────────────────────────────────
 // Per un ticket in archivio la domanda è una sola: cosa era e cosa è stato
 // fatto. Per questo la chiusura sta sopra la descrizione e non in fondo.
-function ClosureCard({ report, canUpdate, onEdit, onAddNote }) {
+function ClosureCard({ report, user, canUpdate, onEdit, onAddNote, onOpenPhoto }) {
   const closure = getClosure(report)
   const hasData = hasClosureData(closure)
   const terminal = isTerminalStatus(report.status)
@@ -628,6 +652,23 @@ function ClosureCard({ report, canUpdate, onEdit, onAddNote }) {
         </div>
       )}
 
+      {closure.photos.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+          {closure.photos.map((p, i) => (
+            <button key={p.url} onClick={() => onOpenPhoto?.(p)}
+              aria-label={`Apri foto del pezzo ${i + 1}`}
+              className="press-scale"
+              style={{ width: 64, height: 64, padding: 0, borderRadius: 10, overflow: 'hidden', border: `1px solid ${D.raised}`, cursor: 'zoom-in', background: D.raised }}>
+              <img src={p.thumb_url || p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {hasData && terminal && (
+        <ClosureHelpful report={report} user={user} style={{ marginTop: 10 }} />
+      )}
+
       {closure.notes.length > 0 && (
         <div style={{ marginTop: 10, borderTop: `1px solid ${D.raised}`, paddingTop: 10 }}>
           <div style={{
@@ -676,17 +717,23 @@ const inputStyle = {
   fontFamily: 'inherit',
 }
 
-function FieldLabel({ label, children }) {
+function FieldLabel({ label, action, children }) {
   return (
     <div>
-      <label style={{
-        display: 'block', fontSize: 10, color: D.textSubtle,
-        marginBottom: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
-      }}>{label}</label>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
+        <label style={{
+          display: 'block', fontSize: 10, color: D.textSubtle,
+          fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
+        }}>{label}</label>
+        {action}
+      </div>
       {children}
     </div>
   )
 }
+
+// Accoda il testo dettato a quello già scritto, senza cancellarlo.
+const appendText = (prev, text) => (prev?.trim() ? `${prev.trim()} ${text}` : text)
 
 // ─────────────────────────────────────────────────────────────
 // Chip — pill compatta per priorità / categoria / area
@@ -819,7 +866,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const [componentSheetOpen, setComponentSheetOpen] = useState(false)
   const [savingComponent, setSavingComponent] = useState(false)
   const [closureEditOpen, setClosureEditOpen] = useState(false)
-  const [closureNoteOpen, setClosureNoteOpen] = useState(false)
+  const [closureNoteOpen, setClosureNoteOpen] = useState(false) // false | 'text' | 'voice'
 
   const toast = useToast()
   const haptic = useHaptic()
@@ -997,8 +1044,20 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
     // cronologia lo dice — l'ipotesi non deve sparire in silenzio.
     const prevComponentId = report.component_id || null
     const prevComponentName = report.component_name || null
-    const ok = await updateStatus('risolta', closureData, closureData)
+    const { closure_photos: closurePhotos = [], ...closureFields } = closureData
+    const updates = closurePhotos.length
+      ? { ...closureFields, media: [...(report.media || []), ...closurePhotos] }
+      : closureFields
+    const ok = await updateStatus('risolta', updates, closureFields)
     if (ok) {
+      if (closurePhotos.length) {
+        db.addClosurePhotosToMachine(report.machine_id, closurePhotos, {
+          componentId: closureFields.component_id ?? prevComponentId,
+          componentName: closureFields.component_name ?? prevComponentName,
+          label: report.display_id || report.title,
+          uploadedByName: user.name,
+        })
+      }
       if ((closureData.component_id || null) !== prevComponentId) {
         db.addActivity(report.id, {
           type: 'component_change',
@@ -1391,9 +1450,14 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         }}>
           <ClosureCard
             report={report}
+            user={user}
             canUpdate={canUpdate}
             onEdit={() => { haptic.light(); setClosureEditOpen(true) }}
-            onAddNote={() => { haptic.light(); setClosureNoteOpen(true) }}
+            onAddNote={() => { haptic.light(); setClosureNoteOpen('text') }}
+            onOpenPhoto={(p) => {
+              const idx = photos.findIndex(x => x.url === p.url)
+              if (idx >= 0) setLightboxIndex(idx)
+            }}
           />
 
           {/* Descrizione */}
@@ -1571,7 +1635,16 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
 
       {/* ═══ Tech voice action bar (solo Dettagli, ticket non chiuso) ═══ */}
       {showTechActions && activeTab === 'details' && report.status !== 'chiuso' && (
-        <TechActionBar onAction={(id) => { haptic.medium(); setVoiceFlow(id) }} />
+        <TechActionBar
+          resolved={report.status === 'risolta'}
+          onAction={(id) => {
+            haptic.medium()
+            // Su un ticket già risolto "Completa" riscriverebbe la chiusura
+            // (e closed_at): qui diventa "Integra" e detta una nota successiva.
+            if (id === 'close' && report.status === 'risolta') setClosureNoteOpen('voice')
+            else setVoiceFlow(id)
+          }}
+        />
       )}
 
       {/* ═══ Pinned composer (solo Dettagli/Cronologia) ═══ */}
@@ -1593,14 +1666,17 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         onConfirm={handleConfirmClose}
         busy={updating}
       />
-      <ClosureSheet
-        open={closureSheetOpen}
-        onClose={() => setClosureSheetOpen(false)}
-        onSubmit={handleClosureSubmit}
-        busy={updating}
-        components={components}
-        currentComponentId={report.component_id || null}
-      />
+      {closureSheetOpen && (
+        <ClosureSheet
+          open
+          onClose={() => setClosureSheetOpen(false)}
+          onSubmit={handleClosureSubmit}
+          busy={updating}
+          reportId={report.id}
+          components={components}
+          currentComponentId={report.component_id || null}
+        />
+      )}
       {/* Montati solo quando servono: il form parte dai valori salvati
           a ogni apertura, senza effetti di risincronizzazione. */}
       {closureEditOpen && (
@@ -1608,6 +1684,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           open
           mode="edit"
           initial={getClosure(report)}
+          reportId={report.id}
           onClose={() => setClosureEditOpen(false)}
           onSubmit={handleClosureEdit}
           busy={closureEdit.saving}
@@ -1620,6 +1697,8 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
           onClose={() => setClosureNoteOpen(false)}
           onSubmit={handleClosureNote}
           busy={closureEdit.saving}
+          autoDictate={closureNoteOpen === 'voice'}
+          hints={components.map(c => c.name)}
         />
       )}
       <ComponentSheet
@@ -1725,10 +1804,10 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
 // ─────────────────────────────────────────────────────────────
 // Tech action bar — 4 azioni vocali per il Tecnico
 // ─────────────────────────────────────────────────────────────
-function TechActionBar({ onAction }) {
+function TechActionBar({ onAction, resolved = false }) {
   const items = [
     { id: 'update', label: 'Aggiorna', icon: FileEdit, color: '#06b6d4' },
-    { id: 'close', label: 'Completa', icon: ClipboardCheck, color: '#10b981' },
+    { id: 'close', label: resolved ? 'Integra' : 'Completa', icon: ClipboardCheck, color: '#10b981' },
     { id: 'note', label: 'Nota', icon: Mic, color: '#a78bfa' },
     { id: 'spare', label: 'Richiedi', icon: Package, color: '#f59e0b' },
   ]

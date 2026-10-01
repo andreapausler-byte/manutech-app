@@ -16,6 +16,7 @@ import { Wrench, XCircle, Pencil, Plus, AlertTriangle, Check } from 'lucide-reac
 import { formatDate, timeAgo, isTerminalStatus } from '../../../lib/constants'
 import { getClosure, hasClosureData, isClosureIncomplete, closedAtOf } from '../../../lib/closure'
 import { useClosureEdit } from '../../../hooks/useClosureEdit'
+import ClosureHelpful from '../../../components/reports/ClosureHelpful'
 
 const fieldLabel = 'block text-[11px] text-faint uppercase tracking-wider'
 const inputCls = 'w-full input-field rounded-xl text-sm'
@@ -215,6 +216,23 @@ export default function ClosurePanel({ report, user, components = [], canEdit, o
             </div>
           )}
         </>
+      )}
+
+      {closure.photos.length > 0 && mode !== 'edit' && (
+        <div className="flex gap-2 flex-wrap" style={{ marginTop: 10 }}>
+          {closure.photos.map((p, i) => (
+            <a key={p.url} href={p.url} target="_blank" rel="noreferrer"
+              title={`Foto del pezzo ${i + 1}`}
+              className="rounded-lg overflow-hidden hover:ring-2 hover:ring-emerald-500/40"
+              style={{ width: 64, height: 64, border: '1px solid var(--color-border)' }}>
+              <img src={p.thumb_url || p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </a>
+          ))}
+        </div>
+      )}
+
+      {hasData && terminal && mode !== 'edit' && (
+        <ClosureHelpful report={report} user={user} style={{ marginTop: 12 }} />
       )}
 
       {closure.notes.length > 0 && (

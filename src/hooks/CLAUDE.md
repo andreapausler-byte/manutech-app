@@ -25,6 +25,7 @@
 | `useMachineMedia` | Galleria foto/video di una macchina (feed + curata) | `supabase.js` |
 | `useMachineUpload` | Scatta foto / carica documento sulla macchina dal campo | `supabase.js`, `useImageCompressor` |
 | `useClosureEdit` | Correggere una chiusura o aggiungerle una nota dopo, con cronologia e reindex | `supabase.js`, `lib/closure.js` |
+| `useClosureHelpful` | Voto "Mi è servita" su una chiusura (ManuCoin via trigger, migration 064) | `supabase.js` |
 
 ## Pattern auto-reward
 `useAutoTokenReward(userId, badges, level)` accredita ManuCoin automaticamente.

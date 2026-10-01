@@ -30,6 +30,9 @@ const pick = (report, key) => {
 export function getClosure(report) {
   const notes = report?.extra_data?.closure_notes
   return {
+    // Foto del pezzo scattate in chiusura: vivono in `media` del ticket
+    // con il flag `closure`, così il resto dell'app le vede come foto normali.
+    photos: (report?.media || []).filter(m => m?.closure && m.type === 'photo'),
     hours: pick(report, 'closure_hours'),
     parts: pick(report, 'closure_parts'),
     rootCause: pick(report, 'closure_root_cause'),
