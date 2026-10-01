@@ -3,7 +3,7 @@
  *
  * Tre livelli con etichette UMANE (mai nomi di modello in UI — ADR-010
  * anti-pattern #8): Veloce / Equilibrato / Approfondito. Il resolver
- * server-side li traduce in Haiku / Sonnet 5.5 / Opus 4.8.
+ * server-side li traduce in Haiku / Sonnet 5.5 / Opus 5.5.
  *
  * Props:
  *   value     — 'veloce' | 'equilibrato' | 'approfondito'

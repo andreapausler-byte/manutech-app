@@ -1069,7 +1069,7 @@ async function embedUserQuery(text: string, apiKey: string): Promise<number[] | 
 // ── Claude call ──
 // Il modello arriva dal resolver (_shared/models.ts) con i parametri, gli
 // header e il margine per il ragionamento specifici del tier (es. thinking
-// adaptive + effort per Opus 4.8 e Sonnet 5.5).
+// adaptive + effort per Opus 5.5 e Sonnet 5.5).
 async function callClaude(
   systemPrompt: string,
   userMessage: string,
@@ -1181,7 +1181,7 @@ Deno.serve(async (req: Request) => {
     // Knowledge retrieval: carichiamo la biblioteca tecnica quando
     // l'utente chiede documenti, diagnostica o è in contesto macchina.
     //
-    // Potenza "approfondito" (Opus 4.8) = massima potenza di calcolo → diamo
+    // Potenza "approfondito" (Opus 5.5) = massima potenza di calcolo → diamo
     // all'AI accesso a TUTTO lo storico: bypassa il gating per-intento
     // (carica tutte le fonti) e allarga le finestre temporali / i cap.
     const deep = power === 'approfondito'
@@ -1458,7 +1458,7 @@ Deno.serve(async (req: Request) => {
       ? (mlogsRes.data as MaintenanceLogEntry[])
       : []
 
-    // Modalità approfondita (Opus 4.8): chat delle segnalazioni APERTE per
+    // Modalità approfondita (Opus 5.5): chat delle segnalazioni APERTE per
     // correlare discussioni cross-ticket. Round-trip extra deliberato, solo a
     // max potenza; riusa gli id delle aperte già recuperati (snapshot).
     let openTicketsChat: OpenTicketComment[] = []

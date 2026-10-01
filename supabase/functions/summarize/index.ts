@@ -9,7 +9,7 @@
  *   - kind 'intervention'     → sintesi/handoff di un singolo intervento
  *
  * Potenza AI → modello via resolveModel(power, 'summarize') (_shared/models.ts):
- *   veloce/equilibrato → Sonnet 5.5 · approfondito → Opus 4.8
+ *   veloce/equilibrato → Sonnet 5.5 · approfondito → Opus 5.5
  *   (thinking adaptive + effort, niente temperature/top_p — gestito dal resolver).
  *
  * Sicurezza (ADR-010):
