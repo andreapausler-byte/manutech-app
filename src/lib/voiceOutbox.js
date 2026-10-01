@@ -28,7 +28,7 @@ import { db, isSupabaseConfigured } from './supabase'
 import {
   outboxPut, outboxGet, outboxAll, outboxDelete, isOutboxAvailable,
 } from './outbox'
-import { requestTranscription, applyCorrections } from './transcription'
+import { requestTranscription, applyCorrections, prepareTranscriptionHints } from './transcription'
 
 const VOICE_TYPE = 'voice'
 
@@ -220,7 +220,12 @@ export async function flushVoiceItem(itemOrId) {
       !(transcription && transcription.trim())
     ) {
       try {
-        const raw = await requestTranscription({ blob: item.blob, mimeType: item.mimeType, vocabulary: '' })
+        // Stessi aiuti della trascrizione dal vivo: prima partiva senza,
+        // nemmeno i nomi delle macchine, e le note dai reparti senza rete
+        // erano proprio quelle trascritte peggio.
+        const machines = await db.getMachines().catch(() => [])
+        const { vocabulary, keyterms } = await prepareTranscriptionHints(machines, null)
+        const raw = await requestTranscription({ blob: item.blob, mimeType: item.mimeType, vocabulary, keyterms })
         transcription = applyCorrections(raw)
         await save({ transcription, transcriptionStatus: 'done' })
       } catch {

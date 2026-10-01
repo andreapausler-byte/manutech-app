@@ -4,7 +4,7 @@ import { useToast } from './useToast'
 import { useHaptic } from './useHaptic'
 import { enqueueVoiceCapture, enrichVoiceItem } from '../lib/voiceOutbox'
 import {
-  requestTranscription, applyCorrections, looksLikeHallucination, buildVocabulary,
+  requestTranscription, applyCorrections, looksLikeHallucination, prepareTranscriptionHints,
   withTimeout, TRANSCRIPTION_TIMEOUT_MS, MIN_AUDIO_BYTES, MIN_AUDIO_MS,
 } from '../lib/transcription'
 
@@ -19,7 +19,7 @@ import {
  *     quel momento l'audio sopravvive a offline, chiusura e riavvio dell'app
  *     e resta finché non viene consegnato o eliminato esplicitamente.
  *   - La trascrizione è best-effort e NON blocca mai: offline non viene
- *     nemmeno tentata (niente attesa di 15s a vuoto), online gira in
+ *     nemmeno tentata (niente attesa a vuoto), online gira in
  *     background e in caso di errore l'audio resta comunque al sicuro.
  *
  * Il consumer riceve `outboxId` e usa `submitVoice` (voiceOutbox) per la
@@ -238,7 +238,7 @@ export function useVoiceCapture({
     setState('review')
 
     // ── 2. GATE OFFLINE ──
-    // Senza rete NON tentiamo la trascrizione: niente attesa di 15s a vuoto.
+    // Senza rete NON tentiamo la trascrizione: niente attesa a vuoto.
     // L'audio è già salvato e verrà trascritto/inviato al ritorno della linea.
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       setTranscribing(false)
@@ -249,8 +249,8 @@ export function useVoiceCapture({
     // ── 3. TRASCRIZIONE BEST-EFFORT (non blocca mai) ──
     setTranscribing(true)
     try {
-      const vocabulary = buildVocabulary(machines, vocabularyHints)
-      const rawText = await requestTranscription({ blob, mimeType: mimeTypeRef.current, vocabulary })
+      const { vocabulary, keyterms } = await prepareTranscriptionHints(machines, vocabularyHints)
+      const rawText = await requestTranscription({ blob, mimeType: mimeTypeRef.current, vocabulary, keyterms })
       const text = applyCorrections(rawText)
 
       if (looksLikeHallucination(text)) {

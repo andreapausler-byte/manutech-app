@@ -11,17 +11,22 @@
  *   - tech_note            (nota rapida, no cambio stato)
  *   - tech_spare_request   (richiesta ricambio)
  *
+ * Modello: Claude Sonnet 5.5 via resolveModel(_, 'voice_extract')
+ * (_shared/models.ts); fino a v5.27 Haiku 4.5.
+ *
  * Secrets:
  *   ANTHROPIC_API_KEY — chiave API Anthropic (sk-ant-...)
  *
  * Body JSON:
  *   {
- *     text: string,                      // trascrizione Whisper (obbligatoria)
+ *     text: string,                      // trascrizione (obbligatoria)
  *     machines: Array<MachineInput>,     // macchine reali dell'org (per new_ticket)
  *     context?: string,                  // default 'operator_new_ticket'
  *     context_payload?: object           // info ticket per update/close/note/spare
  *   }
  */
+
+import { resolveModel, DEFAULT_POWER } from '../_shared/models.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,7 +35,6 @@ const corsHeaders = {
 }
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 const MAX_TOKENS = 600
 
 interface MachineInput {
@@ -605,18 +609,21 @@ const PARSERS: Record<string, (raw: string) => unknown> = {
 // ──────────────────────────────────────────────────────────────────────────
 
 async function callClaude(systemPrompt: string, userMessage: string, apiKey: string): Promise<string> {
+  const { model, extraBody, extraHeaders, thinkingHeadroom } = resolveModel(DEFAULT_POWER, 'voice_extract')
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
+      ...extraHeaders,
     },
     body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: MAX_TOKENS,
+      model,
+      max_tokens: MAX_TOKENS + thinkingHeadroom,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
+      ...extraBody,
     }),
   })
 
@@ -626,6 +633,13 @@ async function callClaude(systemPrompt: string, userMessage: string, apiKey: str
   }
 
   const data = await res.json()
+  // Rifiuto dei filtri di sicurezza, anche dopo il fallback: testo vuoto →
+  // il parser fallisce e il tecnico compila a mano, come per un JSON rotto.
+  if (data.stop_reason === 'refusal') {
+    console.warn('extract-ticket-fields: refusal', data.stop_details?.category ?? 'n/d')
+    return ''
+  }
+  // La risposta può iniziare con blocchi `thinking`: si legge il primo `text`.
   const textBlock = (data.content || []).find((b: { type: string }) => b.type === 'text')
   return textBlock?.text || ''
 }

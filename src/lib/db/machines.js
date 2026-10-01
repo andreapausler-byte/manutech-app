@@ -156,6 +156,27 @@ export const machines = {
   },
 
   // ─── MACHINE COMPONENTS ───
+  // Nomi, marchi e modelli dei componenti di tutta l'org: i termini che la
+  // trascrizione vocale deve riconoscere (lib/transcription.js).
+  async getComponentVocabulary() {
+    let rows
+    if (supabase) {
+      const { data, error } = await supabase.from('machine_components')
+        .select('name, manufacturer, model').limit(2000)
+      if (error) throw error
+      rows = data || []
+    } else {
+      rows = getStore('manutech_components')
+    }
+    const terms = new Set()
+    for (const c of rows) {
+      for (const v of [c?.name, c?.manufacturer, c?.model]) {
+        if (typeof v === 'string' && v.trim()) terms.add(v.trim())
+      }
+    }
+    return [...terms]
+  },
+
   async getMachineComponents(machineId) {
     if (supabase) {
       const { data, error } = await supabase.from('machine_components')
