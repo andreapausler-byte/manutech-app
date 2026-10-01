@@ -34,6 +34,16 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
+    // Telefono condiviso (tablet di reparto): chi esce non deve più
+    // ricevere i suoi push qui. Si toglie solo il legame utente↔telefono;
+    // l'iscrizione del browser resta per chi entra dopo.
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration('/')
+      const sub = await reg?.pushManager?.getSubscription()
+      if (sub && user?.id) await db.deletePushSubscription(user.id, sub.endpoint)
+    } catch (e) {
+      console.warn('[Auth] pulizia iscrizione push al logout:', e?.message)
+    }
     await db.logout()
     setUser(null)
   }

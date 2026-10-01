@@ -57,5 +57,10 @@ Helper: `formatDate(dateStr)`, `timeAgo(dateStr)` — usali sempre, mai formatta
 `makeTheme(mode, accent)` genera 50+ CSS vars. `applyTheme()` le inietta in `:root`.
 6 accent preset. NON hardcodare colori — usa `var(--color-*)`.
 
+## push.js
+Iscrizione Web Push del telefono. La chiave VAPID pubblica si chiede al server
+(`getServerVapidKey`, GET su `send-push-notification`), MAI solo dalla build:
+`ensurePushSubscription` rifà l'iscrizione se è stata fatta con un'altra chiave.
+
 ## notifPreferences.js
 Cache in-memory con TTL 60s. `shouldShowNotification()` per check async, `shouldShowNotificationSync()` per sync.

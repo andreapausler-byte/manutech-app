@@ -6,6 +6,29 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.24 — I push arrivano davvero
+
+Diagnosi e decisioni: `journal/2026-10-notifiche-push.md`.
+
+### Fixed
+- **Nessun push arrivava ai telefoni.** Dai log di `send-push-notification`: Google 403, Mozilla 401, Apple 400 su ogni invio, `sent: 0` sempre. L'app si iscriveva con la chiave VAPID pubblica scritta nella build (`VITE_VAPID_PUBLIC_KEY`), il server firmava con quella nei secrets di Supabase: non coincidevano. Ora l'app **chiede la chiave al server** (GET sulla funzione) e, se l'iscrizione del telefono è stata fatta con un'altra chiave, **la rifà da sola** all'apertura (`lib/push.js`). Nessuna chiave da copiare a mano.
+- **Le iscrizioni rifiutate (401/403) vengono cancellate** dal server come quelle scadute, e l'esito di ogni invio fallito (servizio, codice, motivo) finisce nella risposta, quindi in `net._http_response`: si diagnostica da SQL.
+- **Gli operatori non si iscrivevano mai ai push**: `OperatorApp` (dal 28/5) non registrava il telefono. Ora sì, con una card in home finché non si decide e lo stato in Profilo — con le istruzioni per iPhone (aggiungi alla Home) e per le notifiche bloccate, più "Invia una notifica di prova".
+- **La console admin non si iscriveva ai push**: ora sì, con un banner "Attiva le notifiche del browser"; il tocco sulla notifica apre la segnalazione.
+- **Le notifiche si sovrascrivevano**: il service worker usava un solo posto per tipo, quindi tre messaggi su tre ticket lasciavano visibile solo l'ultimo. Ora una notifica per segnalazione.
+- **Il campo "Aggiorna o rispondi…" del dettaglio mobile non avvisava nessuno**: ora manda la stessa notifica della chat.
+- **Telefono condiviso**: al logout il telefono smette di ricevere i push di chi è uscito. Con un login diverso l'iscrizione si rifà per il nuovo utente.
+
+### Changed
+- `send-push-notification` è pubblicata con `verify_jwt = false` (`supabase/config.toml`): l'app la chiama per leggere la chiave pubblica. L'invio è protetto dentro la funzione, che accetta solo la chiave del trigger (`push_config.service_role_key`) o la service role.
+- Diagnostica push nelle impostazioni: mostra se la chiave del telefono è allineata al server e ha il tasto **Ripara iscrizione**.
+
+### Note
+- **Dopo il merge**: eliminare il vecchio Database Webhook su `notifications` (Supabase → Database → Webhooks), che chiama senza intestazione e produce i 401. Poi aprire l'app su ogni telefono una volta: l'iscrizione si ripara da sola.
+- Restano da fare: scadenze calcolate dal server (oggi le genera il telefono di chi apre l'app) e destinatari più ampi per i messaggi (chi ha partecipato alla chat, partecipanti dell'intervento).
+
+---
+
 ## [Unreleased] — v5.23 — Le chiusure che servono, dette a voce e con la foto
 
 Tre aiuti per chi scrive e chi legge le chiusure. Racconto: `journal/2026-10-archivio-interventi.md` (seconda parte). Runbook: `docs/MIGRATION-064.md`.

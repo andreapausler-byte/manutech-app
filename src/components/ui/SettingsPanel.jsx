@@ -10,10 +10,12 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
-import { X, Sun, Moon, Monitor, Bell, BellOff, Activity, Send, Mail } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Bell, BellOff, Activity, Send, Mail, Wrench } from 'lucide-react'
 import { useHaptic } from '../../hooks/useHaptic'
 import toast from 'react-hot-toast'
 import { db } from '../../lib/supabase'
+import { checkSubscriptionKey, ensurePushSubscription } from '../../lib/push'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   NOTIF_TYPES, NOTIF_GROUPS, EMAIL_NOTIF_TYPES,
   getEffectivePrefs, saveUserPrefs, resetUserPrefs,
@@ -30,13 +32,19 @@ function PushDiagnostics({ open, userId }) {
   const [expanded, setExpanded] = useState(false)
   const [status, setStatus] = useState(null)
   const [testing, setTesting] = useState(false)
+  const [repairing, setRepairing] = useState(false)
+  const { user } = useAuth()
 
   const checkStatus = useCallback(async () => {
     const result = {
       swRegistered: false,
       swState: null,
       notifPermission: typeof Notification !== 'undefined' ? Notification.permission : 'non supportato',
-      vapidKey: !!import.meta.env.VITE_VAPID_PUBLIC_KEY,
+      // Chiave del server (o ripiego della build) e coerenza dell'iscrizione:
+      // un'iscrizione fatta con un'altra chiave viene rifiutata da Google,
+      // Apple e Mozilla su ogni invio.
+      keySource: null,
+      keyMatches: null,
       pushSubscription: false,
       pushEndpoint: null,
       dbSubscription: false,
@@ -53,6 +61,9 @@ function PushDiagnostics({ open, userId }) {
             result.pushSubscription = true
             result.pushEndpoint = sub.endpoint.slice(0, 60) + '...'
           }
+          const check = await checkSubscriptionKey(reg)
+          result.keySource = check.server
+          result.keyMatches = check.matches
         } catch { /* push API non disponibile */ }
       }
     }
@@ -75,6 +86,22 @@ function PushDiagnostics({ open, userId }) {
       checkStatus().then(setStatus)
     }
   }, [open, expanded, checkStatus])
+
+  // Rifà da zero l'iscrizione di questo telefono con la chiave del server.
+  const repairSubscription = async () => {
+    if (!userId) return
+    setRepairing(true)
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/')
+      await ensurePushSubscription(reg, userId, user?.org_id, { force: true })
+      toast.success('Iscrizione alle notifiche rifatta')
+      setStatus(await checkStatus())
+    } catch (err) {
+      toast.error('Non riuscito: ' + (err?.message || 'riprova'))
+    } finally {
+      setRepairing(false)
+    }
+  }
 
   // Invia notifica di test per verificare il pipeline push completo
   const sendTestPush = async () => {
@@ -104,7 +131,7 @@ function PushDiagnostics({ open, userId }) {
 
   // Riassunto stato push
   const allOk = status?.swRegistered && status?.notifPermission === 'granted' &&
-    status?.vapidKey && status?.pushSubscription
+    !!status?.keySource && status?.pushSubscription && status?.keyMatches !== false
 
   return (
     <div className="mt-5">
@@ -142,8 +169,12 @@ function PushDiagnostics({ open, userId }) {
             <span>Permesso notifiche: {status.notifPermission}</span>
           </div>
           <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-            <StatusDot ok={status.vapidKey} />
-            <span>Chiave VAPID: {status.vapidKey ? 'presente' : 'mancante'}</span>
+            <StatusDot ok={!!status.keySource && status.keyMatches !== false} />
+            <span>
+              Chiave push: {!status.keySource ? 'non disponibile'
+                : status.keyMatches === false ? 'diversa da quella del server'
+                : status.keySource === 'server' ? 'allineata al server' : 'dalla build (server non raggiungibile)'}
+            </span>
           </div>
           <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
             <StatusDot ok={status.pushSubscription} />
@@ -164,6 +195,17 @@ function PushDiagnostics({ open, userId }) {
             >
               Aggiorna
             </button>
+            {status.notifPermission === 'granted' && (
+              <button
+                onClick={repairSubscription}
+                disabled={repairing}
+                className="flex items-center gap-1 text-[10px] font-medium press-scale"
+                style={{ color: 'var(--color-primary)', opacity: repairing ? 0.6 : 1, marginLeft: 8 }}
+              >
+                <Wrench size={10} />
+                {repairing ? 'Riparo...' : 'Ripara iscrizione'}
+              </button>
+            )}
             {allOk && (
               <button
                 onClick={sendTestPush}
@@ -186,10 +228,10 @@ function PushDiagnostics({ open, userId }) {
             <div className="text-[10px] mt-2 leading-relaxed" style={{ color: 'var(--color-text-faint)' }}>
               {!status.notifPermission || status.notifPermission !== 'granted'
                 ? 'Consenti le notifiche dal banner in alto o dalle impostazioni del browser.'
-                : !status.pushSubscription
-                  ? 'Push subscription mancante. Ricarica la pagina per ritentare.'
-                  : !status.vapidKey
-                    ? 'Chiave VAPID mancante. Contatta l\'amministratore.'
+                : !status.pushSubscription || status.keyMatches === false
+                  ? 'Tocca "Ripara iscrizione": il telefono si riscrive con la chiave del server.'
+                  : !status.keySource
+                    ? 'Chiave push non disponibile dal server. Contatta l\'amministratore.'
                     : null
               }
             </div>

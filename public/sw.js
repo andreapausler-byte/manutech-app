@@ -14,7 +14,8 @@
 // v7.8.5 = v5.21, il pezzo nel ciclo di vita della segnalazione
 // v7.8.6 = v5.22, archivio interventi
 // v7.8.7 = v5.23, mi è servita + dettatura + foto del pezzo
-const CACHE_NAME = 'manutech-v7.8.7'
+// v7.8.8 = v5.24, push: tag per segnalazione
+const CACHE_NAME = 'manutech-v7.8.8'
 const APP_SHELL = [
   '/',
   '/manifest.json',
@@ -115,7 +116,10 @@ self.addEventListener('push', (event) => {
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-96x96.png',
     vibrate: [100, 50, 100],
-    tag: data.type || 'default',
+    // Una notifica per segnalazione, non per tipo: con il tag solo per
+    // tipo, tre messaggi su tre ticket diversi si sovrascrivevano e sul
+    // telefono restava solo l'ultimo. Stesso ticket → si aggiorna.
+    tag: `${data.type || 'default'}:${data.report_id || data.title || ''}`,
     renotify: true,
     data: {
       url: data.url || '/',
