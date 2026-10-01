@@ -89,3 +89,38 @@ schermata dove il dato dovrebbe comparire e guarda se compare davvero.
    al foglio della scheda macchina invece di rincorrerli dopo.
 4. **Vocale "Completa" su un ticket già risolto** riscrive la chiusura e
    `closed_at` invece di integrarla: andrebbe instradato su "Integra".
+
+---
+
+## Seconda parte (1/10) — le chiusure che servono (v5.23)
+
+Dalle idee proposte dopo il merge, il founder ha scelto tre: il voto sulle
+chiusure, la voce per integrarle, la foto del pezzo.
+
+### Decisioni
+1. **Il voto premia la qualità, non la compilazione.** Premiare "chiusura
+   compilata" produce testo di riempimento; premiare "un collega ci ha
+   risolto un guasto" no. 5 ManuCoin al tecnico della chiusura, una volta
+   per collega, mai sulla propria. L'accredito sta in un **trigger**
+   (migration 064) perché il client potrebbe ripeterlo.
+2. **Il voto riusa `reactions`** (059) con un tipo nuovo, `servito`, a
+   livello segnalazione: stessa RLS, stesso indice anti-doppione.
+3. **La dettatura è un aiuto alla scrittura, non un flusso vocale.**
+   Niente outbox né estrazione campi: un tocco per parlare, il testo si
+   accoda al campo. Senza rete lo dice prima di registrare — un audio perso
+   dopo è peggio di un campo da scrivere a mano.
+4. **"Completa" su un ticket risolto diventa "Integra".** La chiusura
+   vocale riscriveva causa, azione e `closed_at`: era il punto 4 dei
+   "resta aperto" di stamattina.
+5. **La foto del pezzo vive due volte, un solo file**: nel ticket (flag
+   `closure` in `media`) e nella galleria della macchina sotto il pezzo
+   (stesso URL, via `add_machine_attachment`).
+6. **Niente notifica per il voto**, per ora: le preferenze notifiche sono
+   specchiate nelle edge function push/email, e un tipo nuovo va aggiunto in
+   tre posti. Il riconoscimento arriva nel wallet.
+
+### Cosa resta aperto
+- Notifica "la tua chiusura è servita" (vedi sopra).
+- La dettatura non c'è nel modal admin: sul desktop si scrive.
+- Il conteggio dei voti non pesa ancora nei "casi simili" né nell'assistente:
+  una chiusura votata da cinque colleghi dovrebbe salire per prima.

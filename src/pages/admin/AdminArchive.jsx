@@ -28,7 +28,7 @@ import {
 import { Spinner, EmptyState, TicketIdBadge } from '../../components/ui'
 import ComponentPill from '../../components/machines/ComponentPill'
 import ReportDetailModal from './reports/ReportDetailModal'
-import { Search, X, Download, Clock, Package, User, StickyNote } from 'lucide-react'
+import { Search, X, Download, Clock, Package, User, StickyNote, ThumbsUp, Camera } from 'lucide-react'
 
 const DAY_MS = 24 * 3600 * 1000
 
@@ -57,8 +57,8 @@ const selectStyle = (active) => ({
 const hoursLabel = (h) => `${Math.round(h * 10) / 10}h`
 
 // CSV con `;` e BOM: Excel in italiano lo apre a colonne senza import guidato.
-function downloadCsv(rows, machineOf) {
-  const header = ['Ticket', 'Chiusa il', 'Macchina', 'Pezzo', 'Titolo', 'Esito', 'Tecnico', 'Ore', 'Ricambi', 'Causa radice', 'Azione correttiva', 'Note successive']
+function downloadCsv(rows, machineOf, helpful) {
+  const header = ['Ticket', 'Chiusa il', 'Macchina', 'Pezzo', 'Titolo', 'Esito', 'Tecnico', 'Ore', 'Ricambi', 'Causa radice', 'Azione correttiva', 'Note successive', 'Servita a (colleghi)']
   const esc = (v) => {
     const s = v == null ? '' : String(v)
     return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -79,6 +79,7 @@ function downloadCsv(rows, machineOf) {
       c.rootCause || '',
       c.action || '',
       c.notes.map(n => `${n.user_name || 'Utente'}: ${n.text}`).join(' | '),
+      helpful[r.id] || 0,
     ].map(esc).join(';')
   })
   const blob = new Blob(['﻿' + [header.join(';'), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' })
@@ -90,7 +91,7 @@ function downloadCsv(rows, machineOf) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-function ArchiveRow({ report, machineName, onOpen }) {
+function ArchiveRow({ report, machineName, helpful = 0, onOpen }) {
   const c = getClosure(report)
   const outcome = closureOutcome(report)
   const meta = CLOSURE_OUTCOMES[outcome]
@@ -100,6 +101,8 @@ function ArchiveRow({ report, machineName, onOpen }) {
     c.parts && { icon: Package, text: c.parts },
     report.assigned_to_name && outcome !== 'senza' && { icon: User, text: report.assigned_to_name },
     c.notes.length > 0 && { icon: StickyNote, text: `${c.notes.length} ${c.notes.length === 1 ? 'nota' : 'note'} dopo` },
+    c.photos.length > 0 && { icon: Camera, text: `${c.photos.length} foto del pezzo` },
+    helpful > 0 && { icon: ThumbsUp, text: `Servita a ${helpful} ${helpful === 1 ? 'collega' : 'colleghi'}`, color: '#10b981' },
   ].filter(Boolean)
 
   const line = (label, text) => (
@@ -174,9 +177,9 @@ function ArchiveRow({ report, machineName, onOpen }) {
           className="hidden lg:flex w-[240px] shrink-0 flex-col justify-center gap-1.5"
           style={{ borderLeft: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-0)', padding: '12px 16px' }}
         >
-          {side.map(({ icon: Icon, text }) => (
-            <span key={text} className="flex items-center gap-2 min-w-0 text-[12px]" style={{ color: 'var(--color-text-secondary)' }}>
-              <Icon size={13} className="shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+          {side.map(({ icon: Icon, text, color }) => (
+            <span key={text} className="flex items-center gap-2 min-w-0 text-[12px]" style={{ color: color || 'var(--color-text-secondary)', fontWeight: color ? 600 : 400 }}>
+              <Icon size={13} className="shrink-0" style={{ color: color || 'var(--color-text-muted)' }} />
               <span className="truncate">{text}</span>
             </span>
           ))}
@@ -200,12 +203,19 @@ export default function AdminArchive({ initialMachine = '' }) {
   const [period, setPeriod] = useState('all')
   const [outcome, setOutcome] = useState('')
   const [selected, setSelected] = useState(null)
+  // reportId → voti "Mi è servita" (migration 064) e ordinamento.
+  const [helpful, setHelpful] = useState({})
+  const [sortBy, setSortBy] = useState('recent')
 
   const load = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true)
     try {
       const [r, u, m] = await Promise.all([db.getReports(), db.getUsers(), db.getMachines()])
       setReports(r || []); setUsers(u || []); setMachines(m || [])
+      const ids = (r || []).filter(x => TERMINAL_STATUSES.includes(x.status)).map(x => x.id)
+      db.getHelpfulCounts(ids)
+        .then(map => setHelpful(map || {}))
+        .catch(e => console.warn('[AdminArchive] getHelpfulCounts failed:', e?.message))
     } catch (e) {
       console.error('[AdminArchive] load failed:', e)
     }
@@ -279,7 +289,18 @@ export default function AdminArchive({ initialMachine = '' }) {
     return acc
   }, {})
   const filtered = outcome ? baseFiltered.filter(r => closureOutcome(r) === outcome) : baseFiltered
-  const groups = groupByClosureMonth(filtered)
+  // "Più utili": lista unica dalle chiusure più votate; a parità vince la
+  // più recente. Altrimenti i gruppi per mese di chiusura.
+  const groups = sortBy === 'helpful'
+    ? [{
+        key: 'helpful',
+        label: 'Le più utili ai colleghi',
+        list: [...filtered].sort((a, b) =>
+          (helpful[b.id] || 0) - (helpful[a.id] || 0)
+          || new Date(closedAtOf(b)) - new Date(closedAtOf(a))),
+      }]
+    : groupByClosureMonth(filtered)
+  const helpfulTotal = baseFiltered.reduce((s, r) => s + (helpful[r.id] || 0), 0)
 
   const totalHours = baseFiltered.reduce((s, r) => {
     const h = Number(getClosure(r).hours)
@@ -298,6 +319,7 @@ export default function AdminArchive({ initialMachine = '' }) {
     { value: hoursLabel(totalHours), label: <>Ore<br />registrate</>, color: 'var(--color-primary)' },
     { value: outcomeCounts.da_completare || 0, label: <>Chiusure<br />da completare</>, color: CLOSURE_OUTCOMES.da_completare.color, onClick: () => setOutcome(o => o === 'da_completare' ? '' : 'da_completare') },
     { value: withNotes, label: <>Con note<br />aggiunte dopo</>, color: 'var(--color-text-secondary)' },
+    { value: helpfulTotal, label: <>Volte che sono<br />servite a un collega</>, color: '#10b981', onClick: () => setSortBy(s => s === 'helpful' ? 'recent' : 'helpful') },
   ]
 
   return (
@@ -339,7 +361,7 @@ export default function AdminArchive({ initialMachine = '' }) {
               )}
             </div>
             <button
-              onClick={() => downloadCsv(groups.flatMap(g => g.list), machineOf)}
+              onClick={() => downloadCsv(groups.flatMap(g => g.list), machineOf, helpful)}
               disabled={filtered.length === 0}
               className="inline-flex items-center gap-2 text-sm font-semibold rounded-full transition-all press-scale disabled:opacity-40"
               style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)', background: 'var(--color-surface-2)', padding: '10px 18px' }}
@@ -371,6 +393,11 @@ export default function AdminArchive({ initialMachine = '' }) {
           <select value={period} onChange={e => setPeriod(e.target.value)}
             className="text-xs rounded-full focus:outline-none" style={selectStyle(period !== 'all')} aria-label="Filtra per periodo di chiusura">
             {PERIODS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+            className="text-xs rounded-full focus:outline-none" style={selectStyle(sortBy !== 'recent')} aria-label="Ordina">
+            <option value="recent">Ordina: più recenti</option>
+            <option value="helpful">Ordina: più utili ai colleghi</option>
           </select>
 
           <div className="h-4 w-px" style={{ background: 'var(--color-border)', margin: '0 4px' }} />
@@ -457,7 +484,7 @@ export default function AdminArchive({ initialMachine = '' }) {
                   </span>
                 </div>
                 {g.list.map(r => (
-                  <ArchiveRow key={r.id} report={r} machineName={machineOf(r)} onOpen={setSelected} />
+                  <ArchiveRow key={r.id} report={r} machineName={machineOf(r)} helpful={helpful[r.id] || 0} onOpen={setSelected} />
                 ))}
               </section>
             )

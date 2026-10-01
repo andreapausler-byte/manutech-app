@@ -320,6 +320,8 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
   // reportId → { comment_count, reactions } per i chip feedback in card.
   // I non letti restano di competenza di unreadByReport (hook realtime).
   const [activityMap, setActivityMap] = useState({})
+  // reportId → quanti colleghi hanno votato "Mi è servita" (card Archivio).
+  const [helpfulCounts, setHelpfulCounts] = useState({})
   const [machines, setMachines] = useState([])
   const [archiveOutcome, setArchiveOutcome] = useState('')
 
@@ -378,6 +380,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         const ids = data.map(r => r.id)
         db.getLastCommentsByReports(ids).then(map => setLastMessages(map)).catch(e => console.error('[ReportsList] getLastCommentsByReports failed:', e))
         db.getReportsActivity(ids, user?.id).then(map => setActivityMap(map || {})).catch(e => console.warn('[ReportsList] getReportsActivity failed:', e?.message))
+        db.getHelpfulCounts(ids).then(map => setHelpfulCounts(map || {})).catch(e => console.warn('[ReportsList] getHelpfulCounts failed:', e?.message))
       }
     } catch (e) { console.error('[ReportsList] load failed:', e) }
     setLoading(false)
@@ -390,6 +393,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
       const ids = data.map(r => r.id)
       db.getLastCommentsByReports(ids).then(map => setLastMessages(map)).catch(e => console.error('[ReportsList] getLastCommentsByReports refresh failed:', e))
       db.getReportsActivity(ids, user?.id).then(map => setActivityMap(map || {})).catch(e => console.warn('[ReportsList] getReportsActivity refresh failed:', e?.message))
+      db.getHelpfulCounts(ids).then(map => setHelpfulCounts(map || {})).catch(e => console.warn('[ReportsList] getHelpfulCounts refresh failed:', e?.message))
     }
   }, [user?.id])
 
@@ -829,7 +833,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
               </div>
               <div className="stagger-enter" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {group.list.map(report => (
-                  <ResolvedReportCard key={report.id} report={report} onSelect={onSelectReport} />
+                  <ResolvedReportCard key={report.id} report={report} onSelect={onSelectReport} helpful={helpfulCounts[report.id] || 0} />
                 ))}
               </div>
             </section>

@@ -47,6 +47,12 @@ export function useClosureEdit(user) {
       component_name: touchesComponent ? (data.component_name || null) : (report.component_name || null),
     }
     const changes = describeClosureChanges(report, next)
+    // Foto del pezzo aggiunte correggendo: si accodano al ticket.
+    const photos = data.closure_photos || []
+    if (photos.length) {
+      next.media = [...(report.media || []), ...photos]
+      changes.push(`Foto del pezzo: +${photos.length}`)
+    }
     // Niente da salvare: restituisce il report com'è, così chi chiama
     // chiude il foglio senza scrivere una riga vuota in cronologia.
     if (changes.length === 0) {
@@ -62,6 +68,14 @@ export function useClosureEdit(user) {
         detail: changes.join(' · '),
       }).catch(e => console.warn('Side effect failed:', e.message))
       reindex(report)
+      if (photos.length) {
+        db.addClosurePhotosToMachine(report.machine_id, photos, {
+          componentId: next.component_id,
+          componentName: next.component_name,
+          label: report.display_id || report.title,
+          uploadedByName: user?.name,
+        })
+      }
       toast.success('Chiusura aggiornata')
       return updated
     } catch (err) {

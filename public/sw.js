@@ -13,7 +13,8 @@
 // Bump per invalidare le icone/logo cacheati (nuovo logo ManuTech + splash)
 // v7.8.5 = v5.21, il pezzo nel ciclo di vita della segnalazione
 // v7.8.6 = v5.22, archivio interventi
-const CACHE_NAME = 'manutech-v7.8.6'
+// v7.8.7 = v5.23, mi è servita + dettatura + foto del pezzo
+const CACHE_NAME = 'manutech-v7.8.7'
 const APP_SHELL = [
   '/',
   '/manifest.json',

@@ -179,6 +179,30 @@ export const media = {
     return next
   },
 
+  // Le foto del pezzo scattate in chiusura entrano anche nella galleria
+  // della macchina, archiviate sotto il pezzo se il ticket ne nomina uno:
+  // chi apre la scheda del componente le trova senza cercare il ticket.
+  // Best effort, una alla volta: una foto che non passa non blocca le altre.
+  async addClosurePhotosToMachine(machineId, photos, { componentId = null, componentName = null, label = '', uploadedByName = null } = {}) {
+    if (!machineId || !photos?.length) return
+    for (const p of photos) {
+      try {
+        await media.addMachineAttachment(machineId, {
+          url: p.url,
+          thumb_url: p.thumb_url || null,
+          type: 'image',
+          category: 'foto',
+          name: label ? `Pezzo in chiusura · ${label}` : 'Pezzo in chiusura',
+          component_id: componentId,
+          component_name: componentName,
+          uploaded_by_name: uploadedByName,
+        })
+      } catch (e) {
+        console.warn('[ManuTech] addClosurePhotosToMachine:', e?.message)
+      }
+    }
+  },
+
   // Promuove (o rimuove) una foto nella galleria curata della macchina,
   // cioè in machines.attachments categoria 'foto' — la stessa cartella
   // che il tab Documentazione mostra già.

@@ -6,6 +6,26 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.23 — Le chiusure che servono, dette a voce e con la foto
+
+Tre aiuti per chi scrive e chi legge le chiusure. Racconto: `journal/2026-10-archivio-interventi.md` (seconda parte). Runbook: `docs/MIGRATION-064.md`.
+
+### Added
+- **"Mi è servita"** sotto ogni chiusura (dettaglio mobile e modal admin): un collega che ha risolto grazie a quel racconto lo dice con un tocco. Chi ha chiuso vede a quanti colleghi è servita, con i nomi, e riceve **5 ManuCoin** la prima volta che ciascun collega vota. L'accredito lo fa un trigger, non il client: togliere e rimettere il voto non riaccredita, e la propria chiusura non si vota. In archivio il conteggio compare sulle card, l'admin ha il KPI e l'ordinamento **"più utili ai colleghi"**, e il CSV ha la colonna.
+- **Dettatura** (`voice/DictateButton`): un tocco per parlare, uno per fermare, e il testo trascritto si accoda al campo. C'è su **causa radice** e **azione correttiva** nel foglio di chiusura e su **Aggiungi un'informazione**. Il vocabolario per la trascrizione include i nomi dei pezzi della macchina. Senza rete il tasto lo dice prima di registrare.
+- **"Integra" nella barra vocale**: su un ticket già risolto il tasto **Completa** diventa **Integra** e apre la nota successiva con il microfono già acceso.
+- **Foto del pezzo in chiusura** (`ClosurePhotoPicker`): facoltativa, compressa e con miniatura. Finisce nel ticket (flag `closure` in `media`), nella card "Come è stato risolto" (apribile a tutto schermo) e nella **galleria della macchina sotto il pezzo**. Si può aggiungere anche dopo, con Correggi.
+- Migration **064**: tipo di reazione `servito` + trigger `reward_helpful_closure`.
+
+### Fixed
+- **La chiusura vocale su un ticket già risolto riscriveva causa, azione e `closed_at`** invece di integrarli. Ora quel tasto porta a "Integra".
+
+### Note
+- **Applicare la 064 prima del deploy del frontend** (vedi runbook): senza, il tasto *Mi è servita* risponde "Non riuscito".
+- Nessuna notifica per il voto: arriva come movimento nel wallet. Aggiungere una notifica vuol dire toccare le preferenze anche nelle edge function push/email.
+
+---
+
 ## [Unreleased] — v5.22 — L'archivio racconta come è stato risolto
 
 Racconto e decisioni: `journal/2026-10-archivio-interventi.md`.
