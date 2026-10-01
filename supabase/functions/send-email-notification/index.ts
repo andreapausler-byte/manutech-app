@@ -120,6 +120,11 @@ const MAX_ATTEMPTS = 3
 // col batch "strict" farebbe scartare anche gli altri destinatari.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// I fornitori sono righe di users con ruolo 'tecnico' (così compaiono nei
+// selettori di assegnazione) e un supplier_profiles; i più vecchi hanno
+// un'email finta @esterno.local. Stessa regola di isSupplier in AdminUsers.
+const SUPPLIER_EMAIL_SUFFIX = '@esterno.local'
+
 type ResendError = { name?: string; message?: string }
 type BatchResult = {
   ok: boolean
@@ -314,8 +319,30 @@ Deno.serve(async (req: Request) => {
     }
     targetUsers = usersData || []
 
+    // Le email sono solo per le persone dell'azienda. Col ruolo 'tecnico' i
+    // fornitori ricevevano ogni email dei tecnici, nuovi ticket compresi:
+    // notizie interne a ditte esterne, e quota Resend consumata. Se non si
+    // riesce a sapere chi è fornitore non parte nulla.
+    let suppliers = 0
+    if (targetUsers.length > 0) {
+      const { data: supplierRows, error: supplierError } = await supabase
+        .from('supplier_profiles')
+        .select('user_id')
+        .in('user_id', targetUsers.map(u => u.id))
+      if (supplierError) {
+        console.error('[Email] Supplier query failed:', supplierError.message)
+        return json({ error: `supplier_profiles: ${supplierError.message}` }, 500)
+      }
+      const supplierIds = new Set((supplierRows || []).map(r => r.user_id))
+      const people = targetUsers.filter(u =>
+        !supplierIds.has(u.id) &&
+        !(u.email || '').trim().toLowerCase().endsWith(SUPPLIER_EMAIL_SUFFIX))
+      suppliers = targetUsers.length - people.length
+      targetUsers = people
+    }
+
     if (targetUsers.length === 0) {
-      return json({ sent: 0, message: 'No target users found' })
+      return json({ sent: 0, suppliers, message: 'No target users found' })
     }
 
     // Carica preferenze notifiche. Se la query fallisce si va avanti con i
@@ -369,7 +396,7 @@ Deno.serve(async (req: Request) => {
     console.log(`[Email] ${eligible.length}/${targetUsers.length} users eligible for email_${notification.type}`)
 
     if (eligible.length === 0) {
-      return json({ sent: 0, invalid, message: 'All filtered by email preferences' })
+      return json({ sent: 0, suppliers, invalid, message: 'All filtered by email preferences' })
     }
 
     // Genera HTML
@@ -423,7 +450,7 @@ Deno.serve(async (req: Request) => {
     // Se non è partita nessuna email la risposta non è un 200: prima un
     // fallimento totale risultava "ok" in net._http_response.
     return json(
-      { sent, failed, invalid, total: eligible.length, ...(lastError ? { error: lastError } : {}) },
+      { sent, failed, suppliers, invalid, total: eligible.length, ...(lastError ? { error: lastError } : {}) },
       sent === 0 && failed > 0 ? 502 : 200,
     )
   } catch (err) {

@@ -115,6 +115,26 @@ spariva senza traccia:
    mezzanotte UTC, non parte più niente. È il sospetto principale per il
    "non sempre", ma dipende dal piano: **da verificare** sul pannello Resend.
 
+### I fornitori (stesso giorno)
+Prima richiesta del founder dopo la diagnosi: "limitare il numero di email
+anche agli utenti... distinguiamo gli utenti dai fornitori. I reali utenti
+devono essere gli unici a ricevere le email."
+
+Un fornitore non ha un ruolo suo: è una riga di `users` con ruolo `tecnico`
+(per comparire nei selettori di assegnazione) più un `supplier_profiles`.
+I più vecchi hanno un'email finta `@esterno.local`, i nuovi l'email
+pubblica della ditta. Per la funzione email erano tecnici come gli altri:
+ogni nuovo ticket arrivava anche alle ditte esterne, gli indirizzi finti
+rimbalzavano, e tutto consumava quota. I "27 tecnici" contano anche loro.
+
+Decisione: la funzione esclude chi ha un `supplier_profiles` o un'email
+`@esterno.local` — la stessa regola con cui AdminUsers li mostra a parte.
+Nessuna colonna nuova né migration: la distinzione esiste già, mancava solo
+in quel punto. Se la verifica fallisce non parte nulla: meglio un'email
+persa che notizie interne a una ditta esterna. Il push per ora resta com'è:
+i fornitori sono creati senza accesso all'app, quindi di norma non hanno
+telefoni iscritti.
+
 ### Decisioni
 1. Nuovi tentativi solo su `rate_limit_exceeded` (la richiesta non è stata
    elaborata: nessun doppione). Sulle quote no: riprovare non serve.
@@ -134,11 +154,24 @@ SELECT created, status_code, content
     OR (content LIKE '%"total"%' AND content NOT LIKE '%"expired"%')
  ORDER BY created DESC LIMIT 50;
 
--- Email stimate al giorno per i nuovi ticket (broadcast × admin e tecnici attivi).
+-- Chi c'è davvero tra gli utenti attivi: persone e fornitori per ruolo.
+SELECT u.role,
+       (sp.user_id IS NOT NULL OR lower(u.email) LIKE '%@esterno.local') AS fornitore,
+       count(*)
+  FROM public.users u
+  LEFT JOIN public.supplier_profiles sp ON sp.user_id = u.id
+ WHERE u.status = 'active'
+ GROUP BY 1, 2 ORDER BY 1, 2;
+
+-- Email stimate al giorno per i nuovi ticket (broadcast × admin e tecnici
+-- attivi, fornitori esclusi come fa la funzione dalla v5.26).
 SELECT created_at::date AS giorno,
        count(*) AS nuovi_ticket,
-       count(*) * (SELECT count(*) - 1 FROM public.users
-                    WHERE status = 'active' AND role IN ('admin', 'tecnico')) AS email_stimate
+       count(*) * (SELECT count(*) - 1 FROM public.users u
+                    WHERE u.status = 'active' AND u.role IN ('admin', 'tecnico')
+                      AND lower(u.email) NOT LIKE '%@esterno.local'
+                      AND NOT EXISTS (SELECT 1 FROM public.supplier_profiles sp
+                                       WHERE sp.user_id = u.id)) AS email_stimate
   FROM public.notifications
  WHERE target_user IS NULL AND type IN ('new_report', 'new_report_critical')
    AND created_at > now() - interval '14 days'
