@@ -6,6 +6,22 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.27 — L'assistente AI passa a Sonnet 5.5
+
+Nessuna migration: le funzioni si pubblicano da sole al merge su `master`.
+
+### Changed
+- **Potenza "Equilibrato" → Claude Sonnet 5.5** (prima Sonnet 4.6): assistente AI della console admin, assistente dentro il ticket e riassunti (`_shared/models.ts`). Costa meno per token ($2/$10 per milione contro $3/$15), ma il suo tokenizer conta circa il 30% di token in più a parità di testo: il costo reale va riguardato dopo qualche giorno d'uso. "Veloce" (Haiku 4.5) e "Approfondito" (Opus 4.8) restano com'erano.
+- Sonnet 5.5 **ragiona sempre** (Sonnet 4.6, senza parametri, non ragionava). Parte da `effort: 'low'`, il livello consigliato per chat e riassunti: ragiona poco e salta il ragionamento sulle domande semplici. Se le risposte risultano superficiali si alza a `medium` in `SONNET_EFFORT_DEFAULT`, non con istruzioni nel prompt.
+- **Margine per il ragionamento**: il ragionamento conta dentro `max_tokens`, quindi per Sonnet 5.5 e Opus 4.8 il tetto sale di 6000 token (assistente 2048 → 8048, riassunti 1400 → 7400). È un limite massimo, non un consumo: serve a non troncare la risposta. Su Opus il rischio di troncamento esisteva già.
+- **Fallback sui rifiuti**: con `fallbacks: 'default'` (beta `server-side-fallback-2026-07-01`), se i filtri di sicurezza di Sonnet 5.5 rifiutano una richiesta, Anthropic la riesegue da sola su un altro modello. Se il rifiuto resta, l'assistente risponde "Non posso rispondere a questa domanda" invece di mostrare un testo a metà.
+
+### Note
+- Dopo il deploy: una domanda all'assistente di un ticket e un "Riassunto AI" per controllare che rispondano. Se compare "Errore assistente AI" con un 400 di Anthropic, il problema è nella richiesta: si torna indietro con un revert.
+- Sonnet 5.5 ha limiti di frequenza propri, separati da quelli dei Sonnet 4.x: verificarli nella console Anthropic se l'uso cresce.
+
+---
+
 ## [Unreleased] — v5.26 — Le email che non arrivavano
 
 Diagnosi: `journal/2026-10-notifiche-push.md` (terza parte). Runbook: `docs/MIGRATION-066.md`. La funzione si pubblica da sola al merge su `master`; la migration **066** va eseguita a mano (prima o dopo, non importa).

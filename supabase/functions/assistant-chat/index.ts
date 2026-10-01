@@ -48,7 +48,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolveModel, normalizePower, type Power } from '../_shared/models.ts'
+import { resolveModel, normalizePower, type Power, type ResolvedModel } from '../_shared/models.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1067,14 +1067,14 @@ async function embedUserQuery(text: string, apiKey: string): Promise<number[] | 
 }
 
 // ── Claude call ──
-// model + extraBody arrivano dal resolver (_shared/models.ts): extraBody porta
-// i parametri specifici del tier (es. thinking adaptive + effort per Opus 4.8).
+// Il modello arriva dal resolver (_shared/models.ts) con i parametri, gli
+// header e il margine per il ragionamento specifici del tier (es. thinking
+// adaptive + effort per Opus 4.8 e Sonnet 5.5).
 async function callClaude(
   systemPrompt: string,
   userMessage: string,
   apiKey: string,
-  model: string,
-  extraBody: Record<string, unknown> = {},
+  { model, extraBody, extraHeaders, thinkingHeadroom }: ResolvedModel,
 ) {
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
@@ -1082,10 +1082,11 @@ async function callClaude(
       'content-type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
+      ...extraHeaders,
     },
     body: JSON.stringify({
       model,
-      max_tokens: MAX_TOKENS,
+      max_tokens: MAX_TOKENS + thinkingHeadroom,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
       ...extraBody,
@@ -1098,9 +1099,16 @@ async function callClaude(
   }
 
   const data = await res.json()
+  const tokensUsed = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+  // Rifiuto dei filtri di sicurezza, anche dopo il fallback: il testo
+  // eventualmente parziale non va mostrato.
+  if (data.stop_reason === 'refusal') {
+    console.warn('[assistant] refusal:', data.stop_details?.category ?? 'n/d')
+    return { content: 'Non posso rispondere a questa domanda. Prova a riformularla.', tokensUsed }
+  }
+  // La risposta può iniziare con blocchi `thinking`: si legge il primo `text`.
   const textBlock = (data.content || []).find((b: { type: string }) => b.type === 'text')
   const content = textBlock?.text || '(nessuna risposta generata)'
-  const tokensUsed = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
   return { content, tokensUsed }
 }
 
@@ -1143,9 +1151,10 @@ Deno.serve(async (req: Request) => {
     // (approfondimento su una singola segnalazione con contesto fornito dal client).
     const scope: 'global' | 'ticket' = body.scope === 'ticket' ? 'ticket' : 'global'
     // Potenza AI → modello. Default per scope finché non esiste il selettore UI:
-    // ticket→equilibrato (Sonnet 4.6), global→veloce (Haiku, comportamento storico).
+    // ticket→equilibrato (Sonnet 5.5), global→veloce (Haiku, comportamento storico).
     const power: Power = normalizePower(body.power, scope === 'ticket' ? 'equilibrato' : 'veloce')
-    const { model: anthropicModel, extraBody: anthropicExtraBody } = resolveModel(power, 'assistant_chat')
+    const resolved = resolveModel(power, 'assistant_chat')
+    const anthropicModel = resolved.model
     console.info(`[scope] scope=${scope} power=${power} model=${anthropicModel}`)
 
     if (!query) return jsonResponse({ error: 'query è obbligatoria' }, 400)
@@ -1603,7 +1612,7 @@ Deno.serve(async (req: Request) => {
     let assistantText = ''
     let tokensUsed = 0
     try {
-      const result = await callClaude(systemPrompt, userMessage, apiKey, anthropicModel, anthropicExtraBody)
+      const result = await callClaude(systemPrompt, userMessage, apiKey, resolved)
       assistantText = result.content
       tokensUsed = result.tokensUsed
     } catch (err) {

@@ -9,14 +9,19 @@
 //   - assistant-chat (questo sprint)
 //   - summarize (Fase B, futuro)
 //
-// Caveat Opus 4.8 (verificato sui doc Anthropic): su Opus 4.8/4.7 NON si possono
+// Caveat Opus 4.8 e Sonnet 5.5 (verificato sui doc Anthropic): NON si possono
 // inviare temperature/top_p/top_k né thinking.budget_tokens → 400. La profondità
-// si controlla con thinking adaptive + output_config.effort. Su Haiku/Sonnet i
+// si controlla con thinking adaptive + output_config.effort. Su Haiku i
 // parametri standard restano ammessi.
+//
+// Sonnet 5.5 (dal 1/10/2026, prima Sonnet 4.6): ragiona sempre (adaptive) —
+// su 4.6 senza `thinking` non ragionava affatto — e il ragionamento conta dentro
+// max_tokens, quindi i chiamanti aggiungono `thinkingHeadroom` al loro tetto.
+// Il suo tokenizer conta ~30% di token in più a parità di testo.
 
 export const MODELS = {
   haiku: 'claude-haiku-4-5-20251001',
-  sonnet: 'claude-sonnet-4-6',
+  sonnet: 'claude-sonnet-5-5',
   opus: 'claude-opus-4-8',
 } as const
 
@@ -28,10 +33,24 @@ export const DEFAULT_POWER: Power = 'equilibrato'
 // Livello di effort di partenza per Opus 4.8. Da tarare col pilota (Fase D).
 const OPUS_EFFORT_DEFAULT = 'medium'
 
+// Sonnet 5.5: 'low' è il punto di partenza consigliato per chat, riassunti e
+// ricerca — ragiona poco e salta il ragionamento sulle richieste semplici, la
+// cosa più vicina a Sonnet 4.6 che non ragionava. Se le risposte risultano
+// superficiali si alza a 'medium' qui, non con istruzioni nel prompt.
+const SONNET_EFFORT_DEFAULT = 'low'
+
+// Token in più oltre al tetto della risposta per i modelli che ragionano: il
+// thinking conta dentro max_tokens e, senza margine, la risposta si tronca.
+const THINKING_HEADROOM = 6000
+
 export interface ResolvedModel {
   model: string
   // Parametri extra da fondere nel body di POST /v1/messages.
   extraBody: Record<string, unknown>
+  // Header extra (beta) per POST /v1/messages.
+  extraHeaders: Record<string, string>
+  // Da sommare al max_tokens del chiamante (0 per i modelli che non ragionano).
+  thinkingHeadroom: number
 }
 
 /**
@@ -64,16 +83,35 @@ export function resolveModel(
         thinking: { type: 'adaptive' },
         output_config: { effort: OPUS_EFFORT_DEFAULT },
       },
+      extraHeaders: {},
+      thinkingHeadroom: THINKING_HEADROOM,
     }
   }
 
-  // Haiku / Sonnet: nessun parametro extra (il body base resta valido).
-  return { model, extraBody: {} }
+  if (model === MODELS.sonnet) {
+    // Sonnet 5.5: niente temperature/top_p/top_k/budget_tokens, e
+    // thinking.type 'disabled' è un 400. `fallbacks: 'default'`: se i filtri
+    // di sicurezza rifiutano la richiesta, Anthropic la riesegue da sola su un
+    // altro modello invece di restituire il rifiuto.
+    return {
+      model,
+      extraBody: {
+        thinking: { type: 'adaptive' },
+        output_config: { effort: SONNET_EFFORT_DEFAULT },
+        fallbacks: 'default',
+      },
+      extraHeaders: { 'anthropic-beta': 'server-side-fallback-2026-07-01' },
+      thinkingHeadroom: THINKING_HEADROOM,
+    }
+  }
+
+  // Haiku: nessun parametro extra (il body base resta valido).
+  return { model, extraBody: {}, extraHeaders: {}, thinkingHeadroom: 0 }
 }
 
 /**
  * Normalizza un valore `power` ricevuto dal client a un Power valido.
- * Default per scope: ticket→equilibrato (Sonnet), global→veloce (Haiku, comportamento storico).
+ * Default per scope: ticket→equilibrato (Sonnet 5.5), global→veloce (Haiku, comportamento storico).
  */
 export function normalizePower(
   raw: unknown,

@@ -4,7 +4,7 @@
  * Mappa il vocabolario user-facing (veloce/equilibrato/approfondito) che il
  * resolver server-side (`supabase/functions/_shared/models.ts`) traduce nel
  * modello concreto:
- *   veloce → Haiku · equilibrato → Sonnet 4.6 · approfondito → Opus 4.8.
+ *   veloce → Haiku · equilibrato → Sonnet 5.5 · approfondito → Opus 4.8.
  *
  * Pensato per la sola admin desktop (power-user). Il tecnico mobile resta sul
  * default server senza selettore — ADR-010 anti-pattern #8: niente attrito in

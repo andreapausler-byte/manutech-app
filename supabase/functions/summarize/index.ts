@@ -9,8 +9,8 @@
  *   - kind 'intervention'     → sintesi/handoff di un singolo intervento
  *
  * Potenza AI → modello via resolveModel(power, 'summarize') (_shared/models.ts):
- *   veloce/equilibrato → Sonnet 4.6 · approfondito → Opus 4.8
- *   (Opus: thinking adaptive + effort, niente temperature/top_p — gestito dal resolver).
+ *   veloce/equilibrato → Sonnet 5.5 · approfondito → Opus 4.8
+ *   (thinking adaptive + effort, niente temperature/top_p — gestito dal resolver).
  *
  * Sicurezza (ADR-010):
  *   #1 chiave API Anthropic solo server-side.
@@ -25,7 +25,7 @@
  *   { content: string, model: string, power: string }
  */
 
-import { resolveModel, normalizePower, type Power } from '../_shared/models.ts'
+import { resolveModel, normalizePower, type Power, type ResolvedModel } from '../_shared/models.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -128,8 +128,7 @@ async function callClaude(
   systemPrompt: string,
   userMessage: string,
   apiKey: string,
-  model: string,
-  extraBody: Record<string, unknown> = {},
+  { model, extraBody, extraHeaders, thinkingHeadroom }: ResolvedModel,
 ): Promise<string> {
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
@@ -137,10 +136,11 @@ async function callClaude(
       'content-type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
+      ...extraHeaders,
     },
     body: JSON.stringify({
       model,
-      max_tokens: MAX_TOKENS,
+      max_tokens: MAX_TOKENS + thinkingHeadroom,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
       ...extraBody,
@@ -151,6 +151,12 @@ async function callClaude(
     throw new Error(`Anthropic API error ${res.status}: ${errText}`)
   }
   const data = await res.json()
+  // Rifiuto dei filtri di sicurezza, anche dopo il fallback.
+  if (data.stop_reason === 'refusal') {
+    console.warn('[summarize] refusal:', data.stop_details?.category ?? 'n/d')
+    return 'Non è stato possibile generare questo riassunto.'
+  }
+  // La risposta può iniziare con blocchi `thinking`: si legge il primo `text`.
   const textBlock = (data.content || []).find((b: { type: string }) => b.type === 'text')
   return textBlock?.text || '(nessun riassunto generato)'
 }
@@ -186,15 +192,15 @@ Deno.serve(async (req: Request) => {
 
     const meta = (body.meta && typeof body.meta === 'object') ? body.meta as Record<string, unknown> : undefined
     const power: Power = normalizePower(body.power, 'equilibrato')
-    const { model, extraBody } = resolveModel(power, 'summarize')
+    const resolved = resolveModel(power, 'summarize')
+    const model = resolved.model
     console.info(`[summarize] kind=${kind} items=${items.length} power=${power} model=${model}`)
 
     const content = await callClaude(
       buildSystemPrompt(),
       buildUserPrompt(kind, items, meta),
       apiKey,
-      model,
-      extraBody,
+      resolved,
     )
 
     return jsonResponse({ content, model, power })
