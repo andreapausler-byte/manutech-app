@@ -2,7 +2,7 @@
  * AISummaryCard — riassunto AI on-demand riutilizzabile (admin desktop).
  *
  * Bottone "Riassunto AI" che, al click, chiama l'Edge Function `summarize`
- * (Sonnet 4.6 default, Opus 4.8 su "Approfondito") sugli `items` forniti e
+ * (Sonnet 5.5 default, Opus 5.5 su "Approfondito") sugli `items` forniti e
  * mostra il risultato in una card. Incarna l'ADR-010 anti-pattern #4: output
  * sempre marcato "generato da AI", potenza scegliibile, rigenerabile e
  * richiudibile in 1 tap. L'utente ha l'ultima parola.

@@ -6,6 +6,24 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.27 — L'assistente AI passa a Sonnet 5.5 e Opus 5.5
+
+Nessuna migration: le funzioni si pubblicano da sole al merge su `master`.
+
+### Changed
+- **Potenza "Equilibrato" → Claude Sonnet 5.5** (prima Sonnet 4.6): assistente AI della console admin, assistente dentro il ticket e riassunti (`_shared/models.ts`). Costa meno per token ($2/$10 per milione contro $3/$15), ma il suo tokenizer conta circa il 30% di token in più a parità di testo: il costo reale va riguardato dopo qualche giorno d'uso.
+- **Potenza "Approfondito" → Claude Opus 5.5** (prima Opus 4.8), stesse superfici. Costa meno per token ($4/$20 contro $5/$25). Ragionava già (`effort: 'medium'`, che ora resta esplicito: su Opus 5.5 il default dell'API scende a `medium`, sugli Opus precedenti era `high`). A parità di livello ragiona più a fondo, quindi le risposte possono arrivare un po' più tardi. I prompt hanno già un limite di parole, utile perché gli Opus 5.x tendono a scrivere risposte più lunghe.
+- "Veloce" (Haiku 4.5) resta com'era.
+- Sonnet 5.5 **ragiona sempre** (Sonnet 4.6, senza parametri, non ragionava). Parte da `effort: 'low'`, il livello consigliato per chat e riassunti: ragiona poco e salta il ragionamento sulle domande semplici. Se le risposte risultano superficiali si alza a `medium` in `SONNET_EFFORT_DEFAULT`, non con istruzioni nel prompt.
+- **Margine per il ragionamento**: il ragionamento conta dentro `max_tokens`, quindi il tetto sale di 6000 token per Sonnet 5.5 (assistente 2048 → 8048, riassunti 1400 → 7400) e di 10000 per Opus 5.5 (12048 e 11400), che ragiona di più e in "approfondito" riceve tutto lo storico. È un limite massimo, non un consumo: serve a non troncare la risposta. Con Opus 4.8 il rischio di troncamento esisteva già.
+- **Fallback sui rifiuti**: con `fallbacks: 'default'` (beta `server-side-fallback-2026-07-01`), se i filtri di sicurezza di Sonnet 5.5 o Opus 5.5 rifiutano una richiesta, Anthropic la riesegue da sola su un altro modello (Sonnet 5; Opus 5 o 4.8). Se il rifiuto resta, l'assistente risponde "Non posso rispondere a questa domanda" invece di mostrare un testo a metà.
+
+### Note
+- Dopo il deploy: una domanda all'assistente di un ticket e un "Riassunto AI", una volta con "Equilibrato" e una con "Approfondito", per controllare che rispondano. Se compare "Errore assistente AI" con un 400 di Anthropic, il problema è nella richiesta: si torna indietro con un revert.
+- Sonnet 5.5 e Opus 5.5 hanno limiti di frequenza propri, separati da quelli dei modelli 4.x: verificarli nella console Anthropic se l'uso cresce.
+
+---
+
 ## [Unreleased] — v5.26 — Le email che non arrivavano
 
 Diagnosi: `journal/2026-10-notifiche-push.md` (terza parte). Runbook: `docs/MIGRATION-066.md`. La funzione si pubblica da sola al merge su `master`; la migration **066** va eseguita a mano (prima o dopo, non importa).
