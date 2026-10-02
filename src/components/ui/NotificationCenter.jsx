@@ -17,7 +17,7 @@ import { timeAgo } from '../../lib/constants'
 import { useHaptic } from '../../hooks/useHaptic'
 import {
   Bell, X, FileText, ArrowRight, MessageCircle,
-  UserCheck, Zap, CheckCheck, AlertTriangle, Wrench, Clock, CalendarCheck
+  UserCheck, Zap, CheckCheck, AlertTriangle, Wrench, Clock, CalendarCheck, Gift, Coins
 } from 'lucide-react'
 import { shouldShowNotificationSync, preloadPrefs } from '../../lib/notifPreferences'
 
@@ -31,6 +31,9 @@ const NOTIF_ICONS = {
   maintenance_completed: { icon: CalendarCheck, color: '#22c55e' },
   maintenance_overdue:   { icon: AlertTriangle, color: '#ef4444' },
   maintenance_reminder:  { icon: Clock,         color: '#f59e0b' },
+  reward_redeemed:       { icon: Gift,          color: '#a855f7' },
+  reward_status:         { icon: Gift,          color: '#22c55e' },
+  token_bonus:           { icon: Coins,         color: '#f59e0b' },
 }
 
 // ── Suono notifica (beep sintetico) ──
