@@ -28,5 +28,4 @@
 | `useClosureHelpful` | Voto "Mi è servita" su una chiusura (ManuCoin via trigger, migration 064) | `supabase.js` |
 
 ## Pattern auto-reward
-`useAutoTokenReward(userId, badges, level)` accredita ManuCoin automaticamente.
-Usa localStorage per deduplicazione tra sessioni (`manutech_credited_{userId}`).
+`useAutoTokenReward(userId, badges, level)` accredita i traguardi del mese: ogni badge e ogni livello pagano una volta per mese di calendario (chiave `badge_<id>:YYYY-MM`). La deduplica vera la fa `credit_tokens` (migration 067), che accetta solo importi fissi e il mese corrente; il localStorage (`manutech_credited_{userId}`) evita solo chiamate inutili. Un badge nuovo in `useOperatorScore` va aggiunto anche all'elenco in `credit_tokens`, altrimenti non paga.

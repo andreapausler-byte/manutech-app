@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { LogOut, Bell } from 'lucide-react'
+import { LogOut, Bell, Gift, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useMachines } from '../../hooks/useMachines'
@@ -13,6 +13,7 @@ import OperatorReview from './OperatorReview'
 import OperatorTicketList from './OperatorTicketList'
 import OperatorTicketDetail from './OperatorTicketDetail'
 import PendingVoiceRecordings from '../../components/voice/PendingVoiceRecordings'
+import WalletPage from '../mobile/WalletPage'
 import { usePWA } from '../../hooks/usePWA'
 
 // iPhone/iPad senza l'app sulla schermata Home: Safari non espone le
@@ -63,9 +64,43 @@ function OperatorPushCard({ permission, onRequest, onTest, compact = false }) {
   )
 }
 
-function OperatorProfile({ onLogout, pushPermission, onRequestPush, onTestPush }) {
+// Il wallet è la pagina mobile di sempre, con i colori dell'app operatore:
+// le sue variabili --color-* si ridefiniscono qui sulle --op-*.
+const OP_WALLET_THEME = {
+  '--color-primary': 'var(--op-green-light)',
+  '--color-card': 'var(--op-surface)',
+  '--color-surface-1': 'var(--op-surface)',
+  '--color-surface-2': 'var(--op-surface-2)',
+  '--color-surface-3': 'var(--op-border-strong)',
+  '--color-border': 'var(--op-border-strong)',
+  '--color-text': 'var(--op-text)',
+  '--color-text-secondary': 'var(--op-text-soft)',
+  '--color-text-muted': 'var(--op-text-muted)',
+  '--shadow-sm': 'none',
+  paddingBottom: 96,
+}
+
+function OperatorWallet({ onBack }) {
+  return (
+    <div style={OP_WALLET_THEME}>
+      <div style={{ padding: '0 20px' }}>
+        <button type="button" className="op-back" onClick={onBack}>← PROFILO</button>
+      </div>
+      <WalletPage />
+    </div>
+  )
+}
+
+function OperatorProfile({ onLogout, pushPermission, onRequestPush, onTestPush, onOpenWallet }) {
   const { user } = useAuth()
   const role = ROLES[user?.role] || ROLES.operatore
+  const [balance, setBalance] = useState(null)
+  useEffect(() => {
+    if (!user?.id) return
+    let cancelled = false
+    db.getTokenBalance(user.id).then(b => { if (!cancelled) setBalance(b) })
+    return () => { cancelled = true }
+  }, [user?.id])
   return (
     <div className="op-screen">
       <div className="op-statusbar">
@@ -81,6 +116,17 @@ function OperatorProfile({ onLogout, pushPermission, onRequestPush, onTestPush }
           {user?.email || '—'}
         </div>
       </div>
+      <button type="button" onClick={onOpenWallet} className="op-detail-field"
+        style={{ marginTop: 12, width: '100%', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', cursor: 'pointer' }}>
+        <Gift size={22} style={{ flexShrink: 0, color: 'var(--op-green-bright)' }} />
+        <span style={{ flex: 1 }}>
+          <span className="op-field__label" style={{ display: 'block' }}>ManuCoin</span>
+          <span style={{ display: 'block', marginTop: 4, fontSize: 18, fontWeight: 700, color: 'var(--op-text)' }}>
+            Wallet e premi{balance != null ? ` · ${balance}` : ''}
+          </span>
+        </span>
+        <ChevronRight size={20} style={{ color: 'var(--op-text-muted)' }} />
+      </button>
       <OperatorPushCard permission={pushPermission} onRequest={onRequestPush} onTest={onTestPush} />
       <div style={{ marginTop: 28 }}>
         <button
@@ -109,6 +155,8 @@ export default function OperatorApp({ initialReportId = null }) {
   const [detailId, setDetailId] = useState(initialReportId)
   // force reload list after insert
   const [refreshKey, setRefreshKey] = useState(0)
+  // wallet aperto dal profilo
+  const [walletOpen, setWalletOpen] = useState(false)
 
   // Push: registrazione SW + iscrizione allineata al server (lib/push.js).
   // Il tocco su una notifica apre direttamente la segnalazione.
@@ -192,8 +240,10 @@ export default function OperatorApp({ initialReportId = null }) {
     screen = <OperatorTicketDetail reportId={detailId} onBack={handleCloseDetail} />
   } else if (tab === 'list') {
     screen = <OperatorTicketList onOpenTicket={handleOpenTicket} refreshKey={refreshKey} />
+  } else if (tab === 'profile' && walletOpen) {
+    screen = <OperatorWallet onBack={() => setWalletOpen(false)} />
   } else if (tab === 'profile') {
-    screen = <OperatorProfile onLogout={logout} pushPermission={notifPermission} onRequestPush={requestPermission} onTestPush={sendTestPush} />
+    screen = <OperatorProfile onLogout={logout} pushPermission={notifPermission} onRequestPush={requestPermission} onTestPush={sendTestPush} onOpenWallet={() => setWalletOpen(true)} />
   } else {
     screen = (
       <OperatorHome
@@ -228,7 +278,7 @@ export default function OperatorApp({ initialReportId = null }) {
       {showNav && (
         <OperatorNavBar
           active={tab}
-          onChange={(id) => { setDetailId(null); setTab(id) }}
+          onChange={(id) => { setDetailId(null); setWalletOpen(false); setTab(id) }}
         />
       )}
     </div>

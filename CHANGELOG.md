@@ -6,6 +6,38 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.29 — I premi tornano agli operatori e si riscattano davvero
+
+Diagnosi: `journal/2026-10-premi.md`. Runbook: `docs/MIGRATION-067.md`. La migration **067** va eseguita a mano, prima del merge o subito dopo: senza, l'admin non può approvare né rifiutare i riscatti.
+
+### Fixed
+- **Gli operatori non potevano comprare niente: non avevano più il wallet.** L'app operatore (spec: "Gamification, badge, ManuCoin: non in questa fase") non aveva né saldo né catalogo, e i ManuCoin di badge e livelli si accreditavano solo dalla vecchia home mobile, che gli operatori non aprono più: da allora non guadagnavano nulla. Ora **Profilo → Wallet e premi** apre il wallet (con i colori dell'app operatore) e la Home accredita i traguardi del mese.
+- **I badge pagavano una volta nella vita.** La chiave dell'accredito era `badge_<id>` senza mese, mentre badge e livelli si calcolano sugli ultimi 30 giorni: dopo il primo mese il saldo smetteva di crescere. Ora ogni badge (5) e ogni livello da Argento in su (20) paga **una volta per mese di calendario** (`badge_<id>:YYYY-MM`). Chi passa da Bronzo a Oro prende anche Argento.
+- **Il rifiuto di un riscatto non restituiva i ManuCoin.** Ora sì, e il pezzo torna allo stock (`review_redemption`, 067).
+- **Eliminare un premio cancellava i suoi riscatti**, anche quelli pagati e in attesa (FK in cascata). Ora lo storico resta (`ON DELETE SET NULL`) e un premio si può **nascondere** senza eliminarlo.
+- Gli errori della pagina admin (creare un premio, salvare la configurazione, gestire un riscatto) finivano solo in console: ora compaiono come avviso.
+- Gli stessi badge si pagavano di nuovo su ogni telefono nuovo (la deduplica stava nel localStorage). Ora la fa il server.
+- "Token automatici per evento" in Impostazioni elencava streak 7/30 giorni e primo report, mai accreditati: ora mostra le regole vere.
+
+### Security
+- **`credit_tokens` accettava 'earn' da chiunque, per chiunque e di qualunque importo**: dalla console del browser ci si poteva accreditare quello che si voleva. Ora chi non è admin si accredita solo i traguardi del mese, con importi fissi, la chiave del mese corrente e gli id dei badge esistenti; dentro un trigger (il "Mi è servita" della 064) resta consentito. L'admin accredita solo persone della propria org.
+- **Chiunque poteva creare un riscatto senza pagarlo** (policy `rr_insert`) e l'admin poteva cambiarne lo stato senza rimborso (`rr_update`): tolte, si passa dalle funzioni.
+- `redeem_reward` accettava premi di altre org e due tocchi veloci potevano spendere due volte lo stesso saldo: ora controlla l'org e blocca premio e saldo fino alla fine. `get_token_balance` mostrava il saldo di chiunque: ora il proprio, o quello dei colleghi per l'admin.
+
+### Added
+- **Conferma prima del riscatto** (saldo dopo, cosa succede dopo) e, nel wallet, scorte ("Ultimi 3", "Esaurito"), barra di avanzamento verso i premi non ancora raggiungibili, "+N questo mese", nota dell'admin e rimborso sui riscatti, "Come si guadagnano" per ruolo.
+- **Console admin → Premi**: tab **Saldi** con saldo e guadagno del mese di operatori e tecnici (fornitori esclusi), quanti possono permettersi il premio più economico e **bonus manuale** con causale; **Approva / Rifiuta** con nota per chi riceve (dove ritirarlo, o il motivo del rifiuto); premi visibili/nascosti; costo in euro e guadagno medio del team accanto al prezzo; spesa del mese accanto al budget; **5 premi di esempio** (nascosti) quando il catalogo è vuoto.
+- **Avvisi**: agli admin a ogni riscatto (`reward_redeemed`), a chi ha riscattato quando è approvato o rifiutato (`reward_status`), a chi riceve un bonus (`token_bonus`). Solo push e campanella, niente email (la quota Resend resta com'è).
+- Migration **067**: funzioni `review_redemption` e `get_org_token_balances`, `credit_tokens` / `redeem_reward` / `get_token_balance` riscritte.
+
+### Note
+- **L'economia**: un operatore occasionale (3 segnalazioni al mese) prende circa 5 ManuCoin al mese, uno costante (10) circa 40, uno molto attivo 80 o più; il tetto è 155. I tecnici guadagnano solo con "Mi è servita" (5 per collega) e con i bonus dell'admin. Il "valore in euro" del token è solo indicativo: quello che decide è il prezzo dei premi.
+- Un badge nuovo in `useOperatorScore` va aggiunto anche all'elenco in `credit_tokens` (067), altrimenti non paga.
+- Gli avvisi dei premi non hanno ancora un interruttore nelle preferenze notifiche: partono per tutti (sono rari).
+- La demo (localStorage) fa lo stesso giro: riscatto con addebito, rifiuto con rimborso, scorte, bonus.
+
+---
+
 ## [Unreleased] — v5.28 — Il vocale riconosce macchine e termini dello stabilimento
 
 Nessuna migration. Le funzioni si pubblicano da sole al merge; per Scribe serve la chiave `ELEVENLABS_API_KEY` nei secrets di Supabase (senza, tutto resta su Groq come prima).

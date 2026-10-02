@@ -4,12 +4,14 @@
  * Mostra: saldo, storico transazioni, catalogo premi, riscatti
  */
 
-import { useState } from 'react'
-import { useWallet } from '../../hooks/useWallet'
+import { useMemo, useState } from 'react'
+import { useWallet, TOKEN_REWARDS } from '../../hooks/useWallet'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
-import { Wallet, ArrowUpRight, ArrowDownLeft, Gift, Clock, CheckCircle, Truck, XCircle, ShoppingBag, ChevronRight, Coins } from 'lucide-react'
+import { Modal } from '../../components/ui'
+import { timeAgo } from '../../lib/constants'
+import { Wallet, ArrowUpRight, ArrowDownLeft, Gift, Clock, CheckCircle, Truck, XCircle, ShoppingBag, Coins, Sparkles } from 'lucide-react'
 
 const TX_TYPES = {
   earn: { label: 'Guadagnato', color: '#22c55e', icon: ArrowDownLeft, sign: '+' },
@@ -25,37 +27,62 @@ const RED_STATUS = {
   rejected: { label: 'Rifiutato', color: '#ef4444', icon: XCircle },
 }
 
-const CATEGORIES = {
-  buono: { icon: '🎟️', color: '#f59e0b' },
-  tempo_libero: { icon: '🏖️', color: '#22c55e' },
-  gadget: { icon: '🎁', color: '#7c6aff' },
-  formazione: { icon: '📚', color: '#06b6d4' },
-  altro: { icon: '✨', color: '#a855f7' },
+// Come si guadagnano, per ruolo. Gli importi sono quelli che il server accetta.
+const EARN_WAYS = {
+  operatore: [
+    { icon: '🏅', label: 'Ogni badge tenuto nel mese', amount: TOKEN_REWARDS.badge_unlock },
+    { icon: '🥈', label: 'Ogni livello del mese, da Argento in su', amount: TOKEN_REWARDS.level_up },
+  ],
+  tecnico: [
+    { icon: '🙌', label: 'Ogni collega a cui è servita una tua chiusura', amount: TOKEN_REWARDS.closure_helpful },
+  ],
 }
+
+const buttonSpinner = (
+  <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+)
 
 export default function WalletPage() {
   const { user } = useAuth()
   const { balance, transactions, config, rewards, redemptions, loading, redeem } = useWallet(user?.id)
   const [tab, setTab] = useState('wallet')
-  const [redeeming, setRedeeming] = useState(null)
+  const [confirming, setConfirming] = useState(null)
+  const [redeeming, setRedeeming] = useState(false)
   const toast = useToast()
   const haptic = useHaptic()
 
-  const handleRedeem = async (reward) => {
-    if (balance < reward.cost) {
-      toast.error(`Saldo insufficiente: hai ${balance} ${config.token_symbol}, servono ${reward.cost}`)
-      return
-    }
-    setRedeeming(reward.id)
+  const symbol = config.token_symbol || 'MC'
+  const tokenValue = config.token_value_eur || 0.50
+
+  // Guadagnati nel mese di calendario (accrediti e bonus, non i rimborsi).
+  const earnedThisMonth = useMemo(() => {
+    const start = new Date()
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+    return transactions
+      .filter(tx => (tx.type === 'earn' || tx.type === 'bonus') && new Date(tx.created_at) >= start)
+      .reduce((sum, tx) => sum + tx.amount, 0)
+  }, [transactions])
+
+  const openConfirm = (reward) => {
+    haptic.light()
+    setConfirming(reward)
+  }
+
+  const handleRedeem = async () => {
+    const reward = confirming
+    if (!reward) return
+    setRedeeming(true)
     haptic.medium()
     try {
-      await redeem(reward.id)
-      haptic.success()
-      toast.success(`${reward.icon} ${reward.name} riscattato!`)
+      await redeem(reward.id, user)
+      toast.success(`${reward.icon || '🎁'} Richiesta inviata: l'admin la approva e te lo consegna`)
+      setConfirming(null)
+      setTab('orders')
     } catch (e) {
       toast.error(e.message || 'Errore nel riscatto')
     }
-    setRedeeming(null)
+    setRedeeming(false)
   }
 
   if (loading) {
@@ -66,7 +93,8 @@ export default function WalletPage() {
     )
   }
 
-  const eurValue = (balance * (config.token_value_eur || 0.50)).toFixed(2)
+  const eurValue = (balance * tokenValue).toFixed(2)
+  const earnWays = EARN_WAYS[user?.role] || []
 
   return (
     <div style={{ padding: '0 4vw 16px' }}>
@@ -88,8 +116,13 @@ export default function WalletPage() {
           {balance}
         </p>
         <p style={{ fontSize: 14, opacity: 0.8, marginTop: 4 }}>
-          {config.token_symbol || 'MC'} = {eurValue} EUR
+          {symbol} = {eurValue} EUR
         </p>
+        {earnedThisMonth > 0 && (
+          <p style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, marginTop: 8 }}>
+            +{earnedThisMonth} {symbol} questo mese
+          </p>
+        )}
       </div>
 
       {/* ═══ Tab switcher ═══ */}
@@ -121,10 +154,9 @@ export default function WalletPage() {
       {tab === 'wallet' && (
         <div>
           {transactions.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <div style={{ textAlign: 'center', padding: '32px 0 24px' }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
               <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>Nessun movimento ancora</p>
-              <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 4 }}>Crea report per guadagnare {config.token_symbol}!</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -160,7 +192,7 @@ export default function WalletPage() {
                         {t.sign}{tx.amount}
                       </p>
                       <p style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
-                        = {tx.balance_after} {config.token_symbol}
+                        = {tx.balance_after} {symbol}
                       </p>
                     </div>
                   </div>
@@ -168,6 +200,35 @@ export default function WalletPage() {
               })}
             </div>
           )}
+
+          {/* Come si guadagnano */}
+          <div style={{
+            marginTop: 16, background: 'var(--color-card)', border: '1px solid var(--color-border)',
+            borderRadius: 16, padding: '14px 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <Sparkles size={15} style={{ color: '#f59e0b' }} />
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>Come si guadagnano</p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[...earnWays, { icon: '🎉', label: "Bonus dall'amministratore", amount: null }].map(w => (
+                <div key={w.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>{w.icon}</span>
+                  <span style={{ flex: 1, fontSize: 12, color: 'var(--color-text-secondary)' }}>{w.label}</span>
+                  {w.amount != null && (
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#22c55e', fontFamily: "'JetBrains Mono', monospace" }}>
+                      +{w.amount}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {user?.role === 'operatore' && (
+              <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 10 }}>
+                Badge e livello si calcolano sulle tue segnalazioni degli ultimi 30 giorni e si accreditano quando apri l'app, una volta al mese.
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -183,12 +244,13 @@ export default function WalletPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {rewards.map(r => {
+                const soldOut = r.stock != null && r.stock <= 0
                 const canAfford = balance >= r.cost
-                const isRedeeming = redeeming === r.id
+                const available = canAfford && !soldOut
                 return (
                   <div key={r.id} style={{
                     background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                    borderRadius: 18, overflow: 'hidden',
+                    borderRadius: 18, overflow: 'hidden', opacity: soldOut ? 0.6 : 1,
                   }}>
                     <div style={{ padding: '16px 18px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -196,39 +258,48 @@ export default function WalletPage() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>{r.name}</h4>
                           {r.description && <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>{r.description}</p>}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                             <span style={{
                               fontSize: 16, fontWeight: 800, color: canAfford ? 'var(--color-primary)' : 'var(--color-text-muted)',
                               fontFamily: "'JetBrains Mono', monospace",
                             }}>
-                              {r.cost} {config.token_symbol}
+                              {r.cost} {symbol}
                             </span>
                             <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                              ({(r.cost * (config.token_value_eur || 0.50)).toFixed(2)} EUR)
+                              ({(r.cost * tokenValue).toFixed(2)} EUR)
                             </span>
+                            {r.stock != null && r.stock > 0 && r.stock <= 5 && (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b' }}>
+                                {r.stock === 1 ? 'Ultimo rimasto' : `Ultimi ${r.stock}`}
+                              </span>
+                            )}
                           </div>
+                          {!canAfford && !soldOut && (
+                            <div style={{ height: 4, borderRadius: 2, background: 'var(--color-surface-2)', marginTop: 8, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${Math.min(100, (balance / r.cost) * 100)}%`, background: 'var(--color-primary)', borderRadius: 2 }} />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
                     <button
-                      onClick={() => handleRedeem(r)}
-                      disabled={!canAfford || isRedeeming}
+                      onClick={() => openConfirm(r)}
+                      disabled={!available}
                       className="press-scale"
                       style={{
                         width: '100%', padding: '13px 0',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                         fontSize: 15, fontWeight: 700,
-                        color: canAfford ? '#fff' : 'var(--color-text-muted)',
-                        background: canAfford ? 'var(--color-primary)' : 'var(--color-surface-2)',
+                        color: available ? '#fff' : 'var(--color-text-muted)',
+                        background: available ? 'var(--color-primary)' : 'var(--color-surface-2)',
                         border: 'none', borderTop: '1px solid var(--color-border)',
-                        cursor: canAfford ? 'pointer' : 'not-allowed',
-                        opacity: isRedeeming ? 0.6 : 1,
+                        cursor: available ? 'pointer' : 'not-allowed',
                       }}>
-                      {isRedeeming
-                        ? <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      {soldOut
+                        ? 'Esaurito'
                         : canAfford
                           ? <><Gift size={18} /> Riscatta</>
-                          : <>Servono {r.cost - balance} {config.token_symbol} in più</>
+                          : <>Servono {r.cost - balance} {symbol} in più</>
                       }
                     </button>
                   </div>
@@ -254,26 +325,37 @@ export default function WalletPage() {
                 const StIcon = st.icon
                 return (
                   <div key={r.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
                     background: 'var(--color-card)', border: '1px solid var(--color-border)',
                     borderRadius: 14, padding: '14px 16px',
                   }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>{r.reward_name}</p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                          background: `${st.color}15`, color: st.color,
-                          display: 'flex', alignItems: 'center', gap: 3,
-                        }}>
-                          <StIcon size={11} /> {st.label}
-                        </span>
-                        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                          {r.cost} {config.token_symbol} — {new Date(r.created_at).toLocaleDateString('it-IT')}
-                        </span>
-                      </div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>{r.reward_name}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                        background: `${st.color}15`, color: st.color,
+                        display: 'flex', alignItems: 'center', gap: 3,
+                      }}>
+                        <StIcon size={11} /> {st.label}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                        {r.cost} {symbol} — {timeAgo(r.created_at)}
+                      </span>
                     </div>
-                    <ChevronRight size={16} style={{ color: 'var(--color-text-muted)' }} />
+                    {r.status === 'pending' && (
+                      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
+                        L'admin deve ancora approvarlo.
+                      </p>
+                    )}
+                    {r.status === 'rejected' && (
+                      <p style={{ fontSize: 12, color: '#06b6d4', marginTop: 6 }}>
+                        {r.cost} {symbol} restituiti nel wallet.
+                      </p>
+                    )}
+                    {r.admin_note && (
+                      <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 6, fontStyle: 'italic' }}>
+                        "{r.admin_note}"
+                      </p>
+                    )}
                   </div>
                 )
               })}
@@ -281,6 +363,53 @@ export default function WalletPage() {
           )}
         </div>
       )}
+
+      {/* ═══ Conferma riscatto ═══ */}
+      <Modal open={!!confirming} onClose={() => !redeeming && setConfirming(null)} title="Confermi il riscatto?" size="sm">
+        {confirming && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 36 }}>{confirming.icon || '🎁'}</span>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>{confirming.name}</p>
+                <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-primary)', fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>
+                  {confirming.cost} {symbol}
+                </p>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', marginTop: 16,
+              padding: '10px 12px', borderRadius: 12, background: 'var(--color-surface-2)',
+            }}>
+              <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Saldo dopo il riscatto</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text)', fontFamily: "'JetBrains Mono', monospace" }}>
+                {balance - confirming.cost} {symbol}
+              </span>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 12, lineHeight: 1.5 }}>
+              L'admin riceve la richiesta, la approva e ti consegna il premio. Se la rifiuta, i {config.token_name || 'ManuCoin'} tornano nel wallet.
+            </p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+              <button onClick={() => setConfirming(null)} disabled={redeeming}
+                style={{
+                  flex: 1, padding: '13px 0', borderRadius: 14, fontSize: 15, fontWeight: 600,
+                  background: 'var(--color-surface-2)', color: 'var(--color-text-muted)', border: 'none', cursor: 'pointer',
+                }}>
+                Annulla
+              </button>
+              <button onClick={handleRedeem} disabled={redeeming} className="press-scale"
+                style={{
+                  flex: 1, padding: '13px 0', borderRadius: 14, fontSize: 15, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  background: 'var(--color-primary)', color: '#fff', border: 'none', cursor: 'pointer',
+                  opacity: redeeming ? 0.7 : 1,
+                }}>
+                {redeeming ? buttonSpinner : <><Gift size={18} /> Riscatta</>}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

@@ -134,6 +134,8 @@ Numerazione sequenziale. Controlla l'ultimo numero in `supabase/migrations/`.
 - `public.get_my_role()` → TEXT (SECURITY DEFINER, STABLE)
 - `public.resolve_my_profile(...)` → profile upsert
 - `public.create_maintenance_plan(...)` → insert piano
-- `public.credit_tokens(...)` → accredito ManuCoin
-- `public.redeem_reward(...)` → riscatto premio
-- `public.get_token_balance(...)` → saldo utente
+- `public.credit_tokens(...)` → accredito ManuCoin (non admin: solo traguardi del mese, importi fissi — 067)
+- `public.redeem_reward(...)` → riscatto premio (avvisa gli admin)
+- `public.review_redemption(...)` → approva / rifiuta con rimborso / consegnato (admin, 067)
+- `public.get_token_balance(...)` → saldo utente (proprio, o admin)
+- `public.get_org_token_balances()` → saldi e guadagno del mese dell'org (admin, 067)

@@ -3,6 +3,8 @@ import { Mic } from 'lucide-react'
 import { db } from '../../lib/supabase'
 import { TERMINAL_STATUSES } from '../../lib/constants'
 import { useAuth } from '../../contexts/AuthContext'
+import { useOperatorScore } from '../../hooks/useOperatorScore'
+import { useAutoTokenReward } from '../../hooks/useWallet'
 import TicketCard from '../../components/operator/TicketCard'
 
 function nowHHMM() {
@@ -50,6 +52,13 @@ export default function OperatorHome({ onStartRecording, onOpenTicket, onOpenLis
     }).catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [user?.id])
+
+  // Traguardi del mese → ManuCoin (badge e livello sulle segnalazioni degli
+  // ultimi 30 giorni, una volta per mese). Prima stava nella vecchia home
+  // mobile: con l'app operatore gli operatori avevano smesso di guadagnare.
+  const { leaderboard } = useOperatorScore(reports, 'month')
+  const myScore = leaderboard.find(op => op.id === user?.id)
+  useAutoTokenReward(user?.id, myScore?.badges, myScore?.level)
 
   const { assignedToMe, openedToday, closedThisWeek, inProgress } = useMemo(() => {
     const now = new Date()
