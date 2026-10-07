@@ -32,7 +32,8 @@
  * Body JSON:
  *   {
  *     query: string,            // Domanda del tecnico (obbligatoria)
- *     conversation_id?: string, // Se presente, continua conversazione esistente
+ *     conversation_id?: string, // Se presente, continua conversazione esistente:
+ *                               // le ultime domande/risposte vanno a Claude come storico
  *     machine_id?: string,      // Filtra retrieval su questa macchina
  *     report_id?: string        // Report corrente da cui partire (context)
  *   }
@@ -47,7 +48,7 @@
  *   }
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { resolveModel, normalizePower, type Power, type ResolvedModel } from '../_shared/models.ts'
 
 const corsHeaders = {
@@ -63,6 +64,12 @@ const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const MAX_MESSAGES_PER_HOUR = 30
 const MAX_TOKENS = 2048
 const TOP_K = 5
+// Memoria della conversazione: le ultime domande e risposte tornano a Claude
+// come turni precedenti, così "fammi una versione più corta" o "e per la
+// KOSME?" si riferiscono a quello che ha appena detto. Solo il testo: i
+// blocchi di dati arrivano freschi con la domanda nuova.
+const HISTORY_MAX_MESSAGES = 12   // 6 scambi domanda/risposta
+const HISTORY_MAX_CHARS = 6000    // per messaggio; i riepiloghi lunghi stanno sui 3000
 
 // ── Tipi retrieval ──
 interface SimilarReport {
@@ -379,6 +386,7 @@ Fonti che puoi ricevere nel contesto:
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu")
+- La chat è una CONVERSAZIONE: i messaggi precedenti contengono le domande dell'utente e le risposte che hai già dato. Se la domanda nuova riprende una risposta precedente ("più corta", "riassumila", "il punto 2", "e per la KOSME?", "aggiungi i responsabili"), lavora su quella risposta senza chiedere a cosa si riferisce. I blocchi di dati arrivano solo con l'ultima domanda e sono i più aggiornati: se un dato è cambiato rispetto a una tua risposta precedente, usa quello nuovo e dillo
 - Per domande ANAGRAFICHE ("matricole", "modelli", "produttori", "quali macchine abbiamo"): usa Anagrafica macchinari; presenta i dati in elenco o tabella compatta
 - Per domande sui FORNITORI ("cosa pendente con X", "storico interventi di Y", "chi si occupa di Z", "quali ditte esterne abbiamo"): usa il blocco Fornitori esterni. Se l'utente nomina un fornitore preciso (es. "PTS"), trova il match nella lista (anche fuzzy: "PTS S.R.L" matcha "PTS") e dai dettaglio: ticket aperti specifici (titolo/severita'/macchina/giorni), conteggi storici, ultimo intervento. Se NON c'e' nessun match, dichiaralo esplicitamente ("non trovo nessun fornitore con questo nome nell'anagrafica") e proponi i fornitori piu' attivi attualmente
 - Per domande META (classifiche, totali, "quale macchinario ha più…", "quanti aperti…"): usa Statistiche, Anagrafica e Segnalazioni aperte
@@ -394,7 +402,7 @@ Regole di risposta:
 - Quando citi un documento usa formato [Titolo documento, categoria]. Quando citi un intervento usa [Ditta X, data] o [Intervento interno, data]. Quando citi un ticket risolto usa [Ticket risolto: titolo, data]
 - Le conversazioni dei ticket gia' risolti (source_kind ticket_risolto) contengono spesso la SOLUZIONE TROVATA SUL CAMPO: causa radice reale, azione che ha funzionato, ricambi usati. Trattatela con priorita' alta per le domande diagnostiche
 - Se ci sono segnalazioni aperte simili a quella in corso, segnalalo (possibile duplicato o collega già al lavoro)
-- Se TUTTE le sezioni sono vuote o non pertinenti, ammettilo e chiedi più dettagli
+- Se TUTTE le sezioni sono vuote o non pertinenti e la domanda non riprende una risposta precedente, ammettilo e chiedi più dettagli
 - Quando ti viene fornita la sezione "Report corrente", e' il PUNTO DI PARTENZA del ragionamento: descrizione iniziale del problema, severita', tipo, dati aggiuntivi (note tecniche, diagnosi iniziale, ricambi potenziali, motivazione priorita'). Cita SEMPRE almeno un dato specifico da qui prima di andare oltre
 - Quando ti viene fornita la "Discussione corrente sul ticket", leggila DOPO il report corrente: contiene quello che il team sta dicendo proprio ora. NON suggerire azioni che sono gia' state tentate o citate in chat. Se nei messaggi recenti emergono dettagli (codici errore, ricambi gia' sostituiti, sintomi specifici), incorporali nel ragionamento e citali esplicitamente
 - ORDINE DI LETTURA per ticket aperti: 1) Report corrente (problema + dati aggiuntivi) -> 2) Discussione corrente (cosa hanno gia' provato/detto) -> 3) Storia macchina + Biblioteca tecnica -> 4) Report storici simili. La risposta deve mostrare un percorso coerente da 1 a 4
@@ -418,6 +426,7 @@ function buildTicketSystemPrompt(): string {
 
 Regole di risposta:
 - Rispondi SEMPRE in italiano, tono pratico e diretto (dai del "tu"). Sintetico, leggibile a colpo d'occhio.
+- La chat è una CONVERSAZIONE: i messaggi precedenti contengono le domande dell'utente e le risposte che hai già dato. Se la domanda nuova riprende una risposta precedente ("più corta", "riassumila", "il punto 2", "e per la KOSME?", "aggiungi i responsabili"), lavora su quella risposta senza chiedere a cosa si riferisce. I blocchi di dati arrivano solo con l'ultima domanda e sono i più aggiornati: se un dato è cambiato rispetto a una tua risposta precedente, usa quello nuovo e dillo.
 - Parti SEMPRE dalla segnalazione corrente: cita almeno un dato specifico di quel ticket prima di andare oltre.
 - Usa la scheda tecnica per contestualizzare (es. tipo di macchina, criticità).
 - Quando metti in relazione le altre segnalazioni della stessa macchina, presenta le ricorrenze come **ipotesi da verificare**, non come certezze ("potrebbe esserci un pattern: 3 guasti simili al gruppo X negli ultimi mesi"). Cita i ticket a cui ti riferisci.
@@ -1066,13 +1075,57 @@ async function embedUserQuery(text: string, apiKey: string): Promise<number[] | 
   }
 }
 
+// ── Storico della conversazione ──
+interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+// Ultimi scambi della conversazione, dal più vecchio al più recente, pronti
+// per `messages`: cominciano con una domanda e finiscono con una risposta
+// (la domanda nuova segue). Una domanda rimasta senza risposta (errore
+// dell'AI) lascia il posto a quella successiva. Client JWT-utente: la RLS
+// restituisce solo le conversazioni di chi chiede.
+async function loadConversationHistory(
+  supabase: SupabaseClient,
+  conversationId: string,
+): Promise<ChatTurn[]> {
+  const { data, error } = await supabase
+    .from('assistant_messages')
+    .select('role, content')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(HISTORY_MAX_MESSAGES)
+  if (error) {
+    console.warn('[history] load error:', error.message)
+    return []
+  }
+
+  const turns: ChatTurn[] = []
+  for (const m of [...(data || [])].reverse()) {
+    if (m.role !== 'user' && m.role !== 'assistant') continue
+    let content = (m.content || '').trim()
+    if (!content) continue
+    if (content.length > HISTORY_MAX_CHARS) content = content.slice(0, HISTORY_MAX_CHARS) + '…'
+    const last = turns[turns.length - 1]
+    if (last && last.role === m.role) {
+      turns[turns.length - 1] = { role: m.role, content }
+      continue
+    }
+    turns.push({ role: m.role, content })
+  }
+  while (turns.length && turns[0].role !== 'user') turns.shift()
+  if (turns.length && turns[turns.length - 1].role === 'user') turns.pop()
+  return turns
+}
+
 // ── Claude call ──
 // Il modello arriva dal resolver (_shared/models.ts) con i parametri, gli
 // header e il margine per il ragionamento specifici del tier (es. thinking
 // adaptive + effort per Opus 5.5 e Sonnet 5.5).
 async function callClaude(
   systemPrompt: string,
-  userMessage: string,
+  messages: ChatTurn[],
   apiKey: string,
   { model, extraBody, extraHeaders, thinkingHeadroom }: ResolvedModel,
 ) {
@@ -1088,7 +1141,7 @@ async function callClaude(
       model,
       max_tokens: MAX_TOKENS + thinkingHeadroom,
       system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
+      messages,
       ...extraBody,
     }),
   })
@@ -1505,7 +1558,10 @@ Deno.serve(async (req: Request) => {
     if (!orgId || !appUserId) return jsonResponse({ error: 'Profilo utente incompleto' }, 400)
 
     // ── 6. Risolvi / crea conversazione ──
+    // Lo storico si legge prima di salvare la domanda nuova, che altrimenti
+    // ci finirebbe dentro.
     let conversationId = conversationIdIn
+    const history = conversationIdIn ? await loadConversationHistory(supabase, conversationIdIn) : []
     if (!conversationId) {
       const title = query.slice(0, 60) + (query.length > 60 ? '…' : '')
       const { data: newConv, error: convErr } = await supabase
@@ -1608,11 +1664,12 @@ Deno.serve(async (req: Request) => {
       : ''
 
     const userMessage = `${sections.join('\n\n')}${contextNote}\n\n## Domanda del tecnico\n\n${query}`
+    console.info(`[history] conversation=${conversationIdIn || 'new'} turns=${history.length}`)
 
     let assistantText = ''
     let tokensUsed = 0
     try {
-      const result = await callClaude(systemPrompt, userMessage, apiKey, resolved)
+      const result = await callClaude(systemPrompt, [...history, { role: 'user', content: userMessage }], apiKey, resolved)
       assistantText = result.content
       tokensUsed = result.tokensUsed
     } catch (err) {

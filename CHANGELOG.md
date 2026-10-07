@@ -6,6 +6,22 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.30 — L'assistente AI ricorda la conversazione
+
+Nessuna migration. La funzione `assistant-chat` si pubblica da sola al merge.
+
+### Fixed
+- **L'assistente non ricordava la domanda precedente.** Ogni messaggio veniva salvato in `assistant_messages`, ma a Claude arrivava solo la domanda nuova: dopo "mi fai un riepilogo da mandare al titolare?", la richiesta "fammi una versione più corta" otteneva "Non vedo una risposta precedente da accorciare". Ora le **ultime 6 domande e risposte** della conversazione tornano a Claude come turni precedenti (solo il testo, al massimo 6000 caratteri per messaggio). I dati dello stabilimento restano allegati solo alla domanda nuova e si ricaricano a ogni domanda, quindi non si accumulano e sono sempre aggiornati.
+- Il prompt (chat globale e approfondimento ticket) ora dice che la chat è una conversazione: "più corta", "il punto 2" e "e per la KOSME?" si riferiscono alla risposta precedente, e se un dato è cambiato nel frattempo vale quello nuovo.
+
+### Note
+- Vale anche per le conversazioni già aperte nello Storico: riprendendone una, l'assistente legge gli scambi precedenti.
+- Una domanda rimasta senza risposta (errore dell'AI) non entra nello storico: conta quella ripetuta dopo.
+- **Costi**: ogni domanda successiva alla prima rimanda gli scambi precedenti, da qualche centinaio a qualche migliaio di token in più. Il blocco dati, la parte più pesante, non si ripete.
+- **Verifica**: nei log di `assistant-chat` compare `[history] conversation=<id> turns=N`; alla seconda domanda di una conversazione N deve essere almeno 2.
+
+---
+
 ## [Unreleased] — v5.29 — I premi tornano agli operatori e si riscattano davvero
 
 Diagnosi: `journal/2026-10-premi.md`. Runbook: `docs/MIGRATION-067.md`. La migration **067** va eseguita a mano, prima del merge o subito dopo: senza, l'admin non può approvare né rifiutare i riscatti.
