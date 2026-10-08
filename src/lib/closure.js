@@ -12,6 +12,11 @@
  * il codice esatto del ricambio) vivono in `extra_data.closure_notes`:
  * [{ text, user_id, user_name, created_at }]. Sono la parte che più spesso
  * manca allo storico: chi chiude sa cosa ha fatto, non cosa succederà poi.
+ *
+ * I documenti dell'intervento (il foglio firmato della ditta, la fattura)
+ * vivono accanto alle note, in `extra_data.closure_docs`:
+ * [{ kind, type, url, name, user_id, user_name, created_at }]. Non in
+ * `media`, che il resto dell'app tratta come foto da mostrare in griglia.
  */
 
 import { isTerminalStatus, formatMonthYear } from './constants'
@@ -29,6 +34,7 @@ const pick = (report, key) => {
 
 export function getClosure(report) {
   const notes = report?.extra_data?.closure_notes
+  const docs = report?.extra_data?.closure_docs
   return {
     // Foto del pezzo scattate in chiusura: vivono in `media` del ticket
     // con il flag `closure`, così il resto dell'app le vede come foto normali.
@@ -39,6 +45,7 @@ export function getClosure(report) {
     action: pick(report, 'closure_action'),
     closedAt: report?.closed_at || null,
     notes: Array.isArray(notes) ? notes : [],
+    docs: Array.isArray(docs) ? docs : [],
   }
 }
 
@@ -92,10 +99,17 @@ export function isArchivedReport(report, nowMs) {
 
 // Testo della chiusura per la ricerca client-side: "cuscinetto" deve
 // trovare ogni volta che il cuscinetto è stato cambiato, non solo i ticket
-// che lo nominano nel titolo.
-export function closureSearchText(report) {
+// che lo nominano nel titolo. Anche "fattura" o il nome del file: chi cerca
+// un documento non ricorda il ticket. Senza `viewer` (pagine admin) entrano
+// tutti i documenti.
+export function closureSearchText(report, viewer = null) {
   const c = getClosure(report)
-  return [c.rootCause, c.action, c.parts, ...c.notes.map(n => n?.text)]
+  const docs = viewer ? visibleClosureDocs(c.docs, viewer) : c.docs
+  return [
+    c.rootCause, c.action, c.parts,
+    ...c.notes.map(n => n?.text),
+    ...docs.flatMap(d => [closureDocLabel(d.kind), d.name]),
+  ]
     .filter(Boolean)
     .join(' ')
 }
@@ -169,4 +183,55 @@ export function newClosureNote(user, text) {
     user_name: user?.name || 'Utente',
     created_at: new Date().toISOString(),
   }
+}
+
+// ─── Documenti dell'intervento ──────────────────────────────
+
+// Il foglio d'intervento è memoria tecnica: finisce anche nella cartella
+// "Ditta Esterna" della macchina (e da lì nella biblioteca dell'assistente).
+// La fattura è amministrazione: resta sul ticket e basta.
+export const CLOSURE_DOC_KINDS = {
+  foglio:  { label: "Foglio d'intervento", color: '#10b981' },
+  fattura: { label: 'Fattura',             color: '#f59e0b' },
+  altro:   { label: 'Altro documento',     color: '#7d8a9c' },
+}
+
+export const closureDocLabel = (kind) =>
+  (CLOSURE_DOC_KINDS[kind] || CLOSURE_DOC_KINDS.altro).label
+
+// Le fatture le vedono tecnici e admin, cioè chi integra le chiusure:
+// a un operatore il costo della ditta esterna non serve per lavorare.
+// È un filtro di interfaccia, non un controllo d'accesso: i file stanno
+// nel bucket pubblico `attachments` come tutti gli altri allegati.
+export const canSeeInvoices = (user) => user?.role === 'tecnico' || user?.role === 'admin'
+
+export function visibleClosureDocs(docs, user) {
+  return canSeeInvoices(user) ? docs : docs.filter(d => d?.kind !== 'fattura')
+}
+
+// Toglie un documento chi l'ha allegato, o un admin.
+export const canRemoveClosureDoc = (doc, user) =>
+  !!user && (user.role === 'admin' || (!!doc?.user_id && doc.user_id === user.id))
+
+export function newClosureDoc(user, { kind, type, url, name }) {
+  return {
+    kind: CLOSURE_DOC_KINDS[kind] ? kind : 'altro',
+    type: type === 'pdf' ? 'pdf' : 'photo',
+    url,
+    name: name || closureDocLabel(kind),
+    user_id: user?.id || null,
+    user_name: user?.name || 'Utente',
+    created_at: new Date().toISOString(),
+  }
+}
+
+// Riga di cronologia: «Foglio d'intervento: rapportino.pdf · Fattura».
+// Il nome del file della fattura resta fuori: la cronologia la leggono
+// anche gli operatori.
+export function describeClosureDocs(docs) {
+  return docs
+    .map(d => d.kind === 'fattura' || !d.name
+      ? closureDocLabel(d.kind)
+      : `${closureDocLabel(d.kind)}: ${clip(d.name, 50)}`)
+    .join(' · ')
 }

@@ -6,6 +6,24 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.30 — Foglio d'intervento e fattura dentro la chiusura
+
+Nessuna migration. Note: `journal/2026-10-archivio-interventi.md` (terza parte).
+
+### Added
+- **Documenti dell'intervento sulla chiusura**: foglio d'intervento, fattura o altro documento (DDT, certificato), in **PDF o foto**. Si allegano chiudendo (foglio mobile e modulo "Chiusura Intervento" del desktop) e **dopo**, da "Aggiungi nota o documento", insieme alla nota o da soli. Sul desktop il PDF arrivato per email si **trascina** sul riquadro.
+- Nel riquadro "Come è stato risolto" (telefono e desktop) la sezione **Documenti**: tipo, nome del file, chi e quando; un tocco lo apre. Chi l'ha allegato, o un admin, lo **toglie** (in cronologia resta).
+- **Il foglio d'intervento finisce anche nella cartella "Ditta Esterna" della macchina**, sotto il pezzo se il ticket ne ha uno: stesso file, un solo URL, come le foto del pezzo. Se è un PDF entra nella biblioteca dell'assistente al reindex. **La fattura no**: resta sul ticket.
+- **Archivio**: chip con i documenti nelle righe (desktop) e nelle card (telefono); la ricerca trova "fattura", "foglio" e i nomi dei file; nell'**export CSV** la colonna **Documenti** con tipo, nome e link, per la contabilità del mese.
+- Cronologia: "Documento allegato" / "Documento tolto".
+
+### Note
+- I dati stanno in `extra_data.closure_docs` (`kind`: `foglio` | `fattura` | `altro`), accanto a `closure_notes`; scrittura con rilettura di `extra_data` (`db.addToClosure`, che sostituisce `addClosureNote`).
+- **Le fatture le vedono solo tecnici e admin**: è un filtro d'interfaccia (`canSeeInvoices` in `lib/closure.js`), non un controllo d'accesso. I file stanno nel bucket pubblico `attachments`, come contratti e rapporti già caricati sulle macchine: chi ha il link li apre. Se servisse riservatezza vera: bucket privato e link firmati (migration).
+- Limite 20 MB a file; le foto si comprimono come le altre (1920 px), i PDF partono come sono.
+
+---
+
 ## [Unreleased] — v5.29 — I premi tornano agli operatori e si riscattano davvero
 
 Diagnosi: `journal/2026-10-premi.md`. Runbook: `docs/MIGRATION-067.md`. La migration **067** va eseguita a mano, prima del merge o subito dopo: senza, l'admin non può approvare né rifiutare i riscatti.

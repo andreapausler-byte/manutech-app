@@ -10,9 +10,10 @@
  * della scheda macchina: davanti alla macchina la domanda è la stessa.
  */
 
-import { CheckCircle2, AlertTriangle, XCircle, Cog, Clock, Package, User, StickyNote, ThumbsUp, Camera } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, XCircle, Cog, Clock, Package, User, StickyNote, ThumbsUp, Camera, Paperclip } from 'lucide-react'
 import { formatDateParts } from '../../lib/constants'
-import { getClosure, closureOutcome, closedAtOf, CLOSURE_OUTCOMES } from '../../lib/closure'
+import { getClosure, closureOutcome, closedAtOf, visibleClosureDocs, CLOSURE_OUTCOMES } from '../../lib/closure'
+import { useAuth } from '../../contexts/AuthContext'
 import { TicketIdBadge } from '../ui'
 import ComponentPill from '../machines/ComponentPill'
 
@@ -44,7 +45,9 @@ function ClosureLine({ label, text, missing }) {
 }
 
 export default function ResolvedReportCard({ report, onSelect, showMachine = true, helpful = 0 }) {
+  const { user } = useAuth()
   const closure = getClosure(report)
+  const docs = visibleClosureDocs(closure.docs, user)
   const outcome = closureOutcome(report)
   const meta = CLOSURE_OUTCOMES[outcome]
   const OutcomeIcon = OUTCOME_ICONS[outcome]
@@ -55,6 +58,7 @@ export default function ResolvedReportCard({ report, onSelect, showMachine = tru
     report.assigned_to_name && outcome !== 'senza' && { icon: User, text: report.assigned_to_name },
     closure.notes.length > 0 && { icon: StickyNote, text: `${closure.notes.length} ${closure.notes.length === 1 ? 'nota' : 'note'} dopo` },
     closure.photos.length > 0 && { icon: Camera, text: `${closure.photos.length} foto del pezzo` },
+    docs.length > 0 && { icon: Paperclip, text: `${docs.length} ${docs.length === 1 ? 'documento' : 'documenti'}` },
     helpful > 0 && { icon: ThumbsUp, text: `Servita a ${helpful}`, color: '#10b981' },
   ].filter(Boolean)
 

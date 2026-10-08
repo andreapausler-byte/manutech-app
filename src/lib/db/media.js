@@ -203,6 +203,36 @@ export const media = {
     }
   },
 
+  // Il foglio d'intervento entra anche nella cartella "Ditta Esterna"
+  // della macchina, sotto il pezzo se il ticket ne nomina uno: un file solo,
+  // due posti, come le foto del pezzo. Chi apre la macchina tra un anno lo
+  // trova senza sapere da quale ticket è arrivato, e il PDF entra nella
+  // biblioteca dell'assistente al prossimo reindex. Le fatture no: sono
+  // amministrazione, restano sul ticket.
+  // Best effort, uno alla volta. Ritorna quanti ne sono entrati.
+  async addClosureDocsToMachine(machineId, docs, { componentId = null, componentName = null, label = '', uploadedByName = null } = {}) {
+    const sheets = (docs || []).filter(d => d.kind === 'foglio')
+    if (!machineId || !sheets.length) return 0
+    let added = 0
+    for (const d of sheets) {
+      try {
+        await media.addMachineAttachment(machineId, {
+          url: d.url,
+          type: d.type === 'pdf' ? 'pdf' : 'image',
+          category: 'intervento_esterno',
+          name: label ? `Foglio d'intervento · ${label}` : "Foglio d'intervento",
+          component_id: componentId,
+          component_name: componentName,
+          uploaded_by_name: uploadedByName,
+        })
+        added++
+      } catch (e) {
+        console.warn('[ManuTech] addClosureDocsToMachine:', e?.message)
+      }
+    }
+    return added
+  },
+
   // Promuove (o rimuove) una foto nella galleria curata della macchina,
   // cioè in machines.attachments categoria 'foto' — la stessa cartella
   // che il tab Documentazione mostra già.
