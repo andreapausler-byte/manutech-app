@@ -6,6 +6,32 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.32 — Una manutenzione registrata si legge e si aggiorna come una segnalazione conclusa
+
+Runbook: `docs/MIGRATION-068.md`. La migration **068** (una colonna) va eseguita a mano, prima del merge o subito dopo: senza, le correzioni funzionano ma non lasciano traccia in cronologia, e le note scritte dopo non si salvano. Note: `journal/2026-10-archivio-interventi.md` (quinta parte).
+
+### Added
+- **Scheda "Intervento registrato"**, il corrispettivo di "Come è stato risolto" delle segnalazioni concluse: tipo (programmata, straordinaria, ditta esterna), macchina e pezzo, piano e frequenza, segnalazione d'origine, cosa è stato fatto, chi, durata, ricambi, ditta e riferimento, foto e PDF, note aggiunte dopo, **cronologia** (registrazione e ogni correzione, con prima → dopo).
+  - Telefono: un tocco su una riga dello **Storico** della scheda macchina, oppure su **"Ultima volta"** sotto ogni piano del tab **Manut.**
+  - Desktop: un clic su una riga della vista **Interventi** della pagina Manutenzione, sulla data **"Ultimo"** di un piano, o su una riga del **Registro Interventi** della scheda macchina.
+- **Aggiornare un intervento già registrato** (tecnici e admin):
+  - **Correggi**: titolo, cosa è stato fatto, durata, ricambi, **data e ora** (sposta anche la prossima scadenza del piano), ditta e riferimento;
+  - **Aggiungi nota, foto o PDF**: la nota da sola, gli allegati da soli o insieme;
+  - la **X** su un allegato messo per sbaglio (chi l'ha aggiunto, chi ha registrato l'intervento, o un admin).
+- **Pagina Manutenzione → Interventi** come archivio: la ricerca trova anche testo, ricambi, ditta, note aggiunte dopo e nomi degli allegati; filtro **Programmate / Straordinarie**; **Esporta** in CSV (con note e link degli allegati); "Mostra altri" oltre i primi 50.
+- L'assistente legge anche le **note aggiunte dopo** a un intervento (come già per le chiusure dei ticket).
+
+### Changed
+- La matita del Registro Interventi (scheda macchina desktop) salva come "Correggi": la modifica resta in cronologia.
+- Nello Storico mobile, durata in ore e minuti e "N note aggiunte dopo".
+
+### Note
+- Note e cronologia in `maintenance_logs.extra_data` (`notes`, `history`), scrittura con rilettura della riga come per `reports.extra_data`; gli allegati aggiunti dopo restano in `media` (galleria e biblioteca li trovano come gli altri) con autore e data.
+- Policy invariate (020): aggiornano tecnici e admin, elimina solo l'admin. L'operatore legge la scheda senza i tasti.
+- `ingest-knowledge` legge `maintenance_logs` con `select('*')`: indicizza le note se la 068 c'è e non fallisce se manca. Si ridistribuisce da sola al merge (workflow sulle functions).
+
+---
+
 ## [Unreleased] — v5.31 — Foto e PDF anche registrando una manutenzione
 
 Nessuna migration. Note: `journal/2026-10-archivio-interventi.md` (quarta parte).

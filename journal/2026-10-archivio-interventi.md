@@ -219,3 +219,52 @@ allegato il foglio non aveva modo di ritrovarlo da lì.
 - Modificare gli allegati di un intervento già registrato si può solo dal
   modulo della scheda macchina desktop (matita sulla riga).
 
+---
+
+## Quinta parte (8/10) — la manutenzione registrata come una segnalazione conclusa (v5.32)
+
+### Richiesta
+"Anche in questo caso avrei bisogno di poter aggiornare una manutenzione già
+registrata... e poter verificare quanto è stato fatto al pari delle
+segnalazioni completate."
+
+### Com'era
+Una segnalazione conclusa ha la scheda "Come è stato risolto", Correggi con
+cronologia, "Aggiungi nota o documento", l'Archivio con ricerca ed export.
+Un intervento registrato era una riga di storico: non si apriva. Si
+correggeva solo dal modulo della scheda macchina desktop (admin, senza
+traccia), sul telefono per niente; note dopo, nessun posto dove metterle.
+In produzione: 71 interventi, 20 programmati, 10 con allegati.
+
+### Decisioni
+1. **Una scheda sola** (`MaintenanceLogModal`) per telefono e desktop, sul
+   Modal di ui che sul telefono è già un foglio dal basso. Si apre dallo
+   Storico, da "Ultima volta" di un piano, dalla pagina Manutenzione e dal
+   Registro della scheda macchina desktop.
+2. **Stessi gesti delle chiusure**: Correggi (con prima → dopo in
+   cronologia), Aggiungi nota/foto/PDF (si accoda), X sull'allegato. Chi
+   può: tecnici e admin, come per le chiusure e come già permette la policy
+   della 020. Togliere un allegato: chi l'ha messo, chi ha registrato
+   l'intervento, o l'admin.
+3. **La data si corregge.** Una manutenzione registrata il giorno dopo
+   sposta la scadenza del piano: è il motivo più concreto per correggere.
+   La scheda lo dice prima di salvare.
+4. **Una colonna, non una tabella** (068): `extra_data` con `notes` e
+   `history`, come `closure_notes` sui ticket. `activities` non va bene:
+   ha `report_id NOT NULL`. Senza la 068 le correzioni passano comunque;
+   le note no, con un messaggio che nomina la migration.
+5. **La pagina Manutenzione → Interventi fa da archivio**, invece di
+   mescolare le manutenzioni nell'Archivio interventi delle segnalazioni:
+   lì filtri ed esiti parlano di causa radice e azione correttiva, che una
+   manutenzione programmata non ha.
+
+### Cosa resta aperto
+- **Un archivio unico** "tutto quello che è stato fatto su una macchina"
+  (ticket chiusi + manutenzioni) se gli admin lo chiedono: oggi sono due
+  viste, ognuna con il suo export.
+- La Home del tecnico ("Completa") non porta allo storico: dopo aver
+  completato, l'intervento si rivede dalla scheda macchina.
+- Cambiare il pezzo o "ditta esterna sì/no" si fa ancora solo dal modulo
+  completo della scheda macchina desktop (matita), che ora però lascia
+  la cronologia.
+

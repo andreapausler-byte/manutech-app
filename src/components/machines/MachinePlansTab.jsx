@@ -5,17 +5,44 @@
  * settimana, verde se è in regola. Le scadute stanno in cima e portano
  * il tasto "Fatto — Registra" a piena larghezza: chi è davanti alla
  * macchina con i guanti deve poterlo centrare senza mirare.
+ *
+ * Sotto ogni piano già eseguito almeno una volta, "Ultima volta": il tocco
+ * apre l'intervento registrato, per vedere cosa è stato fatto e da chi.
  */
 
-import { CheckCircle, ShieldCheck } from 'lucide-react'
+import { CheckCircle, ShieldCheck, History, ChevronRight } from 'lucide-react'
 import { TabHeading, TabEmptyFrame } from './MachineTabParts'
 import { padX } from './machineTabs'
 import { EmptyState } from '../ui'
 import ComponentPill from './ComponentPill'
 import { useHaptic } from '../../hooks/useHaptic'
 import { getTrafficLight } from '../../lib/maintenanceStatus'
+import { formatDateParts } from '../../lib/constants'
 
-export default function MachinePlansTab({ plans, planLastLogs, loading, onConfirmPlan }) {
+// Riga da 56px: con i guanti si centra, e non si confonde con il tasto
+// "Fatto — Registra" che sta sotto, staccato e colorato.
+function LastRun({ log, onOpen }) {
+  const haptic = useHaptic()
+  if (!log) return null
+  const { day, month } = formatDateParts(log.performed_at)
+  return (
+    <button
+      type="button"
+      onClick={() => { haptic.light(); onOpen?.(log) }}
+      className="w-full flex items-center gap-2.5 text-left active:bg-surface-2 transition-colors"
+      style={{ ...padX, minHeight: 56, borderTop: '1px solid var(--color-border-subtle)' }}
+    >
+      <History size={17} className="text-faint shrink-0" />
+      <span className="flex-1 min-w-0 truncate text-[14px] text-secondary">
+        Ultima volta <span className="font-mono">{day} {month}</span>
+        {log.performed_by_name ? ` · ${log.performed_by_name}` : ''}
+      </span>
+      <ChevronRight size={18} className="text-faint shrink-0" />
+    </button>
+  )
+}
+
+export default function MachinePlansTab({ plans, planLastLogs, loading, onConfirmPlan, onOpenLog }) {
   const haptic = useHaptic()
 
   if (loading) {
@@ -77,6 +104,7 @@ export default function MachinePlansTab({ plans, planLastLogs, loading, onConfir
               </p>
             </div>
           </div>
+          <LastRun log={planLastLogs[plan.id]} onOpen={onOpenLog} />
           <button
             onClick={() => { haptic.medium(); onConfirmPlan?.(plan) }}
             className="w-full h-[68px] text-lg font-bold text-white flex items-center justify-center gap-2.5 press-scale transition-all"
@@ -88,30 +116,32 @@ export default function MachinePlansTab({ plans, planLastLogs, loading, onConfir
       ))}
 
       {ok.map(({ plan, light }) => (
-        <div
-          key={plan.id}
-          className="flex items-center gap-[3.5vw] border-t"
-          style={{ ...padX, minHeight: 96, borderColor: 'var(--color-border-subtle)' }}
-        >
-          <span
-            className="w-3.5 h-3.5 rounded-full shrink-0"
-            style={{ background: light.color, boxShadow: `0 0 8px ${light.color}60` }}
-          />
-          <div className="flex-1 min-w-0" style={{ paddingTop: '4vw', paddingBottom: '4vw' }}>
-            <p className="text-[19px] font-bold text-themed break-words">{plan.name}</p>
-            {plan.component?.name && (
-              <span className="block" style={{ marginTop: 6 }}>
-                <ComponentPill name={plan.component.name} size="sm" />
-              </span>
-            )}
-            <p className="font-mono text-[11px] uppercase tracking-wider text-faint truncate" style={{ marginTop: 6 }}>
-              Ogni {plan.frequency_days}g · {plan.assigned_to_name || 'Non assegnato'}
-            </p>
+        <div key={plan.id}>
+          <div
+            className="flex items-center gap-[3.5vw] border-t"
+            style={{ ...padX, minHeight: 96, borderColor: 'var(--color-border-subtle)' }}
+          >
+            <span
+              className="w-3.5 h-3.5 rounded-full shrink-0"
+              style={{ background: light.color, boxShadow: `0 0 8px ${light.color}60` }}
+            />
+            <div className="flex-1 min-w-0" style={{ paddingTop: '4vw', paddingBottom: '4vw' }}>
+              <p className="text-[19px] font-bold text-themed break-words">{plan.name}</p>
+              {plan.component?.name && (
+                <span className="block" style={{ marginTop: 6 }}>
+                  <ComponentPill name={plan.component.name} size="sm" />
+                </span>
+              )}
+              <p className="font-mono text-[11px] uppercase tracking-wider text-faint truncate" style={{ marginTop: 6 }}>
+                Ogni {plan.frequency_days}g · {plan.assigned_to_name || 'Non assegnato'}
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="font-mono text-[15px]" style={{ color: light.color }}>{light.daysLeft}g</p>
+              <p className="font-mono text-[9.5px] uppercase tracking-wider text-faint">residui</p>
+            </div>
           </div>
-          <div className="text-right shrink-0">
-            <p className="font-mono text-[15px]" style={{ color: light.color }}>{light.daysLeft}g</p>
-            <p className="font-mono text-[9.5px] uppercase tracking-wider text-faint">residui</p>
-          </div>
+          <LastRun log={planLastLogs[plan.id]} onOpen={onOpenLog} />
         </div>
       ))}
 

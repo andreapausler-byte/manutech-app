@@ -96,6 +96,8 @@ interface MaintenanceLog {
   is_external: boolean | null
   performed_at: string | null
   media: Attachment[] | null
+  // Note aggiunte dopo (migration 068): assente finché la 068 non gira.
+  extra_data?: Record<string, unknown> | null
 }
 
 interface ClosedReport {
@@ -272,7 +274,10 @@ Deno.serve(async (req: Request) => {
     // ── Fetch maintenance logs della macchina ──
     const { data: logs, error: lErr } = await adminSupabase
       .from('maintenance_logs')
-      .select('id, title, description, parts_replaced, type, contractor_name, contractor_reference, is_external, performed_at, media')
+      // `*` e non l'elenco delle colonne: extra_data (note aggiunte dopo)
+      // arriva con la migration 068, e nominarla prima farebbe fallire
+      // l'intera indicizzazione.
+      .select('*')
       .eq('machine_id', machineId)
       .eq('org_id', orgId)
       .order('performed_at', { ascending: false })
@@ -435,6 +440,23 @@ Deno.serve(async (req: Request) => {
       if (log.is_external) {
         if (log.contractor_name) parts.push(`Ditta esterna: ${log.contractor_name}`)
         if (log.contractor_reference) parts.push(`Riferimento bolla/fattura: ${log.contractor_reference}`)
+      }
+      // Note aggiunte dopo (extra_data.notes, v5.32): come per le chiusure
+      // dei ticket, spesso correggono quanto registrato — "il filtro
+      // montato era provvisorio" — quindi entrano nello stesso blocco.
+      const rawLogNotes = log.extra_data ? log.extra_data['notes'] : null
+      const logNotes = Array.isArray(rawLogNotes) ? rawLogNotes as Array<Record<string, unknown>> : []
+      const logNoteLines = logNotes
+        .map(n => {
+          const txt = typeof n?.text === 'string' ? n.text.trim() : ''
+          if (!txt) return null
+          const who = typeof n?.user_name === 'string' && n.user_name ? n.user_name : 'Utente'
+          const when = typeof n?.created_at === 'string' ? n.created_at.slice(0, 10) : ''
+          return `- ${who}${when ? ` (${when})` : ''}: ${txt}`
+        })
+        .filter(Boolean)
+      if (logNoteLines.length > 0) {
+        parts.push(`\nAggiunto dopo:\n${logNoteLines.join('\n')}`)
       }
       const logText = parts.join('\n').trim()
       if (logText.length > 20) {

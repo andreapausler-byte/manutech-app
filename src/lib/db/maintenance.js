@@ -1,5 +1,46 @@
 import { supabase, supabaseUrl, supabaseAnonKey, getMyOrgId } from './_client'
 
+// Un intervento letto da solo porta con sé macchina, pezzo, piano e
+// segnalazione d'origine: la scheda di dettaglio li mostra senza altre query.
+const LOG_SELECT = '*, machine:machines(id, name, department), component:machine_components(id, name, type), plan:maintenance_plans(id, name, frequency_days), report:reports(id, title, display_id)'
+
+const MIGRATION_068 = 'Per salvare le note sugli interventi va eseguita la migration 068 sul database (docs/MIGRATION-068.md)'
+
+const listOf = (v) => (Array.isArray(v) ? v : [])
+
+// Note e cronologia si accodano a quelle della riga appena riletta.
+function appendExtra(current, { notes = [], history = [] }) {
+  const extra = current?.extra_data || {}
+  return {
+    ...extra,
+    notes: [...listOf(extra.notes), ...notes],
+    history: [...listOf(extra.history), ...history],
+  }
+}
+
+// Rilegge la riga e scrive solo ciò che `merge` restituisce: due tecnici
+// che aggiungono una nota insieme non si cancellano a vicenda (stesso
+// schema di writeExtraData sulle segnalazioni). `merge` sa se la colonna
+// extra_data esiste (migration 068): senza, le correzioni passano lo
+// stesso e si perde solo la riga di cronologia. In demo non ci sono log
+// salvati: si restituisce l'intervento aggiornato in memoria.
+async function writeLog(log, merge) {
+  if (supabase) {
+    const { data: current, error: readError } = await supabase.from('maintenance_logs')
+      .select('*').eq('id', log.id).single()
+    if (readError) throw readError
+    const patch = merge(current, { hasExtraData: 'extra_data' in current })
+    const query = Object.keys(patch).length > 0
+      ? supabase.from('maintenance_logs').update(patch).eq('id', log.id).select(LOG_SELECT).maybeSingle()
+      : supabase.from('maintenance_logs').select(LOG_SELECT).eq('id', log.id).maybeSingle()
+    const { data, error } = await query
+    if (error) throw error
+    if (!data) throw new Error('Permessi insufficienti: un intervento lo aggiornano tecnici e admin')
+    return data
+  }
+  return { ...log, ...merge(log, { hasExtraData: true }) }
+}
+
 export const maintenance = {
   // ─── MAINTENANCE PLANS ───
   async getMaintenancePlans(machineId) {
@@ -286,6 +327,52 @@ export const maintenance = {
       return data
     }
     return { id, ...updates }
+  },
+
+  async getMaintenanceLog(id) {
+    if (supabase) {
+      const { data, error } = await supabase.from('maintenance_logs')
+        .select(LOG_SELECT).eq('id', id).maybeSingle()
+      if (error) throw error
+      return data
+    }
+    return null
+  },
+
+  // Correggere un intervento registrato: i campi cambiano, in cronologia
+  // resta il prima → dopo (`entry`, scritto da useMaintenanceLogEdit).
+  async correctMaintenanceLog(log, fields, entry = null) {
+    return writeLog(log, (current, { hasExtraData }) => ({
+      ...fields,
+      ...(hasExtraData && entry ? { extra_data: appendExtra(current, { history: [entry] }) } : {}),
+    }))
+  },
+
+  // Aggiungere dopo una nota e/o foto e PDF. Gli allegati vanno in `media`
+  // come quelli messi registrando (galleria e biblioteca li trovano già lì);
+  // la nota in extra_data.notes, e senza la 068 non ha dove stare.
+  async addToMaintenanceLog(log, { note = null, media = [], entry = null } = {}) {
+    return writeLog(log, (current, { hasExtraData }) => {
+      if (note && !hasExtraData) throw new Error(MIGRATION_068)
+      const currentMedia = listOf(current.media)
+      const known = new Set(currentMedia.map(m => m?.url))
+      const fresh = media.filter(m => m?.url && !known.has(m.url))
+      const patch = {}
+      if (fresh.length) patch.media = [...currentMedia, ...fresh]
+      if (hasExtraData && (note || entry)) {
+        patch.extra_data = appendExtra(current, { notes: note ? [note] : [], history: entry ? [entry] : [] })
+      }
+      return patch
+    })
+  },
+
+  // Togliere un allegato messo per sbaglio. Il file resta nello storage:
+  // si toglie il riferimento, in cronologia resta che c'era.
+  async removeMaintenanceLogMedia(log, url, entry = null) {
+    return writeLog(log, (current, { hasExtraData }) => ({
+      media: listOf(current.media).filter(m => m?.url !== url),
+      ...(hasExtraData && entry ? { extra_data: appendExtra(current, { history: [entry] }) } : {}),
+    }))
   },
 
   async deleteMaintenanceLog(id) {
