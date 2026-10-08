@@ -3,9 +3,11 @@
  *
  * Gemello del riquadro "Come è stato risolto" del dettaglio mobile: stessi
  * dati (lib/closure.js), stessi due gesti — correggere la chiusura o
- * aggiungere un'informazione arrivata dopo (useClosureEdit). Qui il form è
- * in linea dentro il pannello: sul desktop c'è spazio e l'admin non perde
- * di vista il resto del ticket mentre scrive.
+ * aggiungere un'informazione arrivata dopo, con o senza documenti (foglio
+ * d'intervento, fattura: useClosureEdit). Qui il form è in linea dentro il
+ * pannello: sul desktop c'è spazio e l'admin non perde di vista il resto
+ * del ticket mentre scrive. La fattura arriva per email in ufficio: il PDF
+ * si trascina sul riquadro.
  *
  * Spaziature inline: le utility p-* e m-* di Tailwind sono azzerate dal
  * reset globale di index.css (debito tecnico noto).
@@ -17,6 +19,8 @@ import { formatDate, timeAgo, isTerminalStatus } from '../../../lib/constants'
 import { getClosure, hasClosureData, isClosureIncomplete, closedAtOf } from '../../../lib/closure'
 import { useClosureEdit } from '../../../hooks/useClosureEdit'
 import ClosureHelpful from '../../../components/reports/ClosureHelpful'
+import ClosureDocsPicker from '../../../components/reports/ClosureDocsPicker'
+import ClosureDocsList from '../../../components/reports/ClosureDocsList'
 
 const fieldLabel = 'block text-[11px] text-faint uppercase tracking-wider'
 const inputCls = 'w-full input-field rounded-xl text-sm'
@@ -43,10 +47,11 @@ export default function ClosurePanel({ report, user, components = [], canEdit, o
   const incomplete = isClosureIncomplete(report)
   const archivedWithoutWork = report.status === 'chiuso' && !hasData
   const reopened = !terminal && hasData
-  const { saving, saveEdit, addNote } = useClosureEdit(user)
+  const { saving, saveEdit, addNote, removeDoc } = useClosureEdit(user)
   const [mode, setMode] = useState('view') // 'view' | 'edit' | 'note'
   const [form, setForm] = useState(null)
   const [note, setNote] = useState('')
+  const [docs, setDocs] = useState([])
 
   if (!hasData && !terminal) return null
 
@@ -83,11 +88,23 @@ export default function ClosurePanel({ report, user, components = [], canEdit, o
   }
 
   const submitNote = async () => {
-    const updated = await addNote(report, note)
+    const updated = await addNote(report, note, docs)
     if (!updated) return
     onUpdate(updated)
     setNote('')
+    setDocs([])
     setMode('view')
+  }
+
+  const cancelNote = () => {
+    setNote('')
+    setDocs([])
+    setMode('view')
+  }
+
+  const submitRemoveDoc = async (doc) => {
+    const updated = await removeDoc(report, doc)
+    if (updated) onUpdate(updated)
   }
 
   const missing = [
@@ -231,6 +248,12 @@ export default function ClosurePanel({ report, user, components = [], canEdit, o
         </div>
       )}
 
+      {mode !== 'edit' && (
+        <ClosureDocsList report={report} user={user} busy={saving}
+          onRemove={canEdit ? submitRemoveDoc : undefined}
+          style={{ marginTop: 12 }} />
+      )}
+
       {hasData && terminal && mode !== 'edit' && (
         <ClosureHelpful report={report} user={user} style={{ marginTop: 12 }} />
       )}
@@ -260,15 +283,16 @@ export default function ClosurePanel({ report, user, components = [], canEdit, o
           <div className="flex flex-col gap-2" style={{ marginTop: 12 }}>
             <textarea value={note} rows={3} autoFocus
               onChange={e => setNote(e.target.value)}
-              placeholder="Quello che si è saputo dopo: se il guasto è tornato, il codice esatto del ricambio, cosa controllare la prossima volta"
+              placeholder="Quello che si è saputo dopo: se il guasto è tornato, il codice esatto del ricambio, cosa controllare la prossima volta (facoltativo se alleghi un documento)"
               className={`${inputCls} resize-none`} style={inputPad} />
+            <ClosureDocsPicker reportId={report.id} docs={docs} onChange={setDocs} />
             <div className="flex gap-2">
-              <button onClick={submitNote} disabled={saving || !note.trim()}
+              <button onClick={submitNote} disabled={saving || (!note.trim() && docs.length === 0)}
                 className="flex-1 flex items-center justify-center gap-1.5 rounded-xl text-sm font-bold bg-violet-600 text-white hover:bg-violet-700 transition-all disabled:opacity-50"
                 style={{ padding: '9px 0' }}>
-                <Plus size={14} /> Aggiungi nota
+                <Plus size={14} /> {docs.length && !note.trim() ? 'Allega alla chiusura' : 'Aggiungi alla chiusura'}
               </button>
-              <button onClick={() => { setNote(''); setMode('view') }}
+              <button onClick={cancelNote}
                 className="flex-1 rounded-xl text-sm font-bold bg-surface-2 text-muted hover:text-themed transition-all"
                 style={{ padding: '9px 0' }}>
                 Annulla
@@ -279,7 +303,7 @@ export default function ClosurePanel({ report, user, components = [], canEdit, o
           <button onClick={() => setMode('note')}
             className="w-full flex items-center justify-center gap-1.5 rounded-xl text-xs font-semibold text-secondary hover:text-themed transition-all"
             style={{ marginTop: 12, padding: '8px 0', border: '1px dashed var(--color-border)' }}>
-            <Plus size={13} /> Aggiungi un'informazione
+            <Plus size={13} /> Aggiungi nota o documento
           </button>
         )
       )}

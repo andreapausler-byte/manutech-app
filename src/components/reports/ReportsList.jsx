@@ -442,7 +442,7 @@ export default function ReportsList({ user, onSelectReport, unreadByReport = {} 
         r.assigned_to_name,
         r.created_by_name,
         r.component_name,
-        closureSearchText(r),
+        closureSearchText(r, user),
         r.id,
       ]
       const textMatch = searchable.some(f =>

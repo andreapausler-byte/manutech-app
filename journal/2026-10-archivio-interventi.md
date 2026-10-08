@@ -124,3 +124,47 @@ chiusure, la voce per integrarle, la foto del pezzo.
 - La dettatura non c'è nel modal admin: sul desktop si scrive.
 - Il conteggio dei voti non pesa ancora nei "casi simili" né nell'assistente:
   una chiusura votata da cinque colleghi dovrebbe salire per prima.
+
+---
+
+## Terza parte (8/10) — i documenti dell'intervento (v5.30)
+
+### Richiesta
+"Sarebbe utile poter allegare anche dei file (PDF) o foto, anche dopo che
+l'intervento è stato risolto, insieme magari alle note aggiuntive. Utili per
+allegare il foglio di intervento finale o la fattura. Consigliami tu." E poi:
+"più che altro fai in modo che sia disponibile anche sull'applicazione
+desktop".
+
+### Decisioni
+1. **Sulla chiusura, non in chat né in `media`.** In chat un PDF si perde
+   tra i messaggi; `media` il resto dell'app lo tratta come foto da mettere
+   in griglia. `extra_data.closure_docs`, accanto alle note: nessuna
+   migration, stessa rilettura prima di scrivere.
+2. **Il tipo si sceglie prima del file**, perché decide dove va: il foglio
+   d'intervento è memoria tecnica e finisce anche nella cartella "Ditta
+   Esterna" della macchina (e nella biblioteca dell'assistente); la fattura
+   è amministrazione e resta sul ticket.
+3. **Nota e documento nello stesso foglio**, con la nota facoltativa: la
+   fattura arriva spesso senza niente da aggiungere. Anche in chiusura, perché
+   il foglio firmato dalla ditta si ha in mano in quel momento.
+4. **Desktop alla pari del telefono**: l'admin allega dal pannello della
+   segnalazione e dal modulo di chiusura, e la fattura arrivata per email si
+   trascina sul riquadro.
+5. **Fatture visibili a tecnici e admin.** Filtro d'interfaccia, detto
+   chiaramente: il bucket `attachments` è pubblico per tutti gli allegati,
+   contratti compresi.
+6. **Si può togliere** (chi l'ha allegato o un admin): un PDF sbagliato è
+   l'errore più facile. Il file resta nello storage, in cronologia resta
+   che c'era.
+
+### Cosa resta aperto
+- **Chi vede le fatture**: deciso tecnici + admin senza chiederlo. Se devono
+  essere solo dell'admin è una riga (`canSeeInvoices`); se devono essere
+  davvero riservate serve un bucket privato con link firmati.
+- **Costo dell'intervento**: con le fatture allegate viene naturale un
+  campo importo in chiusura e il costo di manutenzione per macchina
+  nell'archivio. Da decidere se serve davvero o se basta il CSV.
+- Togliere un foglio dalla chiusura non lo toglie dalla cartella della
+  macchina: lì lo elimina l'admin dalla scheda.
+

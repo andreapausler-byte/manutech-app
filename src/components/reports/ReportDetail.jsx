@@ -32,6 +32,8 @@ import TicketSparePanel from '../spare/TicketSparePanel'
 import ComponentPill from '../machines/ComponentPill'
 import ClosureHelpful from './ClosureHelpful'
 import ClosurePhotoPicker from './ClosurePhotoPicker'
+import ClosureDocsPicker from './ClosureDocsPicker'
+import ClosureDocsList from './ClosureDocsList'
 
 // ─────────────────────────────────────────────────────────────
 // Design tokens — Compact variant (handoff Dettaglio Segnalazione)
@@ -55,6 +57,17 @@ const D = {
   accentShadow: '0 8px 20px rgba(124,58,237,0.4)',
   aiCardBg: 'linear-gradient(135deg, rgba(124,58,237,0.16), rgba(99,102,241,0.08))',
   aiCardBorder: '1px solid rgba(124,58,237,0.35)',
+}
+
+// Le parti condivise col modal admin (documenti, "Mi è servita") parlano
+// in CSS vars: dentro i fogli di questo dettaglio, che sono scuri anche
+// col tema chiaro, le vars puntano ai token di qui.
+const D_VARS = {
+  '--color-text': D.textPrimary,
+  '--color-text-secondary': D.textSecondary,
+  '--color-text-muted': D.textMuted,
+  '--color-text-faint': D.textSubtle,
+  '--color-border': D.raised,
 }
 
 // Design status colors (handoff palette — leggermente diverse da constants.js)
@@ -355,6 +368,7 @@ function ClosureSheet({ open, onClose, onSubmit, busy, reportId, components = []
     componentId: null,
     // Solo le foto nuove: quelle già salvate restano nel ticket.
     photos: [],
+    docs: [],
   }))
   // Il pezzo parte da quello già attribuito al ticket: chi chiude conferma
   // o corregge, non ricompila. `null` = non ancora toccato dall'utente,
@@ -380,6 +394,7 @@ function ClosureSheet({ open, onClose, onSubmit, busy, reportId, components = []
       ...(isEdit ? {} : { closed_at: new Date().toISOString() }),
       ...componentFields,
       closure_photos: form.photos,
+      ...(isEdit ? {} : { closure_docs: form.docs }),
     })
   }
   return (
@@ -441,6 +456,16 @@ function ClosureSheet({ open, onClose, onSubmit, busy, reportId, components = []
                 onChange={photos => setForm(f => ({ ...f, photos }))} />
             </FieldLabel>
           )}
+          {/* Il foglio firmato dalla ditta si ha in mano adesso. Correggendo
+              no: dopo la chiusura i documenti passano da "Aggiungi". */}
+          {reportId && !isEdit && (
+            <FieldLabel label="Foglio d'intervento, fattura">
+              <div style={D_VARS}>
+                <ClosureDocsPicker reportId={reportId} docs={form.docs}
+                  onChange={docs => setForm(f => ({ ...f, docs }))} />
+              </div>
+            </FieldLabel>
+          )}
           <FieldLabel label="Causa radice *" action={
             <DictateButton size="sm" hints={dictationHints}
               onText={t => setForm(f => ({ ...f, rootCause: appendText(f.rootCause, t) }))} />
@@ -481,9 +506,11 @@ function ClosureSheet({ open, onClose, onSubmit, busy, reportId, components = []
 // ─────────────────────────────────────────────────────────────
 // Nota successiva — un'informazione arrivata dopo la chiusura
 // ─────────────────────────────────────────────────────────────
-function ClosureNoteSheet({ onClose, onSubmit, busy, autoDictate = false, hints = [] }) {
+function ClosureNoteSheet({ reportId, onClose, onSubmit, busy, autoDictate = false, hints = [] }) {
   const [text, setText] = useState('')
-  const canSubmit = !!text.trim() && !busy
+  const [docs, setDocs] = useState([])
+  // Basta uno dei due: la fattura arriva spesso senza niente da aggiungere.
+  const canSubmit = (!!text.trim() || docs.length > 0) && !busy
   return (
     <div
       onClick={onClose}
@@ -508,7 +535,7 @@ function ClosureNoteSheet({ onClose, onSubmit, busy, autoDictate = false, hints 
           Aggiungi alla chiusura
         </h3>
         <p style={{ fontSize: 12, color: D.textSubtle, margin: '0 0 12px', lineHeight: 1.4 }}>
-          Quello che si è saputo dopo: se il guasto è tornato, il codice esatto del ricambio, cosa controllare la prossima volta.
+          Quello che si è saputo dopo: se il guasto è tornato, il codice esatto del ricambio, cosa controllare la prossima volta. E i documenti: il foglio d'intervento, la fattura.
         </p>
         <textarea
           value={text}
@@ -521,7 +548,12 @@ function ClosureNoteSheet({ onClose, onSubmit, busy, autoDictate = false, hints 
           <DictateButton label="Detta la nota" autoStart={autoDictate} hints={hints}
             onText={t => setText(prev => appendText(prev, t))} />
         </div>
-        <button onClick={() => canSubmit && onSubmit(text)} disabled={!canSubmit}
+        {reportId && (
+          <div style={{ ...D_VARS, marginBottom: 12 }}>
+            <ClosureDocsPicker reportId={reportId} docs={docs} onChange={setDocs} />
+          </div>
+        )}
+        <button onClick={() => canSubmit && onSubmit(text, docs)} disabled={!canSubmit}
           className="press-scale"
           style={{
             width: '100%', padding: '12px', borderRadius: 12,
@@ -532,7 +564,7 @@ function ClosureNoteSheet({ onClose, onSubmit, busy, autoDictate = false, hints 
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}
         >
-          <Plus size={16} /> Aggiungi nota
+          <Plus size={16} /> {docs.length && !text.trim() ? 'Allega alla chiusura' : 'Aggiungi alla chiusura'}
         </button>
       </div>
     </div>
@@ -544,7 +576,7 @@ function ClosureNoteSheet({ onClose, onSubmit, busy, autoDictate = false, hints 
 // ─────────────────────────────────────────────────────────────
 // Per un ticket in archivio la domanda è una sola: cosa era e cosa è stato
 // fatto. Per questo la chiusura sta sopra la descrizione e non in fondo.
-function ClosureCard({ report, user, canUpdate, onEdit, onAddNote, onOpenPhoto }) {
+function ClosureCard({ report, user, canUpdate, onEdit, onAddNote, onOpenPhoto, onRemoveDoc, busy }) {
   const closure = getClosure(report)
   const hasData = hasClosureData(closure)
   const terminal = isTerminalStatus(report.status)
@@ -665,6 +697,10 @@ function ClosureCard({ report, user, canUpdate, onEdit, onAddNote, onOpenPhoto }
         </div>
       )}
 
+      <ClosureDocsList report={report} user={user} busy={busy}
+        onRemove={canUpdate ? onRemoveDoc : undefined}
+        style={{ ...D_VARS, marginTop: 10 }} />
+
       {hasData && terminal && (
         <ClosureHelpful report={report} user={user} style={{ marginTop: 10 }} />
       )}
@@ -703,7 +739,7 @@ function ClosureCard({ report, user, canUpdate, onEdit, onAddNote, onOpenPhoto }
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}
         >
-          <Plus size={14} /> Aggiungi un'informazione
+          <Plus size={14} /> Aggiungi nota o documento
         </button>
       )}
     </div>
@@ -1044,7 +1080,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
     // cronologia lo dice — l'ipotesi non deve sparire in silenzio.
     const prevComponentId = report.component_id || null
     const prevComponentName = report.component_name || null
-    const { closure_photos: closurePhotos = [], ...closureFields } = closureData
+    const { closure_photos: closurePhotos = [], closure_docs: closureDocs = [], ...closureFields } = closureData
     const updates = closurePhotos.length
       ? { ...closureFields, media: [...(report.media || []), ...closurePhotos] }
       : closureFields
@@ -1070,6 +1106,12 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         }).catch(e => console.warn('Side effect failed:', e.message))
       }
       setClosureSheetOpen(false)
+      if (closureDocs.length) {
+        // Sul report già chiuso: il foglio va nella cartella della macchina
+        // sotto il pezzo appena dichiarato, non quello dell'apertura.
+        const updated = await closureEdit.attachDocs({ ...report, ...closureFields }, closureDocs)
+        if (updated) setReport(r => ({ ...r, ...updated }))
+      }
       // Triggera reindex knowledge base della macchina (fire-and-forget):
       // il ticket appena chiuso, con la sua chat e closure, diventa
       // memoria permanente per ticket futuri simili.
@@ -1091,12 +1133,20 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
     setClosureEditOpen(false)
   }
 
-  const handleClosureNote = async (text) => {
-    const updated = await closureEdit.addNote(report, text)
+  const handleClosureNote = async (text, docs = []) => {
+    const updated = await closureEdit.addNote(report, text, docs)
+    if (!updated) return
+    setReport(r => ({ ...r, ...updated }))
+    // Una riga in cronologia per la nota, una per i documenti.
+    setHistoryCount(h => h + (text.trim() ? 1 : 0) + (docs.length ? 1 : 0))
+    setClosureNoteOpen(false)
+  }
+
+  const handleRemoveDoc = async (doc) => {
+    const updated = await closureEdit.removeDoc(report, doc)
     if (!updated) return
     setReport(r => ({ ...r, ...updated }))
     setHistoryCount(h => h + 1)
-    setClosureNoteOpen(false)
   }
 
   // ─── Aggiungi foto al ticket esistente ────────────────
@@ -1465,6 +1515,8 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
             canUpdate={canUpdate}
             onEdit={() => { haptic.light(); setClosureEditOpen(true) }}
             onAddNote={() => { haptic.light(); setClosureNoteOpen('text') }}
+            onRemoveDoc={handleRemoveDoc}
+            busy={closureEdit.saving}
             onOpenPhoto={(p) => {
               const idx = photos.findIndex(x => x.url === p.url)
               if (idx >= 0) setLightboxIndex(idx)
@@ -1705,6 +1757,7 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
       )}
       {closureNoteOpen && (
         <ClosureNoteSheet
+          reportId={report.id}
           onClose={() => setClosureNoteOpen(false)}
           onSubmit={handleClosureNote}
           busy={closureEdit.saving}

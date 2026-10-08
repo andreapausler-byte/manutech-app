@@ -26,6 +26,8 @@ const EVENT_COLORS = {
   component_change: '#22d3ee',
   closure_edit:   '#10b981',
   closure_note:   '#10b981',
+  closure_doc:    '#10b981',
+  closure_doc_removed: '#7d8a9c',
 }
 
 const EVENT_LABELS = {
@@ -40,6 +42,8 @@ const EVENT_LABELS = {
   component_change: 'Pezzo attribuito',
   closure_edit:   'Chiusura corretta',
   closure_note:   'Aggiunto alla chiusura',
+  closure_doc:    'Documento allegato',
+  closure_doc_removed: 'Documento tolto',
 }
 
 // Tipi che possono essere raggruppati quando consecutivi (≥ GROUP_THRESHOLD).

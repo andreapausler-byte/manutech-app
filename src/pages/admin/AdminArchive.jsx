@@ -22,13 +22,13 @@ import { db } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { TERMINAL_STATUSES, formatDate, formatDateParts, formatTicketId } from '../../lib/constants'
 import {
-  getClosure, closureOutcome, closedAtOf, closureSearchText,
+  getClosure, closureOutcome, closedAtOf, closureSearchText, closureDocLabel,
   groupByClosureMonth, CLOSURE_OUTCOMES,
 } from '../../lib/closure'
 import { Spinner, EmptyState, TicketIdBadge } from '../../components/ui'
 import ComponentPill from '../../components/machines/ComponentPill'
 import ReportDetailModal from './reports/ReportDetailModal'
-import { Search, X, Download, Clock, Package, User, StickyNote, ThumbsUp, Camera } from 'lucide-react'
+import { Search, X, Download, Clock, Package, User, StickyNote, ThumbsUp, Camera, Paperclip } from 'lucide-react'
 
 const DAY_MS = 24 * 3600 * 1000
 
@@ -58,7 +58,7 @@ const hoursLabel = (h) => `${Math.round(h * 10) / 10}h`
 
 // CSV con `;` e BOM: Excel in italiano lo apre a colonne senza import guidato.
 function downloadCsv(rows, machineOf, helpful) {
-  const header = ['Ticket', 'Chiusa il', 'Macchina', 'Pezzo', 'Titolo', 'Esito', 'Tecnico', 'Ore', 'Ricambi', 'Causa radice', 'Azione correttiva', 'Note successive', 'Servita a (colleghi)']
+  const header = ['Ticket', 'Chiusa il', 'Macchina', 'Pezzo', 'Titolo', 'Esito', 'Tecnico', 'Ore', 'Ricambi', 'Causa radice', 'Azione correttiva', 'Note successive', 'Documenti', 'Servita a (colleghi)']
   const esc = (v) => {
     const s = v == null ? '' : String(v)
     return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -79,6 +79,8 @@ function downloadCsv(rows, machineOf, helpful) {
       c.rootCause || '',
       c.action || '',
       c.notes.map(n => `${n.user_name || 'Utente'}: ${n.text}`).join(' | '),
+      // Con il link: chi fa la contabilità del mese apre le fatture da Excel.
+      c.docs.map(d => `${closureDocLabel(d.kind)}: ${d.name || ''} ${d.url}`).join(' | '),
       helpful[r.id] || 0,
     ].map(esc).join(';')
   })
@@ -102,6 +104,7 @@ function ArchiveRow({ report, machineName, helpful = 0, onOpen }) {
     report.assigned_to_name && outcome !== 'senza' && { icon: User, text: report.assigned_to_name },
     c.notes.length > 0 && { icon: StickyNote, text: `${c.notes.length} ${c.notes.length === 1 ? 'nota' : 'note'} dopo` },
     c.photos.length > 0 && { icon: Camera, text: `${c.photos.length} foto del pezzo` },
+    c.docs.length > 0 && { icon: Paperclip, text: c.docs.map(d => closureDocLabel(d.kind)).join(', ') },
     helpful > 0 && { icon: ThumbsUp, text: `Servita a ${helpful} ${helpful === 1 ? 'collega' : 'colleghi'}`, color: '#10b981' },
   ].filter(Boolean)
 

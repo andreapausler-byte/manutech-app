@@ -17,6 +17,8 @@ import MergeReportModal from './MergeReportModal'
 import ShareReportSheet from '../../../components/reports/ShareReportSheet'
 import ComponentPill from '../../../components/machines/ComponentPill'
 import ClosurePanel from './ClosurePanel'
+import ClosureDocsPicker from '../../../components/reports/ClosureDocsPicker'
+import { useClosureEdit } from '../../../hooks/useClosureEdit'
 import {
   X, MessageCircle, Clock, Pencil, Trash2, Save, XCircle, Share2,
   AlertTriangle, UserCheck, Sparkles, GitMerge, Link2, Unlink, ChevronRight
@@ -43,8 +45,9 @@ export default function ReportDetailModal({ selected, user, users, machines, all
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showClosureForm, setShowClosureForm] = useState(false)
-  const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '', componentId: null })
+  const [closureForm, setClosureForm] = useState({ hours: '', parts: '', rootCause: '', action: '', componentId: null, docs: [] })
   const [closureSaving, setClosureSaving] = useState(false)
+  const closureEdit = useClosureEdit(user)
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [components, setComponents] = useState([])
@@ -168,8 +171,14 @@ export default function ReportDetailModal({ selected, user, users, machines, all
             : `In chiusura: attribuzione rimossa${prevComponentName ? ` (era ${prevComponentName})` : ''}`,
         }).catch(e => console.warn('Side effect failed:', e.message))
       }
+      // I documenti dopo il cambio di stato, sul report già chiuso: il
+      // foglio va nella cartella della macchina sotto il pezzo dichiarato ora.
+      if (closureForm.docs.length) {
+        const updated = await closureEdit.attachDocs({ ...selected, ...closureData }, closureForm.docs)
+        if (updated) onUpdate(updated)
+      }
       setShowClosureForm(false)
-      setClosureForm({ hours: '', parts: '', rootCause: '', action: '', componentId: null })
+      setClosureForm({ hours: '', parts: '', rootCause: '', action: '', componentId: null, docs: [] })
       toast.success('Intervento chiuso con successo')
     } catch (err) {
       toast.error('Errore chiusura intervento: ' + err.message)
@@ -738,6 +747,7 @@ export default function ReportDetailModal({ selected, user, users, machines, all
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl"
             onClick={() => setShowClosureForm(false)}>
             <div className="bg-surface-1 border border-token rounded-2xl w-full max-w-md p-6 space-y-4 animate-fade-in shadow-2xl"
+              style={{ maxHeight: 'calc(100% - 32px)', overflowY: 'auto' }}
               onClick={e => e.stopPropagation()}>
               <h3 className="text-lg font-bold text-themed">Chiusura Intervento</h3>
               <p className="text-sm text-faint">Compila i dati dell'intervento prima di chiudere.</p>
@@ -785,6 +795,11 @@ export default function ReportDetailModal({ selected, user, users, machines, all
                   onChange={e => setClosureForm(f => ({ ...f, action: e.target.value }))}
                   placeholder="Cosa è stato fatto per risolvere?" rows={2}
                   className="w-full input-field rounded-xl px-3 py-2.5 text-sm resize-none" />
+              </div>
+              <div>
+                <label className="block text-[11px] text-faint uppercase mb-1">Foglio d'intervento, fattura</label>
+                <ClosureDocsPicker reportId={selected.id} docs={closureForm.docs}
+                  onChange={docs => setClosureForm(f => ({ ...f, docs }))} />
               </div>
               <div className="flex gap-3">
                 <button onClick={submitClosure} disabled={closureSaving}
