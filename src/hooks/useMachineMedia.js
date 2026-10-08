@@ -8,11 +8,13 @@
  *
  * Uso:
  *   const { items, featured, attachments, loading, hasMore, loadMore,
- *           toggleFeature, applyAttachments } = useMachineMedia(machine)
+ *           toggleFeature, applyAttachments, reload } = useMachineMedia(machine)
  *
  * `applyAttachments(list)` serve a chi scrive negli attachments per
  * altre vie (un upload dal campo): passa la lista fresca e la scheda si
- * aggiorna senza rileggere la macchina.
+ * aggiorna senza rileggere la macchina. `reload()` rilegge il feed: serve
+ * a chi ci ha appena aggiunto foto da un'altra fonte (un intervento
+ * registrato con le foto allegate).
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -31,6 +33,7 @@ export function useMachineMedia(machine) {
   // stato di caricamento con una setState dentro l'effect.
   const [feed, setFeed] = useState({ machineId: null, items: EMPTY, hasMore: false })
   const [loadingMore, setLoadingMore] = useState(false)
+  const [version, setVersion] = useState(0)
 
   // Dopo un toggle la versione fresca della galleria curata è quella che
   // ci ha ritornato la RPC, non la prop: la teniamo qui finché resta la
@@ -56,7 +59,9 @@ export function useMachineMedia(machine) {
         setFeed({ machineId, items: EMPTY, hasMore: false })
       })
     return () => { cancelled = true }
-  }, [machineId, machineName])
+  }, [machineId, machineName, version])
+
+  const reload = useCallback(() => setVersion(v => v + 1), [])
 
   const loadMore = useCallback(async () => {
     if (!machineId || loadingMore || !hasMore) return
@@ -137,7 +142,7 @@ export function useMachineMedia(machine) {
 
   return {
     items, featured, attachments, loading, loadingMore, hasMore,
-    loadMore, toggleFeature, applyAttachments,
+    loadMore, toggleFeature, applyAttachments, reload,
   }
 }
 

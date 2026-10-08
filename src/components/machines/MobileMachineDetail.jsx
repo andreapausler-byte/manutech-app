@@ -20,6 +20,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { db } from '../../lib/supabase'
 import { timeAgo, isReportOpen, isTerminalStatus } from '../../lib/constants'
 import { getTrafficLight } from '../../lib/maintenanceStatus'
+import { hasPdfMedia, hasPhotoMedia } from '../../lib/logMedia'
 import { padX } from './machineTabs'
 import MachineGallery from './MachineGallery'
 import MachineTabBar from './MachineTabBar'
@@ -28,6 +29,7 @@ import MachineDocsTab from './MachineDocsTab'
 import MachineComponentsTab from './MachineComponentsTab'
 import MachineLogsTab from './MachineLogsTab'
 import MachinePlansTab from './MachinePlansTab'
+import LogAttachmentsPicker from './LogAttachmentsPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -55,6 +57,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   const [confirmPlan, setConfirmPlan] = useState(null)
   const [confirmNote, setConfirmNote] = useState('')
   const [confirmDuration, setConfirmDuration] = useState('')
+  const [confirmFiles, setConfirmFiles] = useState([])
   const [confirming, setConfirming] = useState(false)
 
   const [resolveReport, setResolveReport] = useState(null)
@@ -71,7 +74,12 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   const [workTitle, setWorkTitle] = useState('')
   const [workNote, setWorkNote] = useState('')
   const [workDuration, setWorkDuration] = useState('')
+  const [workFiles, setWorkFiles] = useState([])
   const [savingWork, setSavingWork] = useState(false)
+
+  // Un solo foglio alla volta è aperto: basta un flag per dire al tasto
+  // di salvataggio che un allegato sta ancora salendo.
+  const [attaching, setAttaching] = useState(false)
 
   // Il feed foto sta qui e non dentro la galleria: la barra a schede deve
   // poter mostrare il contatore anche quando il tab Foto non è aperto.
@@ -125,6 +133,22 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
 
   const goToTab = (id) => { haptic.light(); setTab(id) }
 
+  // Il log porta già le foto e i PDF allegati: qui si rinfrescano le due
+  // viste che li leggono altrove — la galleria del tab Foto e la biblioteca
+  // dell'assistente, che il foglio della ditta lo deve poter citare.
+  const refreshAfterAttachments = (files) => {
+    if (hasPhotoMedia(files)) media.reload()
+    if (hasPdfMedia(files)) {
+      db.queueMachineReindex(machine.id)
+        .catch(e => console.warn('[MobileMachineDetail] reindex post-log failed:', e?.message))
+    }
+  }
+
+  const openConfirmPlan = (plan) => {
+    setConfirmNote(''); setConfirmDuration(''); setConfirmFiles([])
+    setConfirmPlan(plan)
+  }
+
   const handleConfirmMaintenance = async () => {
     if (!confirmPlan) return
     setConfirming(true)
@@ -137,8 +161,10 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         title: confirmPlan.name, description: confirmNote.trim() || null,
         performed_by: user?.id, performed_by_name: user?.name,
         duration_minutes: confirmDuration ? parseInt(confirmDuration) : null,
+        media: confirmFiles,
         performed_at: new Date().toISOString(), org_id: user?.org_id,
       })
+      refreshAfterAttachments(confirmFiles)
       haptic.success()
       toast.success('Manutenzione registrata!')
       db.addNotification({
@@ -146,7 +172,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         body: `${user?.name} ha completato "${confirmPlan.name}" su ${machine.name}`,
         report_id: null, from_user: user?.id, target_user: null,
       }).catch(e => console.warn('Side effect failed:', e.message))
-      setConfirmPlan(null); setConfirmNote(''); setConfirmDuration('')
+      setConfirmPlan(null); setConfirmNote(''); setConfirmDuration(''); setConfirmFiles([])
       await loadData()
     } catch (e) { toast.error('Errore: ' + e.message) }
     setConfirming(false)
@@ -240,12 +266,14 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
         performed_by: user?.id,
         performed_by_name: user?.name,
         duration_minutes: workDuration ? parseInt(workDuration) : null,
+        media: workFiles,
         performed_at: new Date().toISOString(),
         org_id: user?.org_id,
       })
+      refreshAfterAttachments(workFiles)
       haptic.success()
       toast.success(`Intervento registrato su ${workComponent.name}`)
-      setWorkComponent(null); setWorkTitle(''); setWorkNote(''); setWorkDuration('')
+      setWorkComponent(null); setWorkTitle(''); setWorkNote(''); setWorkDuration(''); setWorkFiles([])
       await loadData()
     } catch (e) {
       toast.error('Errore: ' + (e.message || 'riprova'))
@@ -350,7 +378,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
               uploading={upload.busy}
               onCapture={(comp) => upload.capturePhoto(comp)}
               onUploadDoc={(category, comp) => upload.uploadDocument(category, comp)}
-              onRegisterWork={(comp) => { setWorkTitle(''); setWorkNote(''); setWorkDuration(''); setWorkComponent(comp) }}
+              onRegisterWork={(comp) => { setWorkTitle(''); setWorkNote(''); setWorkDuration(''); setWorkFiles([]); setWorkComponent(comp) }}
               onReport={(comp) => onNewReport?.(machine.name, comp.id)}
               onViewReport={openReport}
             />
@@ -399,7 +427,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
               plans={plans}
               planLastLogs={planLastLogs}
               loading={loading}
-              onConfirmPlan={setConfirmPlan}
+              onConfirmPlan={openConfirmPlan}
             />
           )}
         </div>
@@ -435,34 +463,42 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
       {confirmPlan && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setConfirmPlan(null)} role="dialog" aria-modal="true" aria-labelledby="confirm-plan-title">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
-          <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl p-[5vw] pb-[8vw] animate-slide-up safe-area-bottom"
-            style={{ maxHeight: '75vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
+          {/* Spaziature inline come nel foglio "Intervento sul pezzo": il
+              reset globale annulla p-*, mb-* e space-y-*. */}
+          <div className="relative w-full max-w-lg bg-surface-1 border-t border-token rounded-t-3xl animate-slide-up safe-area-bottom"
+            style={{ maxHeight: '85vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '5vw 5vw 8vw' }}
             onClick={e => e.stopPropagation()}>
-            <div className="w-10 h-1 bg-surface-3 rounded-full mx-auto mb-[4vw]" />
-            <div className="flex items-center gap-3 mb-[4vw]">
-              <div className="w-12 h-12 bg-emerald-500/15 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-1 bg-surface-3 rounded-full mx-auto" style={{ marginBottom: '4vw' }} />
+            <div className="flex items-center gap-3" style={{ marginBottom: '4vw' }}>
+              <div className="w-12 h-12 bg-emerald-500/15 rounded-xl flex items-center justify-center shrink-0">
                 <CheckCircle size={24} className="text-emerald-400" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 id="confirm-plan-title" className="text-lg font-bold text-themed">Conferma Manutenzione</h3>
-                <p className="text-sm text-faint">{confirmPlan.name}</p>
+                <p className="text-sm text-faint truncate">{confirmPlan.name}</p>
               </div>
             </div>
-            <div className="space-y-[3vw] mb-[4vw]">
+            <div className="flex flex-col gap-[3vw]" style={{ marginBottom: '4vw' }}>
               <div>
-                <label className="block text-sm text-muted mb-[1.5vw] font-semibold">Note (opzionale)</label>
+                <label className="block text-sm text-muted font-semibold" style={{ marginBottom: '1.5vw' }}>Note (opzionale)</label>
                 <textarea value={confirmNote} onChange={e => setConfirmNote(e.target.value)}
-                  placeholder="Es. Tutto regolare" className="w-full input-field rounded-2xl px-4 py-[3vw] text-base resize-none" rows={2} />
+                  placeholder="Es. Tutto regolare" className="w-full input-field rounded-2xl text-base resize-none" rows={2}
+                  style={{ padding: '3vw 16px' }} />
               </div>
               <div>
-                <label className="block text-sm text-muted mb-[1.5vw] font-semibold">Durata (minuti)</label>
-                <input type="number" value={confirmDuration} onChange={e => setConfirmDuration(e.target.value)}
-                  placeholder="30" className="w-full input-field rounded-2xl px-4 py-[3vw] text-base" />
+                <label className="block text-sm text-muted font-semibold" style={{ marginBottom: '1.5vw' }}>Durata (minuti)</label>
+                <input type="number" inputMode="numeric" value={confirmDuration} onChange={e => setConfirmDuration(e.target.value)}
+                  placeholder="30" className="w-full input-field rounded-2xl text-base" style={{ padding: '3vw 16px' }} />
+              </div>
+              <div>
+                <label className="block text-sm text-muted font-semibold" style={{ marginBottom: '1.5vw' }}>Foto e documenti (opzionale)</label>
+                <LogAttachmentsPicker mobile machineId={machine.id} media={confirmFiles}
+                  onChange={setConfirmFiles} onBusyChange={setAttaching} />
               </div>
             </div>
             <div className="flex gap-[3vw]">
-              <button onClick={handleConfirmMaintenance} disabled={confirming}
-                className="flex-1 h-[68px] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-2 press-scale transition-all"
+              <button onClick={handleConfirmMaintenance} disabled={confirming || attaching}
+                className="flex-1 h-[68px] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-2 press-scale transition-all disabled:opacity-50"
                 style={{ background: '#22c55e', boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}>
                 {confirming ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   : <><CheckCircle size={20} /> Conferma</>}
@@ -512,12 +548,17 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
                 <input type="number" inputMode="numeric" value={workDuration} onChange={e => setWorkDuration(e.target.value)}
                   placeholder="30" className="w-full input-field rounded-2xl text-base" style={{ padding: '3vw 16px' }} />
               </div>
+              <div>
+                <label className="block text-sm text-muted font-semibold" style={{ marginBottom: '1.5vw' }}>Foto e documenti (opzionale)</label>
+                <LogAttachmentsPicker mobile machineId={machine.id} media={workFiles}
+                  onChange={setWorkFiles} onBusyChange={setAttaching} />
+              </div>
             </div>
             <p className="text-[13px] text-faint leading-relaxed" style={{ marginBottom: '4vw' }}>
               Finisce nel registro interventi del macchinario, con il pezzo indicato.
             </p>
             <div className="flex gap-[3vw]">
-              <button onClick={saveComponentWork} disabled={savingWork || !workTitle.trim()}
+              <button onClick={saveComponentWork} disabled={savingWork || attaching || !workTitle.trim()}
                 className="flex-1 h-[68px] rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-2 press-scale transition-all disabled:opacity-50"
                 style={{ background: '#22c55e', boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}>
                 {savingWork ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />

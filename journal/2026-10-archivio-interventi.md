@@ -168,3 +168,54 @@ desktop".
 - Togliere un foglio dalla chiusura non lo toglie dalla cartella della
   macchina: lì lo elimina l'admin dalla scheda.
 
+---
+
+## Quarta parte (8/10) — foto e PDF nelle manutenzioni registrate (v5.31)
+
+### Richiesta
+"Vorrei poter inserire anche dei file (foto o PDF) anche quando concludo una
+manutenzione programmata. Al momento, se registro un intervento, non posso
+inserire delle foto oppure un file. Verifica."
+
+### Verifica
+Un intervento si registra da sei punti; prima di questa versione:
+
+| Dove | Allegati |
+|---|---|
+| Telefono, Home → "Completa" della manutenzione presa in carico | sì (Foto, File) |
+| Telefono, scheda macchina → Manut. → "Fatto — Registra" | **no** |
+| Telefono, scheda macchina → Pezzi → "Registra intervento" | **no** |
+| Telefono, scheda macchina → Segnalazioni → "Risolvi e Registra" | no (i documenti vanno sulla chiusura del ticket, v5.30) |
+| Desktop, pagina Manutenzione → "Registra" | **no** |
+| Desktop, scheda macchina → Interventi → "Registra" | sì |
+
+E dove si poteva allegare, **lo storico non mostrava gli allegati**: le foto
+finivano nella galleria della macchina, i PDF nella biblioteca
+dell'assistente, ma nella riga dell'intervento non c'era traccia. Chi ha
+allegato il foglio non aveva modo di ritrovarlo da lì.
+
+### Decisioni
+1. **Stessa colonna di sempre**, `maintenance_logs.media`: la 028 l'aveva già
+   aggiunta e la RPC già la accettava. Nessuna migration.
+2. **Un picker solo** (`LogAttachmentsPicker`) per i tre punti mancanti. Sul
+   telefono due tasti: Scatta apre la fotocamera senza passare dalla scelta
+   (con i guanti un passaggio in meno conta), "Foto o PDF" per il resto. Sul
+   desktop un riquadro su cui si trascina il PDF.
+3. **Niente tipo foglio/fattura** come nella chiusura dei ticket: lo storico
+   lo vedono anche gli operatori, e una fattura lì sarebbe visibile a tutti.
+   Se serve, la fattura di una manutenzione esterna va dove sta oggi
+   (contratti della macchina) o si decide insieme alla domanda aperta sulle
+   fatture.
+4. **Lo storico mostra gli allegati**, anche quelli vecchi: tre formati
+   diversi nel tempo (`photo`/`document`, `image`/`pdf`/`document`,
+   `photo`/`pdf`), letti tutti da `lib/logMedia.js`.
+
+### Cosa resta aperto
+- "Risolvi e Registra" dalla scheda macchina resta senza allegati: chiude un
+  ticket, e i documenti di un ticket stanno sulla sua chiusura (v5.30). Se i
+  tecnici lo usano spesso, aggiungere lì il picker della chiusura.
+- La Home del tecnico ("Completa") ha ancora il suo picker vecchio
+  (Foto/File, accetta anche .doc e non comprime): funziona, si può allineare.
+- Modificare gli allegati di un intervento già registrato si può solo dal
+  modulo della scheda macchina desktop (matita sulla riga).
+

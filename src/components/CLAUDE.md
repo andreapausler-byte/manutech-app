@@ -33,6 +33,9 @@ con un nuovo `case route.name === 'xxx'`.
 - `ClosureDocsPicker` / `ClosureDocsList`: documenti dell'intervento (foglio, fattura, altro) dentro la chiusura, su telefono e desktop. Solo CSS vars. Chi vede le fatture lo decide `visibleClosureDocs` in `lib/closure.js`
 - `ResolvedReportCard`: segnalazione conclusa letta dal lato "come" (causa, azione, ore, ricambi) — tab Archivio e Concluse della scheda macchina. I dati di chiusura si leggono SEMPRE da `lib/closure.js`, mai da `extra_data.closure_*`
 
+## machines/ — Scheda macchina
+- `LogAttachmentsPicker` / `LogAttachmentsList`: foto e PDF di un intervento registrato (`maintenance_logs.media`), nel modulo e nello storico, su telefono e desktop. Solo CSS vars. Gli allegati si leggono SEMPRE con `lib/logMedia.js`: nel tempo ci sono finiti tre formati di `type`
+
 ## Pattern navigazione mobile
 ```js
 const navigateTo = (screen, data) => { setScreen(screen); setSelectedReport(data) }
