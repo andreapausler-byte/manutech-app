@@ -23,7 +23,9 @@ NON creare componenti UI duplicati. Controlla prima `ui/index.jsx`.
 
 Per il layout admin desktop vedi `src/pages/manutech-v6/V6App.jsx` —
 è l'unico layout admin (industrial dark). Aggiungere lì le nuove rotte
-con un nuovo `case route.name === 'xxx'`.
+con un nuovo `case route.name === 'xxx'`. Le azioni di una pagina (Nuovo…,
+Registra…) vanno nella barra in alto con `<V6TopBarActions>`
+(`contexts/V6TopBarContext.jsx`), come fa AdminMaintenance.
 
 ## reports/ — Segnalazioni
 - `NewReport`: form completo (titolo, macchina, severità, tipo, descrizione, foto)
