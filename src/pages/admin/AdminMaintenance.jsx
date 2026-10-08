@@ -4,11 +4,17 @@
  * Vista unificata di tutti i piani e interventi su tutti i macchinari.
  * L'admin vede: semaforo globale, piani scaduti/in scadenza/ok,
  * può aggiungere piani, registrare interventi, importare CSV.
+ *
+ * La vista Interventi è l'archivio delle manutenzioni fatte, come
+ * l'Archivio interventi per le segnalazioni: si cerca anche dentro testo,
+ * ricambi, note aggiunte dopo e nomi degli allegati, si esporta in CSV, e
+ * un clic apre l'intervento (MaintenanceLogModal) per leggerlo o
+ * aggiornarlo. "Ultimo" nei piani apre l'ultima esecuzione.
  */
 
 import { useState, useEffect } from 'react'
 import { db } from '../../lib/supabase'
-import { timeAgo } from '../../lib/constants'
+import { timeAgo, formatDate } from '../../lib/constants'
 import { Button, Modal, Input, Textarea, EmptyState, Spinner, Badge } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
@@ -17,11 +23,13 @@ import { findNavItem } from '../../lib/adminNav'
 import ComponentPill from '../../components/machines/ComponentPill'
 import LogAttachmentsPicker from '../../components/machines/LogAttachmentsPicker'
 import LogAttachmentsList from '../../components/machines/LogAttachmentsList'
-import { hasPdfMedia } from '../../lib/logMedia'
+import MaintenanceLogModal from '../../components/machines/MaintenanceLogModal'
+import { hasPdfMedia, logMediaList } from '../../lib/logMedia'
+import { logSearchText, getLogRecord, formatMinutes, logTypeMeta } from '../../lib/maintenanceLog'
 import {
   Shield, Wrench, AlertTriangle, CheckCircle, Cog, Clock,
   Plus, Edit, Trash2, Play, Search, X, Upload, ChevronRight,
-  Filter, Calendar
+  Filter, Calendar, Download, StickyNote
 } from 'lucide-react'
 
 const NAV_ITEM = findNavItem('maintenance')
@@ -35,6 +43,38 @@ function getTrafficLight(plan, lastLog) {
   if (daysLeft <= 0) return { label: `Scaduta da ${Math.abs(daysLeft)}g`, color: '#ef4444', daysLeft, status: 'overdue' }
   if (daysLeft <= 7) return { label: `Scade tra ${daysLeft}g`, color: '#f59e0b', daysLeft, status: 'warning' }
   return { label: `Tra ${daysLeft}g`, color: '#22c55e', daysLeft, status: 'ok' }
+}
+
+// CSV con `;` e BOM, come l'Archivio interventi: Excel in italiano lo apre
+// a colonne. Con i link degli allegati, per chi tiene i fogli delle ditte.
+function downloadLogsCsv(logs) {
+  const header = ['Data', 'Tipo', 'Macchina', 'Pezzo', 'Intervento', 'Cosa è stato fatto', 'Eseguito da', 'Durata (min)', 'Ricambi', 'Ditta', 'Rif.', 'Note successive', 'Allegati']
+  const esc = (v) => {
+    const t = v == null ? '' : String(v)
+    return /[;"\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
+  }
+  const lines = logs.map(l => [
+    formatDate(l.performed_at),
+    logTypeMeta(l).label,
+    l.machine?.name || '',
+    l.component?.name || '',
+    l.title || '',
+    l.description || '',
+    l.performed_by_name || '',
+    l.duration_minutes ?? '',
+    l.parts_replaced || '',
+    l.is_external ? (l.contractor_name || 'Ditta esterna') : '',
+    l.contractor_reference || '',
+    getLogRecord(l).notes.map(n => `${n.user_name || 'Utente'}: ${n.text}`).join(' | '),
+    logMediaList(l).map(m => `${m.name || 'allegato'} ${m.url}`).join(' | '),
+  ].map(esc).join(';'))
+  const blob = new Blob(['\ufeff' + [header.join(';'), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `manutenzioni-eseguite-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 const FREQ_PRESETS = [
@@ -55,6 +95,9 @@ export default function AdminMaintenance() {
   const [filterStatus, setFilterStatus] = useState('') // '', 'overdue', 'warning', 'ok'
   const [filterMachine, setFilterMachine] = useState('')
   const [viewMode, setViewMode] = useState('plans') // 'plans' | 'logs'
+  const [filterLogType, setFilterLogType] = useState('') // '', 'programmata', 'straordinaria'
+  const [openLog, setOpenLog] = useState(null)
+  const [logLimit, setLogLimit] = useState(50)
 
   // Plan form
   const [showPlanForm, setShowPlanForm] = useState(false)
@@ -116,12 +159,25 @@ export default function AdminMaintenance() {
 
   const filteredLogs = allLogs.filter(log => {
     if (filterMachine && log.machine_id !== filterMachine) return false
-    if (search) {
-      const q = search.toLowerCase()
-      return log.title?.toLowerCase().includes(q) || log.performed_by_name?.toLowerCase().includes(q)
-    }
+    if (filterLogType === 'programmata' && log.type !== 'programmata') return false
+    if (filterLogType === 'straordinaria' && log.type === 'programmata') return false
+    if (search) return logSearchText(log).includes(search.toLowerCase())
     return true
   })
+
+  // Una correzione non ricarica la pagina: si aggiornano la riga in lista e,
+  // se è l'ultima esecuzione di un piano, il suo semaforo (la data può
+  // essere cambiata). L'intervento torna con la macchina del join.
+  const handleLogChanged = (updated) => {
+    setAllLogs(prev => prev
+      .map(l => (l.id === updated.id ? { ...l, ...updated } : l))
+      .sort((a, b) => new Date(b.performed_at) - new Date(a.performed_at)))
+    setTasks(prev => prev.map(t => {
+      if (t.lastLog?.id !== updated.id) return t
+      const lastLog = { ...t.lastLog, ...updated }
+      return { ...t, lastLog, light: getTrafficLight(t.plan, lastLog) }
+    }))
+  }
 
   // ── Plan CRUD ──
   const openPlanForm = async (plan = null, machineId = '') => {
@@ -301,6 +357,30 @@ export default function AdminMaintenance() {
           </div>
         )}
 
+        {viewMode === 'logs' && (
+          <div className="flex gap-1.5">
+            {[
+              { id: '', label: 'Tutti' },
+              { id: 'programmata', label: 'Programmate', color: '#8b5cf6' },
+              { id: 'straordinaria', label: 'Straordinarie', color: '#f59e0b' },
+            ].map(f => (
+              <button key={f.id} onClick={() => setFilterLogType(filterLogType === f.id ? '' : f.id)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${filterLogType === f.id ? 'text-white' : 'bg-surface-2 text-muted hover:text-white'}`}
+                style={filterLogType === f.id ? { background: f.color || '#7c6aff' } : {}}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {viewMode === 'logs' && filteredLogs.length > 0 && (
+          <button onClick={() => downloadLogsCsv(filteredLogs)}
+            className="flex items-center gap-1.5 px-3 py-2.5 bg-surface-2 hover:bg-white/10 text-secondary rounded-xl text-sm font-medium transition-all"
+            title="Esporta gli interventi filtrati in CSV">
+            <Download size={14} /> Esporta
+          </button>
+        )}
+
         {/* Actions */}
         <label className="flex items-center gap-1.5 px-3 py-2.5 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 rounded-xl text-sm font-medium cursor-pointer transition-all">
           <Upload size={14} /> CSV
@@ -375,7 +455,13 @@ export default function AdminMaintenance() {
                         </span>
                       </td>
                       <td className="px-5 py-4 hidden lg:table-cell">
-                        <span className="text-sm text-faint">{task.lastLog ? timeAgo(task.lastLog.performed_at) : 'Mai'}</span>
+                        {task.lastLog ? (
+                          <button onClick={() => setOpenLog({ ...task.lastLog, machine: task.machine })}
+                            className="text-sm text-faint hover:text-violet-400 underline decoration-dotted underline-offset-4 transition-colors"
+                            title="Apri l'ultima esecuzione: cosa è stato fatto">
+                            {timeAgo(task.lastLog.performed_at)}
+                          </button>
+                        ) : <span className="text-sm text-faint">Mai</span>}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex gap-1 justify-end">
@@ -402,7 +488,9 @@ export default function AdminMaintenance() {
       {/* ═══ LOGS VIEW ═══ */}
       {viewMode === 'logs' && (
         <>
-          <p className="text-sm text-faint">{filteredLogs.length} interventi registrati</p>
+          <p className="text-sm text-faint">
+            {filteredLogs.length} interventi registrati{filterLogType || filterMachine || search ? ' (filtrati)' : ''} · clic su una riga per vedere cosa è stato fatto o aggiornarlo
+          </p>
 
           {filteredLogs.length === 0 ? (
             <EmptyState icon="🔧" title="Nessun intervento" subtitle="Registra il primo intervento" />
@@ -421,9 +509,11 @@ export default function AdminMaintenance() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLogs.slice(0, 50).map(log => {
+                  {filteredLogs.slice(0, logLimit).map(log => {
+                    const notes = getLogRecord(log).notes.length
                     return (
-                      <tr key={log.id} className="border-b border-token/30 hover:bg-white/[0.02] transition-colors">
+                      <tr key={log.id} onClick={() => setOpenLog(log)}
+                        className="border-b border-token/30 hover:bg-white/[0.03] transition-colors cursor-pointer">
                         <td className="px-5 py-4">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${log.type === 'programmata' ? 'bg-violet-500/15 text-violet-400' : 'bg-amber-500/15 text-amber-400'}`}>
                             {log.type === 'programmata' ? 'Progr.' : 'Straord.'}
@@ -432,6 +522,11 @@ export default function AdminMaintenance() {
                         <td className="px-5 py-4">
                           <p className="text-[15px] text-white font-medium">{log.title}</p>
                           {log.description && <p className="text-xs text-faint mt-0.5 truncate max-w-[200px]">{log.description}</p>}
+                          {notes > 0 && (
+                            <p className="flex items-center gap-1 text-xs text-muted" style={{ marginTop: 4 }}>
+                              <StickyNote size={12} /> {notes} {notes === 1 ? 'nota' : 'note'} dopo
+                            </p>
+                          )}
                           <LogAttachmentsList log={log} style={{ marginTop: 6 }} />
                         </td>
                         <td className="px-5 py-4 hidden lg:table-cell">
@@ -444,7 +539,7 @@ export default function AdminMaintenance() {
                           <span className="text-sm text-faint">{timeAgo(log.performed_at)}</span>
                         </td>
                         <td className="px-5 py-4 hidden lg:table-cell">
-                          <span className="text-sm text-muted">{log.duration_minutes ? `${log.duration_minutes} min` : '—'}</span>
+                          <span className="text-sm text-muted">{formatMinutes(log.duration_minutes) || '—'}</span>
                         </td>
                         <td className="px-5 py-4 hidden lg:table-cell">
                           <span className="text-sm text-muted truncate max-w-[150px] block">{log.parts_replaced || '—'}</span>
@@ -454,9 +549,22 @@ export default function AdminMaintenance() {
                   })}
                 </tbody>
               </table>
+              {filteredLogs.length > logLimit && (
+                <button onClick={() => setLogLimit(n => n + 50)}
+                  className="w-full text-sm font-medium text-secondary hover:text-white hover:bg-white/[0.03] transition-colors"
+                  style={{ padding: '12px 0', borderTop: '1px solid var(--color-border-subtle)' }}>
+                  Mostra altri {Math.min(50, filteredLogs.length - logLimit)} di {filteredLogs.length - logLimit}
+                </button>
+              )}
             </div>
           )}
         </>
+      )}
+
+      {/* ═══ Intervento registrato ═══ */}
+      {openLog && (
+        <MaintenanceLogModal key={openLog.id} log={openLog}
+          onClose={() => setOpenLog(null)} onChanged={handleLogChanged} />
       )}
 
       {/* ═══ Plan Form ═══ */}

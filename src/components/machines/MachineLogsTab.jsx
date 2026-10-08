@@ -10,13 +10,15 @@
  * media non dice niente e non si mostra.
  *
  * Sotto ogni intervento le foto e i PDF allegati chiudendolo (il foglio
- * della ditta, la foto del pezzo cambiato): il tocco li apre.
+ * della ditta, la foto del pezzo cambiato): il tocco li apre. Il tocco
+ * sulla riga apre la scheda dell'intervento (MaintenanceLogModal), dove si
+ * legge tutto e lo si aggiorna.
  *
  * Misure guanti: righe da 88px, titolo 18px, allegati da 56px.
  */
 
 import { useMemo, useState } from 'react'
-import { Wrench, Shield, AlertTriangle } from 'lucide-react'
+import { Wrench, Shield, AlertTriangle, StickyNote, ChevronRight } from 'lucide-react'
 import { formatDateParts } from '../../lib/constants'
 import { TabHeading, TabActionRow, TabEmptyFrame } from './MachineTabParts'
 import { padX, padRow } from './machineTabs'
@@ -24,6 +26,7 @@ import { EmptyState } from '../ui'
 import ComponentPill from './ComponentPill'
 import LogAttachmentsList from './LogAttachmentsList'
 import { useHaptic } from '../../hooks/useHaptic'
+import { getLogRecord, formatMinutes } from '../../lib/maintenanceLog'
 
 const PAGE = 6
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -38,7 +41,7 @@ function computeMtbf(logs) {
   return Math.round(span / (faults.length - 1) / DAY_MS)
 }
 
-export default function MachineLogsTab({ logs, loading }) {
+export default function MachineLogsTab({ logs, loading, onOpenLog }) {
   const haptic = useHaptic()
   const [limit, setLimit] = useState(PAGE)
 
@@ -77,15 +80,21 @@ export default function MachineLogsTab({ logs, loading }) {
         const planned = log.type === 'programmata'
         const meta = [
           log.performed_by_name,
-          log.duration_minutes ? `${log.duration_minutes} min` : null,
+          formatMinutes(log.duration_minutes),
           log.parts_replaced,
         ].filter(Boolean)
+        const notes = getLogRecord(log).notes.length
+        const open = () => { haptic.light(); onOpenLog?.(log) }
 
         return (
           <div
             key={log.id}
-            className="flex items-center gap-[3.5vw] border-t"
-            style={{ ...padX, minHeight: 88, borderColor: 'var(--color-border-subtle)' }}
+            role="button"
+            tabIndex={0}
+            onClick={open}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }}
+            className="flex items-center gap-[3.5vw] border-t active:bg-surface-2 transition-colors"
+            style={{ ...padX, minHeight: 88, borderColor: 'var(--color-border-subtle)', cursor: 'pointer' }}
           >
             <div className="w-[54px] shrink-0" style={padRow}>
               <p className="font-mono text-[11px] text-secondary leading-tight">{day} {month}</p>
@@ -114,8 +123,14 @@ export default function MachineLogsTab({ logs, loading }) {
                   {meta.join(' · ')}
                 </p>
               )}
+              {notes > 0 && (
+                <p className="flex items-center gap-1.5 text-[12px] text-muted" style={{ marginTop: 6 }}>
+                  <StickyNote size={13} /> {notes} {notes === 1 ? 'nota aggiunta' : 'note aggiunte'} dopo
+                </p>
+              )}
               <LogAttachmentsList log={log} mobile style={{ marginTop: 8 }} />
             </div>
+            <ChevronRight size={20} className="text-faint shrink-0" />
           </div>
         )
       })}

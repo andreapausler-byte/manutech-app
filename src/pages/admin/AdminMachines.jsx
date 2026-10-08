@@ -15,6 +15,8 @@ import ReportDetailModal from './reports/ReportDetailModal'
 import MachineFormModal from './machines/MachineFormModal'
 import PlanFormModal from './machines/PlanFormModal'
 import LogFormModal from './machines/LogFormModal'
+import MaintenanceLogModal from '../../components/machines/MaintenanceLogModal'
+import { useMaintenanceLogEdit } from '../../hooks/useMaintenanceLogEdit'
 import CSVImportModal from './machines/CSVImportModal'
 import ComponentFormModal from './machines/ComponentFormModal'
 import AreaManagerModal from './machines/AreaManagerModal'
@@ -29,6 +31,7 @@ const NAV_ITEM = findNavItem('machines')
 export default function AdminMachines({ onOpenAssistant }) {
   const { user } = useAuth()
   const toast = useToast()
+  const logEdit = useMaintenanceLogEdit(user)
   const [machines, setMachines] = useState([])
   const [reports, setReports] = useState([])
   const [users, setUsers] = useState([])
@@ -62,6 +65,10 @@ export default function AdminMachines({ onOpenAssistant }) {
   // Log form
   const [showLogForm, setShowLogForm] = useState(false)
   const [editingLog, setEditingLog] = useState(null)
+  // Intervento aperto in lettura dalla scheda (MaintenanceLogModal). Le
+  // correzioni, da lì o dal modulo completo, passano dallo stesso hook:
+  // in cronologia resta il prima → dopo.
+  const [openLog, setOpenLog] = useState(null)
   const [logForm, setLogForm] = useState({ title: '', description: '', duration_minutes: '', parts_replaced: '', plan_id: '', component_id: '', is_external: false, contractor_name: '', contractor_reference: '', media: [], performed_at: '' })
 
   // CSV
@@ -420,8 +427,13 @@ export default function AdminMachines({ onOpenAssistant }) {
           const d = new Date(logForm.performed_at)
           if (!Number.isNaN(d.getTime())) updates.performed_at = d.toISOString()
         }
-        await db.updateMaintenanceLog(editingLog.id, updates)
-        toast.success('Intervento aggiornato')
+        const componentName = components.find(c => c.id === updates.component_id)?.name || null
+        const updated = await logEdit.saveEdit(editingLog, updates, { componentName })
+        if (!updated) return
+        setShowLogForm(false)
+        setEditingLog(null)
+        await refreshDetail()
+        return
       } else {
         await db.createMaintenanceLog({
           machine_id: sel.id,
@@ -922,7 +934,7 @@ export default function AdminMachines({ onOpenAssistant }) {
           onClose={() => setSel(null)} onEdit={openEdit} onDelete={(id) => { remove(id) }} onDownloadQR={downloadQR}
           onOpenReport={(report) => setSelectedReport(report)}
           onOpenPlanForm={openPlanForm} onDeletePlan={deletePlan}
-          onOpenLogForm={openLogForm} onEditLog={(log) => openLogForm(null, log)} onDeleteLog={deleteLog} onHandleCSVFile={handleCSVFile}
+          onOpenLogForm={openLogForm} onEditLog={(log) => openLogForm(null, log)} onDeleteLog={deleteLog} onOpenLog={setOpenLog} onHandleCSVFile={handleCSVFile}
           onOpenComponentForm={openComponentForm} onDeleteComponent={deleteComponent}
           onUploadComponentFile={uploadComponentFile} onSetAttachmentComponent={setAttachmentComponent}
           componentUploading={componentUploading}
@@ -930,6 +942,19 @@ export default function AdminMachines({ onOpenAssistant }) {
           onOpenAssistant={onOpenAssistant ? () => { const id = sel?.id; setSel(null); onOpenAssistant(id) } : undefined}
           reindexing={reindexing}
         />
+      )}
+
+      {/* Intervento registrato (dal Registro Interventi della scheda): dopo
+          la scheda nel DOM, così le sta sopra come il modal del ticket */}
+      {openLog && (
+        <MaintenanceLogModal key={openLog.id} log={openLog}
+          onClose={() => setOpenLog(null)}
+          onChanged={() => { refreshDetail() }}
+          onOpenReport={(rep) => {
+            const target = reports.find(r => r.id === rep.id)
+            if (target) { setOpenLog(null); setSelectedReport(target) }
+            else toast.info('Segnalazione non più disponibile')
+          }} />
       )}
 
       {/* Report Detail Modal (from machine detail, z-index above detail sheet) */}

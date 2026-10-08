@@ -25,6 +25,7 @@
 | `useMachineMedia` | Galleria foto/video di una macchina (feed + curata); `reload()` dopo aver aggiunto foto da altre fonti | `supabase.js` |
 | `useMachineUpload` | Scatta foto / carica documento sulla macchina dal campo | `supabase.js`, `useImageCompressor` |
 | `useClosureEdit` | Correggere una chiusura o aggiungerle una nota dopo, con cronologia e reindex | `supabase.js`, `lib/closure.js` |
+| `useMaintenanceLogEdit` | Correggere un intervento registrato, aggiungergli nota/foto/PDF, togliere un allegato, con cronologia (migration 068) e reindex | `supabase.js`, `lib/maintenanceLog.js` |
 | `useClosureHelpful` | Voto "Mi è servita" su una chiusura (ManuCoin via trigger, migration 064) | `supabase.js` |
 
 ## Pattern auto-reward

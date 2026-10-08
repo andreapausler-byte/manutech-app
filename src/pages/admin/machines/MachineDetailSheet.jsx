@@ -18,6 +18,7 @@ import { useMachineMedia } from '../../../hooks/useMachineMedia'
 import AISummaryCard from '../../../components/assistant/AISummaryCard'
 import ComponentPill from '../../../components/machines/ComponentPill'
 import LogAttachmentsList from '../../../components/machines/LogAttachmentsList'
+import { getLogRecord } from '../../../lib/maintenanceLog'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
 
@@ -637,7 +638,7 @@ export default function MachineDetailSheet({
   components = [],
   detailTab, setDetailTab,
   onClose, onEdit, onDelete, onDownloadQR, onOpenReport,
-  onOpenPlanForm, onDeletePlan, onOpenLogForm, onEditLog, onDeleteLog,
+  onOpenPlanForm, onDeletePlan, onOpenLogForm, onEditLog, onDeleteLog, onOpenLog,
   onHandleCSVFile,
   onOpenComponentForm, onDeleteComponent,
   onUploadComponentFile, onSetAttachmentComponent,
@@ -1026,7 +1027,10 @@ export default function MachineDetailSheet({
                   ) : (
                     <div className="space-y-2">
                       {logs.map(log => (
-                        <div key={log.id} className="flex items-start gap-3 p-4 bg-surface-2 rounded-xl group">
+                        <div key={log.id}
+                          onClick={onOpenLog ? () => onOpenLog(log) : undefined}
+                          title={onOpenLog ? 'Apri: cosa è stato fatto, note, cronologia' : undefined}
+                          className={`flex items-start gap-3 p-4 bg-surface-2 rounded-xl group ${onOpenLog ? 'cursor-pointer hover:bg-white/[0.04] transition-colors' : ''}`}>
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${log.type === 'programmata' ? 'bg-violet-500/15' : 'bg-amber-500/15'}`}>
                             {log.type === 'programmata' ? <Shield size={14} className="text-violet-400" /> : <Wrench size={14} className="text-amber-400" />}
                           </div>
@@ -1043,13 +1047,14 @@ export default function MachineDetailSheet({
                               <span>{timeAgo(log.performed_at)}</span>
                               {log.duration_minutes && <span>⏱ {log.duration_minutes} min</span>}
                               {log.parts_replaced && <span>🔩 {log.parts_replaced}</span>}
+                              {getLogRecord(log).notes.length > 0 && <span>📝 {getLogRecord(log).notes.length} dopo</span>}
                             </div>
                             <LogAttachmentsList log={log} style={{ marginTop: 8 }} />
                           </div>
                           <div className="flex items-center gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
                             {onEditLog && (
                               <button
-                                onClick={() => onEditLog(log)}
+                                onClick={(e) => { e.stopPropagation(); onEditLog(log) }}
                                 title="Modifica intervento"
                                 className="p-1.5 rounded-lg hover:bg-violet-500/15 text-faint hover:text-violet-400 transition-colors"
                               >
@@ -1058,7 +1063,7 @@ export default function MachineDetailSheet({
                             )}
                             {onDeleteLog && (
                               <button
-                                onClick={() => onDeleteLog(log.id)}
+                                onClick={(e) => { e.stopPropagation(); onDeleteLog(log.id) }}
                                 title="Elimina intervento"
                                 className="p-1.5 rounded-lg hover:bg-red-500/15 text-faint hover:text-red-400 transition-colors"
                               >

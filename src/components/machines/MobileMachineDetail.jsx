@@ -30,6 +30,7 @@ import MachineComponentsTab from './MachineComponentsTab'
 import MachineLogsTab from './MachineLogsTab'
 import MachinePlansTab from './MachinePlansTab'
 import LogAttachmentsPicker from './LogAttachmentsPicker'
+import MaintenanceLogModal from './MaintenanceLogModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import { useHaptic } from '../../hooks/useHaptic'
@@ -80,6 +81,10 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
   // Un solo foglio alla volta è aperto: basta un flag per dire al tasto
   // di salvataggio che un allegato sta ancora salendo.
   const [attaching, setAttaching] = useState(false)
+
+  // Intervento registrato aperto in lettura (dallo Storico o da "Ultima
+  // volta" di un piano): lì si legge cosa è stato fatto e lo si aggiorna.
+  const [openLog, setOpenLog] = useState(null)
 
   // Il feed foto sta qui e non dentro la galleria: la barra a schede deve
   // poter mostrare il contatore anche quando il tab Foto non è aperto.
@@ -142,6 +147,33 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
       db.queueMachineReindex(machine.id)
         .catch(e => console.warn('[MobileMachineDetail] reindex post-log failed:', e?.message))
     }
+  }
+
+  // L'ultima esecuzione di un piano arriva senza join: nella lista dello
+  // storico c'è già la versione con il pezzo.
+  const openLogDetail = (log) => setOpenLog(logs.find(l => l.id === log.id) || log)
+
+  // Una correzione può spostare la data: la lista si riordina e l'ultima
+  // esecuzione del piano (quindi il semaforo) si ricalcola dallo storico,
+  // che contiene già tutti gli interventi della macchina.
+  const handleLogChanged = (updated) => {
+    const prev = logs.find(l => l.id === updated.id)
+    const nextLogs = logs
+      .map(l => (l.id === updated.id ? { ...l, ...updated } : l))
+      .sort((a, b) => new Date(b.performed_at) - new Date(a.performed_at))
+    setLogs(nextLogs)
+    if (updated.plan_id) {
+      const latest = nextLogs.find(l => l.plan_id === updated.plan_id) || null
+      setPlanLastLogs(p => ({ ...p, [updated.plan_id]: latest }))
+    }
+    if ((prev?.media || []).length !== (updated.media || []).length) media.reload()
+  }
+
+  const openLinkedReport = (rep) => {
+    const target = reports.find(r => r.id === rep.id)
+    if (!target) { toast.info('Segnalazione non più disponibile'); return }
+    setOpenLog(null)
+    openReport(target)
   }
 
   const openConfirmPlan = (plan) => {
@@ -420,7 +452,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
             />
           )}
 
-          {tab === 'storico' && <MachineLogsTab logs={logs} loading={loading} />}
+          {tab === 'storico' && <MachineLogsTab logs={logs} loading={loading} onOpenLog={openLogDetail} />}
 
           {tab === 'manutenzioni' && (
             <MachinePlansTab
@@ -428,6 +460,7 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
               planLastLogs={planLastLogs}
               loading={loading}
               onConfirmPlan={openConfirmPlan}
+              onOpenLog={openLogDetail}
             />
           )}
         </div>
@@ -458,6 +491,18 @@ export default function MobileMachineDetail({ machine, onBack, onViewReport, onQ
           </button>
         </div>
       </div>
+
+      {/* ═══ MODAL — Intervento registrato ═══ */}
+      {openLog && (
+        <MaintenanceLogModal
+          key={openLog.id}
+          log={openLog}
+          mobile
+          onClose={() => setOpenLog(null)}
+          onChanged={handleLogChanged}
+          onOpenReport={openLinkedReport}
+        />
+      )}
 
       {/* ═══ MODAL — Conferma Manutenzione ═══ */}
       {confirmPlan && (

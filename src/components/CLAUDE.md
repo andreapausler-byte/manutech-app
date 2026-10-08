@@ -35,6 +35,7 @@ con un nuovo `case route.name === 'xxx'`.
 
 ## machines/ — Scheda macchina
 - `LogAttachmentsPicker` / `LogAttachmentsList`: foto e PDF di un intervento registrato (`maintenance_logs.media`), nel modulo e nello storico, su telefono e desktop. Solo CSS vars. Gli allegati si leggono SEMPRE con `lib/logMedia.js`: nel tempo ci sono finiti tre formati di `type`
+- `MaintenanceLogModal`: un intervento registrato letto e aggiornato (Correggi, nota/foto/PDF dopo, togli allegato, cronologia), su telefono (`mobile`) e desktop. Aprirlo con `key={log.id}`. Note e cronologia si leggono SEMPRE da `lib/maintenanceLog.js` (`getLogRecord`), si scrivono SEMPRE da `useMaintenanceLogEdit`
 
 ## Pattern navigazione mobile
 ```js
