@@ -17,6 +17,7 @@ import MachineComponentsTab from './MachineComponentsTab'
 import { useMachineMedia } from '../../../hooks/useMachineMedia'
 import AISummaryCard from '../../../components/assistant/AISummaryCard'
 import ComponentPill from '../../../components/machines/ComponentPill'
+import LogAttachmentsList from '../../../components/machines/LogAttachmentsList'
 
 const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
 
@@ -1043,6 +1044,7 @@ export default function MachineDetailSheet({
                               {log.duration_minutes && <span>⏱ {log.duration_minutes} min</span>}
                               {log.parts_replaced && <span>🔩 {log.parts_replaced}</span>}
                             </div>
+                            <LogAttachmentsList log={log} style={{ marginTop: 8 }} />
                           </div>
                           <div className="flex items-center gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
                             {onEditLog && (

@@ -15,6 +15,9 @@ import { useToast } from '../../hooks/useToast'
 import PageHeader from '../../components/layout/PageHeader'
 import { findNavItem } from '../../lib/adminNav'
 import ComponentPill from '../../components/machines/ComponentPill'
+import LogAttachmentsPicker from '../../components/machines/LogAttachmentsPicker'
+import LogAttachmentsList from '../../components/machines/LogAttachmentsList'
+import { hasPdfMedia } from '../../lib/logMedia'
 import {
   Shield, Wrench, AlertTriangle, CheckCircle, Cog, Clock,
   Plus, Edit, Trash2, Play, Search, X, Upload, ChevronRight,
@@ -61,8 +64,9 @@ export default function AdminMaintenance() {
 
   // Log form
   const [showLogForm, setShowLogForm] = useState(false)
-  const [logForm, setLogForm] = useState({ title: '', description: '', duration_minutes: '', parts_replaced: '', plan_id: '', machine_id: '', component_id: '' })
+  const [logForm, setLogForm] = useState({ title: '', description: '', duration_minutes: '', parts_replaced: '', plan_id: '', machine_id: '', component_id: '', media: [] })
   const [logComponents, setLogComponents] = useState([])
+  const [logAttaching, setLogAttaching] = useState(false)
 
   // CSV
   const [showCSV, setShowCSV] = useState(false)
@@ -163,6 +167,7 @@ export default function AdminMaintenance() {
       // Se il piano nomina un pezzo, il log parte già su quel pezzo:
       // resta correggibile, ma nessuno deve ricompilarlo (migration 063).
       component_id: task?.plan?.component_id || '',
+      media: [],
     })
     if (machineId) {
       try { setLogComponents(await db.getMachineComponents(machineId)) } catch { setLogComponents([]) }
@@ -181,8 +186,15 @@ export default function AdminMaintenance() {
         performed_by: user?.id, performed_by_name: user?.name,
         duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
         parts_replaced: logForm.parts_replaced || null,
+        media: logForm.media,
         performed_at: new Date().toISOString(), org_id: user?.org_id,
       })
+      // Il foglio della ditta allegato entra nella biblioteca dell'assistente
+      // al prossimo reindex: lo lanciamo subito, in sottofondo.
+      if (hasPdfMedia(logForm.media)) {
+        db.queueMachineReindex(logForm.machine_id)
+          .catch(e => console.warn('[AdminMaintenance] reindex post-log failed:', e?.message))
+      }
       toast.success('Intervento registrato'); setShowLogForm(false); load()
     } catch (e) { toast.error('Errore: ' + e.message) }
   }
@@ -420,6 +432,7 @@ export default function AdminMaintenance() {
                         <td className="px-5 py-4">
                           <p className="text-[15px] text-white font-medium">{log.title}</p>
                           {log.description && <p className="text-xs text-faint mt-0.5 truncate max-w-[200px]">{log.description}</p>}
+                          <LogAttachmentsList log={log} style={{ marginTop: 6 }} />
                         </td>
                         <td className="px-5 py-4 hidden lg:table-cell">
                           <span className="text-sm text-muted">{log.machine?.name || '—'}</span>
@@ -503,7 +516,8 @@ export default function AdminMaintenance() {
 
       {/* ═══ Log Form ═══ */}
       <Modal open={showLogForm} onClose={() => setShowLogForm(false)} title="Registra Intervento" size="md">
-        <div className="space-y-4">
+        {/* gap e non space-y: il reset globale annulla i margini (debito tecnico) */}
+        <div className="flex flex-col gap-4">
           <div>
             <label className="block text-sm text-muted mb-2 uppercase tracking-wider font-semibold">Macchinario *</label>
             <select value={logForm.machine_id} onChange={async e => {
@@ -533,9 +547,18 @@ export default function AdminMaintenance() {
             <Input label="Durata (min)" placeholder="60" type="number" value={logForm.duration_minutes} onChange={e => setLogForm(f => ({ ...f, duration_minutes: e.target.value }))} />
             <Input label="Ricambi" placeholder="Filtro XF-420" value={logForm.parts_replaced} onChange={e => setLogForm(f => ({ ...f, parts_replaced: e.target.value }))} />
           </div>
+          <div>
+            <label className="block text-[11px] text-faint uppercase tracking-wider" style={{ marginBottom: 6 }}>Foto e documenti</label>
+            <LogAttachmentsPicker
+              machineId={logForm.machine_id}
+              media={logForm.media}
+              onChange={update => setLogForm(f => ({ ...f, media: update(f.media) }))}
+              onBusyChange={setLogAttaching}
+            />
+          </div>
           {logForm.plan_id ? <p className="text-xs text-violet-400 bg-violet-500/10 rounded-xl px-3 py-2">✓ Manutenzione programmata</p>
             : <p className="text-xs text-amber-400 bg-amber-500/10 rounded-xl px-3 py-2">⚡ Manutenzione straordinaria</p>}
-          <Button onClick={saveLog} className="w-full" size="lg" disabled={!logForm.title.trim() || !logForm.machine_id}>Registra</Button>
+          <Button onClick={saveLog} className="w-full" size="lg" disabled={logAttaching || !logForm.title.trim() || !logForm.machine_id}>Registra</Button>
         </div>
       </Modal>
 

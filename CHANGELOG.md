@@ -6,6 +6,27 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.31 — Foto e PDF anche registrando una manutenzione
+
+Nessuna migration. Note: `journal/2026-10-archivio-interventi.md` (quarta parte).
+
+### Added
+- **Foto e PDF quando si conclude una manutenzione programmata o si registra un intervento**, dove prima non si poteva:
+  - telefono, scheda macchina → **Manut. → "Fatto — Registra"**: tasti **Scatta** (apre subito la fotocamera) e **Foto o PDF**;
+  - telefono, scheda macchina → **Pezzi → "Registra intervento"** sul componente: gli stessi due tasti;
+  - desktop, pagina **Manutenzione → Registra** (dalla riga del piano o dal tasto in alto): riquadro **"Allega foto o PDF"**, anche trascinando il PDF arrivato per email.
+- **Gli allegati si vedono nello storico**: tab **Storico** della scheda macchina sul telefono, vista **Interventi** della pagina Manutenzione e tab **Interventi** della scheda macchina sul desktop. Le foto come miniature, i PDF con il nome del file; un tocco li apre. Valgono anche per gli interventi già registrati con allegati (Home del tecnico, modulo della scheda macchina desktop): finora le foto si trovavano solo in galleria e i PDF solo aprendo l'intervento in modifica.
+- Le foto allegate compaiono subito nel tab **Foto** della macchina; con un PDF allegato parte l'indicizzazione della macchina, così l'assistente può citare il foglio della ditta.
+
+### Changed
+- Il foglio "Conferma Manutenzione" del telefono ora ha i margini e il modulo "Registra Intervento" della pagina Manutenzione lo spazio tra i campi: il reset globale li annullava (vedi Debito tecnico), ora sono inline / `gap`.
+
+### Note
+- Gli allegati stanno in `maintenance_logs.media`, la colonna che esiste dalla 028 e che la RPC `create_maintenance_log` già accettava: nessuna migration. Stesso bucket pubblico `attachments`, limite 20 MB a file, foto compresse a 1920 px.
+- Nessun tipo "fattura" qui, a differenza della chiusura dei ticket: lo storico interventi lo vedono anche gli operatori.
+
+---
+
 ## [Unreleased] — v5.30 — Foglio d'intervento e fattura dentro la chiusura
 
 Nessuna migration. Note: `journal/2026-10-archivio-interventi.md` (terza parte).

@@ -9,7 +9,10 @@
  * le manutenzioni programmate non sono guasti). Sotto i tre guasti la
  * media non dice niente e non si mostra.
  *
- * Misure guanti: righe da 88px, titolo 18px.
+ * Sotto ogni intervento le foto e i PDF allegati chiudendolo (il foglio
+ * della ditta, la foto del pezzo cambiato): il tocco li apre.
+ *
+ * Misure guanti: righe da 88px, titolo 18px, allegati da 56px.
  */
 
 import { useMemo, useState } from 'react'
@@ -19,6 +22,7 @@ import { TabHeading, TabActionRow, TabEmptyFrame } from './MachineTabParts'
 import { padX, padRow } from './machineTabs'
 import { EmptyState } from '../ui'
 import ComponentPill from './ComponentPill'
+import LogAttachmentsList from './LogAttachmentsList'
 import { useHaptic } from '../../hooks/useHaptic'
 
 const PAGE = 6
@@ -110,6 +114,7 @@ export default function MachineLogsTab({ logs, loading }) {
                   {meta.join(' · ')}
                 </p>
               )}
+              <LogAttachmentsList log={log} mobile style={{ marginTop: 8 }} />
             </div>
           </div>
         )

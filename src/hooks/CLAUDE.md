@@ -22,7 +22,7 @@
 | `useToast` | Wrapper react-hot-toast con metodi `success/error/info` | `react-hot-toast` |
 | `useAutosave` | Salva stato form in localStorage con debounce | `localStorage` |
 | `useImageCompressor` | Comprime immagini e genera miniature prima dell'upload | Canvas API |
-| `useMachineMedia` | Galleria foto/video di una macchina (feed + curata) | `supabase.js` |
+| `useMachineMedia` | Galleria foto/video di una macchina (feed + curata); `reload()` dopo aver aggiunto foto da altre fonti | `supabase.js` |
 | `useMachineUpload` | Scatta foto / carica documento sulla macchina dal campo | `supabase.js`, `useImageCompressor` |
 | `useClosureEdit` | Correggere una chiusura o aggiungerle una nota dopo, con cronologia e reindex | `supabase.js`, `lib/closure.js` |
 | `useClosureHelpful` | Voto "Mi è servita" su una chiusura (ManuCoin via trigger, migration 064) | `supabase.js` |
