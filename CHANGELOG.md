@@ -6,6 +6,33 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.34 — La pagina Manutenzione della console nel disegno desktop
+
+Nessuna migration. Disegno: prototipo Claude Design "ManuTech Desktop", vista Manutenzione.
+
+### Changed
+- **Pagina Manutenzione (desktop) ridisegnata** come nel prototipo, sugli stessi dati:
+  - i quattro contatori (**Tutti i piani, Scadute, In scadenza, In regola**) sono anche i filtri; sparisce la riga di pulsanti colorati;
+  - i piani si leggono come **lista divisa per scadenza** (Scadute / In scadenza · 7 giorni / In regola), con una barra di quanto del ciclo è passato, il reparto sotto la macchina, **"+ Assegna"** dove manca il responsabile e la data dell'ultima esecuzione (un clic la apre, come prima);
+  - **Nuovo piano, Registra intervento e Importa CSV** stanno nella barra in alto della console; Esporta CSV resta nella vista Interventi;
+  - la vista **Interventi** ha le stesse colonne di prima più data e ora, ditta esterna e pezzo; filtro **Tutti / Programmate / Straordinarie**.
+- "Scade oggi" al posto di "Scaduta da 0g" ovunque si usa il semaforo condiviso (`lib/maintenanceStatus.js`, anche scheda macchina).
+
+### Added
+- **Calendario**: accanto a Lista, le prossime 4 settimane, una riga per macchina e un quadratino per piano nel giorno in cui scade; la colonna Scadute raccoglie quelli già passati.
+- **Pannello del piano** a destra (un clic sulla riga, "✓ Registra" o "Dettagli"):
+  - se il piano è scaduto o scade entro la settimana si apre sul modulo **Registra intervento**: cosa è stato fatto, durata (con la durata media delle volte precedenti come suggerimento), ricambi, foto e PDF; **Conferma esecuzione** e la scadenza si aggiorna senza lasciare la pagina; per i piani in regola c'è "Registra in anticipo";
+  - area, responsabile, pezzo, durata media, stato "in corso" se un tecnico l'ha preso dal telefono, istruzioni per intero, ultimi 3 interventi sulla macchina (un clic li apre);
+  - **Modifica piano**, **Duplica** (stesso piano come nuovo, di solito per un'altra macchina) ed **Elimina**.
+
+### Note
+- Le pagine della console possono mettere azioni nella barra in alto con `<V6TopBarActions>` (`contexts/V6TopBarContext.jsx`).
+- `AdminMaintenance` usa ora `getTrafficLight` da `lib/maintenanceStatus.js` (che ha anche `status`: overdue / warning / ok); la copia locale è tolta. Lista, calendario, pannello e tabella interventi stanno in `pages/admin/maintenance/`.
+- Solo variabili CSS: dentro la console `.mt-scope` le porta sulla palette Amarcord del disegno. Font della console invariato (Barlow, non Barlow Condensed come nel prototipo).
+- I moduli Nuovo piano, Registra intervento (completo) e Importa CSV sono quelli di prima.
+
+---
+
 ## [Unreleased] — v5.33 — Nel ticket da telefono header e barra per scrivere restano sempre a vista
 
 Nessuna migration.

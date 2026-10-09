@@ -228,6 +228,18 @@ export const formatDate = (dateStr) => {
   return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+// Solo il giorno, `25 ago 2026`, e solo l'ora, `19:23`: per le colonne
+// strette dove formatDate (giorno e ora insieme) andrebbe a capo.
+export const formatDay = (dateStr) => {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+export const formatTime = (dateStr) => {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+}
+
 // Data spezzata per le colonne data delle liste: `02 AGO` sopra, `2026`
 // sotto. Serve dove la data è una colonna e non una riga di testo.
 export const formatDateParts = (dateStr) => {

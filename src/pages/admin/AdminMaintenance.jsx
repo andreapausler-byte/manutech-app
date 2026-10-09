@@ -1,9 +1,12 @@
 /**
  * AdminMaintenance — Pannello di controllo manutenzioni programmate
  *
- * Vista unificata di tutti i piani e interventi su tutti i macchinari.
- * L'admin vede: semaforo globale, piani scaduti/in scadenza/ok,
- * può aggiungere piani, registrare interventi, importare CSV.
+ * Vista unificata di tutti i piani e interventi su tutti i macchinari,
+ * nel disegno della console desktop (ott 2026): i quattro contatori sono
+ * anche i filtri, i piani si leggono come lista divisa per scadenza o come
+ * calendario delle prossime 4 settimane, e un piano si apre nel pannello
+ * a destra, dove si registra l'esecuzione senza cambiare pagina.
+ * Le azioni della pagina stanno nella barra in alto (V6TopBarActions).
  *
  * La vista Interventi è l'archivio delle manutenzioni fatte, come
  * l'Archivio interventi per le segnalazioni: si cerca anche dentro testo,
@@ -12,38 +15,26 @@
  * aggiornarlo. "Ultimo" nei piani apre l'ultima esecuzione.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { db } from '../../lib/supabase'
-import { timeAgo, formatDate } from '../../lib/constants'
-import { Button, Modal, Input, Textarea, EmptyState, Spinner, Badge } from '../../components/ui'
+import { formatDate } from '../../lib/constants'
+import { Button, Modal, Input, Textarea, Spinner } from '../../components/ui'
+import { BtnGhost, BtnPrimary } from '../../components/manutech'
 import { useAuth } from '../../contexts/AuthContext'
+import { V6TopBarActions } from '../../contexts/V6TopBarContext'
 import { useToast } from '../../hooks/useToast'
-import PageHeader from '../../components/layout/PageHeader'
-import { findNavItem } from '../../lib/adminNav'
-import ComponentPill from '../../components/machines/ComponentPill'
 import LogAttachmentsPicker from '../../components/machines/LogAttachmentsPicker'
-import LogAttachmentsList from '../../components/machines/LogAttachmentsList'
 import MaintenanceLogModal from '../../components/machines/MaintenanceLogModal'
 import { hasPdfMedia, logMediaList } from '../../lib/logMedia'
-import { logSearchText, getLogRecord, formatMinutes, logTypeMeta } from '../../lib/maintenanceLog'
-import {
-  Shield, Wrench, AlertTriangle, CheckCircle, Cog, Clock,
-  Plus, Edit, Trash2, Play, Search, X, Upload, ChevronRight,
-  Filter, Calendar, Download, StickyNote
-} from 'lucide-react'
-
-const NAV_ITEM = findNavItem('maintenance')
-
-const daysBetween = (d1, d2) => Math.floor((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24))
-
-function getTrafficLight(plan, lastLog) {
-  const lastDate = lastLog?.performed_at || plan.created_at
-  const daysSince = daysBetween(lastDate, new Date())
-  const daysLeft = plan.frequency_days - daysSince
-  if (daysLeft <= 0) return { label: `Scaduta da ${Math.abs(daysLeft)}g`, color: '#ef4444', daysLeft, status: 'overdue' }
-  if (daysLeft <= 7) return { label: `Scade tra ${daysLeft}g`, color: '#f59e0b', daysLeft, status: 'warning' }
-  return { label: `Tra ${daysLeft}g`, color: '#22c55e', daysLeft, status: 'ok' }
-}
+import { logSearchText, getLogRecord, logTypeMeta } from '../../lib/maintenanceLog'
+import { getTrafficLight } from '../../lib/maintenanceStatus'
+import { Segmented } from './maintenance/MaintenanceBits'
+import PlanList from './maintenance/PlanList'
+import PlanCalendar from './maintenance/PlanCalendar'
+import PlanDrawer from './maintenance/PlanDrawer'
+import LogTable from './maintenance/LogTable'
+import { MONO, TONES } from './maintenance/planUi'
+import { Search, X, Upload } from 'lucide-react'
 
 // CSV con `;` e BOM, come l'Archivio interventi: Excel in italiano lo apre
 // a colonne. Con i link degli allegati, per chi tiene i fogli delle ditte.
@@ -95,9 +86,11 @@ export default function AdminMaintenance() {
   const [filterStatus, setFilterStatus] = useState('') // '', 'overdue', 'warning', 'ok'
   const [filterMachine, setFilterMachine] = useState('')
   const [viewMode, setViewMode] = useState('plans') // 'plans' | 'logs'
+  const [planLayout, setPlanLayout] = useState('list') // 'list' | 'calendar'
   const [filterLogType, setFilterLogType] = useState('') // '', 'programmata', 'straordinaria'
   const [openLog, setOpenLog] = useState(null)
   const [logLimit, setLogLimit] = useState(50)
+  const [selectedPlanId, setSelectedPlanId] = useState(null)
 
   // Plan form
   const [showPlanForm, setShowPlanForm] = useState(false)
@@ -112,39 +105,49 @@ export default function AdminMaintenance() {
   const [logAttaching, setLogAttaching] = useState(false)
 
   // CSV
+  const csvInputRef = useRef(null)
   const [showCSV, setShowCSV] = useState(false)
   const [csvData, setCsvData] = useState([])
   const [csvMachine, setCsvMachine] = useState('')
   const [csvUser, setCsvUser] = useState('')
 
+  // Lo spinner c'è solo alla prima apertura: dopo un salvataggio si
+  // ricarica sotto, e il pannello del piano resta aperto con la nuova scadenza.
   const load = async () => {
-    setLoading(true)
-    const [m, u, plans, lastLogByPlan, paginatedLogs] = await Promise.all([
-      db.getMachines(), db.getUsers(), db.getAllMaintenancePlansWithMachine(),
-      db.getLastLogPerPlan(), db.getMaintenanceLogsPaginated(200)
-    ])
-    setMachines(m); setUsers(u)
+    try {
+      const [m, u, plans, lastLogByPlan, paginatedLogs] = await Promise.all([
+        db.getMachines(), db.getUsers(), db.getAllMaintenancePlansWithMachine(),
+        db.getLastLogPerPlan(), db.getMaintenanceLogsPaginated(200)
+      ])
+      setMachines(m); setUsers(u)
 
-    const allTasks = plans.map(plan => {
-      const machine = plan.machine
-      if (!machine) return null
-      const lastLog = lastLogByPlan[plan.id] || null
-      const light = getTrafficLight(plan, lastLog)
-      return { plan, machine, lastLog, light }
-    }).filter(Boolean)
+      const allTasks = plans.map(plan => {
+        const machine = plan.machine
+        if (!machine) return null
+        const lastLog = lastLogByPlan[plan.id] || null
+        const light = getTrafficLight(plan, lastLog)
+        return { plan, machine, lastLog, light }
+      }).filter(Boolean)
 
-    allTasks.sort((a, b) => a.light.daysLeft - b.light.daysLeft)
-    setTasks(allTasks)
-    setAllLogs(paginatedLogs)
+      allTasks.sort((a, b) => a.light.daysLeft - b.light.daysLeft)
+      setTasks(allTasks)
+      setAllLogs(paginatedLogs)
+    } catch (e) {
+      toast.error('Errore nel caricamento: ' + (e?.message || 'riprova'))
+    }
     setLoading(false)
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- solo alla prima apertura
   useEffect(() => { load() }, [])
 
   // Stats
-  const overdue = tasks.filter(t => t.light.status === 'overdue')
-  const warning = tasks.filter(t => t.light.status === 'warning')
-  const ok = tasks.filter(t => t.light.status === 'ok')
+  const counts = {
+    '': tasks.length,
+    overdue: tasks.filter(t => t.light.status === 'overdue').length,
+    warning: tasks.filter(t => t.light.status === 'warning').length,
+    ok: tasks.filter(t => t.light.status === 'ok').length,
+  }
 
   // Filtered tasks
   const filteredTasks = tasks.filter(t => {
@@ -152,7 +155,8 @@ export default function AdminMaintenance() {
     if (filterMachine && t.machine.id !== filterMachine) return false
     if (search) {
       const q = search.toLowerCase()
-      return t.plan.name?.toLowerCase().includes(q) || t.machine.name?.toLowerCase().includes(q) || t.plan.assigned_to_name?.toLowerCase().includes(q)
+      return [t.plan.name, t.plan.instructions, t.machine.name, t.plan.assigned_to_name, t.plan.component?.name]
+        .some(v => v?.toLowerCase().includes(q))
     }
     return true
   })
@@ -164,6 +168,8 @@ export default function AdminMaintenance() {
     if (search) return logSearchText(log).includes(search.toLowerCase())
     return true
   })
+
+  const selectedTask = tasks.find(t => t.plan.id === selectedPlanId) || null
 
   // Una correzione non ricarica la pagina: si aggiornano la riga in lista e,
   // se è l'ultima esecuzione di un piano, il suo semaforo (la data può
@@ -180,15 +186,15 @@ export default function AdminMaintenance() {
   }
 
   // ── Plan CRUD ──
-  const openPlanForm = async (plan = null, machineId = '') => {
-    setEditingPlan(plan)
+  // Duplica: stesso piano come nuovo, di solito per un'altra macchina.
+  const openPlanForm = async (plan = null, { duplicate = false } = {}) => {
+    setEditingPlan(duplicate ? null : plan)
     setPlanForm(plan
       ? { name: plan.name, frequency_days: plan.frequency_days, assigned_to: plan.assigned_to || '', instructions: plan.instructions || '', machine_id: plan.machine_id, component_id: plan.component_id || '' }
-      : { name: '', frequency_days: 30, assigned_to: '', instructions: '', machine_id: machineId, component_id: '' })
+      : { name: '', frequency_days: 30, assigned_to: '', instructions: '', machine_id: '', component_id: '' })
     setShowPlanForm(true)
-    const mid = plan?.machine_id || machineId
-    if (mid) {
-      try { setPlanComponents(await db.getMachineComponents(mid)) } catch { setPlanComponents([]) }
+    if (plan?.machine_id) {
+      try { setPlanComponents(await db.getMachineComponents(plan.machine_id)) } catch { setPlanComponents([]) }
     } else { setPlanComponents([]) }
   }
 
@@ -209,12 +215,31 @@ export default function AdminMaintenance() {
     } catch (e) { toast.error('Errore: ' + e.message) }
   }
 
-  const deletePlan = async (id) => {
-    if (!confirm('Eliminare questo piano?')) return
-    await db.deleteMaintenancePlan(id); toast.success('Eliminato'); load()
+  const deletePlan = async (plan) => {
+    if (!confirm(`Eliminare il piano "${plan.name}"?`)) return
+    try {
+      await db.deleteMaintenancePlan(plan.id)
+      toast.success('Eliminato')
+      setSelectedPlanId(null)
+      load()
+    } catch (e) { toast.error('Errore: ' + e.message) }
   }
 
   // ── Log ──
+  const createLog = async (data) => {
+    await db.createMaintenanceLog({
+      ...data,
+      performed_by: user?.id, performed_by_name: user?.name,
+      performed_at: new Date().toISOString(), org_id: user?.org_id,
+    })
+    // Il foglio della ditta allegato entra nella biblioteca dell'assistente
+    // al prossimo reindex: lo lanciamo subito, in sottofondo.
+    if (hasPdfMedia(data.media)) {
+      db.queueMachineReindex(data.machine_id)
+        .catch(e => console.warn('[AdminMaintenance] reindex post-log failed:', e?.message))
+    }
+  }
+
   const openLogForm = async (task = null) => {
     const machineId = task?.machine?.id || machines[0]?.id || ''
     setLogForm({
@@ -234,26 +259,41 @@ export default function AdminMaintenance() {
   const saveLog = async () => {
     if (!logForm.title.trim() || !logForm.machine_id) { toast.warning('Titolo e macchinario obbligatori'); return }
     try {
-      await db.createMaintenanceLog({
+      await createLog({
         machine_id: logForm.machine_id, plan_id: logForm.plan_id || null,
         component_id: logForm.component_id || null,
         type: logForm.plan_id ? 'programmata' : 'straordinaria',
         title: logForm.title.trim(), description: logForm.description || null,
-        performed_by: user?.id, performed_by_name: user?.name,
         duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
         parts_replaced: logForm.parts_replaced || null,
         media: logForm.media,
-        performed_at: new Date().toISOString(), org_id: user?.org_id,
       })
-      // Il foglio della ditta allegato entra nella biblioteca dell'assistente
-      // al prossimo reindex: lo lanciamo subito, in sottofondo.
-      if (hasPdfMedia(logForm.media)) {
-        db.queueMachineReindex(logForm.machine_id)
-          .catch(e => console.warn('[AdminMaintenance] reindex post-log failed:', e?.message))
-      }
       toast.success('Intervento registrato'); setShowLogForm(false); load()
     } catch (e) { toast.error('Errore: ' + e.message) }
   }
+
+  // Dal pannello: l'esecuzione del piano così com'è (titolo, pezzo, tipo).
+  const registerPlan = async (task, { description, duration, parts, media }) => {
+    try {
+      await createLog({
+        machine_id: task.machine.id, plan_id: task.plan.id,
+        component_id: task.plan.component_id || null,
+        type: 'programmata', title: task.plan.name,
+        description: description.trim() || null,
+        duration_minutes: duration ? parseInt(duration) : null,
+        parts_replaced: parts.trim() || null,
+        media,
+      })
+      toast.success('Intervento registrato')
+      load()
+      return true
+    } catch (e) {
+      toast.error('Errore: ' + e.message)
+      return false
+    }
+  }
+
+  const closeDrawer = useCallback(() => setSelectedPlanId(null), [])
 
   // ── CSV ──
   const handleCSV = (e) => {
@@ -287,278 +327,153 @@ export default function AdminMaintenance() {
 
   if (loading) return <Spinner />
 
-  return (
-    <div className="space-y-5 animate-fade-in">
-      <PageHeader title={NAV_ITEM.label} description={NAV_ITEM.desc} />
+  const logCount = allLogs.length >= 200 ? '200+' : allLogs.length
+  const recentMachineLogs = selectedTask ? allLogs.filter(l => l.machine_id === selectedTask.machine.id).slice(0, 3) : []
+  const planDurations = selectedTask
+    ? allLogs.filter(l => l.plan_id === selectedTask.plan.id && l.duration_minutes > 0).map(l => l.duration_minutes)
+    : []
+  const durationStats = planDurations.length
+    ? { avg: Math.round(planDurations.reduce((a, b) => a + b, 0) / planDurations.length), count: planDurations.length }
+    : null
 
-      {/* ═══ KPI Semaforo ═══ */}
-      <div className="grid grid-cols-4 gap-5">
+  return (
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <V6TopBarActions>
+        <BtnGhost size="sm" onClick={() => csvInputRef.current?.click()}>↑ Importa CSV</BtnGhost>
+        <BtnGhost size="sm" onClick={() => openLogForm()}>Registra intervento</BtnGhost>
+        <BtnPrimary size="sm" onClick={() => openPlanForm()}>+ Nuovo piano</BtnPrimary>
+      </V6TopBarActions>
+      <input ref={csvInputRef} type="file" accept=".csv,.txt" hidden onChange={handleCSV} />
+
+      {/* ═══ Contatori = filtri ═══ */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
         {[
-          { label: 'Totale Piani', value: tasks.length, icon: Shield, color: '#7c6aff', gradient: 'from-blue-500/15 to-blue-600/5' },
-          { label: 'Scadute', value: overdue.length, icon: AlertTriangle, color: overdue.length > 0 ? '#ef4444' : '#22c55e', gradient: overdue.length > 0 ? 'from-red-500/15 to-red-600/5' : 'from-emerald-500/15 to-emerald-600/5' },
-          { label: 'In Scadenza', value: warning.length, icon: Clock, color: warning.length > 0 ? '#f59e0b' : '#22c55e', gradient: warning.length > 0 ? 'from-amber-500/15 to-amber-600/5' : 'from-emerald-500/15 to-emerald-600/5' },
-          { label: 'In Regola', value: ok.length, icon: CheckCircle, color: '#22c55e', gradient: 'from-emerald-500/15 to-emerald-600/5' },
-        ].map(({ label, value, icon: Icon, color, gradient }) => (
-          <div key={label} className={`bg-gradient-to-br ${gradient} border border-token rounded-2xl p-6`}>
-            <div className="flex items-start justify-between mb-3">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: color + '20' }}>
-                <Icon size={20} style={{ color }} />
+          { id: '', label: 'Tutti i piani', sub: 'attivi in calendario', color: 'var(--color-text)' },
+          { id: 'overdue', label: 'Scadute', sub: 'da eseguire subito', color: TONES.overdue.color },
+          { id: 'warning', label: 'In scadenza', sub: 'entro 7 giorni', color: TONES.warning.color },
+          { id: 'ok', label: 'In regola', sub: 'nessuna azione', color: TONES.ok.color },
+        ].map(s => {
+          const on = filterStatus === s.id
+          return (
+            <button key={s.id || 'all'} type="button" aria-pressed={on}
+              onClick={() => { setFilterStatus(s.id); setViewMode('plans') }}
+              style={{
+                display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'end', gap: 8,
+                padding: '12px 14px', textAlign: 'left', cursor: 'pointer', color: 'var(--color-text)',
+                background: on ? 'var(--color-surface-2)' : 'var(--color-surface-1)',
+                borderTop: `1px solid ${on ? s.color : 'var(--color-border)'}`,
+                borderRight: `1px solid ${on ? s.color : 'var(--color-border)'}`,
+                borderBottom: `1px solid ${on ? s.color : 'var(--color-border)'}`,
+                borderLeft: `3px solid ${s.color}`,
+              }}>
+              <div>
+                <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', color: on ? s.color : 'var(--color-text-muted)' }}>
+                  {s.label}
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: 0.5, color: 'var(--color-text-faint)', marginTop: 6 }}>{s.sub}</div>
               </div>
-            </div>
-            <p className="text-3xl font-bold text-white">{value}</p>
-            <p className="text-sm text-secondary mt-1">{label}</p>
-          </div>
-        ))}
+              <span style={{ fontSize: 36, fontWeight: 600, lineHeight: 0.9, color: s.color }}>{counts[s.id]}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* ═══ Toolbar ═══ */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {/* View toggle */}
-        <div className="flex bg-surface-2 rounded-xl p-1">
-          <button onClick={() => setViewMode('plans')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'plans' ? 'bg-violet-600 text-white' : 'text-muted hover:text-white'}`}>
-            <Shield size={14} className="inline mr-1.5" />Piani
-          </button>
-          <button onClick={() => setViewMode('logs')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'logs' ? 'bg-emerald-600 text-white' : 'text-muted hover:text-white'}`}>
-            <Wrench size={14} className="inline mr-1.5" />Interventi
-          </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <Segmented label="Vista" value={viewMode} onChange={setViewMode}
+          options={[['plans', `Piani ${tasks.length}`], ['logs', `Interventi ${logCount}`]]} />
+
+        <div style={{
+          flex: '1 1 220px', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
+          background: 'var(--color-surface-1)', border: '1px solid var(--color-border)',
+        }}>
+          <Search size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} aria-label="Cerca"
+            placeholder={viewMode === 'plans' ? 'Cerca attività, macchinario, responsabile…' : 'Cerca interventi, ricambi, note…'}
+            style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, color: 'var(--color-text)' }} />
+          {search && (
+            <button type="button" onClick={() => setSearch('')} aria-label="Cancella ricerca"
+              style={{ display: 'inline-flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+              <X size={14} />
+            </button>
+          )}
         </div>
 
-        <div className="relative flex-1 min-w-[180px]">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
-          <input type="text" placeholder="Cerca..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full card-elevated rounded-xl pl-10 pr-4 py-2.5 text-sm text-themed placeholder-gray-500 focus:outline-none focus:border-violet-500/50" />
-          {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-white"><X size={14} /></button>}
-        </div>
-
-        {/* Filter machine */}
-        <select value={filterMachine} onChange={e => setFilterMachine(e.target.value)}
-          className="card-elevated rounded-xl px-3 py-2.5 text-sm text-themed focus:outline-none">
+        <select value={filterMachine} onChange={e => setFilterMachine(e.target.value)} aria-label="Macchinario"
+          style={{
+            minWidth: 200, padding: '8px 10px', fontSize: 14, color: 'var(--color-text)',
+            background: 'var(--color-surface-1)', border: '1px solid var(--color-border)',
+          }}>
           <option value="">Tutti i macchinari</option>
           {machines.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
 
-        {/* Filter status */}
-        {viewMode === 'plans' && (
-          <div className="flex gap-1.5">
-            {[
-              { id: '', label: 'Tutti', color: null },
-              { id: 'overdue', label: 'Scadute', color: '#ef4444' },
-              { id: 'warning', label: 'In scadenza', color: '#f59e0b' },
-              { id: 'ok', label: 'In regola', color: '#22c55e' },
-            ].map(f => (
-              <button key={f.id} onClick={() => setFilterStatus(filterStatus === f.id ? '' : f.id)}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${filterStatus === f.id ? 'text-white' : 'bg-surface-2 text-muted hover:text-white'}`}
-                style={filterStatus === f.id && f.color ? { background: f.color } : filterStatus === f.id ? { background: '#7c6aff' } : {}}>
-                {f.label}
-              </button>
-            ))}
-          </div>
+        {viewMode === 'plans' ? (
+          <Segmented label="Disposizione" value={planLayout} onChange={setPlanLayout}
+            options={[['list', 'Lista'], ['calendar', 'Calendario']]} />
+        ) : (
+          <>
+            <Segmented label="Tipo di intervento" value={filterLogType} onChange={setFilterLogType}
+              options={[['', 'Tutti'], ['programmata', 'Programmate'], ['straordinaria', 'Straordinarie']]} />
+            {filteredLogs.length > 0 && (
+              <BtnGhost size="sm" onClick={() => downloadLogsCsv(filteredLogs)}>↓ Esporta CSV</BtnGhost>
+            )}
+          </>
         )}
-
-        {viewMode === 'logs' && (
-          <div className="flex gap-1.5">
-            {[
-              { id: '', label: 'Tutti' },
-              { id: 'programmata', label: 'Programmate', color: '#8b5cf6' },
-              { id: 'straordinaria', label: 'Straordinarie', color: '#f59e0b' },
-            ].map(f => (
-              <button key={f.id} onClick={() => setFilterLogType(filterLogType === f.id ? '' : f.id)}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${filterLogType === f.id ? 'text-white' : 'bg-surface-2 text-muted hover:text-white'}`}
-                style={filterLogType === f.id ? { background: f.color || '#7c6aff' } : {}}>
-                {f.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {viewMode === 'logs' && filteredLogs.length > 0 && (
-          <button onClick={() => downloadLogsCsv(filteredLogs)}
-            className="flex items-center gap-1.5 px-3 py-2.5 bg-surface-2 hover:bg-white/10 text-secondary rounded-xl text-sm font-medium transition-all"
-            title="Esporta gli interventi filtrati in CSV">
-            <Download size={14} /> Esporta
-          </button>
-        )}
-
-        {/* Actions */}
-        <label className="flex items-center gap-1.5 px-3 py-2.5 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 rounded-xl text-sm font-medium cursor-pointer transition-all">
-          <Upload size={14} /> CSV
-          <input type="file" accept=".csv,.txt" className="hidden" onChange={handleCSV} />
-        </label>
-        <Button size="sm" onClick={() => openPlanForm()}><Plus size={14} /> Nuovo Piano</Button>
-        <Button size="sm" variant="outline" onClick={() => openLogForm()}><Wrench size={14} /> Registra</Button>
       </div>
 
       {/* ═══ PLANS VIEW ═══ */}
-      {viewMode === 'plans' && (
-        <>
-          <p className="text-sm text-faint">{filteredTasks.length} piani {filterStatus || filterMachine || search ? '(filtrati)' : ''}</p>
-
-          {filteredTasks.length === 0 ? (
-            <EmptyState icon="🔧" title="Nessun piano trovato" subtitle={tasks.length > 0 ? 'Modifica i filtri' : 'Crea il primo piano di manutenzione'} />
-          ) : (
-            <div className="bg-surface-1/60 border border-token rounded-2xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-token">
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider">Semaforo</th><th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider">Stato</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider">Attività</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider hidden lg:table-cell">Macchinario</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider hidden md:table-cell">Frequenza</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider hidden lg:table-cell">Responsabile</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider">Scadenza</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider hidden lg:table-cell">Ultimo</th>
-                    <th className="px-5 py-3.5"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTasks.map((task, i) => (
-                    <tr key={`${task.plan.id}-${i}`} className="border-b border-token/30 hover:bg-white/[0.02] transition-colors">
-                      <td className="px-5 py-4">
-                        <div className="w-4 h-4 rounded-full" style={{ background: task.light.color, boxShadow: `0 0 8px ${task.light.color}40` }} />
-                      </td>
-                      <td className="px-5 py-4">
-                        {(() => {
-                          const st = task.plan.current_status || 'da_eseguire'
-                          const cfg = { da_eseguire: { label: 'Da eseguire', bg: '#f59e0b18', color: '#f59e0b' }, in_corso: { label: 'In corso', bg: '#7c6aff18', color: '#7c6aff' }, completata: { label: 'Completata', bg: '#22c55e18', color: '#22c55e' } }
-                          const c = cfg[st] || cfg.da_eseguire
-                          return (
-                            <div>
-                              <span className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: c.bg, color: c.color }}>{c.label}</span>
-                              {st === 'in_corso' && task.plan.taken_by_name && (
-                                <p className="text-[10px] text-faint mt-1">👤 {task.plan.taken_by_name}</p>
-                              )}
-                            </div>
-                          )
-                        })()}
-                      </td>
-                      <td className="px-5 py-4">
-                        <p className="text-[15px] text-white font-medium">{task.plan.name}</p>
-                        {task.plan.component?.name && (
-                          <ComponentPill name={task.plan.component.name} size="xs" style={{ marginTop: 4 }} />
-                        )}
-                        {task.plan.instructions && <p className="text-xs text-faint mt-0.5 truncate max-w-[200px]">{task.plan.instructions}</p>}
-                      </td>
-                      <td className="px-5 py-4 hidden lg:table-cell">
-                        <span className="text-sm text-muted flex items-center gap-1.5"><Cog size={13} /> {task.machine.name}</span>
-                      </td>
-                      <td className="px-5 py-4 hidden md:table-cell">
-                        <span className="text-sm text-muted">{task.plan.frequency_days}g</span>
-                      </td>
-                      <td className="px-5 py-4 hidden lg:table-cell">
-                        <span className="text-sm text-secondary">{task.plan.assigned_to_name || <span className="text-faint">—</span>}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="text-xs font-bold px-2.5 py-1 rounded-lg" style={{ background: task.light.color + '18', color: task.light.color }}>
-                          {task.light.label}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 hidden lg:table-cell">
-                        {task.lastLog ? (
-                          <button onClick={() => setOpenLog({ ...task.lastLog, machine: task.machine })}
-                            className="text-sm text-faint hover:text-violet-400 underline decoration-dotted underline-offset-4 transition-colors"
-                            title="Apri l'ultima esecuzione: cosa è stato fatto">
-                            {timeAgo(task.lastLog.performed_at)}
-                          </button>
-                        ) : <span className="text-sm text-faint">Mai</span>}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex gap-1 justify-end">
-                          <button onClick={() => openLogForm(task)} className="p-2 rounded-lg hover:bg-emerald-500/20 text-faint hover:text-emerald-400 transition-all" title="Registra intervento">
-                            <Play size={14} />
-                          </button>
-                          <button onClick={() => openPlanForm(task.plan)} className="p-2 rounded-lg hover:bg-white/10 text-faint hover:text-white transition-all" title="Modifica">
-                            <Edit size={14} />
-                          </button>
-                          <button onClick={() => deletePlan(task.plan.id)} className="p-2 rounded-lg hover:bg-red-500/20 text-faint hover:text-red-400 transition-all" title="Elimina">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
+      {viewMode === 'plans' && planLayout === 'list' && (
+        <PlanList
+          tasks={filteredTasks}
+          grouped={!filterStatus}
+          selectedId={selectedPlanId}
+          onSelect={setSelectedPlanId}
+          onOpenLog={(task) => setOpenLog({ ...task.lastLog, machine: task.machine })}
+          onAssign={(plan) => openPlanForm(plan)}
+          empty={tasks.length
+            ? { text: 'Nessun piano corrisponde ai filtri', hint: 'Cambia filtro o ricerca.' }
+            : { text: 'Nessun piano di manutenzione', hint: 'Crea il primo con + Nuovo piano, o importalo da CSV.' }}
+        />
+      )}
+      {viewMode === 'plans' && planLayout === 'calendar' && (
+        <PlanCalendar tasks={filteredTasks} onSelect={setSelectedPlanId} />
       )}
 
       {/* ═══ LOGS VIEW ═══ */}
       {viewMode === 'logs' && (
         <>
-          <p className="text-sm text-faint">
-            {filteredLogs.length} interventi registrati{filterLogType || filterMachine || search ? ' (filtrati)' : ''} · clic su una riga per vedere cosa è stato fatto o aggiornarlo
+          <p style={{ fontFamily: MONO, fontSize: 11, letterSpacing: 0.5, color: 'var(--color-text-faint)' }}>
+            {filteredLogs.length} INTERVENTI{filterLogType || filterMachine || search ? ' (FILTRATI)' : ''} · CLIC SU UNA RIGA PER VEDERE COSA È STATO FATTO O AGGIORNARLO
           </p>
-
-          {filteredLogs.length === 0 ? (
-            <EmptyState icon="🔧" title="Nessun intervento" subtitle="Registra il primo intervento" />
-          ) : (
-            <div className="bg-surface-1/60 border border-token rounded-2xl overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-token">
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider">Tipo</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider">Intervento</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider hidden lg:table-cell">Macchinario</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider hidden md:table-cell">Eseguito da</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider">Quando</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider hidden lg:table-cell">Durata</th>
-                    <th className="text-left px-5 py-3.5 text-[11px] font-semibold text-faint uppercase tracking-wider hidden lg:table-cell">Ricambi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLogs.slice(0, logLimit).map(log => {
-                    const notes = getLogRecord(log).notes.length
-                    return (
-                      <tr key={log.id} onClick={() => setOpenLog(log)}
-                        className="border-b border-token/30 hover:bg-white/[0.03] transition-colors cursor-pointer">
-                        <td className="px-5 py-4">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${log.type === 'programmata' ? 'bg-violet-500/15 text-violet-400' : 'bg-amber-500/15 text-amber-400'}`}>
-                            {log.type === 'programmata' ? 'Progr.' : 'Straord.'}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <p className="text-[15px] text-white font-medium">{log.title}</p>
-                          {log.description && <p className="text-xs text-faint mt-0.5 truncate max-w-[200px]">{log.description}</p>}
-                          {notes > 0 && (
-                            <p className="flex items-center gap-1 text-xs text-muted" style={{ marginTop: 4 }}>
-                              <StickyNote size={12} /> {notes} {notes === 1 ? 'nota' : 'note'} dopo
-                            </p>
-                          )}
-                          <LogAttachmentsList log={log} style={{ marginTop: 6 }} />
-                        </td>
-                        <td className="px-5 py-4 hidden lg:table-cell">
-                          <span className="text-sm text-muted">{log.machine?.name || '—'}</span>
-                        </td>
-                        <td className="px-5 py-4 hidden md:table-cell">
-                          <span className="text-sm text-secondary">{log.performed_by_name || '—'}</span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className="text-sm text-faint">{timeAgo(log.performed_at)}</span>
-                        </td>
-                        <td className="px-5 py-4 hidden lg:table-cell">
-                          <span className="text-sm text-muted">{formatMinutes(log.duration_minutes) || '—'}</span>
-                        </td>
-                        <td className="px-5 py-4 hidden lg:table-cell">
-                          <span className="text-sm text-muted truncate max-w-[150px] block">{log.parts_replaced || '—'}</span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              {filteredLogs.length > logLimit && (
-                <button onClick={() => setLogLimit(n => n + 50)}
-                  className="w-full text-sm font-medium text-secondary hover:text-white hover:bg-white/[0.03] transition-colors"
-                  style={{ padding: '12px 0', borderTop: '1px solid var(--color-border-subtle)' }}>
-                  Mostra altri {Math.min(50, filteredLogs.length - logLimit)} di {filteredLogs.length - logLimit}
-                </button>
-              )}
-            </div>
-          )}
+          <LogTable
+            logs={filteredLogs}
+            limit={logLimit}
+            onMore={() => setLogLimit(n => n + 50)}
+            onOpen={setOpenLog}
+            empty={allLogs.length
+              ? { text: 'Nessun intervento corrisponde ai filtri', hint: 'Cambia filtro o ricerca.' }
+              : { text: 'Nessun intervento registrato', hint: 'Registra il primo da un piano o con Registra intervento.' }}
+          />
         </>
+      )}
+
+      {/* ═══ Pannello del piano ═══ */}
+      {selectedTask && (
+        <PlanDrawer
+          key={selectedTask.plan.id}
+          task={selectedTask}
+          recentLogs={recentMachineLogs}
+          durationStats={durationStats}
+          blocked={Boolean(openLog || showPlanForm || showLogForm || showCSV)}
+          onClose={closeDrawer}
+          onRegister={registerPlan}
+          onOpenLog={setOpenLog}
+          onFullForm={(task) => openLogForm(task)}
+          onEdit={(plan) => openPlanForm(plan)}
+          onDuplicate={(plan) => openPlanForm(plan, { duplicate: true })}
+          onDelete={deletePlan}
+        />
       )}
 
       {/* ═══ Intervento registrato ═══ */}

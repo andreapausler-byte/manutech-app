@@ -4,6 +4,7 @@ import { Shell, MT, fMono } from '../../components/manutech'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { V6NavigateProvider } from '../../contexts/V6NavigateContext'
+import { V6TopBarProvider } from '../../contexts/V6TopBarContext'
 import { NAV as ADMIN_NAV } from '../../lib/adminNav'
 import NotificationCenter from '../../components/ui/NotificationCenter'
 import SettingsPanel from '../../components/ui/SettingsPanel'
@@ -40,14 +41,14 @@ function buildNavItems(adminNav) {
     .map(n => ({ route: n.id, label: n.label, IconCmp: n.icon }))
 }
 
-function V6TopBar({ title, crumbs }) {
+function V6TopBar({ title, crumbs, actionsRef }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '14px 28px', borderBottom: `1px solid ${MT.border}`,
       background: MT.bg, position: 'sticky', top: 0, zIndex: 20,
     }}>
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, flex: 1, paddingRight: 16 }}>
         {crumbs && (
           <div style={{
             fontFamily: fMono, fontSize: 12, color: MT.textMuted,
@@ -58,14 +59,16 @@ function V6TopBar({ title, crumbs }) {
           {title}
         </h1>
       </div>
+      {/* Riempito dalle pagine con <V6TopBarActions> */}
+      <div ref={actionsRef} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }} />
     </div>
   )
 }
 
-function AdminPageFrame({ title, crumbs, children, fullBleed = false }) {
+function AdminPageFrame({ title, crumbs, children, fullBleed = false, actionsRef }) {
   return (
     <>
-      <V6TopBar title={title} crumbs={crumbs} />
+      <V6TopBar title={title} crumbs={crumbs} actionsRef={actionsRef} />
       <div style={{
         flex: 1, minHeight: 0,
         background: 'var(--color-app-bg)',
@@ -93,6 +96,7 @@ export default function V6App({ userName, initialReportId }) {
     initialReportId ? { name: 'reports' } : { name: 'dashboard' }
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [topBarSlot, setTopBarSlot] = useState(null)
 
   const navigate = useCallback((name, params = {}) => {
     setRoute({ name, ...params })
@@ -163,43 +167,46 @@ export default function V6App({ userName, initialReportId }) {
   return (
     <div className="mt-scope" style={{ minHeight: '100vh' }}>
       <V6NavigateProvider value={navigate}>
-        <Shell
-          activeRoute={route.name}
-          onNavigate={(r) => navigate(r)}
-          userName={userName || user?.name}
-          userSubtitle={user ? `${(user.role || '').toUpperCase()} · ${user?.org_name || 'MANUTECH'}` : 'ADMIN · MANUTECH'}
-          navItems={navItems}
-          versionLabel={`v${__APP_VERSION__} · CONSOLE`}
-          sidebarFooter={sidebarFooter}
-        >
-          <AdminPageFrame
-            title={adminNavItem?.label || 'Console'}
-            crumbs={user?.org_name || 'ManuTech · Console'}
-            fullBleed={route.name === 'calendar'}
+        <V6TopBarProvider value={topBarSlot}>
+          <Shell
+            activeRoute={route.name}
+            onNavigate={(r) => navigate(r)}
+            userName={userName || user?.name}
+            userSubtitle={user ? `${(user.role || '').toUpperCase()} · ${user?.org_name || 'MANUTECH'}` : 'ADMIN · MANUTECH'}
+            navItems={navItems}
+            versionLabel={`v${__APP_VERSION__} · CONSOLE`}
+            sidebarFooter={sidebarFooter}
           >
-            {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
-            {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
-            {route.name === 'reports' && <AdminReports initialReportId={initialReportId || route.reportId} />}
-            {route.name === 'archive' && <AdminArchive key={route.archiveMachine || 'all'} initialMachine={route.archiveMachine || ''} />}
-            {route.name === 'calendar' && <AdminCalendar
-              onNavigate={(name, params) => navigate(name, params)}
-              initialMonth={route.calendarInitialMonth || null}
-              initialOpenDay={route.calendarOpenDay || null}
-              initialHighlightInterventionId={route.calendarHighlightInterventionId || null}
-              forceShowCancelledOnce={Boolean(route.calendarForceShowCancelled)}
-            />}
-            {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} initialMachineId={route.machineId} />}
-            {route.name === 'machines' && <AdminMachines onOpenAssistant={(machineId) => navigate('assistant', { machineId })} />}
-            {route.name === 'maintenance' && <AdminMaintenance />}
-            {route.name === 'spare-parts' && <AdminSpareParts />}
-            {route.name === 'technicians' && <AdminTechnicians />}
-            {route.name === 'leaderboard' && <AdminLeaderboard />}
-            {route.name === 'rewards' && <AdminRewards />}
-            {route.name === 'users' && <AdminUsers />}
-            {route.name === 'messages' && <AdminMessaging />}
-            {route.name === 'notifications' && <AdminNotifSettings />}
-          </AdminPageFrame>
-        </Shell>
+            <AdminPageFrame
+              title={adminNavItem?.label || 'Console'}
+              crumbs={user?.org_name || 'ManuTech · Console'}
+              fullBleed={route.name === 'calendar'}
+              actionsRef={setTopBarSlot}
+            >
+              {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
+              {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
+              {route.name === 'reports' && <AdminReports initialReportId={initialReportId || route.reportId} />}
+              {route.name === 'archive' && <AdminArchive key={route.archiveMachine || 'all'} initialMachine={route.archiveMachine || ''} />}
+              {route.name === 'calendar' && <AdminCalendar
+                onNavigate={(name, params) => navigate(name, params)}
+                initialMonth={route.calendarInitialMonth || null}
+                initialOpenDay={route.calendarOpenDay || null}
+                initialHighlightInterventionId={route.calendarHighlightInterventionId || null}
+                forceShowCancelledOnce={Boolean(route.calendarForceShowCancelled)}
+              />}
+              {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} initialMachineId={route.machineId} />}
+              {route.name === 'machines' && <AdminMachines onOpenAssistant={(machineId) => navigate('assistant', { machineId })} />}
+              {route.name === 'maintenance' && <AdminMaintenance />}
+              {route.name === 'spare-parts' && <AdminSpareParts />}
+              {route.name === 'technicians' && <AdminTechnicians />}
+              {route.name === 'leaderboard' && <AdminLeaderboard />}
+              {route.name === 'rewards' && <AdminRewards />}
+              {route.name === 'users' && <AdminUsers />}
+              {route.name === 'messages' && <AdminMessaging />}
+              {route.name === 'notifications' && <AdminNotifSettings />}
+            </AdminPageFrame>
+          </Shell>
+        </V6TopBarProvider>
       </V6NavigateProvider>
 
       {notifPermission === 'default' && !pushBannerHidden && typeof Notification !== 'undefined' && (

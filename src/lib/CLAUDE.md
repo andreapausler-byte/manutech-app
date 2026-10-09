@@ -51,7 +51,7 @@ if (!error && data) return data
 
 ## constants.js
 Enum condivisi: `ROLES`, `STATUS`, `SEVERITY`, `REPORT_TYPES`, `QUICK_TEMPLATES`.
-Helper: `formatDate(dateStr)`, `timeAgo(dateStr)` — usali sempre, mai formattare date manualmente.
+Helper: `formatDate(dateStr)`, `timeAgo(dateStr)`, e per le colonne strette `formatDay` (solo giorno) e `formatTime` (solo ora) — usali sempre, mai formattare date manualmente.
 
 ## theme.js
 `makeTheme(mode, accent)` genera 50+ CSS vars. `applyTheme()` le inietta in `:root`.
