@@ -138,9 +138,9 @@ export default function GuestChatPage({ reportId, token }) {
 
   // ── Chat state ──
   return (
-    <div className="min-h-screen min-h-[100dvh] flex flex-col" style={{ background: 'var(--color-bg, #0f0f1a)' }}>
+    <div className="flex flex-col" style={{ height: '100dvh', background: 'var(--color-bg, #0f0f1a)' }}>
       {/* Minimal header */}
-      <header className="shrink-0 px-4 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid var(--color-border, #2a2a3e)', background: 'var(--color-surface, #1a1a2e)' }}>
+      <header className="shrink-0 flex items-center gap-3" style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border, #2a2a3e)', background: 'var(--color-surface, #1a1a2e)' }}>
         <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'var(--color-primary-glow, rgba(124,106,255,0.15))' }}>
           <Wrench size={18} style={{ color: 'var(--color-primary, #7c6aff)' }} />
         </div>

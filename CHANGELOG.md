@@ -6,6 +6,18 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.33 — Nel ticket da telefono header e barra per scrivere restano sempre a vista
+
+Nessuna migration.
+
+### Fixed
+- **Ticket da telefono**: la pagina era alta quanto il contenuto e scorreva tutta, così la barra per scrivere stava in fondo alla chat e spariva appena si risaliva a leggere. Ora la pagina è alta quanto lo schermo: **header** (codice, titolo) in alto e **barra per scrivere** in basso restano fermi, in mezzo scorrono schede, tab e contenuto. Le tab Dettagli / Chat / Cronologia restano in alto quando le schede sono scorse via. Vale anche per Dettagli e Cronologia (azioni vocali e "Aggiorna o rispondi…").
+- **Chat che non arrivava in fondo**: aprendo la Chat lo scroll partiva prima che i messaggi fossero a schermo e a volte restava in cima; le foto caricate dopo spingevano giù gli ultimi messaggi. Ora si arriva in fondo e ci si resta mentre le foto si caricano; chi risale a leggere non viene riportato giù, neanche da una modifica, da una reazione o dal controllo ogni 10 secondi della chat ospite.
+- **Chat ospite** (link condiviso col tecnico esterno): stessa correzione, header e barra per scrivere sempre a vista.
+- Spaziature della chat (barra per scrivere, "Ringrazia", messaggi): le classi Tailwind di padding/margin non avevano effetto per il reset in `index.css`, ora sono inline. Si vede anche nella chat del dettaglio admin su desktop.
+
+---
+
 ## [Unreleased] — v5.32 — Una manutenzione registrata si legge e si aggiorna come una segnalazione conclusa
 
 Runbook: `docs/MIGRATION-068.md`. La migration **068** (una colonna) va eseguita a mano, prima del merge o subito dopo: senza, le correzioni funzionano ma non lasciano traccia in cronologia, e le note scritte dopo non si salvano. Note: `journal/2026-10-archivio-interventi.md` (quinta parte).

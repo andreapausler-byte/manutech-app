@@ -908,6 +908,23 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
   const haptic = useHaptic()
   const closureEdit = useClosureEdit(user)
 
+  // Sotto l'header scorre un solo contenitore: schede, tab e contenuto.
+  // Header e barra di scrittura ne restano fuori, sempre a vista.
+  const scrollRef = useRef(null)
+  const cardsRef = useRef(null)
+
+  // Se le schede sono già sparite sopra, la tab nuova parte dal suo
+  // inizio invece che a metà, dove era rimasta la precedente.
+  const selectTab = (id) => {
+    haptic.light()
+    const scroller = scrollRef.current
+    const cards = cardsRef.current
+    if (scroller && cards && scroller.scrollTop > cards.offsetHeight) {
+      scroller.scrollTop = cards.offsetHeight
+    }
+    setActiveTab(id)
+  }
+
   const meta = STATUS_META[report.status] || STATUS_META.aperta
   const statusLabel = STATUS[report.status]?.label || report.status
   const severity = SEVERITY[report.severity] || SEVERITY.media
@@ -1227,8 +1244,9 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
 
   return (
     <div
-      className="flex flex-col min-h-screen min-h-[100dvh]"
+      className="flex flex-col"
       style={{
+        height: '100dvh', overflow: 'hidden',
         background: D.bg, color: D.textBody,
       }}
     >
@@ -1238,7 +1256,6 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         background: D.bg,
         borderBottom: `1px solid ${D.raised}`,
         padding: '4px 12px 8px',
-        position: 'sticky', top: 0, zIndex: 30,
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, paddingTop: 8 }}>
           <button
@@ -1315,386 +1332,396 @@ export default function ReportDetail({ report: initialReport, user, onBack }) {
         </div>
       </header>
 
-      {/* ═══ Chip row ═══ */}
-      <div style={{
-        flexShrink: 0,
-        display: 'flex', gap: 6, padding: '10px 12px 0',
-        overflowX: 'auto',
-      }} className="no-scrollbar">
-        <Chip label={severity.label} color={severity.color} />
-        {reportType && <Chip label={reportType.label} color={reportType.color} />}
-        {report.machine && <Chip icon="📍" label={report.machine} />}
-      </div>
-
-      {/* ═══ Card "Pezzo interessato" ═══
-          Compare solo se c'è qualcosa da dire: un pezzo già attribuito,
-          oppure una macchina che ha componenti in anagrafica. Su una
-          macchina senza pezzi registrati non aggiunge rumore. */}
-      {(report.component_name || components.length > 0) && (
-        <div style={{
-          flexShrink: 0,
-          margin: '10px 12px 0',
-          padding: '10px 12px', borderRadius: 12,
-          background: D.card,
-          border: `1px solid ${report.component_name ? 'rgba(34,211,238,0.28)' : D.raised}`,
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', color: D.textSubtle,
-              fontFamily: '"JetBrains Mono", monospace', marginBottom: 5,
-            }}>
-              Pezzo interessato
-            </div>
-            {report.component_name ? (
-              <ComponentPill name={report.component_name} size="md" />
-            ) : (
-              <span style={{ fontSize: 13, color: D.textSubtle }}>
-                Generico — intera macchina
-              </span>
-            )}
-          </div>
-          {canUpdate && !isClosed && components.length > 0 && (
-            <button
-              onClick={() => { haptic.light(); setComponentSheetOpen(true) }}
-              className="press-scale"
-              style={{
-                background: 'transparent', border: 'none',
-                color: D.accentLight, fontSize: 12, fontWeight: 600,
-                cursor: 'pointer', padding: '6px 2px', flexShrink: 0,
-                letterSpacing: -0.1, whiteSpace: 'nowrap',
-              }}
-            >
-              {report.component_name ? 'Cambia' : 'Attribuisci'}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ═══ Card "Stato" ═══ */}
-      <div style={{
-        flexShrink: 0,
-        margin: '10px 12px 0',
-        padding: 12, borderRadius: 12,
-        background: D.card, border: `1px solid ${D.raised}`,
+      {/* ═══ Zona che scorre ═══ */}
+      <div ref={scrollRef} style={{
+        flex: 1, minHeight: 0, overflowY: 'auto',
+        display: 'flex', flexDirection: 'column',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: 1,
-            textTransform: 'uppercase', color: D.textSubtle,
-            fontFamily: '"JetBrains Mono", monospace',
-          }}>
-            Stato
-          </span>
-          {canUpdate && (
-            <button
-              onClick={() => { haptic.light(); setStatusSheetOpen(true) }}
-              className="press-scale"
-              style={{
-                background: 'transparent', border: 'none',
-                color: D.accentLight, fontSize: 12, fontWeight: 600,
-                cursor: 'pointer', padding: 0, letterSpacing: -0.1,
-              }}
-            >
-              Cambia
-            </button>
-          )}
-        </div>
-
-        <ProgressSegments status={report.status} />
-
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          marginTop: 12,
-        }}>
+        <div ref={cardsRef} style={{ flexShrink: 0, paddingBottom: 14 }}>
+          {/* ═══ Chip row ═══ */}
           <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: `${meta.color}1c`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
-          }}>
-            <meta.icon size={16} style={{ color: meta.color }} />
+            display: 'flex', gap: 6, padding: '10px 12px 0',
+            overflowX: 'auto',
+          }} className="no-scrollbar">
+            <Chip label={severity.label} color={severity.color} />
+            {reportType && <Chip label={reportType.label} color={reportType.color} />}
+            {report.machine && <Chip icon="📍" label={report.machine} />}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 13, fontWeight: 600, color: D.textPrimary,
-              letterSpacing: -0.1,
-            }}>
-              {statusLabel}
-            </div>
-            <div style={{ fontSize: 11, color: D.textSubtle, lineHeight: 1.3 }}>
-              {report.assigned_to_name && report.status !== 'aperta'
-                ? `${report.assigned_to_name}`
-                : meta.sub}
-            </div>
-          </div>
-          {showTakeOver && (
-            <button
-              onClick={handleTakeOver}
-              disabled={updating}
-              className="press-scale"
-              style={{
-                background: D.accent, color: '#fff',
-                border: 'none', borderRadius: 8,
-                padding: '8px 12px', fontSize: 12, fontWeight: 600,
-                cursor: 'pointer', flexShrink: 0,
-                opacity: updating ? 0.6 : 1, letterSpacing: -0.1,
-                boxShadow: '0 4px 12px rgba(124,58,237,0.3)',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {updating ? '...' : (report.assigned_to ? 'Prendi tu' : 'Prendi in carico')}
-            </button>
-          )}
-        </div>
-      </div>
 
-      {/* ═══ Tab bar ═══ */}
-      <div style={{
-        flexShrink: 0,
-        display: 'flex', gap: 0,
-        padding: '0 12px',
-        marginTop: 14,
-        borderBottom: `1px solid ${D.raised}`,
-      }}>
-        {[
-          { id: 'details', label: 'Dettagli' },
-          { id: 'chat', label: 'Chat', badge: chatCount },
-          { id: 'history', label: 'Cronologia', badge: historyCount },
-        ].map(t => {
-          const active = activeTab === t.id
-          return (
-            <button
-              key={t.id}
-              onClick={() => { haptic.light(); setActiveTab(t.id) }}
-              className="press-scale"
-              style={{
-                flex: 1, background: 'transparent', border: 'none',
-                padding: '10px 0 10px',
-                fontSize: 13, fontWeight: active ? 600 : 500,
-                color: active ? D.textPrimary : D.textSubtle,
-                cursor: 'pointer', position: 'relative',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                letterSpacing: -0.1,
-              }}
-            >
-              {t.label}
-              {t.badge > 0 && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  background: active ? D.accent : D.raised,
-                  color: active ? '#fff' : D.textMuted,
-                  padding: '1px 6px', borderRadius: 8,
-                  fontFamily: '"JetBrains Mono", monospace',
-                  minWidth: 18, textAlign: 'center',
+          {/* ═══ Card "Pezzo interessato" ═══
+              Compare solo se c'è qualcosa da dire: un pezzo già attribuito,
+              oppure una macchina che ha componenti in anagrafica. Su una
+              macchina senza pezzi registrati non aggiunge rumore. */}
+          {(report.component_name || components.length > 0) && (
+            <div style={{
+              flexShrink: 0,
+              margin: '10px 12px 0',
+              padding: '10px 12px', borderRadius: 12,
+              background: D.card,
+              border: `1px solid ${report.component_name ? 'rgba(34,211,238,0.28)' : D.raised}`,
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: 1,
+                  textTransform: 'uppercase', color: D.textSubtle,
+                  fontFamily: '"JetBrains Mono", monospace', marginBottom: 5,
                 }}>
-                  {t.badge}
-                </span>
+                  Pezzo interessato
+                </div>
+                {report.component_name ? (
+                  <ComponentPill name={report.component_name} size="md" />
+                ) : (
+                  <span style={{ fontSize: 13, color: D.textSubtle }}>
+                    Generico — intera macchina
+                  </span>
+                )}
+              </div>
+              {canUpdate && !isClosed && components.length > 0 && (
+                <button
+                  onClick={() => { haptic.light(); setComponentSheetOpen(true) }}
+                  className="press-scale"
+                  style={{
+                    background: 'transparent', border: 'none',
+                    color: D.accentLight, fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', padding: '6px 2px', flexShrink: 0,
+                    letterSpacing: -0.1, whiteSpace: 'nowrap',
+                  }}
+                >
+                  {report.component_name ? 'Cambia' : 'Attribuisci'}
+                </button>
               )}
-              {active && (
-                <span aria-hidden="true" style={{
-                  position: 'absolute', bottom: -1, left: '20%', right: '20%',
-                  height: 2, background: D.accent, borderRadius: 1,
-                }} />
-              )}
-            </button>
-          )
-        })}
-      </div>
+            </div>
+          )}
 
-      {/* ═══ Content area ═══ */}
-      {activeTab === 'details' && (
-        <div style={{
-          flex: 1, minHeight: 0, overflowY: 'auto',
-          padding: '14px 12px 0',
-        }}>
-          <ClosureCard
-            report={report}
-            user={user}
-            canUpdate={canUpdate}
-            onEdit={() => { haptic.light(); setClosureEditOpen(true) }}
-            onAddNote={() => { haptic.light(); setClosureNoteOpen('text') }}
-            onRemoveDoc={handleRemoveDoc}
-            busy={closureEdit.saving}
-            onOpenPhoto={(p) => {
-              const idx = photos.findIndex(x => x.url === p.url)
-              if (idx >= 0) setLightboxIndex(idx)
-            }}
-          />
-
-          {/* Descrizione */}
-          {report.description && (
-            <div style={{
-              padding: '12px 14px', borderRadius: 12,
-              background: D.card, border: `1px solid ${D.raised}`,
-              marginBottom: 12,
-            }}>
-              <div style={{
+          {/* ═══ Card "Stato" ═══ */}
+          <div style={{
+            flexShrink: 0,
+            margin: '10px 12px 0',
+            padding: 12, borderRadius: 12,
+            background: D.card, border: `1px solid ${D.raised}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: 1,
                 textTransform: 'uppercase', color: D.textSubtle,
                 fontFamily: '"JetBrains Mono", monospace',
-                marginBottom: 6,
               }}>
-                Descrizione
-              </div>
-              <p style={{
-                fontSize: 13, color: D.textSecondary,
-                lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap',
-              }}>
-                {report.description}
-              </p>
+                Stato
+              </span>
+              {canUpdate && (
+                <button
+                  onClick={() => { haptic.light(); setStatusSheetOpen(true) }}
+                  className="press-scale"
+                  style={{
+                    background: 'transparent', border: 'none',
+                    color: D.accentLight, fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', padding: 0, letterSpacing: -0.1,
+                  }}
+                >
+                  Cambia
+                </button>
+              )}
             </div>
-          )}
 
-          {/* Foto */}
-          {(photos.length > 0 || canUpdate) && (
-            <div style={{ marginBottom: 12 }}>
+            <ProgressSegments status={report.status} />
+
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              marginTop: 12,
+            }}>
               <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: 6,
+                width: 32, height: 32, borderRadius: 8,
+                background: `${meta.color}1c`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <meta.icon size={16} style={{ color: meta.color }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 600, color: D.textPrimary,
+                  letterSpacing: -0.1,
+                }}>
+                  {statusLabel}
+                </div>
+                <div style={{ fontSize: 11, color: D.textSubtle, lineHeight: 1.3 }}>
+                  {report.assigned_to_name && report.status !== 'aperta'
+                    ? `${report.assigned_to_name}`
+                    : meta.sub}
+                </div>
+              </div>
+              {showTakeOver && (
+                <button
+                  onClick={handleTakeOver}
+                  disabled={updating}
+                  className="press-scale"
+                  style={{
+                    background: D.accent, color: '#fff',
+                    border: 'none', borderRadius: 8,
+                    padding: '8px 12px', fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', flexShrink: 0,
+                    opacity: updating ? 0.6 : 1, letterSpacing: -0.1,
+                    boxShadow: '0 4px 12px rgba(124,58,237,0.3)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {updating ? '...' : (report.assigned_to ? 'Prendi tu' : 'Prendi in carico')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ═══ Tab bar ═══ (resta in alto quando le schede scorrono via) */}
+        <div style={{
+          flexShrink: 0,
+          display: 'flex', gap: 0,
+          padding: '0 12px',
+          borderBottom: `1px solid ${D.raised}`,
+          position: 'sticky', top: 0, zIndex: 20,
+          background: D.bg,
+        }}>
+          {[
+            { id: 'details', label: 'Dettagli' },
+            { id: 'chat', label: 'Chat', badge: chatCount },
+            { id: 'history', label: 'Cronologia', badge: historyCount },
+          ].map(t => {
+            const active = activeTab === t.id
+            return (
+              <button
+                key={t.id}
+                onClick={() => selectTab(t.id)}
+                className="press-scale"
+                style={{
+                  flex: 1, background: 'transparent', border: 'none',
+                  padding: '10px 0 10px',
+                  fontSize: 13, fontWeight: active ? 600 : 500,
+                  color: active ? D.textPrimary : D.textSubtle,
+                  cursor: 'pointer', position: 'relative',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  letterSpacing: -0.1,
+                }}
+              >
+                {t.label}
+                {t.badge > 0 && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700,
+                    background: active ? D.accent : D.raised,
+                    color: active ? '#fff' : D.textMuted,
+                    padding: '1px 6px', borderRadius: 8,
+                    fontFamily: '"JetBrains Mono", monospace',
+                    minWidth: 18, textAlign: 'center',
+                  }}>
+                    {t.badge}
+                  </span>
+                )}
+                {active && (
+                  <span aria-hidden="true" style={{
+                    position: 'absolute', bottom: -1, left: '20%', right: '20%',
+                    height: 2, background: D.accent, borderRadius: 1,
+                  }} />
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* ═══ Content area ═══ */}
+        {activeTab === 'details' && (
+          <div style={{
+            flexShrink: 0,
+            padding: '14px 12px 0',
+          }}>
+            <ClosureCard
+              report={report}
+              user={user}
+              canUpdate={canUpdate}
+              onEdit={() => { haptic.light(); setClosureEditOpen(true) }}
+              onAddNote={() => { haptic.light(); setClosureNoteOpen('text') }}
+              onRemoveDoc={handleRemoveDoc}
+              busy={closureEdit.saving}
+              onOpenPhoto={(p) => {
+                const idx = photos.findIndex(x => x.url === p.url)
+                if (idx >= 0) setLightboxIndex(idx)
+              }}
+            />
+
+            {/* Descrizione */}
+            {report.description && (
+              <div style={{
+                padding: '12px 14px', borderRadius: 12,
+                background: D.card, border: `1px solid ${D.raised}`,
+                marginBottom: 12,
               }}>
                 <div style={{
                   fontSize: 10, fontWeight: 700, letterSpacing: 1,
                   textTransform: 'uppercase', color: D.textSubtle,
                   fontFamily: '"JetBrains Mono", monospace',
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  marginBottom: 6,
                 }}>
-                  <ImageIcon size={11} /> Foto · {photos.length}
+                  Descrizione
                 </div>
-                {canUpdate && (
-                  <button
-                    onClick={() => handleAddPhoto('camera')}
-                    disabled={addingMedia}
-                    className="press-scale"
-                    style={{
-                      background: 'transparent', border: 'none',
-                      color: D.accentLight, fontSize: 11, fontWeight: 600,
-                      cursor: addingMedia ? 'not-allowed' : 'pointer',
-                      padding: 0,
-                      display: 'inline-flex', alignItems: 'center', gap: 3,
-                      opacity: addingMedia ? 0.5 : 1,
-                    }}>
-                    {addingMedia ? (
-                      <span style={{
-                        width: 12, height: 12, borderRadius: '50%',
-                        border: `2px solid ${D.accentLight}40`,
-                        borderTopColor: D.accentLight,
-                        display: 'inline-block',
-                        animation: 'spin 1s linear infinite',
-                      }} />
-                    ) : (
-                      <Plus size={12} />
-                    )}
-                    {addingMedia ? 'Caricamento…' : 'Aggiungi'}
-                  </button>
-                )}
+                <p style={{
+                  fontSize: 13, color: D.textSecondary,
+                  lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap',
+                }}>
+                  {report.description}
+                </p>
               </div>
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))',
-                gap: 6,
-              }}>
-                {photos.map((m, i) => (
-                  <button
-                    key={m.id || i}
-                    onClick={() => { haptic.light(); setLightboxIndex(i) }}
-                    aria-label={`Apri foto ${i + 1}`}
-                    className="press-scale"
-                    style={{
-                      position: 'relative', aspectRatio: '1',
-                      borderRadius: 10, overflow: 'hidden',
-                      background: D.raised, border: `1px solid ${D.raised}`,
-                      cursor: 'pointer', padding: 0,
-                    }}
-                  >
-                    <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <div style={{
-                      position: 'absolute', top: 4, right: 4,
-                      width: 22, height: 22, borderRadius: 6,
-                      background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Expand size={11} style={{ color: '#fff' }} />
-                    </div>
-                  </button>
+            )}
+
+            {/* Foto */}
+            {(photos.length > 0 || canUpdate) && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: 6,
+                }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: 1,
+                    textTransform: 'uppercase', color: D.textSubtle,
+                    fontFamily: '"JetBrains Mono", monospace',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <ImageIcon size={11} /> Foto · {photos.length}
+                  </div>
+                  {canUpdate && (
+                    <button
+                      onClick={() => handleAddPhoto('camera')}
+                      disabled={addingMedia}
+                      className="press-scale"
+                      style={{
+                        background: 'transparent', border: 'none',
+                        color: D.accentLight, fontSize: 11, fontWeight: 600,
+                        cursor: addingMedia ? 'not-allowed' : 'pointer',
+                        padding: 0,
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                        opacity: addingMedia ? 0.5 : 1,
+                      }}>
+                      {addingMedia ? (
+                        <span style={{
+                          width: 12, height: 12, borderRadius: '50%',
+                          border: `2px solid ${D.accentLight}40`,
+                          borderTopColor: D.accentLight,
+                          display: 'inline-block',
+                          animation: 'spin 1s linear infinite',
+                        }} />
+                      ) : (
+                        <Plus size={12} />
+                      )}
+                      {addingMedia ? 'Caricamento…' : 'Aggiungi'}
+                    </button>
+                  )}
+                </div>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))',
+                  gap: 6,
+                }}>
+                  {photos.map((m, i) => (
+                    <button
+                      key={m.id || i}
+                      onClick={() => { haptic.light(); setLightboxIndex(i) }}
+                      aria-label={`Apri foto ${i + 1}`}
+                      className="press-scale"
+                      style={{
+                        position: 'relative', aspectRatio: '1',
+                        borderRadius: 10, overflow: 'hidden',
+                        background: D.raised, border: `1px solid ${D.raised}`,
+                        cursor: 'pointer', padding: 0,
+                      }}
+                    >
+                      <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{
+                        position: 'absolute', top: 4, right: 4,
+                        width: 22, height: 22, borderRadius: 6,
+                        background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Expand size={11} style={{ color: '#fff' }} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Video */}
+            {videos.map((m, i) => (
+              <div key={m.id || `v-${i}`} style={{ marginBottom: 12 }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: 1,
+                  textTransform: 'uppercase', color: D.textSubtle,
+                  fontFamily: '"JetBrains Mono", monospace',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  marginBottom: 6,
+                }}>
+                  <Video size={11} /> Video {videos.length > 1 ? i + 1 : ''}
+                </div>
+                <VideoPlayer src={m.url} name={m.name} />
+              </div>
+            ))}
+
+            {/* Audio */}
+            {audios.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: 1,
+                  textTransform: 'uppercase', color: D.textSubtle,
+                  fontFamily: '"JetBrains Mono", monospace',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  marginBottom: 6,
+                }}>
+                  <MicIcon size={11} /> Note vocali · {audios.length}
+                </div>
+                {audios.map((m, i) => (
+                  <div key={m.id || `a-${i}`} style={{ marginBottom: 6 }}>
+                    <AudioPlayer src={m.url} name={m.name} />
+                  </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Video */}
-          {videos.map((m, i) => (
-            <div key={m.id || `v-${i}`} style={{ marginBottom: 12 }}>
-              <div style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: 1,
-                textTransform: 'uppercase', color: D.textSubtle,
-                fontFamily: '"JetBrains Mono", monospace',
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                marginBottom: 6,
-              }}>
-                <Video size={11} /> Video {videos.length > 1 ? i + 1 : ''}
+            {/* Richieste esterne (ricambi + interventi) associati al ticket */}
+            <TicketSparePanel reportId={report.id} user={user} refreshKey={spareRefresh} />
+
+            {/* AI: casi simili live (auto-cerca all'apertura, semantic search raw) */}
+            {user.role === 'tecnico' && report.status !== 'chiuso' && (
+              <div style={{ marginBottom: 12 }}>
+                <SimilarCasesLivePanel
+                  text={[report.title, report.description].filter(Boolean).join('. ')}
+                  machineId={report.machine_id || null}
+                  excludeReportId={report.id}
+                />
               </div>
-              <VideoPlayer src={m.url} name={m.name} />
-            </div>
-          ))}
+            )}
 
-          {/* Audio */}
-          {audios.length > 0 && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: 1,
-                textTransform: 'uppercase', color: D.textSubtle,
-                fontFamily: '"JetBrains Mono", monospace',
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                marginBottom: 6,
-              }}>
-                <MicIcon size={11} /> Note vocali · {audios.length}
-              </div>
-              {audios.map((m, i) => (
-                <div key={m.id || `a-${i}`} style={{ marginBottom: 6 }}>
-                  <AudioPlayer src={m.url} name={m.name} />
-                </div>
-              ))}
-            </div>
-          )}
+            {/* Padding bottom per composer */}
+            <div style={{ height: 8 }} />
+          </div>
+        )}
 
-          {/* Richieste esterne (ricambi + interventi) associati al ticket */}
-          <TicketSparePanel reportId={report.id} user={user} refreshKey={spareRefresh} />
+        {activeTab === 'chat' && (
+          <ChatPanel
+            reportId={report.id}
+            user={user}
+            report={report}
+            variant="mobile"
+            className="flex-1"
+            scrollParentRef={scrollRef}
+          />
+        )}
 
-          {/* AI: casi simili live (auto-cerca all'apertura, semantic search raw) */}
-          {user.role === 'tecnico' && report.status !== 'chiuso' && (
-            <div style={{ marginBottom: 12 }}>
-              <SimilarCasesLivePanel
-                text={[report.title, report.description].filter(Boolean).join('. ')}
-                machineId={report.machine_id || null}
-                excludeReportId={report.id}
-              />
-            </div>
-          )}
-
-          {/* Padding bottom per composer */}
-          <div style={{ height: 8 }} />
-        </div>
-      )}
-
-      {activeTab === 'chat' && (
-        <ChatPanel
-          reportId={report.id}
-          user={user}
-          report={report}
-          variant="mobile"
-          className="flex-1 min-h-0"
-        />
-      )}
-
-      {activeTab === 'history' && (
-        <div style={{
-          flex: 1, minHeight: 0, overflowY: 'auto',
-          padding: '14px 12px 8px',
-        }}>
-          <ActivityTimeline reportId={report.id} report={report} />
-        </div>
-      )}
+        {activeTab === 'history' && (
+          <div style={{
+            flexShrink: 0,
+            padding: '14px 12px 8px',
+          }}>
+            <ActivityTimeline reportId={report.id} report={report} />
+          </div>
+        )}
+      </div>
 
       {/* ═══ Tech voice action bar (solo Dettagli, ticket non chiuso) ═══ */}
       {showTechActions && activeTab === 'details' && report.status !== 'chiuso' && (
