@@ -101,7 +101,11 @@ async function downloadFile(url, filename) {
   }
 }
 
-export default function ChatPanel({ reportId, user, variant = 'desktop', report, className = '', guestMode }) {
+// scrollParentRef: se passato, i messaggi non hanno uno scroll proprio ma
+// scorrono nel contenitore del genitore (dettaglio ticket mobile, dove
+// scorrono insieme alle schede sopra) e la barra di scrittura resta
+// incollata in fondo a quel contenitore.
+export default function ChatPanel({ reportId, user, variant = 'desktop', report, className = '', guestMode, scrollParentRef }) {
   // State
   const [comments, setComments] = useState([])
   const [reactions, setReactions] = useState([])
@@ -123,8 +127,12 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
   const audioTimerRef = useRef(null)
 
   // Refs
-  const chatEndRef = useRef(null)
+  const ownScrollRef = useRef(null)
+  const listRef = useRef(null)
+  const footerRef = useRef(null)
   const inputRef = useRef(null)
+  const stickToEndRef = useRef(true)
+  const scrolledOnceRef = useRef(false)
 
   // Hooks — stabilize references with useRef
   const { compress, makeThumbnail, formatSize } = useImageCompressor()
@@ -141,6 +149,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
   useEffect(() => {
     if (!reportId) return
     setLoading(true)
+    scrolledOnceRef.current = false
     const loader = guestMode ? guestMode.getComments : () => db.getComments(reportId)
     loader()
       .then(c => setComments(c || []))
@@ -165,11 +174,47 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
   }, [guestMode, reportId])
 
   // ── Auto-scroll ────────────────────────────────────────
+  const getScroller = useCallback(
+    () => (scrollParentRef ? scrollParentRef.current : ownScrollRef.current),
+    [scrollParentRef]
+  )
+  const scrollToEnd = useCallback((behavior = 'auto') => {
+    const el = getScroller()
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior })
+  }, [getScroller])
+
+  // Solo quando arriva un messaggio nuovo in fondo: una modifica, una
+  // reazione o il polling ospite (ogni 10s) non riportano giù chi legge.
+  // All'apertura il salto è immediato, dopo è morbido. Si aspetta la fine
+  // del caricamento: prima a schermo c'è ancora lo scheletro.
+  const lastCommentId = comments[comments.length - 1]?.id
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: comments.length > 1 ? 'smooth' : 'auto' })
+    if (loading || !lastCommentId) return
+    stickToEndRef.current = true
+    scrollToEnd(scrolledOnceRef.current ? 'smooth' : 'auto')
+    scrolledOnceRef.current = true
+  }, [lastCommentId, loading, scrollToEnd])
+
+  // Le foto si caricano dopo lo scroll e allungano la lista, la barra
+  // cresce mentre si scrive: chi è in fondo ci resta, chi è risalito a
+  // leggere non viene trascinato giù.
+  useEffect(() => {
+    const scroller = getScroller()
+    if (!scroller) return
+    const onScroll = () => {
+      stickToEndRef.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80
     }
-  }, [comments])
+    scroller.addEventListener('scroll', onScroll, { passive: true })
+    let ro = null
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => { if (stickToEndRef.current) scrollToEnd() })
+      ;[listRef.current, footerRef.current, scroller].forEach(el => el && ro.observe(el))
+    }
+    return () => {
+      scroller.removeEventListener('scroll', onScroll)
+      ro?.disconnect()
+    }
+  }, [getScroller, scrollToEnd])
 
   // ── Auto-resize textarea ───────────────────────────────
   useEffect(() => {
@@ -463,221 +508,242 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
         </div>
       )}
 
-      {/* ═══ Messages area ═══ */}
-      <div className={`flex-1 overflow-y-auto ${isMobile ? 'px-[3vw] py-[2vw]' : 'p-3'}`}>
-        {loading ? (
-          <ChatSkeleton isMobile={isMobile} />
-        ) : comments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full min-h-[120px] text-muted">
-            <MessageCircle size={isMobile ? 48 : 40} className="mb-3 opacity-10" strokeWidth={1.5} />
-            <p className={`font-medium ${isMobile ? 'text-base' : 'text-sm'}`}>Nessun messaggio</p>
-            <p className={`mt-1 opacity-50 ${isMobile ? 'text-sm' : 'text-xs'}`}>
-              {isMobile ? 'Scrivi o allega un file' : 'Scrivi un messaggio o trascina un file'}
-            </p>
-          </div>
-        ) : (
-          comments.map((c, i) => {
-            const showDate = shouldShowDateSeparator(comments, i)
-            const showHeader = shouldShowHeader(comments, i)
-            const canEdit = !guestMode && (
-              c.user_id === user?.id || user?.role === 'admin'
-            )
-            return (
-              <div key={c.id}>
-                {showDate && <DateSeparator date={c.created_at} />}
-                <DiscordMessage
-                  comment={c}
-                  showHeader={showHeader}
-                  isMobile={isMobile}
-                  canEdit={canEdit}
-                  reactions={guestMode ? null : reactions.filter(r => r.comment_id === c.id)}
-                  currentUserId={user?.id}
-                  onToggleReaction={(type) => toggleReaction(type, c.id)}
-                  onPhotoClick={(idx) => openLightbox(c, idx)}
-                  onDownload={downloadFile}
-                  onEdit={async (newText) => {
-                    try {
-                      const updated = await db.updateComment(c.id, newText)
-                      setComments(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x))
-                      toast.success('Messaggio modificato')
-                      // Se il ticket e' chiuso, riindicizza la macchina (memoria AI)
-                      if (report?.machine_id && isTerminalStatus(report?.status)) {
-                        db.queueMachineReindex(report.machine_id)
-                          .catch(e => console.warn('[chat-edit] reindex fail:', e?.message))
+      {/* ═══ Messages area ═══
+          Spaziature inline: il reset in index.css annulla p-* e m-*. */}
+      <div
+        ref={scrollParentRef ? undefined : ownScrollRef}
+        className={scrollParentRef ? 'flex-1' : 'flex-1 overflow-y-auto'}
+        style={{ padding: isMobile ? '2vw 3vw' : 12 }}
+      >
+        <div ref={listRef} className="flex flex-col" style={{ minHeight: '100%' }}>
+          {loading ? (
+            <ChatSkeleton isMobile={isMobile} />
+          ) : comments.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center min-h-[120px] text-muted">
+              <MessageCircle size={isMobile ? 48 : 40} className="mb-3 opacity-10" strokeWidth={1.5} />
+              <p className={`font-medium ${isMobile ? 'text-base' : 'text-sm'}`}>Nessun messaggio</p>
+              <p className={`mt-1 opacity-50 ${isMobile ? 'text-sm' : 'text-xs'}`}>
+                {isMobile ? 'Scrivi o allega un file' : 'Scrivi un messaggio o trascina un file'}
+              </p>
+            </div>
+          ) : (
+            comments.map((c, i) => {
+              const showDate = shouldShowDateSeparator(comments, i)
+              const showHeader = shouldShowHeader(comments, i)
+              const canEdit = !guestMode && (
+                c.user_id === user?.id || user?.role === 'admin'
+              )
+              return (
+                <div key={c.id}>
+                  {showDate && <DateSeparator date={c.created_at} />}
+                  <DiscordMessage
+                    comment={c}
+                    showHeader={showHeader}
+                    isMobile={isMobile}
+                    canEdit={canEdit}
+                    reactions={guestMode ? null : reactions.filter(r => r.comment_id === c.id)}
+                    currentUserId={user?.id}
+                    onToggleReaction={(type) => toggleReaction(type, c.id)}
+                    onPhotoClick={(idx) => openLightbox(c, idx)}
+                    onDownload={downloadFile}
+                    onEdit={async (newText) => {
+                      try {
+                        const updated = await db.updateComment(c.id, newText)
+                        setComments(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x))
+                        toast.success('Messaggio modificato')
+                        // Se il ticket e' chiuso, riindicizza la macchina (memoria AI)
+                        if (report?.machine_id && isTerminalStatus(report?.status)) {
+                          db.queueMachineReindex(report.machine_id)
+                            .catch(e => console.warn('[chat-edit] reindex fail:', e?.message))
+                        }
+                      } catch (e) {
+                        toast.error(e?.message || 'Errore modifica')
+                        throw e
                       }
-                    } catch (e) {
-                      toast.error(e?.message || 'Errore modifica')
-                      throw e
-                    }
-                  }}
-                  onDelete={async () => {
-                    try {
-                      await db.deleteComment(c.id)
-                      setComments(prev => prev.filter(x => x.id !== c.id))
-                      toast.success('Messaggio eliminato')
-                      if (report?.machine_id && isTerminalStatus(report?.status)) {
-                        db.queueMachineReindex(report.machine_id)
-                          .catch(e => console.warn('[chat-delete] reindex fail:', e?.message))
+                    }}
+                    onDelete={async () => {
+                      try {
+                        await db.deleteComment(c.id)
+                        setComments(prev => prev.filter(x => x.id !== c.id))
+                        toast.success('Messaggio eliminato')
+                        if (report?.machine_id && isTerminalStatus(report?.status)) {
+                          db.queueMachineReindex(report.machine_id)
+                            .catch(e => console.warn('[chat-delete] reindex fail:', e?.message))
+                        }
+                      } catch (e) {
+                        toast.error(e?.message || 'Errore eliminazione')
                       }
-                    } catch (e) {
-                      toast.error(e?.message || 'Errore eliminazione')
-                    }
-                  }}
-                  toast={toast}
-                />
-              </div>
-            )
-          })
-        )}
-        <div ref={chatEndRef} />
+                    }}
+                    toast={toast}
+                  />
+                </div>
+              )
+            })
+          )}
+        </div>
       </div>
 
-      {/* ═══ Ringraziamenti (segnalazione risolta) ═══ */}
-      {showThanks && (
-        <div className={`shrink-0 border-t border-emerald-500/25 bg-emerald-500/5 ${isMobile ? 'px-[3vw] py-[2.5vw]' : 'px-3 py-2'}`}>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`font-semibold text-emerald-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
-              🎉 Intervento completato
-            </span>
-            {thanks.length > 0 && (
-              <span className={`text-faint ${isMobile ? 'text-sm' : 'text-xs'}`}>
-                👏 {isAssignee
-                  ? `${thanks.map(t => t.user_name).join(', ')} ti ringrazi${thanks.length > 1 ? 'ano' : 'a'} per l'intervento!`
-                  : `Grazie da: ${thanks.map(t => t.user_name).join(', ')}`}
+      {/* ═══ Barra in fondo: ringraziamenti, allegati, scrittura ═══
+          Dentro lo scroll del genitore resta incollata in fondo, con uno
+          sfondo pieno perché i messaggi le passano sotto. */}
+      <div
+        ref={footerRef}
+        className="shrink-0"
+        style={scrollParentRef ? { position: 'sticky', bottom: 0, zIndex: 10, background: 'var(--color-bg)' } : undefined}
+      >
+        {/* ═══ Ringraziamenti (segnalazione risolta) ═══ */}
+        {showThanks && (
+          <div className="shrink-0 border-t border-emerald-500/25 bg-emerald-500/5" style={{ padding: isMobile ? '2.5vw 3vw' : '8px 12px' }}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`font-semibold text-emerald-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
+                🎉 Intervento completato
               </span>
-            )}
-            {!isAssignee && (
-              <button
-                onClick={() => toggleReaction('grazie')}
-                className={`ml-auto shrink-0 rounded-xl font-semibold border transition-all active:scale-95 ${
-                  iThanked
-                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                    : 'bg-surface-2 border-token text-faint hover:text-emerald-400 hover:border-emerald-500/40'
-                } ${isMobile ? 'px-3 py-1.5 text-sm' : 'px-2.5 py-1 text-xs'}`}
-              >
-                👏 {iThanked ? 'Grazie inviato' : `Ringrazia ${assigneeName}`}
-              </button>
-            )}
+              {thanks.length > 0 && (
+                <span className={`text-faint ${isMobile ? 'text-sm' : 'text-xs'}`}>
+                  👏 {isAssignee
+                    ? `${thanks.map(t => t.user_name).join(', ')} ti ringrazi${thanks.length > 1 ? 'ano' : 'a'} per l'intervento!`
+                    : `Grazie da: ${thanks.map(t => t.user_name).join(', ')}`}
+                </span>
+              )}
+              {!isAssignee && (
+                <button
+                  onClick={() => toggleReaction('grazie')}
+                  className={`shrink-0 rounded-xl font-semibold border transition-all active:scale-95 ${
+                    iThanked
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                      : 'bg-surface-2 border-token text-faint hover:text-emerald-400 hover:border-emerald-500/40'
+                  } ${isMobile ? 'text-sm' : 'text-xs'}`}
+                  style={{ marginLeft: 'auto', padding: isMobile ? '6px 12px' : '4px 10px' }}
+                >
+                  👏 {iThanked ? 'Grazie inviato' : `Ringrazia ${assigneeName}`}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ═══ Pending media preview ═══ */}
-      {pendingMedia.length > 0 && (
-        <div className={`shrink-0 border-t border-token bg-surface-1/30 ${isMobile ? 'px-[3vw] py-[2vw]' : 'px-3 py-2'}`}>
-          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            {pendingMedia.map(m => (
-              <div key={m.id} className="relative shrink-0">
-                <div className={`rounded-xl bg-surface-2 border border-token overflow-hidden flex items-center justify-center ${
+        {/* ═══ Pending media preview ═══ */}
+        {pendingMedia.length > 0 && (
+          <div className="shrink-0 border-t border-token bg-surface-1/30" style={{ padding: isMobile ? '2vw 3vw' : '8px 12px' }}>
+            <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none', padding: '6px 6px 4px 0' }}>
+              {pendingMedia.map(m => (
+                <div key={m.id} className="relative shrink-0">
+                  <div className={`rounded-xl bg-surface-2 border border-token overflow-hidden flex items-center justify-center ${
+                    isMobile ? 'w-[16vw] h-[16vw] max-w-[72px] max-h-[72px]' : 'w-16 h-16'
+                  }`}>
+                    {m.type === 'photo'
+                      ? <img src={m.url} alt="" className="w-full h-full object-cover" />
+                      : m.type === 'video'
+                        ? <div className="text-center"><FileVideo size={20} className="text-green-400 mx-auto" /><span className="text-[9px] text-muted mt-0.5 block">Video</span></div>
+                        : <div className="text-center"><FileAudio size={20} className="text-orange-400 mx-auto" /><span className="text-[9px] text-muted mt-0.5 block">Audio</span></div>
+                    }
+                  </div>
+                  <button onClick={() => removePending(m.id)}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+                    <X size={10} className="text-white" />
+                  </button>
+                </div>
+              ))}
+              {uploading && (
+                <div className={`shrink-0 rounded-xl bg-surface-2 border border-dashed border-violet-500/30 flex flex-col items-center justify-center ${
                   isMobile ? 'w-[16vw] h-[16vw] max-w-[72px] max-h-[72px]' : 'w-16 h-16'
                 }`}>
-                  {m.type === 'photo'
-                    ? <img src={m.url} alt="" className="w-full h-full object-cover" />
-                    : m.type === 'video'
-                      ? <div className="text-center"><FileVideo size={20} className="text-green-400 mx-auto" /><span className="text-[9px] text-muted mt-0.5 block">Video</span></div>
-                      : <div className="text-center"><FileAudio size={20} className="text-orange-400 mx-auto" /><span className="text-[9px] text-muted mt-0.5 block">Audio</span></div>
-                  }
+                  <div className="w-4 h-4 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
+                  {uploadLabel && <span className="text-[8px] text-violet-400 mt-1">{uploadLabel}</span>}
                 </div>
-                <button onClick={() => removePending(m.id)}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform">
-                  <X size={10} className="text-white" />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ Media action bar ═══ */}
+        {showMediaBar && !recording && !guestMode && (
+          <div className="shrink-0 border-t border-token bg-surface-1/40" style={{ padding: isMobile ? '2.5vw 3vw' : '8px 12px' }}>
+            <div className={`grid grid-cols-4 ${isMobile ? 'gap-[2vw]' : 'gap-2'}`}>
+              {/* eslint-disable-next-line react-hooks/refs */}
+              {mediaActions.map(({ action, icon: Icon, label, color }, i) => (
+                <button key={i} onClick={action} disabled={uploading}
+                  className={`flex flex-col items-center justify-center rounded-xl border border-token bg-surface-2 active:bg-surface-3 transition-all active:scale-95 ${
+                    isMobile ? 'gap-1' : 'gap-0.5'
+                  } ${uploading ? 'opacity-40 pointer-events-none' : ''}`}
+                  style={{ padding: isMobile ? '2.5vw 0' : '8px 0' }}>
+                  <Icon size={isMobile ? 22 : 18} style={{ color }} />
+                  <span className={`font-medium text-faint ${isMobile ? 'text-xs' : 'text-[10px]'}`}>{label}</span>
                 </button>
-              </div>
-            ))}
-            {uploading && (
-              <div className={`shrink-0 rounded-xl bg-surface-2 border border-dashed border-violet-500/30 flex flex-col items-center justify-center ${
-                isMobile ? 'w-[16vw] h-[16vw] max-w-[72px] max-h-[72px]' : 'w-16 h-16'
-              }`}>
-                <div className="w-4 h-4 border-2 border-violet-400/30 border-t-violet-400 rounded-full animate-spin" />
-                {uploadLabel && <span className="text-[8px] text-violet-400 mt-1">{uploadLabel}</span>}
-              </div>
-            )}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ═══ Media action bar ═══ */}
-      {showMediaBar && !recording && !guestMode && (
-        <div className={`shrink-0 border-t border-token bg-surface-1/40 ${isMobile ? 'px-[3vw] py-[2.5vw]' : 'px-3 py-2'}`}>
-          <div className={`grid grid-cols-4 ${isMobile ? 'gap-[2vw]' : 'gap-2'}`}>
-            {/* eslint-disable-next-line react-hooks/refs */}
-            {mediaActions.map(({ action, icon: Icon, label, color }, i) => (
-              <button key={i} onClick={action} disabled={uploading}
-                className={`flex flex-col items-center justify-center rounded-xl border border-token bg-surface-2 active:bg-surface-3 transition-all active:scale-95 ${
-                  isMobile ? 'py-[2.5vw] gap-1' : 'py-2 gap-0.5'
-                } ${uploading ? 'opacity-40 pointer-events-none' : ''}`}>
-                <Icon size={isMobile ? 22 : 18} style={{ color }} />
-                <span className={`font-medium text-faint ${isMobile ? 'text-xs' : 'text-[10px]'}`}>{label}</span>
+        {/* ═══ Audio recording bar ═══ */}
+        {recording && (
+          <div className="shrink-0 border-t border-red-500/30 bg-red-500/5" style={{ padding: isMobile ? '3vw' : 12 }}>
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+              <span className={`text-red-400 font-bold font-mono ${isMobile ? 'text-lg' : 'text-sm'}`}>{fmtTime(audioTime)}</span>
+              <span className={`text-faint flex-1 truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>Registrazione in corso...</span>
+              <button onClick={stopAudio}
+                className={`bg-red-500 text-white rounded-xl flex items-center justify-center gap-2 font-semibold active:bg-red-600 active:scale-95 transition-all ${
+                  isMobile ? 'text-base' : 'text-sm'
+                }`}
+                style={{ padding: isMobile ? '12px 20px' : '8px 16px' }}>
+                <Square size={isMobile ? 16 : 14} fill="white" /> Stop
               </button>
-            ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ═══ Audio recording bar ═══ */}
-      {recording && (
-        <div className={`shrink-0 border-t border-red-500/30 bg-red-500/5 ${isMobile ? 'px-[3vw] py-[3vw]' : 'px-3 py-3'}`}>
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-            <span className={`text-red-400 font-bold font-mono ${isMobile ? 'text-lg' : 'text-sm'}`}>{fmtTime(audioTime)}</span>
-            <span className={`text-faint flex-1 truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>Registrazione in corso...</span>
-            <button onClick={stopAudio}
-              className={`bg-red-500 text-white rounded-xl flex items-center justify-center gap-2 font-semibold active:bg-red-600 active:scale-95 transition-all ${
-                isMobile ? 'px-5 py-3 text-base' : 'px-4 py-2 text-sm'
-              }`}>
-              <Square size={isMobile ? 16 : 14} fill="white" /> Stop
-            </button>
+        {/* ═══ Input bar ═══ */}
+        {!recording && (
+          <div className="shrink-0 border-t border-token glass" style={{
+            padding: isMobile ? '3vw 3vw max(env(safe-area-inset-bottom, 0px), 3vw)' : 12,
+          }}>
+            <div className="flex items-end gap-2">
+              {!guestMode && (
+              <button
+                onClick={() => { setShowMediaBar(prev => !prev); hapticRef.current.light() }}
+                aria-label={showMediaBar ? 'Chiudi allegati' : 'Apri allegati'}
+                aria-expanded={showMediaBar}
+                disabled={uploading}
+                className={`shrink-0 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
+                  showMediaBar ? 'bg-violet-500/20 text-violet-400 ring-1 ring-violet-500/30' : 'bg-surface-2 text-muted hover:text-gray-300'
+                } ${isMobile ? 'w-[12vw] h-[12vw] max-w-12 max-h-12' : 'w-10 h-10'}`}
+              >
+                {showMediaBar ? <X size={isMobile ? 22 : 18} /> : <Paperclip size={isMobile ? 22 : 18} />}
+              </button>
+              )}
+
+              <textarea
+                ref={inputRef}
+                value={text}
+                onChange={e => setText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Scrivi un messaggio..."
+                rows={1}
+                className={`flex-1 bg-surface-2 border border-token rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none transition-all ${
+                  isMobile ? 'text-base' : 'text-sm'
+                }`}
+                style={{
+                  minHeight: isMobile ? '48px' : '40px', maxHeight: isMobile ? '120px' : '150px',
+                  padding: isMobile ? '12px 14px' : '10px 16px',
+                }}
+              />
+
+              <button
+                onClick={sendMessage}
+                disabled={!canSend}
+                className={`shrink-0 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
+                  canSend ? 'bg-violet-500 text-white hover:bg-violet-600 shadow-lg shadow-violet-500/20' : 'bg-surface-1 text-faint cursor-not-allowed'
+                } ${isMobile ? 'w-[12vw] h-[12vw] max-w-12 max-h-12' : 'w-10 h-10'}`}
+              >
+                {sending
+                  ? <div className={`border-2 border-white/30 border-t-white rounded-full animate-spin ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
+                  : <Send size={isMobile ? 20 : 16} className="ml-0.5" />}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* ═══ Input bar ═══ */}
-      {!recording && (
-        <div className={`shrink-0 border-t border-token glass ${
-          isMobile ? 'px-[3vw] py-[3vw]' : 'p-3'
-        }`} style={isMobile ? { paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 3vw)' } : {}}>
-          <div className="flex items-end gap-2">
-            {!guestMode && (
-            <button
-              onClick={() => { setShowMediaBar(prev => !prev); hapticRef.current.light() }}
-              aria-label={showMediaBar ? 'Chiudi allegati' : 'Apri allegati'}
-              aria-expanded={showMediaBar}
-              disabled={uploading}
-              className={`shrink-0 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
-                showMediaBar ? 'bg-violet-500/20 text-violet-400 ring-1 ring-violet-500/30' : 'bg-surface-2 text-muted hover:text-gray-300'
-              } ${isMobile ? 'w-[12vw] h-[12vw] max-w-12 max-h-12' : 'w-10 h-10'}`}
-            >
-              {showMediaBar ? <X size={isMobile ? 22 : 18} /> : <Paperclip size={isMobile ? 22 : 18} />}
-            </button>
-            )}
-
-            <textarea
-              ref={inputRef}
-              value={text}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Scrivi un messaggio..."
-              rows={1}
-              className={`flex-1 bg-surface-2 border border-token rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none transition-all ${
-                isMobile ? 'px-[4vw] py-[3vw] text-base' : 'px-4 py-2.5 text-sm'
-              }`}
-              style={{ minHeight: isMobile ? '48px' : '40px', maxHeight: isMobile ? '120px' : '150px' }}
-            />
-
-            <button
-              onClick={sendMessage}
-              disabled={!canSend}
-              className={`shrink-0 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
-                canSend ? 'bg-violet-500 text-white hover:bg-violet-600 shadow-lg shadow-violet-500/20' : 'bg-surface-1 text-faint cursor-not-allowed'
-              } ${isMobile ? 'w-[12vw] h-[12vw] max-w-12 max-h-12' : 'w-10 h-10'}`}
-            >
-              {sending
-                ? <div className={`border-2 border-white/30 border-t-white rounded-full animate-spin ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
-                : <Send size={isMobile ? 20 : 16} className="ml-0.5" />}
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ═══ Lightbox ═══ */}
       {lightboxData && (
@@ -696,7 +762,7 @@ export default function ChatPanel({ reportId, user, variant = 'desktop', report,
 
 function DateSeparator({ date }) {
   return (
-    <div className="flex items-center gap-3 my-3">
+    <div className="flex items-center gap-3" style={{ margin: '12px 0' }}>
       <div className="flex-1 h-px bg-gray-700/30" />
       <span className="text-[11px] text-faint font-medium px-2">{formatDateSeparator(date)}</span>
       <div className="flex-1 h-px bg-gray-700/30" />
@@ -784,11 +850,11 @@ function DiscordMessage({ comment: c, showHeader, isMobile, canEdit, reactions, 
   }
 
   return (
-    <div className={`group relative flex gap-3 rounded-lg transition-colors hover:bg-surface-1/30 ${
+    <div className="group relative flex gap-3 rounded-lg transition-colors hover:bg-surface-1/30" style={
       showHeader
-        ? (isMobile ? 'px-[2vw] pt-[2.5vw] pb-[1vw] mt-[1vw]' : 'px-3 pt-2.5 pb-1 mt-1')
-        : (isMobile ? 'px-[2vw] py-[0.5vw]' : 'px-3 py-0.5')
-    }`}>
+        ? (isMobile ? { padding: '2.5vw 2vw 1vw', marginTop: '1vw' } : { padding: '10px 12px 4px', marginTop: 4 })
+        : (isMobile ? { padding: '0.5vw 2vw' } : { padding: '2px 12px' })
+    }>
       {/* ── Action toolbar (visibile su hover desktop / sempre mobile se canEdit) ── */}
       {canEdit && !editing && (
         <div className={`absolute top-1 right-2 flex gap-1 ${
