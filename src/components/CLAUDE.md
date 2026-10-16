@@ -39,6 +39,11 @@ Registra…) vanno nella barra in alto con `<V6TopBarActions>`
 - `LogAttachmentsPicker` / `LogAttachmentsList`: foto e PDF di un intervento registrato (`maintenance_logs.media`), nel modulo e nello storico, su telefono e desktop. Solo CSS vars. Gli allegati si leggono SEMPRE con `lib/logMedia.js`: nel tempo ci sono finiti tre formati di `type`
 - `MaintenanceLogModal`: un intervento registrato letto e aggiornato (Correggi, nota/foto/PDF dopo, togli allegato, cronologia), su telefono (`mobile`) e desktop. Aprirlo con `key={log.id}`. Note e cronologia si leggono SEMPRE da `lib/maintenanceLog.js` (`getLogRecord`), si scrivono SEMPRE da `useMaintenanceLogEdit`
 
+## plantMap/ — Mappa impianto (v5.35)
+- `PlantMap`: planimetria + pannello, stesso componente su desktop (pannello a destra) e telefono (foglio dal basso): decide la larghezza del contenitore, sotto 760 px è "stretto". Chi lo monta gli dà un'altezza definita. Dati da `usePlantMapData`, posizioni da `lib/plantMap` (`machineMapPosition`), mai leggendo `machines.map_position` a mano
+- `mapEngine.js`: disegno su canvas, punti ed etichette in DOM, pan/zoom/pinch/trascinamento. È imperativo apposta (ridisegna a ogni frame senza passare da React): React gli passa lo stato con `update()` e riceve le scelte dalle callback `on.*`. Gli elementi con `data-map-ui` non fanno partire il pan
+- Montata in `pages/admin/AdminPlantMap.jsx` (console, voce "Mappa impianto") e in `plantMap/MobilePlantMap.jsx` (tab Macchine del tecnico, Elenco / Mappa). Si vede solo per le org che hanno una planimetria (`hasPlantMap`)
+
 ## Pattern navigazione mobile
 ```js
 const navigateTo = (screen, data) => { setScreen(screen); setSelectedReport(data) }

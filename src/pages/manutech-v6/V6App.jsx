@@ -10,6 +10,7 @@ import NotificationCenter from '../../components/ui/NotificationCenter'
 import SettingsPanel from '../../components/ui/SettingsPanel'
 import { Spinner } from '../../components/ui'
 import { usePWA } from '../../hooks/usePWA'
+import { hasPlantMap } from '../../lib/plantMap'
 
 const AdminDashboard = lazy(() => import('../admin/AdminDashboard'))
 const AdminOptimization = lazy(() => import('../admin/AdminOptimization'))
@@ -26,6 +27,7 @@ const AdminRewards = lazy(() => import('../admin/AdminRewards'))
 const AdminSpareParts = lazy(() => import('../admin/AdminSpareParts'))
 const AdminAssistantPage = lazy(() => import('../admin/AdminAssistantPage'))
 const AdminCalendar = lazy(() => import('../admin/AdminCalendar'))
+const AdminPlantMap = lazy(() => import('../admin/AdminPlantMap'))
 
 function PageFallback() {
   return (
@@ -35,9 +37,9 @@ function PageFallback() {
   )
 }
 
-function buildNavItems(adminNav) {
+function buildNavItems(adminNav, withPlantMap) {
   return adminNav
-    .filter(n => n.id !== 'v6')
+    .filter(n => n.id !== 'v6' && (!n.plantOnly || withPlantMap))
     .map(n => ({ route: n.id, label: n.label, IconCmp: n.icon }))
 }
 
@@ -116,7 +118,8 @@ export default function V6App({ userName, initialReportId }) {
     try { localStorage.setItem('manutech_v6_push_banner', 'hidden') } catch { /* storage bloccato */ }
   }
 
-  const navItems = useMemo(() => buildNavItems(ADMIN_NAV), [])
+  const withPlantMap = hasPlantMap(user?.org_id)
+  const navItems = useMemo(() => buildNavItems(ADMIN_NAV, withPlantMap), [withPlantMap])
   const adminNavItem = ADMIN_NAV.find(n => n.id === route.name)
 
   const sidebarFooter = (
@@ -180,12 +183,12 @@ export default function V6App({ userName, initialReportId }) {
             <AdminPageFrame
               title={adminNavItem?.label || 'Console'}
               crumbs={user?.org_name || 'ManuTech · Console'}
-              fullBleed={route.name === 'calendar'}
+              fullBleed={route.name === 'calendar' || route.name === 'plant-map'}
               actionsRef={setTopBarSlot}
             >
               {route.name === 'dashboard' && <AdminDashboard onNavigate={(t) => navigate(t)} />}
               {route.name === 'optimization' && <AdminOptimization onNavigate={(t) => navigate(t)} />}
-              {route.name === 'reports' && <AdminReports initialReportId={initialReportId || route.reportId} />}
+              {route.name === 'reports' && <AdminReports initialReportId={route.reportId || initialReportId} />}
               {route.name === 'archive' && <AdminArchive key={route.archiveMachine || 'all'} initialMachine={route.archiveMachine || ''} />}
               {route.name === 'calendar' && <AdminCalendar
                 onNavigate={(name, params) => navigate(name, params)}
@@ -195,7 +198,11 @@ export default function V6App({ userName, initialReportId }) {
                 forceShowCancelledOnce={Boolean(route.calendarForceShowCancelled)}
               />}
               {route.name === 'assistant' && <AdminAssistantPage onOpenReport={() => navigate('reports')} initialMachineId={route.machineId} />}
-              {route.name === 'machines' && <AdminMachines onOpenAssistant={(machineId) => navigate('assistant', { machineId })} />}
+              {route.name === 'machines' && <AdminMachines key={route.machineId || 'all'} initialMachineId={route.machineId} onOpenAssistant={(machineId) => navigate('assistant', { machineId })} />}
+              {route.name === 'plant-map' && withPlantMap && <AdminPlantMap
+                onOpenMachine={(m) => navigate('machines', { machineId: m.id })}
+                onOpenReport={(r) => navigate('reports', { reportId: r.id })}
+              />}
               {route.name === 'maintenance' && <AdminMaintenance />}
               {route.name === 'spare-parts' && <AdminSpareParts />}
               {route.name === 'technicians' && <AdminTechnicians />}
