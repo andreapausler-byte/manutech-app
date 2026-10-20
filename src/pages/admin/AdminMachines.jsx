@@ -28,7 +28,7 @@ import {
 
 const NAV_ITEM = findNavItem('machines')
 
-export default function AdminMachines({ onOpenAssistant }) {
+export default function AdminMachines({ onOpenAssistant, initialMachineId }) {
   const { user } = useAuth()
   const toast = useToast()
   const logEdit = useMaintenanceLogEdit(user)
@@ -124,6 +124,16 @@ export default function AdminMachines({ onOpenAssistant }) {
     setLoading(false)
   }
   useEffect(() => { load() }, [])
+
+  // Arrivando dalla mappa impianto con una macchina scelta: la scheda si
+  // apre da sola appena l'elenco è caricato, una volta.
+  const [openedInitial, setOpenedInitial] = useState(false)
+  useEffect(() => {
+    if (!initialMachineId || openedInitial || loading) return
+    setOpenedInitial(true)
+    const m = machines.find(x => x.id === initialMachineId)
+    if (m) openDetail(m)
+  }, [initialMachineId, openedInitial, loading, machines]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── QR ──
   const generateQR = async (machine) => {

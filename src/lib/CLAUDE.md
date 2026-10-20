@@ -49,6 +49,15 @@ if (!error && data) return data
 2. Aggiungi il metodo all'oggetto esportato (es. `reports`)
 3. Niente da modificare in `supabase.js` — il facade lo espone già via spread
 
+## plantMap/
+Mappa impianto. `index.js` è leggero (menu e liste lo importano): quale org ha
+una planimetria (`hasPlantMap`), `MAP_CONF` (da dove viene un punto, e se è una
+stima), `machineMapPosition(machine)` per leggere `machines.map_position`,
+`mapStatus` per il colore del punto. La geometria vera (tasselli del disegno,
+contorni delle aree per nome, locali, linea lenta Beertec) è in `amarcord.js`,
+caricata solo dalla mappa via `plants.js`. Le coordinate sono mm del disegno DWG.
+Scrivere un punto: SEMPRE `db.setMachineMapPosition` (RPC della 069, admin e tecnici).
+
 ## constants.js
 Enum condivisi: `ROLES`, `STATUS`, `SEVERITY`, `REPORT_TYPES`, `QUICK_TEMPLATES`.
 Helper: `formatDate(dateStr)`, `timeAgo(dateStr)`, e per le colonne strette `formatDay` (solo giorno) e `formatTime` (solo ora) — usali sempre, mai formattare date manualmente.

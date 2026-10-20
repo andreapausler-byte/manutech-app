@@ -105,6 +105,44 @@ export const machines = {
     setStore(KEYS.machines, list)
   },
 
+  // Mappa impianto: sposta il punto di una macchina (`point` = [x, y] in mm,
+  // coordinate DWG) o, senza `point`, conferma quello che c'è. Passa da RPC
+  // (migration 069) perché machines_update è admin-only e i tecnici devono
+  // poter correggere le stime. Torna il nuovo `map_position`.
+  async setMachineMapPosition(id, point = null, user = null) {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('set_machine_map_position', {
+        _machine_id: id,
+        _x: point ? point[0] : null,
+        _y: point ? point[1] : null,
+      })
+      if (error) {
+        // Funzione che non c'è (PostgREST la cerca nella cache dello schema)
+        if (error.code === 'PGRST202' || error.code === '42883') {
+          throw new Error('Per salvare le posizioni sulla mappa va eseguita la migration 069')
+        }
+        throw error
+      }
+      return data
+    }
+    const list = getStore(KEYS.machines)
+    const idx = list.findIndex(m => m.id === id)
+    if (idx === -1) throw new Error('Macchinario non trovato')
+    const old = list[idx].map_position || null
+    if (!point && (old?.x == null || old?.y == null)) throw new Error('La macchina non è ancora sulla mappa')
+    const next = {
+      ...(old || {}),
+      ...(point ? { x: Math.round(point[0]), y: Math.round(point[1]), basis: 'Posizionata a mano sulla mappa' } : {}),
+      conf: 'confermata',
+      updated_at: new Date().toISOString(),
+      updated_by: user?.id || null,
+      updated_by_name: user?.name || null,
+    }
+    list[idx] = { ...list[idx], map_position: next }
+    setStore(KEYS.machines, list)
+    return next
+  },
+
   // ─── AREAS ───
   async getAreas() {
     if (supabase) {

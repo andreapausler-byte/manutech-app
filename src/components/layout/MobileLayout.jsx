@@ -423,6 +423,9 @@ export default function MobileLayout({ initialReportId }) {
   const { toggleMode, isDark } = useTheme()
   const [tab, setTab] = useState(user?.role === 'tecnico' ? 'reports' : 'home')
   const [screen, setScreen] = useState(null)
+  // Elenco o mappa nel tab Macchine: sta qui, così tornando dalla scheda di
+  // una macchina si ritrova la vista da cui si era partiti.
+  const [machinesView, setMachinesView] = useState('list')
   const [selectedReport, setSelectedReport] = useState(null)
   // Componente preselezionato per la prossima segnalazione (aperta dalla
   // scheda di un pezzo). Viaggia a parte perché `selectedReport` porta già
@@ -754,7 +757,8 @@ export default function MobileLayout({ initialReportId }) {
           {tab === 'assistant' && <AssistantPage onOpenReport={openReportById} />}
           {tab === 'calendar' && <CalendarioMobile onOpenReport={openReportById} />}
           {tab === 'machines' && (
-            <MobileMachinesList onSelectMachine={openMachine} />
+            <MobileMachinesList onSelectMachine={openMachine} onOpenReport={openReport}
+              view={machinesView} onViewChange={setMachinesView} />
           )}
           {tab === 'messages' && (
             <ConversationList
@@ -771,7 +775,8 @@ export default function MobileLayout({ initialReportId }) {
       <PendingVoiceRecordings />
 
       <ContextualFAB
-        tab={tab}
+        // Sulla mappa il "+" coprirebbe il foglio in basso
+        tab={tab === 'machines' && machinesView === 'map' ? null : tab}
         userRole={user?.role}
         onNewReport={openNewReport}
         onQuickReport={() => openQuickReport()}

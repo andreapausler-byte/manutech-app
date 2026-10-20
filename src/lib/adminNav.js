@@ -2,7 +2,7 @@
  * Admin NAV — struttura condivisa tra layout admin e PageHeader.
  *
  * Ordine: dashboard → ottimizzazione → operatività (segnalazioni / archivio /
- * assistente) → gestione macchine/manutenzione/ricambi → persone → comunicazione → setup.
+ * assistente) → gestione macchine/mappa/manutenzione/ricambi → persone → comunicazione → setup.
  */
 import {
   LayoutDashboard,
@@ -20,6 +20,7 @@ import {
   TrendingUp,
   Calendar,
   Archive,
+  Map as MapIcon,
 } from 'lucide-react'
 
 export const NAV = [
@@ -30,6 +31,8 @@ export const NAV = [
   { id: 'calendar',      icon: Calendar,        label: 'Calendario',   desc: 'Pianificazione interventi' },
   { id: 'assistant',     icon: Sparkles,        label: 'Assistente AI', desc: 'Cerca soluzioni nello storico' },
   { id: 'machines',      icon: Cog,             label: 'Macchinari',   desc: 'Anagrafica impianti' },
+  // Solo per le org che hanno una planimetria (lib/plantMap): V6App la filtra.
+  { id: 'plant-map',     icon: MapIcon,         label: 'Mappa impianto', desc: 'Dove stanno le macchine e i loro ticket', plantOnly: true },
   { id: 'maintenance',   icon: Shield,          label: 'Manutenzione', desc: 'Piani e interventi programmati' },
   { id: 'spare-parts',   icon: Package,         label: 'Richieste esterne', desc: 'Ricambi, interventi e magazzino' },
   { id: 'technicians',   icon: Wrench,          label: 'Tecnici',      desc: 'Carico e performance' },

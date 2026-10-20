@@ -1,15 +1,22 @@
 /**
  * MobileMachinesList — Lista macchinari
  * Design System: card macchina con status chip, codice JetBrains Mono
+ *
+ * Dove l'org ha una planimetria, in cima c'è Elenco / Mappa: la mappa
+ * impianto (components/plantMap) con un punto per macchina.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { db } from '../../lib/supabase'
 import { isReportOpen } from '../../lib/constants'
-import { SkeletonReportsPage, EmptyState } from '../ui'
+import { hasPlantMap } from '../../lib/plantMap'
+import { useAuth } from '../../contexts/AuthContext'
+import { SkeletonReportsPage, EmptyState, Spinner } from '../ui'
 import PullToRefreshIndicator from '../ui/PullToRefreshIndicator'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
-import { Search, X } from 'lucide-react'
+import { Search, X, List, Map as MapIcon } from 'lucide-react'
+
+const MobilePlantMap = lazy(() => import('../plantMap/MobilePlantMap'))
 
 const MACHINE_STATUS = {
   operativa: { label: 'Operativa', color: 'var(--color-green)', bg: 'var(--color-green-bg)' },
@@ -30,7 +37,31 @@ function MachineStatusChip({ status }) {
   )
 }
 
-export default function MobileMachinesList({ onSelectMachine }) {
+function ViewSwitch({ view, onChange }) {
+  return (
+    <div role="tablist" aria-label="Vista macchine" style={{
+      display: 'flex', padding: 3, borderRadius: 10, marginBottom: 12,
+      background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+    }}>
+      {[['list', 'Elenco', List], ['map', 'Mappa', MapIcon]].map(([v, label, Icon]) => (
+        <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => onChange(v)} className="press-scale" style={{
+          flex: 1, height: 34, border: 0, borderRadius: 8, cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          fontSize: 14, fontWeight: view === v ? 600 : 500, fontFamily: 'inherit',
+          background: view === v ? 'var(--color-card)' : 'transparent',
+          color: view === v ? 'var(--color-text)' : 'var(--color-text-muted)',
+          boxShadow: view === v ? 'var(--shadow-xs)' : 'none',
+        }}>
+          <Icon size={15} /> {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export default function MobileMachinesList({ onSelectMachine, onOpenReport, view = 'list', onViewChange }) {
+  const { user } = useAuth()
+  const withMap = hasPlantMap(user?.org_id) && Boolean(onViewChange)
   const [machines, setMachines] = useState([])
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
@@ -66,8 +97,23 @@ export default function MobileMachinesList({ onSelectMachine }) {
 
   const getActiveReports = (machineName) => reports.filter(r => r.machine === machineName && isReportOpen(r)).length
 
+  // La mappa sta fuori dal contenitore del pull-to-refresh (trascinare la
+  // planimetria verso il basso non deve ricaricare la pagina), e l'elenco
+  // resta montato nascosto: il gesto si aggancia al nodo una volta sola.
+  const mapOn = withMap && view === 'map'
+
   return (
-    <div ref={pullRef} style={{ padding: '0 16px 16px' }}>
+    <>
+    {mapOn && (
+      <div style={{ padding: '0 12px' }}>
+        <ViewSwitch view={view} onChange={onViewChange} />
+        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>}>
+          <MobilePlantMap onOpenMachine={onSelectMachine} onOpenReport={onOpenReport} />
+        </Suspense>
+      </div>
+    )}
+    <div ref={pullRef} style={{ padding: '0 16px 16px', display: mapOn ? 'none' : undefined }}>
+      {withMap && <ViewSwitch view={view} onChange={onViewChange} />}
       <PullToRefreshIndicator pullDistance={pullDistance} pullProgress={pullProgress} refreshing={refreshing} activated={activated} />
 
       {/* Search */}
@@ -151,5 +197,6 @@ export default function MobileMachinesList({ onSelectMachine }) {
       )}
 
     </div>
+    </>
   )
 }

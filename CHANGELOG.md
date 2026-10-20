@@ -6,6 +6,27 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.35 — La mappa dell'impianto, con le macchine e i loro ticket
+
+Runbook: `docs/MIGRATION-069.md`. La migration **069** (una colonna, una funzione, le 41 posizioni iniziali) va eseguita a mano, prima del merge o subito dopo: senza, la planimetria si apre vuota e i punti non si salvano. Disegno: prototipo "Mappa impianto Amarcord" (claude.ai, 16/10).
+
+### Added
+- **Mappa impianto** nella console (voce sotto Macchinari) e sul telefono del tecnico (**Macchine** → **Elenco / Mappa**): la planimetria dello stabilimento di Apecchio con un punto per macchina.
+  - Il **colore** dice i ticket aperti: verde nessuno, ambra aperti, rosso con gravità alta o critica. Il **tratteggio** dice che la posizione è una stima dalla planimetria, da verificare.
+  - Tre livelli: **stabilimento** (chip delle aree con macchine e ticket) → **area** (le sue macchine, le peggiori in cima) → **macchina** (costruttore, modello, matricola, segnalazioni, ticket aperti, piani con il semaforo delle scadenze, da dove viene la posizione).
+  - **Apri scheda macchina** porta alla scheda vera (console: Macchinari con la scheda aperta; telefono: la scheda macchina); un **ticket** si apre con un tocco. Tornando indietro la mappa è dove l'avevi lasciata.
+  - **Cerca macchina** (anche per costruttore, modello, matricola), zoom con rotellina, pinch e doppio clic, scala in metri, livello del **progetto Beertec** (linea lenta, 22 posizioni dalla legenda della tavola) da accendere e spegnere, "Evidenzia solo macchine con ticket aperti".
+  - **Posiziona** (admin e tecnici): trascina un punto sulla macchina vera, oppure aprila e **Conferma posizione**; **Da posizionare** elenca le macchine che sulla mappa non ci sono (una macchina nuova si mette con un tocco nel punto giusto). Ogni punto messo a mano diventa "Confermata", con data e nome di chi l'ha messo.
+- Le **41 posizioni iniziali** dalla mappa costruita su claude.ai: 12 dal disegno, dal layout Beertec o già confermate, 29 stime da verificare davanti alla macchina.
+
+### Note
+- La posizione è un dato della macchina: `machines.map_position` (JSONB: `x`, `y` in mm del disegno DWG, `conf`, `basis`, chi e quando). Si scrive solo da `set_machine_map_position` (SECURITY DEFINER, admin e tecnici della stessa org; operatori no), letta da `lib/plantMap`.
+- La planimetria è un disegno di **un** stabilimento: si vede solo per l'org di Birra Amarcord (`default`) e in demo mode (`hasPlantMap`). Le immagini (12 tasselli webp, 4,7 MB, caricati solo allo zoom che li richiede) stanno in `src/assets/plantMap/`: come tutti gli asset del sito sono scaricabili da chi conosce l'indirizzo, anche senza login.
+- Le aree della mappa si agganciano a quelle di ManuTech **per nome**; i colori sono quelli della planimetria, non `areas.color`. Una macchina senza area, o in un'area che sul disegno non c'è, finisce in "Senza area".
+- Sul telefono il foglio parte chiuso e il "+" (Nuovo macchinario) sparisce sulla mappa, per non coprire la planimetria.
+
+---
+
 ## [Unreleased] — v5.34 — La pagina Manutenzione della console nel disegno desktop
 
 Nessuna migration. Disegno: prototipo Claude Design "ManuTech Desktop", vista Manutenzione.
