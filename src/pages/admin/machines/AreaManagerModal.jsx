@@ -6,24 +6,19 @@
 import { useState } from 'react'
 import { Modal, Input, Button } from '../../../components/ui'
 import { Plus, Edit, Trash2, Check, X, GripVertical } from 'lucide-react'
+import { AREA_MAP_COLORS } from '../../../lib/plantMap/areas'
 
-const AREA_COLORS = [
-  { value: '#ef4444', label: 'Rosso' },
-  { value: '#f59e0b', label: 'Ambra' },
-  { value: '#22c55e', label: 'Verde' },
-  { value: '#3b82f6', label: 'Blu' },
-  { value: '#7c6aff', label: 'Viola' },
-  { value: '#06b6d4', label: 'Cyan' },
-  { value: '#ec4899', label: 'Rosa' },
-  { value: '#8b5cf6', label: 'Indaco' },
-]
+// Gli stessi colori della mappa impianto: un'area ha un colore solo,
+// qui e sulla planimetria (v5.36).
+const AREA_COLORS = AREA_MAP_COLORS.map(c => ({ value: c.dark, label: c.label }))
+const DEFAULT_COLOR = AREA_COLORS[1].value
 
 export default function AreaManagerModal({ open, onClose, areas, onSave, onDelete }) {
   const [editId, setEditId] = useState(null)
   const [editName, setEditName] = useState('')
-  const [editColor, setEditColor] = useState('#7c6aff')
+  const [editColor, setEditColor] = useState(DEFAULT_COLOR)
   const [newName, setNewName] = useState('')
-  const [newColor, setNewColor] = useState('#7c6aff')
+  const [newColor, setNewColor] = useState(DEFAULT_COLOR)
 
   const startEdit = (area) => {
     setEditId(area.id)
@@ -31,7 +26,7 @@ export default function AreaManagerModal({ open, onClose, areas, onSave, onDelet
     setEditColor(area.color || '#7c6aff')
   }
 
-  const cancelEdit = () => { setEditId(null); setEditName(''); setEditColor('#7c6aff') }
+  const cancelEdit = () => { setEditId(null); setEditName(''); setEditColor(DEFAULT_COLOR) }
 
   const saveEdit = () => {
     if (!editName.trim()) return
@@ -43,7 +38,7 @@ export default function AreaManagerModal({ open, onClose, areas, onSave, onDelet
     if (!newName.trim()) return
     onSave(null, { name: newName.trim(), color: newColor, sort_order: areas.length })
     setNewName('')
-    setNewColor('#7c6aff')
+    setNewColor(DEFAULT_COLOR)
   }
 
   return (

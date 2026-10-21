@@ -5,7 +5,9 @@
  * ticket aperti (verde nessuno, ambra aperti, rosso con gravità alta o
  * critica); il tratteggio dice che la posizione è una stima da verificare.
  * Chi può (admin e tecnici) passa a «Posiziona» e trascina i punti sulla
- * macchina vera, o mette sulla mappa quelle che mancano.
+ * macchina vera, o mette sulla mappa quelle che mancano. Gli admin hanno
+ * anche «Aree»: correggono il contorno di un'area trascinandone i vertici,
+ * o ne creano una nuova. Il contorno si salva sull'area (`areas.map_shape`).
  *
  * Stesso componente su desktop (pannello a destra) e telefono (foglio dal
  * basso): decide la larghezza del contenitore, non il dispositivo.
@@ -13,11 +15,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Minus, Maximize2, Layers, Search, RefreshCw, MapPin } from 'lucide-react'
+import { Plus, Minus, Maximize2, Layers, Search, RefreshCw, MapPin, Undo2, Eraser, SquarePlus, SquareMinus } from 'lucide-react'
 import { useToast } from '../../hooks/useToast'
 import { formatTime } from '../../lib/constants'
 import { getTrafficLight } from '../../lib/maintenanceStatus'
 import { machineMapPosition, isMapOpenReport, mapStatus } from '../../lib/plantMap'
+import { AREA_MAP_COLORS, areaMapColor, buildMapAreas, keepOrPlaceLabel, pointInShape, rectInView } from '../../lib/plantMap/areas'
 import { createMapEngine } from './mapEngine'
 import PlantMapPanel from './PlantMapPanel'
 
@@ -66,7 +69,7 @@ function Segmented({ value, onChange, options }) {
 }
 
 export default function PlantMap({
-  plant, data, canEdit = false, onOpenMachine, onOpenReport,
+  plant, data, canEdit = false, canEditAreas = false, onOpenMachine, onOpenReport,
   monoFont = "'JetBrains Mono', ui-monospace, monospace",
 }) {
   const toast = useToast()
@@ -86,6 +89,10 @@ export default function PlantMap({
   const [query, setQuery] = useState('')
   const [qOpen, setQOpen] = useState(false)
   const [qSel, setQSel] = useState(0)
+  // Contorno in modifica in «Aree»: { key, id (null = area nuova), name,
+  // colorHex, polys, selV: [pezzo, vertice] | null, history, dirty }
+  const [shapeEdit, setShapeEdit] = useState(null)
+  const [areaSaving, setAreaSaving] = useState(false)
 
   const rootRef = useRef(null)
   const stageRef = useRef(null)
@@ -103,10 +110,27 @@ export default function PlantMap({
 
   const areaColor = useCallback((a) => (dark ? a.color.dark : a.color.light), [dark])
 
+  // ── aree ───────────────────────────────────────────────────────────
+  // Le aree di ManuTech col loro contorno; la chiave è l'id dell'area.
+  const mapAreas = useMemo(() => buildMapAreas(plant, data.areas), [plant, data.areas])
+  const areaByKey = useMemo(() => new Map(mapAreas.map(a => [a.key, a])), [mapAreas])
+  // Quello che disegna il motore: l'area in modifica col nome e il colore
+  // della bozza, e l'area nuova che ancora non c'è.
+  const engineAreas = useMemo(() => {
+    if (!shapeEdit) return mapAreas
+    const live = { name: shapeEdit.name.trim() || 'Nuova area', color: areaMapColor(shapeEdit.colorHex) }
+    const list = mapAreas.map(a => (a.key === shapeEdit.key ? { ...a, ...live } : a))
+    if (!areaByKey.has(shapeEdit.key)) list.push({ key: shapeEdit.key, id: null, polys: [], label: null, ...live })
+    return list
+  }, [mapAreas, areaByKey, shapeEdit])
+  const shapeKey = shapeEdit?.key, shapePolys = shapeEdit?.polys, shapeSelV = shapeEdit?.selV
+  const engineShape = useMemo(() => (shapeKey ? { key: shapeKey, polys: shapePolys, selV: shapeSelV } : null), [shapeKey, shapePolys, shapeSelV])
+  const nameOfArea = (key) => (key === NO_AREA ? 'Senza area' : areaByKey.get(key)?.name || (shapeEdit?.key === key ? (shapeEdit.name.trim() || 'Nuova area') : key))
+
   // ── dati per macchina ──────────────────────────────────────────────
   const infos = useMemo(() => {
     const areaName = new Map(data.areas.map(a => [a.id, a.name]))
-    const plantKeys = new Set(plant.areas.map(a => a.key))
+    const mapKeys = new Set(mapAreas.map(a => a.key))
     const idByName = new Map(data.machines.map(m => [m.name, m.id]))
     const reportsBy = new Map()
     for (const r of data.reports) {
@@ -132,12 +156,12 @@ export default function PlantMap({
         .sort((a, b) => LIGHT_ORDER[a.light.status] - LIGHT_ORDER[b.light.status] || a.light.daysLeft - b.light.daysLeft)
       return {
         id: m.id, machine: m, name: m.name || 'Senza nome',
-        areaName: an, areaKey: an && plantKeys.has(an) ? an : NO_AREA,
+        areaName: an, areaKey: m.area_id && mapKeys.has(m.area_id) ? m.area_id : NO_AREA,
         pos: machineMapPosition(m), openReports, status: mapStatus(openReports),
         totReports: reps.length, lastReportAt, plans,
       }
     })
-  }, [data.machines, data.areas, data.reports, data.plans, data.lastLogs, plant])
+  }, [data.machines, data.areas, data.reports, data.plans, data.lastLogs, mapAreas])
 
   const areaStats = useMemo(() => {
     const st = new Map()
@@ -186,15 +210,113 @@ export default function PlantMap({
     engine()?.showPoint(p.x, p.y, 9000)
   }
   const back = () => {
+    if (shapeEdit) { if (shapeEdit.selV) selectVertex(null); else leaveShape(); return }
     if (trayOpen) setTrayOpen(false)
     else if (sel) setSel(null)
     else if (focus) { setFocus(null); engine()?.fit() }
   }
-  const goHome = () => { setSel(null); setFocus(null); setTrayOpen(false); engine()?.fit() }
+  const goHome = () => {
+    if (shapeEdit && !leaveShape()) return
+    setSel(null); setFocus(null); setTrayOpen(false); engine()?.fit()
+  }
   const setMode = (m) => {
+    if (m === mode) return
+    if (shapeEdit && !leaveShape()) return
     setModeState(m)
     if (m !== 'edit') { setTrayOpen(false); setPlacing(null) }
+    if (m === 'areas' || mode === 'areas') { setSel(null); setFocus(null) }
   }
+
+  // ── aree: modifica del contorno ────────────────────────────────────
+  // Lasciare una bozza non salvata chiede conferma.
+  const leaveShape = () => {
+    if (shapeEdit?.dirty && !window.confirm(`Uscire senza salvare le modifiche a «${nameOfArea(shapeEdit.key)}»?`)) return false
+    setShapeEdit(null); setFocus(null)
+    return true
+  }
+  const freePiece = () => rectInView(engine()?.viewBox() || plant.fit)
+  const editArea = (key) => {
+    if (plant.projectArea && key === plant.projectArea.key) {
+      toast.info('La linea lenta viene dal layout Beertec: non si modifica dalla mappa')
+      return
+    }
+    if (shapeEdit?.key === key) { selectVertex(null); return }
+    if (shapeEdit?.dirty) { toast.error(`Salva o annulla prima le modifiche a «${nameOfArea(shapeEdit.key)}»`); return }
+    const a = areaByKey.get(key)
+    if (!a) return
+    // Un'area senza contorno parte da un rettangolo nel mezzo della vista.
+    const polys = a.polys.length ? a.polys.map(p => p.map(([x, y]) => [x, y])) : [freePiece()]
+    setShapeEdit({ key, id: a.id, name: a.name, colorHex: a.colorHex, polys, selV: null, history: [], dirty: !a.polys.length })
+    setFocus(key); setSel(null); openSheet()
+    if (a.polys.length) engine()?.focusArea(key)
+    else engine()?.showPolys(polys)
+  }
+  const newArea = () => {
+    if (shapeEdit?.dirty) { toast.error(`Salva o annulla prima le modifiche a «${nameOfArea(shapeEdit.key)}»`); return }
+    const used = new Set(mapAreas.map(a => (a.colorHex || '').toLowerCase()))
+    const color = (AREA_MAP_COLORS.find(c => !used.has(c.dark)) || AREA_MAP_COLORS[0]).dark
+    const key = 'new:' + Date.now()
+    const polys = [freePiece()]
+    setShapeEdit({ key, id: null, name: '', colorHex: color, polys, selV: null, history: [], dirty: true })
+    setFocus(key); setSel(null); openSheet()
+    engine()?.showPolys(polys)
+  }
+  // Ogni modifica al contorno passa di qui: tiene la storia per «Annulla ultima».
+  const changePolys = (polys, selV = null) => setShapeEdit(e => e && ({ ...e, polys, selV, history: [...e.history, e.polys].slice(-60), dirty: true }))
+  function selectVertex(selV) { setShapeEdit(e => (e ? { ...e, selV } : e)) }
+  const undoShape = () => setShapeEdit(e => (e?.history.length ? { ...e, polys: e.history[e.history.length - 1], history: e.history.slice(0, -1), selV: null, dirty: true } : e))
+  const removeVertex = () => {
+    const [pi, vi] = shapeEdit?.selV || []
+    if (pi == null) return
+    const p = shapeEdit.polys[pi]
+    if (p.length <= 3) { toast.error('Un pezzo ha almeno 3 vertici: per toglierlo usa «Togli pezzo»'); return }
+    changePolys(shapeEdit.polys.map((q, i) => (i === pi ? q.filter((_, j) => j !== vi) : q)))
+  }
+  const addPiece = () => changePolys([...shapeEdit.polys, freePiece()])
+  const removePiece = () => {
+    const pi = shapeEdit?.selV?.[0]
+    if (pi == null) { toast.info('Tocca un vertice del pezzo da togliere'); return }
+    changePolys(shapeEdit.polys.filter((_, i) => i !== pi))
+  }
+  const saveShape = async () => {
+    const e = shapeEdit
+    const name = e.name.trim()
+    if (!name) { toast.error("Dai un nome all'area"); return }
+    if (mapAreas.some(a => a.key !== e.key && a.id && a.name.trim().toLowerCase() === name.toLowerCase())) {
+      toast.error(`Esiste già un'area «${name}»`)
+      return
+    }
+    const prev = areaByKey.get(e.key)
+    const polys = e.polys.filter(p => p.length >= 3).map(p => p.map(([x, y]) => [Math.round(x), Math.round(y)]))
+    const map_shape = { polys, label: keepOrPlaceLabel(prev?.label, polys) }
+    setAreaSaving(true)
+    try {
+      // Il colore si salva sempre: è quello che si vede sulla mappa, e da
+      // qui vale anche in Macchinari.
+      if (e.id) await data.saveArea(e.id, { name, color: e.colorHex, map_shape })
+      else await data.saveArea(null, { name, color: e.colorHex, sort_order: data.areas.length, map_shape })
+      toast.success(e.id ? `Area «${name}» salvata` : `Area «${name}» creata`)
+      setShapeEdit(null); setFocus(null)
+    } catch (err) {
+      toast.error(err?.message || 'Salvataggio non riuscito. Riprova tra poco.')
+    } finally {
+      setAreaSaving(false)
+    }
+  }
+
+  // Come sta il contorno rispetto alle macchine: chi dell'area resta fuori,
+  // chi di un'altra area ci cade dentro. È il controllo che serve davvero.
+  const shapeCheck = useMemo(() => {
+    if (!shapeEdit) return null
+    const outside = [], foreign = []
+    for (const i of infos) {
+      if (!i.pos) continue
+      const inside = pointInShape(i.pos.x, i.pos.y, shapeEdit.polys)
+      if (i.areaKey === shapeEdit.key && !inside) outside.push(i)
+      else if (i.areaKey !== shapeEdit.key && inside) foreign.push(i)
+    }
+    return { outside, foreign }
+  }, [shapeEdit, infos])
 
   const save = async (id, point) => {
     setSaving(true)
@@ -220,9 +342,16 @@ export default function PlantMap({
   const confirmPos = (id) => save(id, null)
 
   handlersRef.current = {
-    selectMachine, selectProject, focusArea: (key) => { if (key !== focus) focusArea(key); else if (sel) setSel(null) },
+    selectMachine, selectProject,
+    focusArea: (key) => {
+      if (mode === 'areas') editArea(key)
+      else if (key !== focus) focusArea(key)
+      else if (sel) setSel(null)
+    },
     dragEnd: (id, p) => { if (p) save(id, p) },
     place: (id, p) => { setPlacing(null); setTrayOpen(false); setSel({ kind: 'm', id }); save(id, p) },
+    shapeChange: (polys, selV) => changePolys(polys, selV),
+    selectVertex,
   }
 
   // ── motore ─────────────────────────────────────────────────────────
@@ -233,7 +362,10 @@ export default function PlantMap({
       areasG: areasGRef.current, marks: marksRef.current,
       hud: { scale: scaleRef.current, coord: coordRef.current },
       plant, monoFont,
-      on: { selectMachine: h('selectMachine'), selectProject: h('selectProject'), focusArea: h('focusArea'), dragEnd: h('dragEnd'), place: h('place') },
+      on: {
+        selectMachine: h('selectMachine'), selectProject: h('selectProject'), focusArea: h('focusArea'),
+        dragEnd: h('dragEnd'), place: h('place'), shapeChange: h('shapeChange'), selectVertex: h('selectVertex'),
+      },
     })
     engineRef.current = eng
     const prev = lastViews.get(plant.id)
@@ -250,8 +382,11 @@ export default function PlantMap({
   }, [plant.id, focus, sel, showProject])
 
   useEffect(() => {
-    engineRef.current?.update({ items, areaStats, focus, sel, mode, showProject, onlyOpen, placing, canEdit, compact: narrow })
-  }, [items, areaStats, focus, sel, mode, showProject, onlyOpen, placing, canEdit, narrow])
+    engineRef.current?.update({
+      items, areaStats, focus, sel, mode, showProject, onlyOpen, placing, canEdit, compact: narrow,
+      areas: engineAreas, shape: mode === 'areas' ? engineShape : null,
+    })
+  }, [items, areaStats, focus, sel, mode, showProject, onlyOpen, placing, canEdit, narrow, engineAreas, engineShape])
 
   // Sul telefono si parte con il foglio chiuso: prima la planimetria, il
   // pannello si apre da solo appena si sceglie un'area o una macchina.
@@ -291,15 +426,18 @@ export default function PlantMap({
     return () => ro.disconnect()
   }, [narrow, mode, collapsed])
 
-  const panelView = trayOpen && mode === 'edit' ? 'tray' : sel?.kind === 'p' ? 'project' : selInfo ? 'machine' : focus ? 'area' : 'overview'
-  useEffect(() => { if (pcRef.current && sel) pcRef.current.scrollTop = 0 }, [sel, panelView])
+  const panelView = mode === 'areas' ? (shapeEdit ? 'areaEdit' : 'areas')
+    : trayOpen && mode === 'edit' ? 'tray' : sel?.kind === 'p' ? 'project' : selInfo ? 'machine' : focus ? 'area' : 'overview'
+  useEffect(() => { if (pcRef.current && (sel || panelView === 'areaEdit')) pcRef.current.scrollTop = 0 }, [sel, panelView])
 
   // ── ricerca ────────────────────────────────────────────────────────
   const results = useMemo(() => {
     const t = query.trim().toLowerCase()
     if (!t) return []
     const out = []
-    for (const a of plant.areas) if (a.key.toLowerCase().includes(t)) out.push({ k: 'a' + a.key, t: a.key, s: 'area', go: () => focusArea(a.key) })
+    for (const a of mapAreas) {
+      if (a.name.toLowerCase().includes(t)) out.push({ k: 'a' + a.key, t: a.name, s: 'area', go: () => (mode === 'areas' ? editArea(a.key) : focusArea(a.key)) })
+    }
     for (const i of infos) {
       const m = i.machine
       const hay = [i.name, m.manufacturer, m.model, m.department, m.serial_number].filter(Boolean).join(' ').toLowerCase()
@@ -310,7 +448,7 @@ export default function PlantMap({
     }
     return out.slice(0, 12)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, infos, plant])
+  }, [query, infos, plant, mapAreas, mode])
   const pick = (i) => {
     const it = results[i]
     if (!it) return
@@ -320,6 +458,8 @@ export default function PlantMap({
 
   const onKeyDown = (e) => {
     if (e.target.closest?.('input,textarea')) return
+    if (shapeEdit && (e.key === 'Delete' || e.key === 'Backspace') && shapeEdit.selV) { e.preventDefault(); removeVertex(); return }
+    if (shapeEdit && e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undoShape(); return }
     if (e.key === 'Escape') {
       if (placing) { setPlacing(null); return }
       back()
@@ -329,23 +469,31 @@ export default function PlantMap({
 
   // ── briciole ───────────────────────────────────────────────────────
   const crumbs = [{ label: 'Stabilimento', go: goHome }]
-  if (focus) crumbs.push({ label: focus === NO_AREA ? 'Senza area' : focus, go: () => { setSel(null); setTrayOpen(false); engine()?.focusArea(focus) } })
+  if (mode === 'areas') crumbs.push({ label: 'Aree', go: null })
+  if (focus) crumbs.push({ label: nameOfArea(focus), go: () => { setSel(null); setTrayOpen(false); engine()?.focusArea(focus) } })
   if (sel) crumbs.push({ label: sel.kind === 'm' ? (selInfo?.name || '') : `Pos. ${sel.id}`, go: null })
 
   const placingName = placing ? (infos.find(i => i.id === placing)?.name || 'la macchina') : null
   const statusVar = { ok: 'var(--color-green)', warn: 'var(--color-orange)', bad: 'var(--color-red)' }
 
+  const selArea = selInfo ? areaByKey.get(selInfo.areaKey) : null
   const panelProps = {
-    view: panelView, plant, infos, areaStats, noArea, canEdit, showProject, onlyOpen, focus, saving,
+    view: panelView, plant, areas: mapAreas, infos, areaStats, noArea, canEdit, canEditAreas, showProject, onlyOpen, focus, saving,
     loading: data.loading, mono: monoFont, areaColor, unplaced,
     info: selInfo, n: sel?.kind === 'p' ? sel.id : null,
     areaLabel: selInfo ? (selInfo.areaName || 'Senza area') : '',
-    areaSwatch: selInfo ? (plant.areas.find(a => a.key === selInfo.areaKey) ? areaColor(plant.areas.find(a => a.key === selInfo.areaKey)) : 'var(--color-text-muted)') : null,
+    areaSwatch: selInfo ? (selArea ? areaColor(selArea) : 'var(--color-text-muted)') : null,
     onFocusArea: focusArea, onSelectMachine: selectMachine, onSelectProject: selectProject, onBack: back,
     onToggleProject: setShowProject, onToggleOnlyOpen: setOnlyOpen,
     onOpenMachine, onOpenReport,
     onConfirm: confirmPos, onReposition: startPlacing, onStartPlacing: startPlacing,
     onClose: () => setTrayOpen(false),
+    // «Aree»
+    edit: shapeEdit, shapeCheck, areaSaving,
+    onEditArea: editArea, onNewArea: newArea, onSaveShape: saveShape, onCancelShape: leaveShape,
+    onShapeName: (name) => setShapeEdit(e => e && ({ ...e, name, dirty: true })),
+    onShapeColor: (colorHex) => setShapeEdit(e => e && ({ ...e, colorHex, dirty: true })),
+    onDrawArea: canEditAreas ? (key) => { setModeState('areas'); setSel(null); setTrayOpen(false); setPlacing(null); editArea(key) } : null,
   }
 
   return (
@@ -409,8 +557,12 @@ export default function PlantMap({
             <RefreshCw size={13} style={{ animation: data.refreshing ? 'gearSpin 1s linear infinite' : 'none' }} />
             {!narrow && (data.error ? 'Dati non aggiornati' : data.loadedAt ? `Aggiornato alle ${formatTime(data.loadedAt)}` : 'Caricamento…')}
           </button>
-          {canEdit && (
-            <Segmented value={mode} onChange={setMode} options={[['view', 'Esplora'], ['edit', 'Posiziona']]} />
+          {(canEdit || canEditAreas) && (
+            <Segmented value={mode} onChange={setMode} options={[
+              ['view', 'Esplora'],
+              ...(canEdit ? [['edit', 'Posiziona']] : []),
+              ...(canEditAreas ? [['areas', 'Aree']] : []),
+            ]} />
           )}
         </div>
       </div>
@@ -429,13 +581,42 @@ export default function PlantMap({
           </svg>
           <div ref={marksRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
 
-          {mode === 'edit' && (
+          {(mode === 'edit' || mode === 'areas') && (
             <div ref={editbarRef} data-map-ui="" style={{
               position: 'absolute', left: 12, top: 12, right: 58, zIndex: 7, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
               padding: narrow ? '6px 8px' : '8px 10px', borderRadius: 11, background: 'var(--glass-bg, var(--color-surface-elevated))',
               border: '1px solid var(--color-border-active)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', fontSize: 13,
             }}>
-              {placing ? (
+              {mode === 'areas' ? (
+                shapeEdit ? (
+                  <>
+                    <p style={{ margin: 0, flex: '1 1 220px', minWidth: 0, color: 'var(--color-text-muted)', fontSize: narrow ? 12 : 13 }}>
+                      {!narrow && <b style={{ color: 'var(--color-text)', fontWeight: 600 }}>{nameOfArea(shapeEdit.key)}. </b>}
+                      {narrow ? 'Trascina i vertici; i tondini aggiungono un vertice.' : 'Trascina i quadratini per spostare i vertici, i tondini a metà lato per aggiungerne uno. I vertici si agganciano a quelli delle aree vicine.'}
+                    </p>
+                    <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button type="button" onClick={undoShape} disabled={!shapeEdit.history.length} title="Annulla l'ultima modifica (Ctrl+Z)" aria-label="Annulla l'ultima modifica" style={{ ...editBtn, opacity: shapeEdit.history.length ? 1 : 0.45 }}><Undo2 size={13} /></button>
+                      <button type="button" onClick={removeVertex} disabled={!shapeEdit.selV} title="Togli il vertice selezionato (Canc)" style={{ ...editBtn, opacity: shapeEdit.selV ? 1 : 0.45 }}><Eraser size={13} />{!narrow && ' Togli vertice'}</button>
+                      <button type="button" onClick={addPiece} title="Aggiungi un pezzo all'area, nel mezzo della vista" style={editBtn}><SquarePlus size={13} />{!narrow && ' Aggiungi pezzo'}</button>
+                      <button type="button" onClick={removePiece} disabled={!shapeEdit.selV} title="Togli il pezzo del vertice selezionato" style={{ ...editBtn, opacity: shapeEdit.selV ? 1 : 0.45 }}><SquareMinus size={13} />{!narrow && ' Togli pezzo'}</button>
+                    </span>
+                    <span style={{ display: 'inline-flex', gap: 6, marginLeft: 'auto' }}>
+                      <button type="button" onClick={leaveShape} disabled={areaSaving} style={editBtn}>Annulla</button>
+                      <button type="button" onClick={saveShape} disabled={areaSaving} style={{ ...editBtn, background: 'var(--color-primary)', borderColor: 'var(--color-primary)', color: '#fff', opacity: areaSaving ? 0.6 : 1 }}>
+                        {areaSaving ? 'Salvo…' : 'Salva'}
+                      </button>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ margin: 0, flex: '1 1 220px', minWidth: 0, color: 'var(--color-text-muted)', fontSize: narrow ? 12 : 13 }}>
+                      {!narrow && <b style={{ color: 'var(--color-text)', fontWeight: 600 }}>Modalità aree. </b>}
+                      Tocca un'area per correggerne il contorno, o creane una nuova.
+                    </p>
+                    <button type="button" onClick={newArea} style={editBtn}><Plus size={13} /> Nuova area</button>
+                  </>
+                )
+              ) : placing ? (
                 <>
                   <p style={{ margin: 0, flex: '1 1 200px', minWidth: 0, color: 'var(--color-text-muted)', fontSize: narrow ? 12 : 13 }}>
                     Tocca la mappa nel punto in cui si trova <b style={{ color: 'var(--color-text)' }}>{placingName}</b>.

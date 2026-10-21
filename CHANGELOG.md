@@ -6,6 +6,34 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 
 ---
 
+## [Unreleased] — v5.36 — Le aree della mappa si correggono dalla mappa
+
+Runbook: `docs/MIGRATION-070.md`. La migration **070** (una colonna, un vincolo, i 5 contorni iniziali) va eseguita a mano, prima del merge o subito dopo: senza, la mappa funziona come prima ma i contorni non si salvano.
+
+### Added
+- **Aree** nella mappa impianto (solo admin), accanto a Esplora e Posiziona:
+  - si tocca un'area e se ne **sposta il contorno**: i quadratini sono i vertici, i tondini a metà lato ne aggiungono uno; un vertice selezionato si toglie (anche con Canc), **Annulla ultima** (anche Ctrl+Z) torna indietro di un passo;
+  - i vertici **si agganciano** a quelli e ai bordi delle aree vicine, così due aree confinanti restano attaccate, senza buchi né sovrapposizioni;
+  - un'area può avere **più pezzi** separati (una sala e i serbatoi all'esterno): **Aggiungi pezzo** ne mette uno nel mezzo della vista, **Togli pezzo** toglie quello del vertice selezionato;
+  - **Nuova area**: nome, colore e un rettangolo da sistemare; salvata, c'è anche in Macchinari;
+  - nome e colore si cambiano anche da qui;
+  - il pannello dice **quali macchine non tornano**: quelle dell'area rimaste fuori dal contorno, quelle di altre aree che ci cadono dentro;
+  - uscire con modifiche non salvate chiede conferma.
+- Dalla scheda di un'area in Esplora, per gli admin: **Modifica contorno** (o **Disegnala**, se l'area non è ancora sulla mappa).
+
+### Changed
+- **Sala Cottura e Cantina ridisegnate** (riviste il 21/10): la parte nord dell'edificio cottura, dove sta FV1, e i due BBT esterni a sud sono **Cantina**; i serbatoi acqua e acqua calda in testa al parco serbatoi sono **Sala Cottura**. La Cantina non arriva più fin sotto l'officina, dove si accavallava con Ausiliari.
+- **Un colore per area**, lo stesso in Macchinari e sulla mappa: la 070 porta `areas.color` sui colori della planimetria (prima Confezionamento, Ausiliari e Sala Cottura erano tutte e tre rosse) e la tavolozza di "Gestisci aree" in Macchinari è quella della mappa.
+- Le aree della mappa sono **quelle di ManuTech**, agganciate per id: rinominare un'area non la stacca più dalla planimetria, e un'area creata in Macchinari compare nella mappa come "da disegnare".
+
+### Note
+- Il contorno è un dato dell'area: `areas.map_shape` (JSONB: `polys` in mm del disegno DWG, `label` per il chip, `basis`, chi e quando). Si scrive con l'update diretto (`db.updateArea` / `db.createArea`), che `areas_update` / `areas_insert` permettono solo agli admin; letto da `lib/plantMap/areas.js` (`buildMapAreas`).
+- I contorni in `lib/plantMap/amarcord.js` restano come ripiego (070 non eseguita, demo), agganciati per nome; un'org senza nessuna area (il demo appena aperto) vede quelle del disegno, che si creano al primo salvataggio.
+- Per eliminare un'area o spostarci delle macchine si passa ancora da Macchinari: la mappa decide solo dove sta l'area.
+- Il layout Beertec (linea lenta) non si modifica dalla mappa: è un livello del disegno.
+
+---
+
 ## [Unreleased] — v5.35 — La mappa dell'impianto, con le macchine e i loro ticket
 
 Runbook: `docs/MIGRATION-069.md`. La migration **069** (una colonna, una funzione, le 41 posizioni iniziali) va eseguita a mano, prima del merge o subito dopo: senza, la planimetria si apre vuota e i punti non si salvano. Disegno: prototipo "Mappa impianto Amarcord" (claude.ai, 16/10).

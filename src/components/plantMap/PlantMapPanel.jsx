@@ -1,11 +1,13 @@
 // Pannello della mappa impianto: a destra su desktop, foglio dal basso sul
-// telefono. Cinque viste: stabilimento, area, macchina, posizione della
-// linea lenta, "Da posizionare". Solo variabili CSS, niente classi.
+// telefono. Sette viste: stabilimento, area, macchina, posizione della
+// linea lenta, "Da posizionare", e in «Aree» l'elenco delle aree e il
+// contorno in modifica. Solo variabili CSS, niente classi.
 
 import { useState } from 'react'
-import { X, ExternalLink, MapPin, Check, Move } from 'lucide-react'
+import { X, ExternalLink, MapPin, Check, Move, Plus, PenLine } from 'lucide-react'
 import { STATUS, formatDay, formatTicketId } from '../../lib/constants'
 import { MAP_CONF } from '../../lib/plantMap'
+import { AREA_MAP_COLORS } from '../../lib/plantMap/areas'
 
 const STATUS_VAR = { ok: 'var(--color-green)', warn: 'var(--color-orange)', bad: 'var(--color-red)', none: 'var(--color-text-muted)' }
 const SEV_VAR = { critica: 'var(--color-red)', alta: 'var(--color-red)', media: 'var(--color-orange)', bassa: 'var(--color-text-muted)' }
@@ -171,7 +173,7 @@ const sortByStatus = (a, b) => ({ bad: 0, warn: 1, ok: 2 })[a.status] - ({ bad: 
 
 // ── viste ────────────────────────────────────────────────────────────
 
-function Overview({ plant, infos, areaColor, areaStats, noArea, canEdit, showProject, onlyOpen, onToggleProject, onToggleOnlyOpen, onFocusArea, loading, mono }) {
+function Overview({ plant, areas, infos, areaColor, areaStats, noArea, canEdit, showProject, onlyOpen, onToggleProject, onToggleOnlyOpen, onFocusArea, loading, mono }) {
   const placed = infos.filter(i => i.pos)
   const open = infos.reduce((n, i) => n + i.openReports.length, 0)
   const withOpen = infos.filter(i => i.openReports.length).length
@@ -204,12 +206,12 @@ function Overview({ plant, infos, areaColor, areaStats, noArea, canEdit, showPro
       )}
       <Eyebrow mono={mono}>Aree</Eyebrow>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {plant.areas.map(a => {
+        {areas.map(a => {
           const st = areaStats.get(a.key) || { n: 0, open: 0 }
           return (
             <Row key={a.key} onClick={() => onFocusArea(a.key)}>
               <Swatch color={areaColor(a)} />
-              <RowName name={a.key} />
+              <RowName name={a.name} sub={a.polys.length ? null : 'Non ancora disegnata sulla mappa'} />
               <span style={{ font: `500 11.5px ${mono}`, color: 'var(--color-text-muted)' }}>{st.n}</span>
               {st.open > 0 && <span style={{ font: `500 11px ${mono}`, color: 'var(--color-orange)' }}>{st.open} tk</span>}
             </Row>
@@ -240,7 +242,7 @@ function Overview({ plant, infos, areaColor, areaStats, noArea, canEdit, showPro
   )
 }
 
-function AreaView({ plant, focus, infos, areaStats, noArea, canEdit, onSelectMachine, onSelectProject, onBack, mono, areaColor }) {
+function AreaView({ plant, areas, focus, infos, areaStats, noArea, canEdit, onSelectMachine, onSelectProject, onBack, onDrawArea, mono, areaColor }) {
   const pa = plant.projectArea
   if (pa && focus === pa.key) {
     return (
@@ -265,11 +267,20 @@ function AreaView({ plant, focus, infos, areaStats, noArea, canEdit, onSelectMac
   const open = list.reduce((n, i) => n + i.openReports.length, 0)
   const est = list.filter(i => i.pos?.estimated).length
   const off = list.filter(i => !i.pos).length
-  const title = focus === noArea.key ? 'Senza area in ManuTech' : focus
+  const area = areas.find(a => a.key === focus)
+  const title = focus === noArea.key ? 'Senza area in ManuTech' : area?.name || focus
   const st = areaStats.get(focus)
   return (
     <>
       <Header title={title} subtitle={`${st?.n ?? list.length} macchine · ${open} ticket aperti`} onClose={onBack} closeLabel="Torna allo stabilimento" />
+      {area && (!area.polys.length || onDrawArea) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '-4px 0 8px' }}>
+          {!area.polys.length && <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>Quest'area non è ancora disegnata sulla mappa.</span>}
+          {onDrawArea && (
+            <Btn onClick={() => onDrawArea(area.key)}><PenLine size={14} /> {area.polys.length ? 'Modifica contorno' : 'Disegnala'}</Btn>
+          )}
+        </div>
+      )}
       {!list.length && (
         <div style={{ padding: '12px 4px', color: 'var(--color-text-muted)', fontSize: 13 }}>
           <Strong>Nessuna macchina in quest'area.</Strong><br />Le macchine assegnate a quest'area in ManuTech compariranno qui.
@@ -453,8 +464,125 @@ function TrayView({ unplaced, onStartPlacing, onClose }) {
   )
 }
 
+// ── «Aree» ───────────────────────────────────────────────────────────
+
+function AreasView({ areas, areaStats, areaColor, onEditArea, onNewArea, mono }) {
+  return (
+    <>
+      <Header title="Aree della mappa" subtitle="Tocca un'area, qui o sulla planimetria, per correggerne il contorno." />
+      <Btn primary onClick={onNewArea}><Plus size={14} /> Nuova area</Btn>
+      <Eyebrow mono={mono}>{areas.length} aree</Eyebrow>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {areas.map(a => {
+          const st = areaStats.get(a.key) || { n: 0 }
+          const sub = !a.polys.length ? 'Da disegnare'
+            : a.stored ? (a.updatedAt ? `Rivista il ${formatDay(a.updatedAt)}${a.updatedByName ? ` da ${a.updatedByName}` : ''}` : a.basis || 'Contorno salvato')
+              : 'Contorno dal disegno, non ancora salvato'
+          return (
+            <Row key={a.key} onClick={() => onEditArea(a.key)}>
+              <Swatch color={areaColor(a)} />
+              <RowName name={a.name} sub={sub} />
+              <span style={{ font: `500 11.5px ${mono}`, color: 'var(--color-text-muted)' }}>{st.n}</span>
+            </Row>
+          )
+        })}
+      </div>
+      <Note>
+        Il contorno, il nome e il colore valgono anche in <Strong>Macchinari</Strong>. Per eliminare un'area,
+        o spostarci delle macchine, si passa da lì: la mappa decide solo dove sta l'area.
+      </Note>
+    </>
+  )
+}
+
+function MachineList({ title, list, mono, withArea }) {
+  if (!list.length) return null
+  return (
+    <>
+      <Eyebrow mono={mono}>{title}</Eyebrow>
+      <div style={{ fontSize: 13, color: 'var(--color-text)', lineHeight: 1.6 }}>
+        {list.slice(0, 12).map(i => (
+          <div key={i.id} style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
+            <Dot status={i.status} estimated={i.pos?.estimated} />
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.name}</span>
+            {withArea && <small style={{ color: 'var(--color-text-muted)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{i.areaName || 'senza area'}</small>}
+          </div>
+        ))}
+        {list.length > 12 && <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>e altre {list.length - 12}</div>}
+      </div>
+    </>
+  )
+}
+
+function AreaEditView({ edit, areas, shapeCheck, areaSaving, onShapeName, onShapeColor, onSaveShape, onCancelShape, mono }) {
+  const prev = areas.find(a => a.key === edit.key)
+  const vertices = edit.polys.reduce((n, p) => n + p.length, 0)
+  const colors = AREA_MAP_COLORS.some(c => c.dark === (edit.colorHex || '').toLowerCase())
+    ? AREA_MAP_COLORS : [...AREA_MAP_COLORS, { dark: edit.colorHex, label: 'Colore attuale' }]
+  return (
+    <>
+      <Header title={edit.name.trim() || (prev ? 'Senza nome' : 'Nuova area')}
+        subtitle={`${edit.polys.length} ${edit.polys.length === 1 ? 'pezzo' : 'pezzi'} · ${vertices} vertici${edit.dirty ? ' · modifiche da salvare' : ''}`}
+        onClose={onCancelShape} closeLabel="Chiudi senza salvare" />
+
+      <label style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }} htmlFor="area-name">Nome</label>
+      <input id="area-name" value={edit.name} onChange={e => onShapeName(e.target.value)} placeholder="Es. Linea lenta" maxLength={60}
+        style={{
+          width: '100%', height: 36, borderRadius: 9, border: '1px solid var(--color-border-hover)', boxSizing: 'border-box',
+          background: 'var(--color-surface-2)', padding: '0 10px', outline: 'none', color: 'var(--color-text)', fontSize: 14, fontFamily: 'inherit',
+        }} />
+
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '12px 0 6px' }}>Colore</div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {colors.map(c => {
+          const on = c.dark.toLowerCase() === (edit.colorHex || '').toLowerCase()
+          return (
+            <button key={c.dark} type="button" onClick={() => onShapeColor(c.dark)} title={c.label} aria-label={c.label} aria-pressed={on}
+              style={{
+                width: 26, height: 26, borderRadius: 7, background: c.dark, cursor: 'pointer', padding: 0,
+                border: on ? '2px solid var(--color-text)' : '2px solid transparent',
+                boxShadow: on ? '0 0 0 2px var(--color-surface-1) inset' : 'none',
+              }} />
+          )
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+        <Btn primary disabled={areaSaving} onClick={onSaveShape}><Check size={14} /> {areaSaving ? 'Salvo…' : 'Salva'}</Btn>
+        <Btn disabled={areaSaving} onClick={onCancelShape}>Annulla</Btn>
+      </div>
+
+      {shapeCheck && (
+        <>
+          <MachineList mono={mono} title={`Dell'area ma fuori dal contorno (${shapeCheck.outside.length})`} list={shapeCheck.outside} />
+          <MachineList mono={mono} title={`Dentro il contorno ma di un'altra area (${shapeCheck.foreign.length})`} list={shapeCheck.foreign} withArea />
+          {!shapeCheck.outside.length && !shapeCheck.foreign.length && (
+            <Note><Strong>Il contorno torna con le macchine. </Strong>Tutte quelle dell'area ci stanno dentro, nessuna di altre aree ci cade.</Note>
+          )}
+          {(shapeCheck.outside.length > 0 || shapeCheck.foreign.length > 0) && (
+            <Note>
+              Una macchina fuori posto può voler dire tre cose: il contorno va allargato, il punto è da spostare
+              (in Posiziona), o la macchina è nell'area sbagliata (in Macchinari).
+            </Note>
+          )}
+        </>
+      )}
+
+      <Eyebrow mono={mono}>Come si fa</Eyebrow>
+      <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+        Trascina i <Strong>quadratini</Strong> per spostare i vertici: si agganciano a quelli delle aree vicine, così i
+        confini restano attaccati. Trascina o tocca un <Strong>tondino</Strong> a metà lato per aggiungere un vertice.
+        Tocca un vertice per selezionarlo e toglierlo. Un'area può avere più <Strong>pezzi</Strong> separati
+        (es. una sala e dei serbatoi all'esterno): «Aggiungi pezzo» ne mette uno nel mezzo della vista.
+      </div>
+    </>
+  )
+}
+
 export default function PlantMapPanel(props) {
   const { view } = props
+  if (view === 'areas') return <AreasView {...props} />
+  if (view === 'areaEdit') return <AreaEditView {...props} />
   if (view === 'tray') return <TrayView {...props} />
   if (view === 'project') return <ProjectView {...props} />
   if (view === 'machine') return <MachineView {...props} />
