@@ -4,7 +4,8 @@
  * Un clic su una macchina apre il pannello a destra; «Apri scheda
  * macchina» porta a Macchinari con la scheda già aperta, un ticket porta a
  * Segnalazioni con il ticket aperto. Tornando qui la mappa riparte da dove
- * eri (vedi `lastViews` in PlantMap).
+ * eri (vedi `lastViews` in PlantMap). Gli admin ne correggono le aree in
+ * «Aree».
  */
 
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -49,6 +50,7 @@ export default function AdminPlantMap({ onOpenMachine, onOpenReport }) {
         plant={plant}
         data={data}
         canEdit
+        canEditAreas={user?.role === 'admin'}
         monoFont={fMono}
         onOpenMachine={onOpenMachine}
         onOpenReport={onOpenReport}

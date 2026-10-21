@@ -38,6 +38,7 @@ export default function MobilePlantMap({ onOpenMachine, onOpenReport }) {
         plant={plant}
         data={data}
         canEdit={user?.role === 'admin' || user?.role === 'tecnico'}
+        canEditAreas={user?.role === 'admin'}
         onOpenMachine={onOpenMachine}
         onOpenReport={onOpenReport}
       />

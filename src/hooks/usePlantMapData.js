@@ -55,7 +55,37 @@ export function usePlantMapData(user) {
     return pos
   }, [user])
 
-  return { ...data, loading, refreshing, loadedAt, error, reload: load, savePosition }
+  // Contorno (e nome, colore) di un'area: `id` null crea l'area. Solo admin:
+  // ci pensa la RLS di `areas` (023), come in Macchinari.
+  const saveArea = useCallback(async (id, patch) => {
+    const row = {
+      ...patch,
+      map_shape: patch.map_shape && {
+        ...patch.map_shape,
+        updated_at: new Date().toISOString(),
+        updated_by: user?.id || null,
+        updated_by_name: user?.name || null,
+      },
+    }
+    try {
+      const saved = id ? await db.updateArea(id, row) : await db.createArea(row)
+      setData(d => ({
+        ...d,
+        areas: id ? d.areas.map(a => (a.id === id ? { ...a, ...saved } : a)) : [...d.areas, saved],
+      }))
+      return saved
+    } catch (e) {
+      // Colonna che non c'è (PostgREST la cerca nella cache dello schema)
+      if (e?.code === 'PGRST204' || /map_shape/.test(e?.message || '')) {
+        throw new Error('Per salvare le aree sulla mappa va eseguita la migration 070')
+      }
+      // Nessuna riga toccata: la RLS l'ha esclusa
+      if (e?.code === 'PGRST116') throw new Error('Solo gli admin possono modificare le aree')
+      throw e
+    }
+  }, [user])
+
+  return { ...data, loading, refreshing, loadedAt, error, reload: load, savePosition, saveArea }
 }
 
 export default usePlantMapData

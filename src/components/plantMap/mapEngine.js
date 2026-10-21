@@ -7,6 +7,13 @@
 // scelte dell'utente dalle callback `on.*`. Niente classi: una closure.
 //
 // Coordinate mondo = millimetri del disegno DWG, y verso l'alto.
+//
+// Le aree arrivano da React (`update({ areas })`), non dal disegno: gli
+// admin ne correggono il contorno in modalità «Aree». Durante il
+// trascinamento di un vertice la bozza vive qui (`draft`), e React la
+// riceve solo a gesto finito con `on.shapeChange`.
+
+import { closestOnSegment } from '../../lib/plantMap/areas'
 
 const STATUS_COLOR = {
   ok: 'var(--color-green)',
@@ -20,6 +27,8 @@ const K_BIG_MARKERS = 0.022   // punti grandi anche fuori dall'area scelta
 const K_AREA_CHIPS = 0.04     // oltre, i chip delle aree spariscono
 const K_PROJECT = 0.012       // numeri della linea lenta
 const K_PLACES = [0.009, 0.09]
+const SNAP_PX = 10            // un vertice si aggancia a vertici e bordi entro tanti px
+const SNAP_GRID = 50          // altrimenti ai 5 cm
 
 const css = (el, styles) => { Object.assign(el.style, styles); return el }
 const make = (tag, styles, text) => {
@@ -55,14 +64,19 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
   let s = {
     items: [], areaStats: new Map(), focus: null, sel: null, mode: 'view',
     showProject: true, onlyOpen: false, placing: null, canEdit: false, compact: false,
+    areas: [], shape: null, // shape = { key, polys, selV: [pezzo, vertice] | null }
   }
   const dragPos = new Map()
   const imgs = new Map()
   let colors = { line: 'rgba(200,210,205,.66)', proj: 'rgba(80,210,140,.85)', dark: true, stageBg: '#0b1710' }
   let raf = 0, anim = 0, destroyed = false, sized = false, restored = false
   const projectArea = plant.projectArea
-  const allAreas = projectArea ? [...plant.areas, { ...projectArea, project: true }] : plant.areas
+  const projectEntry = projectArea ? { ...projectArea, name: projectArea.key, project: true } : null
+  let allAreas = projectEntry ? [projectEntry] : []
+  let draft = null // contorno in modifica: copia di s.shape.polys, mossa dai gesti
   const areaColor = (a) => (colors.dark ? a.color.dark : a.color.light)
+  const clonePolys = (polys) => polys.map(p => p.map(([x, y]) => [x, y]))
+  const polysOf = (a) => (s.shape && draft && a.key === s.shape.key ? draft : a.polys)
 
   // ── vista ─────────────────────────────────────────────────────────
   const toScreen = (x, y) => [(x - view.vx) * view.k + W / 2, (view.vy - y) * view.k + H / 2]
@@ -109,7 +123,7 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
     const b = [Infinity, Infinity, -Infinity, -Infinity]
     const ext = (x, y) => { b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], y) }
     const a = allAreas.find(x => x.key === key)
-    if (a) a.polys.forEach(p => p.forEach(([x, y]) => ext(x, y)))
+    if (a) polysOf(a).forEach(p => p.forEach(([x, y]) => ext(x, y)))
     if (a?.project) a.positions.forEach(p => ext(p.x, p.y))
     s.items.forEach(m => { if (m.areaKey === key) ext(m.x, m.y) })
     if (!isFinite(b[0])) return plant.fit
@@ -194,44 +208,62 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
       stageBg: cs.getPropertyValue('--color-bg-subtle').trim() || bg,
     }
     buildAreas()
-    restyleStatic()
   }
 
   // ── aree (svg) ────────────────────────────────────────────────────
   const SVG = 'http://www.w3.org/2000/svg'
+  const pathD = (p) => 'M' + p.map(([x, y]) => x + ' ' + (-y)).join('L') + 'Z'
+  function makePath(a, p) {
+    const path = document.createElementNS(SVG, 'path')
+    path.setAttribute('d', pathD(p))
+    path.setAttribute('fill', areaColor(a))
+    path.setAttribute('stroke', areaColor(a))
+    path.setAttribute('vector-effect', 'non-scaling-stroke')
+    if (a.project) path.setAttribute('stroke-dasharray', '6 4')
+    path.style.cursor = 'pointer'
+    path.style.pointerEvents = 'auto'
+    path.style.transition = 'fill-opacity .2s, stroke-opacity .2s'
+    return path
+  }
   function buildAreas() {
     areasG.replaceChildren()
     for (const a of allAreas) {
       const g = document.createElementNS(SVG, 'g')
       g.dataset.area = a.key
-      for (const p of a.polys) {
-        const path = document.createElementNS(SVG, 'path')
-        path.setAttribute('d', 'M' + p.map(([x, y]) => x + ' ' + (-y)).join('L') + 'Z')
-        path.setAttribute('fill', areaColor(a))
-        path.setAttribute('stroke', areaColor(a))
-        path.setAttribute('vector-effect', 'non-scaling-stroke')
-        if (a.project) path.setAttribute('stroke-dasharray', '6 4')
-        path.style.cursor = 'pointer'
-        path.style.pointerEvents = 'auto'
-        path.style.transition = 'fill-opacity .2s, stroke-opacity .2s'
-        g.append(path)
-      }
+      for (const p of polysOf(a)) g.append(makePath(a, p))
       areasG.append(g)
     }
   }
+  // Il contorno in modifica si ridisegna a ogni frame dalla bozza.
+  function syncDraft() {
+    if (!s.shape || !draft) return
+    const g = [...areasG.children].find(x => x.dataset.area === s.shape.key)
+    const a = allAreas.find(x => x.key === s.shape.key)
+    if (!g || !a) return
+    while (g.children.length > draft.length) g.lastChild.remove()
+    while (g.children.length < draft.length) g.append(makePath(a, draft[g.children.length]))
+    draft.forEach((p, i) => { const d = pathD(p); if (g.children[i].getAttribute('d') !== d) g.children[i].setAttribute('d', d) })
+  }
+  function setAreaList(list) {
+    allAreas = projectEntry ? [...list, projectEntry] : list
+    for (const [k, e] of acEls) if (!allAreas.some(a => a.key === k)) { e.remove(); acEls.delete(k) }
+    buildAreas()
+  }
   function styleAreas() {
+    const editing = s.mode === 'areas'
     for (const g of areasG.children) {
       const key = g.dataset.area
       const a = allAreas.find(x => x.key === key)
       const on = key === s.focus
-      const hidden = a?.project && !s.showProject && s.focus !== key
+      const isEd = editing && s.shape?.key === key
+      const hidden = a?.project && (editing || (!s.showProject && s.focus !== key))
       g.style.display = hidden ? 'none' : ''
       for (const p of g.children) {
-        const fo = s.focus ? (on ? 0.07 : 0.03) : 0.10
-        const so = s.focus ? (on ? 0.9 : 0.25) : 0.75
+        const fo = editing ? (s.shape ? (isEd ? 0.16 : 0.05) : 0.12) : s.focus ? (on ? 0.07 : 0.03) : 0.10
+        const so = editing ? (s.shape ? (isEd ? 1 : 0.35) : 0.85) : s.focus ? (on ? 0.9 : 0.25) : 0.75
         p.setAttribute('fill-opacity', String(fo))
         p.setAttribute('stroke-opacity', String(so))
-        p.setAttribute('stroke-width', on ? '2' : '1.5')
+        p.setAttribute('stroke-width', isEd ? '2.5' : on ? '2' : '1.5')
       }
     }
   }
@@ -311,17 +343,100 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
     e.type = 'button'
     e.dataset.area = a.key
     const sw = make('span', { width: '10px', height: '10px', borderRadius: '3px', flex: 'none' })
-    const nm = make('span', null, a.key)
+    const nm = make('span', null, a.name)
     const n = make('span', { font: `500 11px ${monoFont}`, color: 'var(--color-text-muted)' })
     const t = make('span', { font: `500 11px ${monoFont}`, color: 'var(--color-orange)' })
     e.append(sw, nm, n, t)
-    e._p = { sw, n, t }
+    e._p = { sw, nm, n, t }
     marks.append(e)
     acEls.set(a.key, e)
     return e
   }
-  function restyleStatic() {
-    for (const a of allAreas) { const e = acEls.get(a.key); if (e) e._p.sw.style.background = areaColor(a) }
+
+  // Maniglie del contorno in modifica: un quadratino per vertice, un
+  // tondino a metà di ogni lato (trascinato o toccato aggiunge un vertice).
+  const vhEls = [], mhEls = []
+  function handleEl(list, i, vertex) {
+    let e = list[i]
+    if (e) return e
+    e = make('button', {
+      position: 'absolute', left: '0', top: '0', padding: '0', pointerEvents: 'auto', zIndex: vertex ? '7' : '6',
+      cursor: vertex ? 'move' : 'copy', boxSizing: 'border-box', touchAction: 'none',
+    })
+    e.type = 'button'
+    e.setAttribute('aria-label', vertex ? 'Vertice dell\'area: trascina per spostarlo' : 'Aggiungi un vertice qui')
+    marks.append(e)
+    list[i] = e
+    return e
+  }
+  function placeHandles() {
+    const on = s.mode === 'areas' && s.shape && draft
+    let nv = 0, nm = 0
+    if (on) {
+      const a = allAreas.find(x => x.key === s.shape.key)
+      const c = a ? areaColor(a) : 'var(--color-primary)'
+      const [sp, sv] = s.shape.selV || [-1, -1]
+      draft.forEach((p, pi) => p.forEach((v, vi) => {
+        const [sx, sy] = toScreen(v[0], v[1])
+        const e = handleEl(vhEls, nv++, true)
+        const sel = pi === sp && vi === sv
+        const size = sel ? 18 : 14
+        e.dataset.vh = pi + ':' + vi
+        e.hidden = false
+        put(e, 'width', size + 'px'); put(e, 'height', size + 'px')
+        put(e, 'margin', `-${size / 2}px 0 0 -${size / 2}px`)
+        put(e, 'borderRadius', '4px')
+        put(e, 'border', `2px solid ${sel ? 'var(--color-text)' : c}`)
+        put(e, 'background', sel ? c : colors.stageBg)
+        put(e, 'transform', `translate(${sx}px,${sy}px)`)
+        // tondino a metà lato, solo se il lato è abbastanza lungo da toccarlo
+        const w = p[(vi + 1) % p.length]
+        const [tx, ty] = toScreen(w[0], w[1])
+        if (Math.hypot(tx - sx, ty - sy) < 36) return
+        const m = handleEl(mhEls, nm++, false)
+        m.dataset.mh = pi + ':' + vi
+        m.hidden = false
+        put(m, 'width', '12px'); put(m, 'height', '12px'); put(m, 'margin', '-6px 0 0 -6px')
+        put(m, 'borderRadius', '50%')
+        put(m, 'border', `1.5px solid ${c}`)
+        put(m, 'background', colors.stageBg)
+        put(m, 'opacity', '0.85')
+        put(m, 'transform', `translate(${(sx + tx) / 2}px,${(sy + ty) / 2}px)`)
+      }))
+    }
+    for (let i = nv; i < vhEls.length; i++) vhEls[i].hidden = true
+    for (let i = nm; i < mhEls.length; i++) mhEls[i].hidden = true
+  }
+
+  // Dove finisce un vertice trascinato: su un vertice vicino (anche di
+  // un'altra area), altrimenti su un bordo vicino, altrimenti sui 5 cm.
+  // Così due aree confinanti restano attaccate senza buchi né sovrapposizioni.
+  function snap([wx, wy], pi, vi) {
+    const tol = SNAP_PX / view.k
+    let best = null, bd = tol
+    const n = draft[pi].length
+    const isSelf = (a, i, j) => a.key === s.shape.key && i === pi && (j === vi || j === (vi + 1) % n || j === (vi + n - 1) % n)
+    for (const a of allAreas) {
+      if (a.project) continue
+      polysOf(a).forEach((p, i) => p.forEach(([x, y], j) => {
+        if (isSelf(a, i, j)) return
+        const d = Math.hypot(x - wx, y - wy)
+        if (d < bd) { bd = d; best = [x, y] }
+      }))
+    }
+    if (best) return best
+    bd = tol * 0.8
+    for (const a of allAreas) {
+      if (a.project) continue
+      polysOf(a).forEach((p, i) => p.forEach((v, j) => {
+        const k = (j + 1) % p.length
+        if (a.key === s.shape.key && i === pi && (j === vi || k === vi)) return
+        const c = closestOnSegment([wx, wy], v, p[k])
+        const d = Math.hypot(c[0] - wx, c[1] - wy)
+        if (d < bd) { bd = d; best = [Math.round(c[0]), Math.round(c[1])] }
+      }))
+    }
+    return best || [Math.round(wx / SNAP_GRID) * SNAP_GRID, Math.round(wy / SNAP_GRID) * SNAP_GRID]
   }
 
   let measureCtx = null
@@ -361,11 +476,13 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
     const chipRects = []
     const ticketsOf = (a) => (a.project ? -1 : (s.areaStats.get(a.key)?.open || 0))
     for (const a of allAreas.slice().sort((x, y) => ticketsOf(y) - ticketsOf(x))) {
+      if (!a.label) { const old = acEls.get(a.key); if (old) old.hidden = true; continue }
       const e = areaChipEl(a)
       const [sx, sy] = toScreen(a.label[0], a.label[1])
-      const hide = !!s.focus || view.k > K_AREA_CHIPS || (a.project && !s.showProject && view.k > 0.02) || !inView(sx, sy)
+      const hide = !!s.focus || view.k > K_AREA_CHIPS || (a.project && ((!s.showProject && view.k > 0.02) || s.mode === 'areas')) || !inView(sx, sy)
       e.hidden = hide
       if (hide) continue
+      if (e._p.nm.textContent !== a.name) e._p.nm.textContent = a.name
       if (a.project) {
         e._p.n.textContent = s.compact ? '' : a.positions.length + ' pos.'
         e._p.t.textContent = s.compact ? '' : 'progetto'
@@ -378,7 +495,7 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
       put(e._p.t, 'display', e._p.t.textContent ? '' : 'none')
       put(e, 'padding', s.compact ? '4px 8px 4px 7px' : '6px 10px 6px 8px')
       put(e, 'fontSize', s.compact ? '12px' : '13px')
-      if (!e._p.sw.style.background) e._p.sw.style.background = areaColor(a)
+      put(e._p.sw, 'background', areaColor(a))
       const ew = e.offsetWidth, eh = e.offsetHeight
       const cx = Math.max(ew / 2 + 8, Math.min(W - insets.r - ew / 2 - 56, sx))
       const cy = Math.max(insets.t + eh / 2 + 8, Math.min(H - insets.b - eh / 2 - 8, sy))
@@ -414,6 +531,8 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
       put(e, 'opacity', dim ? '0.38' : '1')
       put(e, 'zIndex', isSel || dragPos.has(m.id) ? '5' : '')
       put(e, 'cursor', s.mode === 'edit' && s.canEdit ? 'move' : 'pointer')
+      // In «Aree» i punti si vedono, per allineare i contorni, ma non si toccano.
+      put(e, 'pointerEvents', s.mode === 'areas' ? 'none' : 'auto')
       put(e, 'transform', `translate(${sx}px,${sy}px)`)
       const { pulse, ring, dot, lb } = e._p
       put(pulse, 'display', isSel ? 'block' : 'none')
@@ -434,7 +553,7 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
 
     // posizioni della linea lenta
     if (projectArea) {
-      const showP = s.showProject || s.focus === projectArea.key
+      const showP = s.mode !== 'areas' && (s.showProject || s.focus === projectArea.key)
       for (const p of projectArea.positions) {
         const e = projectEl(p)
         const [sx, sy] = toScreen(p.x, p.y)
@@ -487,8 +606,10 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
     proj.hidden = !showProj
     if (showProj) drawLayer(proj, plant.project, colors.proj)
     areasG.setAttribute('transform', `matrix(${view.k} 0 0 ${view.k} ${W / 2 - view.vx * view.k} ${H / 2 + view.vy * view.k})`)
+    syncDraft()
     styleAreas()
     placeMarks()
+    placeHandles()
     updateScale()
     prune()
   }
@@ -520,10 +641,20 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
     ptrs.set(e.pointerId, [x, y])
     try { stage.setPointerCapture(e.pointerId) } catch { /* puntatore già perso */ }
     if (ptrs.size === 2) {
+      // Un vertice a metà trascinamento torna dov'era: il secondo dito è uno zoom.
+      if (gesture?.type === 'vdrag' && s.shape) { draft = clonePolys(s.shape.polys); schedule() }
       const [a, b] = [...ptrs.values()]
       const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
       gesture = { type: 'pinch', d0: Math.hypot(a[0] - b[0], a[1] - b[1]), k0: view.k, w: toWorld(mid[0], mid[1]) }
       return
+    }
+    if (s.mode === 'areas' && s.shape && draft) {
+      const h = e.target.closest?.('[data-vh],[data-mh]')
+      if (h) {
+        const [pi, vi] = (h.dataset.vh || h.dataset.mh).split(':').map(Number)
+        gesture = { type: h.dataset.vh ? 'vdrag' : 'vins', pi, vi, x0: x, y0: y, moved: false }
+        return
+      }
     }
     const mk = e.target.closest?.('[data-mid]')
     if (s.mode === 'edit' && s.canEdit && mk && !s.placing) {
@@ -557,6 +688,18 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
       if (!gesture.moved && Math.hypot(x - gesture.x0, y - gesture.y0) > 4) gesture.moved = true
       if (gesture.moved) { dragPos.set(gesture.id, toWorld(x, y)); schedule() }
     }
+    if ((gesture.type === 'vdrag' || gesture.type === 'vins') && draft) {
+      if (!gesture.moved && Math.hypot(x - gesture.x0, y - gesture.y0) > 4) {
+        gesture.moved = true
+        // dal tondino a metà lato nasce un vertice nuovo, che si trascina
+        if (gesture.type === 'vins') { insertMid(gesture.pi, gesture.vi); gesture.type = 'vdrag'; gesture.vi += 1 }
+      }
+      if (gesture.moved) { draft[gesture.pi][gesture.vi] = snap(toWorld(x, y), gesture.pi, gesture.vi); schedule() }
+    }
+  }
+  function insertMid(pi, vi) {
+    const p = draft[pi], a = p[vi], b = p[(vi + 1) % p.length]
+    p.splice(vi + 1, 0, [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)])
   }
   function onUp(e) {
     if (!ptrs.has(e.pointerId)) return
@@ -566,10 +709,24 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
     if (g && g.type === 'pinch') { if (ptrs.size < 2) gesture = null; return }
     gesture = null
     if (!g) return
-    if (e.type === 'pointercancel') { if (g.type === 'drag') { dragPos.delete(g.id); schedule() } return }
+    if (e.type === 'pointercancel') {
+      if (g.type === 'drag') { dragPos.delete(g.id); schedule() }
+      if ((g.type === 'vdrag' || g.type === 'vins') && s.shape) { draft = clonePolys(s.shape.polys); schedule() }
+      return
+    }
     if (g.type === 'drag') {
       if (g.moved) on.dragEnd?.(g.id, dragPos.get(g.id))
       else on.selectMachine?.(g.id)
+      return
+    }
+    if (g.type === 'vdrag') {
+      if (g.moved) on.shapeChange?.(clonePolys(draft), [g.pi, g.vi])
+      else on.selectVertex?.([g.pi, g.vi])
+      return
+    }
+    if (g.type === 'vins') {
+      insertMid(g.pi, g.vi); schedule()
+      on.shapeChange?.(clonePolys(draft), [g.pi, g.vi + 1])
       return
     }
     if (g.type === 'pan' && !g.moved) click(g.target, localXY(e))
@@ -582,6 +739,7 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
     if (pk) { on.selectProject?.(Number(pk.dataset.pid)); return }
     const ac = t.closest?.('[data-area]')
     if (ac) { on.focusArea?.(ac.dataset.area); return }
+    if (s.mode === 'areas' && s.shape) on.selectVertex?.(null)
   }
   // Tastiera: Invio/spazio su un punto arriva come click con detail 0.
   function onKeyClick(e) {
@@ -597,7 +755,7 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
     zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0016)), x, y)
   }
   function onDbl(e) {
-    if (isUi(e.target) || e.target.closest?.('[data-mid],[data-pid],[data-area]')) return
+    if (isUi(e.target) || e.target.closest?.('[data-mid],[data-pid],[data-area],[data-vh],[data-mh]')) return
     const [x, y] = localXY(e)
     zoomAt(2, x, y)
   }
@@ -649,14 +807,33 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
           if (dragPos.has(m.id) && (!o || o.x !== m.x || o.y !== m.y)) dragPos.delete(m.id)
         }
       }
+      const areasChanged = next.areas && next.areas !== s.areas
+      const shapeChanged = 'shape' in next && next.shape !== s.shape
+      // Un gesto sul contorno in corso non si interrompe per un render di React.
+      const shapeGesture = gesture && (gesture.type === 'vdrag' || gesture.type === 'vins')
       s = { ...s, ...next }
+      if (shapeChanged && !shapeGesture) draft = s.shape ? clonePolys(s.shape.polys) : null
+      if (areasChanged) setAreaList(s.areas)
+      else if (shapeChanged) buildAreas()
       stage.style.cursor = s.placing ? 'crosshair' : 'grab'
       schedule()
+    },
+    // Il riquadro di disegno visibile, al netto di pannello e barre.
+    viewBox() {
+      const a = toWorld(0, H - insets.b), b = toWorld(W - insets.r, insets.t)
+      return [a[0], a[1], b[0], b[1]]
     },
     clearDrag(id) { dragPos.delete(id); schedule() },
     setInsets(next) { insets = { ...insets, ...next }; schedule() },
     fit() { flyTo(plant.fit, 0.98) },
     focusArea(key) { flyTo(areaBox(key)) },
+    // Inquadra un contorno nuovo, che il motore ancora non conosce.
+    showPolys(polys) {
+      const xs = polys.flat().map(v => v[0]), ys = polys.flat().map(v => v[1])
+      if (!xs.length) return
+      const p = 6000
+      flyTo([Math.min(...xs) - p, Math.min(...ys) - p, Math.max(...xs) + p, Math.max(...ys) + p])
+    },
     showPoint(x, y, r) { if (offView(x, y) || view.k < 0.03) flyTo(pointBox(x, y, r), 0.9) },
     zoom(f) { zoomAt(f, (W - insets.r) / 2, insets.t + (H - insets.t - insets.b) / 2) },
     getView() { return { ...view } },
@@ -675,6 +852,7 @@ export function createMapEngine({ stage, cad, proj, areasG, marks, hud, plant, o
       marks.removeEventListener('click', onKeyClick)
       for (const o of imgs.values()) o.img.src = ''
       imgs.clear()
+      vhEls.length = 0; mhEls.length = 0
       marks.replaceChildren()
       areasG.replaceChildren()
     },

@@ -54,9 +54,16 @@ Mappa impianto. `index.js` è leggero (menu e liste lo importano): quale org ha
 una planimetria (`hasPlantMap`), `MAP_CONF` (da dove viene un punto, e se è una
 stima), `machineMapPosition(machine)` per leggere `machines.map_position`,
 `mapStatus` per il colore del punto. La geometria vera (tasselli del disegno,
-contorni delle aree per nome, locali, linea lenta Beertec) è in `amarcord.js`,
-caricata solo dalla mappa via `plants.js`. Le coordinate sono mm del disegno DWG.
+locali, linea lenta Beertec) è in `amarcord.js`, caricata solo dalla mappa via
+`plants.js`. Le coordinate sono mm del disegno DWG.
 Scrivere un punto: SEMPRE `db.setMachineMapPosition` (RPC della 069, admin e tecnici).
+
+`areas.js`: il contorno delle aree è un dato dell'area (`areas.map_shape`,
+migration 070). `buildMapAreas(plant, areas)` dà le aree pronte per la mappa;
+i contorni di `amarcord.js` sono solo il ripiego per nome quando un'area non ne
+ha uno suo. `AREA_MAP_COLORS` è la tavolozza unica di mappa e Macchinari
+(`areaMapColor` dà la variante per il tema chiaro). Scrivere un contorno:
+`saveArea` di `usePlantMapData` (update diretto, admin-only per RLS della 023).
 
 ## constants.js
 Enum condivisi: `ROLES`, `STATUS`, `SEVERITY`, `REPORT_TYPES`, `QUICK_TEMPLATES`.
